@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\OpenConquer.Domain\OpenConquer.Domain.csproj" />
+  </ItemGroup>
+</Project>

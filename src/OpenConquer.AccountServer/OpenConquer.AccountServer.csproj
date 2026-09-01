@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenConquer.Application\OpenConquer.Application.csproj" />
+    <ProjectReference Include="..\OpenConquer.Infrastructure\OpenConquer.Infrastructure.csproj" />
+    <ProjectReference Include="..\OpenConquer.Protocol\OpenConquer.Protocol.csproj" />
+    <ProjectReference Include="..\OpenConquer.Transport\OpenConquer.Transport.csproj" />
+  </ItemGroup>
+</Project>

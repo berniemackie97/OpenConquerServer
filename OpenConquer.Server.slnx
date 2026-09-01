@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenConquer.AccountServer/OpenConquer.AccountServer.csproj" />
+    <Project Path="src/OpenConquer.Application/OpenConquer.Application.csproj" />
+    <Project Path="src/OpenConquer.Assets/OpenConquer.Assets.csproj" />
+    <Project Path="src/OpenConquer.Domain/OpenConquer.Domain.csproj" />
+    <Project Path="src/OpenConquer.GameServer/OpenConquer.GameServer.csproj" />
+    <Project Path="src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj" />
+    <Project Path="src/OpenConquer.Protocol/OpenConquer.Protocol.csproj" />
+    <Project Path="src/OpenConquer.Transport/OpenConquer.Transport.csproj" />
+  </Folder>
+</Solution>
