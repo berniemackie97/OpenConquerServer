@@ -9,11 +9,7 @@ namespace OpenConquer.Transport.Connections;
 /// </summary>
 public static class TransportConnectionOutput
 {
-    public static async Task PumpAsync(
-        ITransportConnection connection,
-        PipeReader reader,
-        CancellationToken cancellationToken = default
-    )
+    public static async Task PumpAsync(ITransportConnection connection, PipeReader reader, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(reader);
@@ -40,9 +36,7 @@ public static class TransportConnectionOutput
                     {
                         if (!segment.IsEmpty)
                         {
-                            await connection
-                                .SendAsync(segment, cancellationToken)
-                                .ConfigureAwait(false);
+                            await connection.SendAsync(segment, cancellationToken).ConfigureAwait(false);
                         }
                     }
 
