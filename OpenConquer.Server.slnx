@@ -11,5 +11,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/OpenConquer.Protocol.Tests/OpenConquer.Protocol.Tests.csproj" />
+    <Project Path="tests/OpenConquer.Transport.Tests/OpenConquer.Transport.Tests.csproj" />
   </Folder>
 </Solution>

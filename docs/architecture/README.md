@@ -1,8 +1,8 @@
 # Architecture
 
-OpenConquer Server is a modular monolith built around explicit ownership, bounded work,
-server authoritative gameplay, and strict separation between wire protocol, network transport,
-persistence, and the live world.
+OpenConquer Server is a modular monolith built around explicit ownership, bounded work, server
+authoritative gameplay, and strict separation between wire protocol, network transport, persistence,
+and the live world.
 
 ## Solution Structure
 
@@ -390,37 +390,6 @@ map.
 
 Those boundaries should only be introduced when measured capacity or deployment requirements justify
 them.
-
-## Current Implementation
-
-Implemented in the repository today:
-
-- solution and project boundaries
-- protocol primitive serialization
-- TQ text encodings
-- TQ wire-frame representation
-- outbound frame encoding
-- caller-supplied outbound frame limits
-- protocol unit tests
-- Microsoft Testing Platform configuration
-
-Established but not yet fully implemented:
-
-- TCP transport runtime
-- inbound framing
-- login handshake
-- game handshake
-- authentication flow
-- persistence implementation
-- authoritative world scheduler
-- world partitions
-- replication and visibility
-- character ownership transfer
-- full packet catalog
-- gameplay systems
-
-Architecture documentation may describe established future boundaries, but it must clearly
-distinguish them from implemented functionality.
 
 ## Documentation
 

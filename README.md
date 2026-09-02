@@ -88,7 +88,8 @@ src/
 └── OpenConquer.Transport/
 
 tests/
-└── OpenConquer.Protocol.Tests/
+├── OpenConquer.Protocol.Tests/
+└── OpenConquer.Transport.Tests/
 
 benchmarks/
 database/
