@@ -3,9 +3,9 @@
 OpenConquer Server is an open source server emulator for **Conquer Online 5517**, rebuilt in C# on
 **.NET 10**.
 
-The goal of this project is to have a complete and accurate recreation of the live gave servers from
+The goal of this project is to have a complete and accurate recreation of the live game servers from
 Conquer Online while the client was in version 5517. While faithful parity is the ultimate baseline
-goal for the project, the plan is to design it in a way that is easily customizable, and extendable.
+goal for the project, the plan is to design it in a way that is easily customizable and extensible.
 
 > **Status:** Early development. The server is being rebuilt from the ground up in focused, fully
 > tested implementation slices.
@@ -148,6 +148,22 @@ Verify repository formatting without changing files:
 ```bash
 dotnet format OpenConquer.Server.slnx --verify-no-changes --no-restore
 ```
+
+## Continuous Integration
+
+GitHub Actions validates every pull request targeting `main` and every push to `main`.
+
+The CI pipeline:
+
+- restores dependencies from the committed NuGet lock files
+- verifies repository formatting
+- builds the complete solution in Release configuration
+- runs the complete test suite
+- reviews pull-request dependency changes for known vulnerabilities
+
+Dependabot checks NuGet packages, the pinned .NET SDK, and GitHub Actions for updates each week.
+GitHub Actions used by CI are pinned to immutable commit SHAs, with Dependabot responsible for
+keeping those pins current.
 
 ## Disclaimer
 
