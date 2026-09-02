@@ -3,8 +3,7 @@ using System.Threading.Channels;
 namespace OpenConquer.Transport.Connections;
 
 /// <summary>
-/// Provides bounded admission and handoff for established transport
-/// connections.
+/// Provides bounded admission and handoff for established transport connections.
 /// </summary>
 public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
 {
@@ -39,9 +38,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
     internal Task AdmissionCompleted => _admissionCompleted.Task;
 
     /// <summary>
-    /// Attempts to admit a connection without waiting for capacity.
-    /// Ownership transfers to the queue only when the result is
-    /// <see cref="TransportConnectionAdmissionResult.Admitted"/>.
+    /// Attempts to admit a connection without waiting for capacity. Ownership transfers to the queue only when this method returns <see langword="true"/>.
     /// </summary>
     public TransportConnectionAdmissionResult TryAdmit(ITransportConnection connection)
     {
@@ -61,8 +58,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
     }
 
     /// <summary>
-    /// Reads admitted connections until admission is completed.
-    /// Ownership of each yielded connection transfers to the consumer.
+    /// Reads admitted connections until admission is completed. Ownership of each yielded connection transfers to the consumer.
     /// </summary>
     public IAsyncEnumerable<ITransportConnection> ReadAllAsync(
         CancellationToken cancellationToken = default
@@ -72,8 +68,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
     }
 
     /// <summary>
-    /// Prevents further admissions while allowing already admitted
-    /// connections to be drained by consumers.
+    /// Prevents further admissions while allowing already admitted connections to be drained by consumers.
     /// </summary>
     public void Complete(Exception? error = null)
     {

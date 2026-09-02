@@ -4,8 +4,7 @@ using System.Net.Sockets;
 namespace OpenConquer.Transport.Connections;
 
 /// <summary>
-/// Owns one established stream socket and exposes it through the transport
-/// connection contract.
+/// Owns one established stream socket and exposes it through the transport connection contract.
 /// </summary>
 public sealed class SocketTransportConnection : ITransportConnection
 {

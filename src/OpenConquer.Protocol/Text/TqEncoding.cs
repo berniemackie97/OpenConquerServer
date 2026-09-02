@@ -15,9 +15,7 @@ internal static class TqEncoding
     static TqEncoding()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
         s_ansi = Encoding.GetEncoding(Windows1252CodePage);
-
         s_strictAnsi = Encoding.GetEncoding(codepage: Windows1252CodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
     }
 

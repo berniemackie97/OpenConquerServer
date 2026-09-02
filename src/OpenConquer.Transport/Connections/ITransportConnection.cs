@@ -3,8 +3,7 @@ using System.Net;
 namespace OpenConquer.Transport.Connections;
 
 /// <summary>
-/// Represents one established ordered byte-stream connection owned by the
-/// transport layer.
+/// Represents one established ordered byte stream connection owned by the transport layer.
 /// </summary>
 public interface ITransportConnection : IAsyncDisposable
 {

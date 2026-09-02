@@ -17,8 +17,7 @@ public static class WireFrameEncoder
     }
 
     /// <summary>
-    /// Gets the complete encoded frame length, rejecting frames larger than
-    /// <paramref name="maximumFrameLength"/>.
+    /// Gets the complete encoded frame length, rejecting frames larger than <paramref name="maximumFrameLength"/>.
     /// </summary>
     public static int GetFrameLength(IPacket packet, int maximumFrameLength)
     {
@@ -39,7 +38,7 @@ public static class WireFrameEncoder
     /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination)
     {
-        return WriteFrame(packet, destination, ushort.MaxValue);
+        return WriteFrame(packet, destination, maximumFrameLength: ushort.MaxValue);
     }
 
     /// <summary>
