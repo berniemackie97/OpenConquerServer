@@ -4,8 +4,7 @@ using System.Net.Sockets;
 namespace OpenConquer.Transport.Connections;
 
 /// <summary>
-/// Owns one TCP listening socket and transfers accepted connections into the
-/// transport connection abstraction.
+/// Owns one TCP listening socket and transfers accepted connections into the transport connection abstraction.
 /// </summary>
 public sealed class SocketTransportListener : IAsyncDisposable
 {

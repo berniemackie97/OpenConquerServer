@@ -4,8 +4,7 @@ using System.IO.Pipelines;
 namespace OpenConquer.Transport.Connections;
 
 /// <summary>
-/// Transfers bytes from a caller-owned pipeline to an established transport
-/// connection while preserving byte order and pipeline backpressure.
+/// Transfers bytes from a caller owned pipeline to an established transport connection while preserving byte order and pipeline backpressure.
 /// </summary>
 public static class TransportConnectionOutput
 {

@@ -3,7 +3,7 @@ using System.Buffers;
 namespace OpenConquer.Protocol.Framing;
 
 /// <summary>
-/// Extracts and validates complete TQ wire frames from caller-owned buffered input.
+/// Extracts and validates complete TQ wire frames from caller owned buffered input.
 /// </summary>
 public static class WireFrameDecoder
 {
