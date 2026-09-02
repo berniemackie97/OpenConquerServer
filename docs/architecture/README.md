@@ -1,11 +1,11 @@
 # Architecture
 
-OpenConquer Server is built as a modular monolith with two executable hosts and a small set of
-focused libraries.
+OpenConquer Server is a modular monolith built around explicit ownership, bounded work,
+server-authoritative gameplay, and strict separation between wire protocol, network transport,
+persistence, and the live world.
 
-The architecture is designed around server-authoritative gameplay, explicit ownership of mutable
-world state, bounded asynchronous work, and strict separation between gameplay, persistence,
-protocol, and network transport.
+The legacy server is used as behavioral, protocol, and schema evidence. Its architecture is not
+copied into the rewrite.
 
 ## Solution Structure
 
@@ -41,175 +41,133 @@ flowchart TD
 
 An arrow means **depends on**.
 
-## Core Layers
+## Projects
 
-### Domain
+### OpenConquer.Domain
 
-`OpenConquer.Domain` contains the rules and state that define the game and account model.
+Owns game and account rules, models, value objects, and invariants.
 
-It owns:
+Domain does not depend on:
 
-- entities and value objects
-- game rules and invariants
-- character and account state
-- items, combat, skills, NPCs, social systems, and world concepts
-- pure domain state transitions
+- Application
+- Infrastructure
+- Protocol
+- Transport
+- hosting
+- persistence frameworks
 
-It does not depend on persistence, networking, hosting, or protocol code.
+### OpenConquer.Application
 
-### Application
+Owns application behavior around the domain.
 
-`OpenConquer.Application` coordinates the running server around the domain.
+Its boundary includes:
 
-It owns:
-
-- application use cases
-- persistence and external-service contracts
+- use cases
+- infrastructure contracts
 - authoritative world execution
-- world commands and events
-- partition scheduling and routing
+- commands and events
+- routing
+- scheduling
 - cross-system orchestration
 
-The world runtime uses explicit state ownership rather than allowing network sessions or background
-tasks to mutate shared world state directly.
+Application depends inward on Domain and does not depend on Infrastructure.
 
-### Infrastructure
+### OpenConquer.Infrastructure
 
-`OpenConquer.Infrastructure` implements external dependencies required by the application.
+Implements external dependencies required by Application.
 
-It owns:
+Its scope includes:
 
 - MySQL persistence
-- `AccountDbContext`
-- `GameDbContext`
-- repository implementations
-- database mappings and migrations
-- infrastructure-level security and external-service adapters
+- EF Core contexts and mappings
+- repositories
+- migrations
+- external-service adapters
+- infrastructure security implementations
 
-Infrastructure depends inward on Application and Domain. Neither core layer depends on
-Infrastructure.
+Account and game persistence remain distinct ownership boundaries even while sharing one assembly.
 
-## Networking
+### OpenConquer.Protocol
 
-Networking is deliberately split between transport and protocol.
+Owns the Conquer Online wire contract:
 
-```mermaid
-flowchart LR
-    Client["Conquer Client"]
-    Transport["Transport"]
-    Protocol["Protocol"]
-    Host["Server Adapter"]
-    Application["Application"]
-    Domain["Authoritative State"]
-
-    Client --> Transport
-    Transport --> Protocol
-    Protocol --> Host
-    Host --> Application
-    Application --> Domain
-```
-
-### Transport
-
-`OpenConquer.Transport` owns connection mechanics:
-
-- TCP sockets
-- listeners
-- buffering
-- connection lifetime
-- backpressure
-- admission and resource limits
-
-It operates on bytes and does not know about Conquer packets or gameplay.
-
-### Protocol
-
-`OpenConquer.Protocol` owns the Conquer wire contract:
-
-- packet identifiers and layouts
-- framing rules
-- encoding and decoding
-- login and game handshakes
-- legacy cryptography
+- packet identifiers
+- packet layouts
+- framing
+- binary serialization
+- text encodings
+- handshakes
+- protocol cryptography
 - client compatibility behavior
 
-It does not own sockets, persistence, or gameplay state.
+Protocol does not own sockets, connection lifetime, persistence, or gameplay state.
 
-## Executable Hosts
+See the [5517 Protocol Reference](../protocol/README.md).
 
-### AccountServer
+### OpenConquer.Transport
 
-`OpenConquer.AccountServer` is the login-server composition root.
+Owns network mechanics:
 
-It connects transport and protocol handling to account authentication and game-server handoff while
-keeping authentication rules and persistence outside the executable itself.
+- TCP listeners
+- sockets and connection lifetime
+- asynchronous I/O
+- buffering
+- ordering
+- bounded output
+- backpressure
+- admission
+- transport resource limits
 
-### GameServer
+Transport operates on bytes without interpreting Conquer packet semantics.
 
-`OpenConquer.GameServer` is the game-server composition root.
+See [Networking Architecture](networking.md).
 
-It accepts authenticated clients, translates protocol messages into application commands, hosts the
-authoritative world runtime, and translates resulting events back into protocol messages.
+### OpenConquer.Assets
 
-Gameplay state does not belong to network sessions.
+Owns static client-derived data such as:
 
-## World Execution
+- DMap data
+- map metadata
+- static content formats
+- client-derived lookup data
 
-Mutable world state has one authoritative execution owner at a time.
+Asset parsing is separate from network protocol parsing.
 
-The initial ownership boundary is a map instance or another deliberately chosen world partition.
+### OpenConquer.AccountServer
 
-```mermaid
-flowchart LR
-    Packet["Client Packet"]
-    Adapter["GameServer Adapter"]
-    Command["Immutable Command"]
-    Queue["Bounded Partition Queue"]
-    Executor["Partition Executor"]
-    State["Authoritative World State"]
-    Events["World Events"]
+The login-server executable and composition root.
 
-    Packet --> Adapter
-    Adapter --> Command
-    Command --> Queue
-    Queue --> Executor
-    Executor <--> State
-    Executor --> Events
+It composes the services required for:
+
+- login transport
+- login protocol
+- authentication
+- account persistence
+- GameServer handoff
+
+Business rules and infrastructure implementation details do not belong in the host itself.
+
+### OpenConquer.GameServer
+
+The game-server executable and composition root.
+
+Its integration path is:
+
+```text
+Transport
+    ↓
+Protocol
+    ↓
+GameServer adapters
+    ↓
+Application
+    ↓
+Authoritative world
 ```
 
-A partition may execute on different .NET worker threads over time, but two mutation turns for the
-same partition must never execute concurrently.
+Network sessions do not own gameplay state.
 
-This keeps nearby gameplay local while avoiding pervasive locking around shared player, map, combat,
-and visibility state.
-
-## Persistence
-
-The database is durable storage, not the live world.
-
-```mermaid
-flowchart LR
-    Database["MySQL"]
-    Infrastructure["Infrastructure"]
-    Application["Application"]
-    World["Authoritative World"]
-
-    Database --> Infrastructure
-    Infrastructure --> Application
-    Application --> World
-
-    World --> Application
-    Application --> Infrastructure
-    Infrastructure --> Database
-```
-
-Online world objects are not EF Core tracked entities and do not retain long-lived `DbContext`
-instances.
-
-Account and game persistence use separate database contexts and ownership boundaries inside
-`OpenConquer.Infrastructure`.
-
-## Architectural Rules
+## Dependency Rules
 
 The core dependency direction is:
 
@@ -221,7 +179,7 @@ Application
 Infrastructure
 ```
 
-Additionally:
+Additional rules:
 
 ```text
 Protocol     does not depend on Transport or gameplay layers
@@ -229,10 +187,262 @@ Transport    does not depend on Protocol or gameplay layers
 Domain       does not depend on Application or Infrastructure
 Application  does not depend on Infrastructure
 Hosts        are composition roots
+Assets       does not own live gameplay state
 ```
 
-A new assembly should only be introduced when it creates a meaningful dependency, ownership,
-deployment, or reuse boundary.
+A new assembly should only be introduced when it creates a meaningful:
 
-Conceptual modules such as World, Characters, Combat, and Items do not require separate assemblies
-simply because they are important subsystems.
+- dependency boundary
+- ownership boundary
+- deployment boundary
+- provider boundary
+- reuse boundary
+
+Subsystem importance alone does not justify another project.
+
+## Protocol and Transport
+
+Protocol and Transport are intentionally independent.
+
+```text
+Protocol
+"What do these bytes mean?"
+
+Transport
+"How do these bytes move?"
+```
+
+The runtime relationship is:
+
+```mermaid
+flowchart LR
+    Client["Conquer Client"]
+    Transport["Transport"]
+    Protocol["Protocol"]
+    Host["Host Adapter"]
+    Application["Application"]
+    World["Authoritative World"]
+
+    Client <--> Transport
+    Transport <--> Protocol
+    Protocol <--> Host
+    Host <--> Application
+    Application <--> World
+```
+
+Transport must not know packet identifiers, frame compatibility limits, authentication semantics, or
+gameplay meaning.
+
+Protocol must not own sockets, connection lifetime, transport queues, or backpressure.
+
+Detailed boundaries:
+
+- [Networking Architecture](networking.md)
+- [Protocol Reference](../protocol/README.md)
+- [TQ Framing](../protocol/framing.md)
+- [TQ Text Encoding](../protocol/encoding.md)
+
+## Authoritative World
+
+Clients submit requests.
+
+They do not directly mutate gameplay state.
+
+```mermaid
+flowchart LR
+    Packet["Client Request"]
+    Adapter["GameServer Adapter"]
+    Command["Command"]
+    Router["World Router"]
+    Mailbox["Bounded Partition Mailbox"]
+    Executor["Partition Executor"]
+    State["Authoritative State"]
+
+    Packet --> Adapter
+    Adapter --> Command
+    Command --> Router
+    Router --> Mailbox
+    Mailbox --> Executor
+    Executor <--> State
+```
+
+Mutable world state has one authoritative execution owner at a time.
+
+Different partitions may execute concurrently.
+
+The same partition may not execute concurrent mutation turns.
+
+See [World Execution](world-execution.md).
+
+## Persistence
+
+The database is durable storage, not the live world.
+
+```text
+database
+    ↕
+Infrastructure
+    ↕
+Application
+    ↕
+authoritative runtime
+```
+
+Online gameplay objects are not long-lived EF Core tracked entities.
+
+Long-running `DbContext` instances do not own active world state.
+
+External persistence latency must not hold world execution open.
+
+## Resource Ownership
+
+Resources must have visible owners.
+
+Examples:
+
+| Resource                | Owner                            |
+| ----------------------- | -------------------------------- |
+| TCP socket              | Transport connection             |
+| Transport buffers       | Transport                        |
+| Frame memory            | Caller / transport boundary      |
+| `PacketWriter`          | Borrows caller memory            |
+| `DbContext`             | Bounded infrastructure operation |
+| Mutable partition state | World partition                  |
+| Gameplay entity state   | Authoritative runtime owner      |
+
+Borrowed resources must not outlive their owner's validity boundary.
+
+## Bounded Work
+
+Asynchronous work must not grow without control.
+
+This applies to:
+
+- accepted connections
+- transport input/output
+- world partition mailboxes
+- persistence work
+- scheduled world work
+- replication work
+- other producer/consumer boundaries
+
+A bounded queue still requires a deliberate overflow policy.
+
+Depending on semantics, that may involve:
+
+```text
+backpressure
+rejection
+disconnect
+coalescing
+replacement
+controlled shedding
+```
+
+Unbounded accumulation is not the default scalability strategy.
+
+## Failure Boundaries
+
+Subsystems should fail without leaving misleading partially committed state where practical.
+
+The current Protocol foundation already establishes examples:
+
+```text
+PacketReader field failure
+    -> cursor unchanged
+
+PacketWriter validation/capacity failure
+    -> committed position unchanged
+
+WireFrameEncoder serialization failure
+    -> attempted frame cleared
+```
+
+Equivalent explicit failure boundaries should be maintained as networking, persistence,
+authentication, and gameplay systems are implemented.
+
+## Time and Determinism
+
+Simulation durations should use monotonic time.
+
+Calendar behavior should use wall-clock time.
+
+Authoritative randomness should use an explicit controllable abstraction when deterministic testing
+matters.
+
+These boundaries improve reproducibility and prevent system-clock behavior from leaking into
+simulation logic.
+
+## Scaling Strategy
+
+The initial deployment model is a modular monolith.
+
+A GameServer process may host many independently owned world partitions:
+
+```text
+GameServer
+├── WorldPartition A
+├── WorldPartition B
+├── WorldPartition C
+└── WorldPartition D
+```
+
+Different partitions may execute on different .NET worker threads while preserving exclusive
+mutation inside each partition.
+
+The architecture does not require distributed world processes, message brokers, or one process per
+map.
+
+Those boundaries should only be introduced when measured capacity or deployment requirements justify
+them.
+
+## Current Implementation
+
+Implemented in the repository today:
+
+- solution and project boundaries
+- protocol primitive serialization
+- TQ text encodings
+- TQ wire-frame representation
+- outbound frame encoding
+- caller-supplied outbound frame limits
+- protocol unit tests
+- Microsoft Testing Platform configuration
+
+Established but not yet fully implemented:
+
+- TCP transport runtime
+- inbound framing
+- login handshake
+- game handshake
+- authentication flow
+- persistence implementation
+- authoritative world scheduler
+- world partitions
+- replication and visibility
+- character ownership transfer
+- full packet catalog
+- gameplay systems
+
+Architecture documentation may describe established future boundaries, but it must clearly
+distinguish them from implemented functionality.
+
+## Documentation
+
+### Architecture
+
+- [Networking Architecture](networking.md)
+- [World Execution](world-execution.md)
+
+### Protocol
+
+- [Protocol Reference](../protocol/README.md)
+- [TQ Framing](../protocol/framing.md)
+- [TQ Text Encoding](../protocol/encoding.md)
+
+Architecture documents explain **how the server is structured**.
+
+Protocol documents explain **what the 5517 client expects on the wire**.
+
+Both should evolve with implementation so the repository remains an accurate description of the
+system rather than an aspirational design that has drifted away from the code.

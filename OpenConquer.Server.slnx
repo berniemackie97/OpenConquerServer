@@ -9,4 +9,7 @@
     <Project Path="src/OpenConquer.Protocol/OpenConquer.Protocol.csproj" />
     <Project Path="src/OpenConquer.Transport/OpenConquer.Transport.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenConquer.Protocol.Tests/OpenConquer.Protocol.Tests.csproj" />
+  </Folder>
 </Solution>
