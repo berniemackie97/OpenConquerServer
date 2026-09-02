@@ -111,24 +111,15 @@ public sealed class WireFrameEncoderTests
             payload: []
         );
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-            WireFrameEncoder.GetFrameLength(packet, maximumFrameLength: 0x400)
-        );
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => WireFrameEncoder.GetFrameLength(packet, maximumFrameLength: 0x400));
 
-        Assert.Equal(
-            "Packet 4660 declares a 1025-byte frame, which exceeds the 1024-byte maximum.",
-            exception.Message
-        );
+        Assert.Equal("Packet 4660 declares a 1025-byte frame, which exceeds the 1024-byte maximum.", exception.Message);
     }
 
     [Fact]
     public void GetFrameLength_AllowsFrameExactlyAtCallerMaximum()
     {
-        IPacket packet = new DeclaredLengthPacket(
-            packetId: 0x1234,
-            payloadLength: 0x400 - WireFrameHeader.Size,
-            payload: []
-        );
+        IPacket packet = new DeclaredLengthPacket(packetId: 0x1234, payloadLength: 0x400 - WireFrameHeader.Size, payload: []);
 
         int length = WireFrameEncoder.GetFrameLength(packet, maximumFrameLength: 0x400);
 
@@ -140,9 +131,7 @@ public sealed class WireFrameEncoderTests
     {
         IPacket packet = new TestPacket(packetId: 0x1234, payload: []);
 
-        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            WireFrameEncoder.GetFrameLength(packet, WireFrameHeader.Size - 1)
-        );
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => WireFrameEncoder.GetFrameLength(packet, WireFrameHeader.Size - 1));
 
         Assert.Equal("maximumFrameLength", exception.ParamName);
     }
@@ -152,9 +141,7 @@ public sealed class WireFrameEncoderTests
     {
         IPacket packet = new TestPacket(packetId: 0x1234, payload: []);
 
-        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            WireFrameEncoder.GetFrameLength(packet, ushort.MaxValue + 1)
-        );
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => WireFrameEncoder.GetFrameLength(packet, ushort.MaxValue + 1));
 
         Assert.Equal("maximumFrameLength", exception.ParamName);
     }
@@ -162,9 +149,7 @@ public sealed class WireFrameEncoderTests
     [Fact]
     public void GetFrameLength_ThrowsForNullPacket()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            WireFrameEncoder.GetFrameLength(null!)
-        );
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => WireFrameEncoder.GetFrameLength(null!));
 
         Assert.Equal("packet", exception.ParamName);
     }
@@ -204,9 +189,7 @@ public sealed class WireFrameEncoderTests
 
         byte[] destination = [0xCC, 0xCC, 0xCC, 0xCC, 0xCC];
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-            WireFrameEncoder.WriteFrame(packet, destination)
-        );
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => WireFrameEncoder.WriteFrame(packet, destination));
 
         Assert.Equal("Packet identifier 0 is invalid.", exception.Message);
 
@@ -275,11 +258,7 @@ public sealed class WireFrameEncoderTests
     [Fact]
     public void WriteFrame_RejectsFrameAboveCallerMaximumWithoutModifyingDestination()
     {
-        IPacket packet = new DeclaredLengthPacket(
-            packetId: 0x1234,
-            payloadLength: 1021,
-            payload: []
-        );
+        IPacket packet = new DeclaredLengthPacket(packetId: 0x1234, payloadLength: 1021, payload: []);
 
         Span<byte> destination = stackalloc byte[1025];
         destination.Fill(0xCC);
@@ -292,10 +271,7 @@ public sealed class WireFrameEncoderTests
         }
         catch (InvalidOperationException exception)
         {
-            Assert.Equal(
-                "Packet 4660 declares a 1025-byte frame, which exceeds the 1024-byte maximum.",
-                exception.Message
-            );
+            Assert.Equal("Packet 4660 declares a 1025-byte frame, which exceeds the 1024-byte maximum.", exception.Message);
         }
 
         Assert.All(destination.ToArray(), value => Assert.Equal(0xCC, value));
@@ -328,11 +304,7 @@ public sealed class WireFrameEncoderTests
     [Fact]
     public void WriteFrame_ClearsFrameWhenPacketWritesTooFewBytes()
     {
-        IPacket packet = new DeclaredLengthPacket(
-            packetId: 0x1234,
-            payloadLength: 2,
-            payload: [0xAA]
-        );
+        IPacket packet = new DeclaredLengthPacket(packetId: 0x1234, payloadLength: 2, payload: [0xAA]);
 
         Span<byte> destination = stackalloc byte[8];
         destination.Fill(0xCC);
@@ -345,10 +317,7 @@ public sealed class WireFrameEncoderTests
         }
         catch (InvalidOperationException exception)
         {
-            Assert.Equal(
-                "Packet 4660 declared a payload length of 2 bytes but wrote 1 bytes.",
-                exception.Message
-            );
+            Assert.Equal("Packet 4660 declared a payload length of 2 bytes but wrote 1 bytes.", exception.Message);
         }
 
         Assert.Equal([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xCC, 0xCC], destination.ToArray());
@@ -357,11 +326,7 @@ public sealed class WireFrameEncoderTests
     [Fact]
     public void WriteFrame_ClearsFrameWhenPacketWritesTooManyBytes()
     {
-        IPacket packet = new DeclaredLengthPacket(
-            packetId: 0x1234,
-            payloadLength: 1,
-            payload: [0xAA, 0xBB]
-        );
+        IPacket packet = new DeclaredLengthPacket(packetId: 0x1234, payloadLength: 1, payload: [0xAA, 0xBB]);
 
         Span<byte> destination = stackalloc byte[7];
         destination.Fill(0xCC);
@@ -374,10 +339,7 @@ public sealed class WireFrameEncoderTests
         }
         catch (InvalidOperationException exception)
         {
-            Assert.Equal(
-                "PacketWriter buffer overflow: requested 2 bytes with 1 remaining.",
-                exception.Message
-            );
+            Assert.Equal("PacketWriter buffer overflow: requested 2 bytes with 1 remaining.", exception.Message);
         }
 
         Assert.Equal([0x00, 0x00, 0x00, 0x00, 0x00, 0xCC, 0xCC], destination.ToArray());
@@ -443,9 +405,7 @@ public sealed class WireFrameEncoderTests
     [Fact]
     public void WriteFrame_RejectsMaximumBelowHeaderSize()
     {
-        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
-            WriteWithMaximumBelowHeader
-        );
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(WriteWithMaximumBelowHeader);
 
         Assert.Equal("maximumFrameLength", exception.ParamName);
     }
@@ -453,9 +413,7 @@ public sealed class WireFrameEncoderTests
     [Fact]
     public void WriteFrame_RejectsMaximumAboveWireMaximum()
     {
-        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
-            WriteWithMaximumAboveWireLimit
-        );
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(WriteWithMaximumAboveWireLimit);
 
         Assert.Equal("maximumFrameLength", exception.ParamName);
     }
@@ -497,8 +455,7 @@ public sealed class WireFrameEncoderTests
         }
     }
 
-    private sealed class DeclaredLengthPacket(ushort packetId, int payloadLength, byte[] payload)
-        : IPacket
+    private sealed class DeclaredLengthPacket(ushort packetId, int payloadLength, byte[] payload) : IPacket
     {
         public ushort PacketId => packetId;
 

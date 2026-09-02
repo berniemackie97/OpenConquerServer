@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Serialization;
 
 /// <summary>
-/// Writes primitive values and TQ protocol strings sequentially into caller-owned memory.
+/// Writes primitive values and TQ protocol strings sequentially into caller owned memory.
 /// </summary>
 public ref struct PacketWriter(Span<byte> buffer)
 {
@@ -66,21 +66,14 @@ public ref struct PacketWriter(Span<byte> buffer)
         _written += sizeof(ulong);
     }
 
-    public void WriteFixedString(
-        string value,
-        int width,
-        TqTextEncoding encoding = TqTextEncoding.Ansi
-    )
+    public void WriteFixedString(string value, int width, TqTextEncoding encoding = TqTextEncoding.Ansi)
     {
         ArgumentNullException.ThrowIfNull(value);
         ArgumentOutOfRangeException.ThrowIfNegative(width);
 
         if (value.Contains('\0'))
         {
-            throw new ArgumentException(
-                "Fixed-width TQ strings must not contain embedded null characters.",
-                nameof(value)
-            );
+            throw new ArgumentException("Fixed-width TQ strings must not contain embedded null characters.", nameof(value));
         }
 
         Encoding selectedEncoding = TqEncoding.Resolve(encoding);
@@ -88,10 +81,7 @@ public ref struct PacketWriter(Span<byte> buffer)
 
         if (byteCount > width)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(value),
-                "String exceeds the fixed field width."
-            );
+            throw new ArgumentOutOfRangeException(nameof(value), "String exceeds the fixed field width.");
         }
 
         Span<byte> destination = GetWritableSpan(width);
@@ -114,15 +104,11 @@ public ref struct PacketWriter(Span<byte> buffer)
 
         if (byteCount > byte.MaxValue)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(value),
-                "Byte-length string must not exceed 255 encoded bytes."
-            );
+            throw new ArgumentOutOfRangeException(nameof(value), "Byte-length string must not exceed 255 encoded bytes.");
         }
 
         int fieldLength = sizeof(byte) + byteCount;
         Span<byte> destination = GetWritableSpan(fieldLength);
-
         destination[0] = (byte)byteCount;
 
         if (byteCount != 0)
@@ -137,9 +123,7 @@ public ref struct PacketWriter(Span<byte> buffer)
     {
         if (count > Remaining)
         {
-            throw new InvalidOperationException(
-                $"PacketWriter buffer overflow: requested {count} bytes with {Remaining} remaining."
-            );
+            throw new InvalidOperationException($"PacketWriter buffer overflow: requested {count} bytes with {Remaining} remaining.");
         }
 
         return _buffer.Slice(_written, count);

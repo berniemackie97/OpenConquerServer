@@ -144,10 +144,7 @@ public sealed class WireFrameHeaderTests
         {
             Assert.Equal("destination", exception.ParamName);
 
-            Assert.StartsWith(
-                $"Destination must contain at least {WireFrameHeader.Size} bytes.",
-                exception.Message
-            );
+            Assert.StartsWith($"Destination must contain at least {WireFrameHeader.Size} bytes.", exception.Message);
         }
 
         Assert.Equal(expected, destination);

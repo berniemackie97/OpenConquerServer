@@ -3,7 +3,7 @@ using System.Text;
 namespace OpenConquer.Protocol.Text;
 
 /// <summary>
-/// Resolves protocol text selectors to their concrete runtime encodings.
+/// Resolves protocol text selectors to their runtime encodings.
 /// </summary>
 internal static class TqEncoding
 {
@@ -18,11 +18,7 @@ internal static class TqEncoding
 
         s_ansi = Encoding.GetEncoding(Windows1252CodePage);
 
-        s_strictAnsi = Encoding.GetEncoding(
-            Windows1252CodePage,
-            EncoderFallback.ExceptionFallback,
-            DecoderFallback.ExceptionFallback
-        );
+        s_strictAnsi = Encoding.GetEncoding(codepage: Windows1252CodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
     }
 
     internal static Encoding Resolve(TqTextEncoding encoding)
@@ -33,11 +29,7 @@ internal static class TqEncoding
             TqTextEncoding.StrictAnsi => s_strictAnsi,
             TqTextEncoding.Ascii => Encoding.ASCII,
 
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(encoding),
-                encoding,
-                "Unknown TQ text encoding."
-            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(encoding), encoding, "Unknown TQ text encoding."),
         };
     }
 }

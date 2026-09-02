@@ -1,11 +1,8 @@
 # Architecture
 
 OpenConquer Server is a modular monolith built around explicit ownership, bounded work,
-server-authoritative gameplay, and strict separation between wire protocol, network transport,
+server authoritative gameplay, and strict separation between wire protocol, network transport,
 persistence, and the live world.
-
-The legacy server is used as behavioral, protocol, and schema evidence. Its architecture is not
-copied into the rewrite.
 
 ## Solution Structure
 
@@ -38,8 +35,6 @@ flowchart TD
     GameServer --> Transport
     GameServer --> Assets
 ```
-
-An arrow means **depends on**.
 
 ## Projects
 

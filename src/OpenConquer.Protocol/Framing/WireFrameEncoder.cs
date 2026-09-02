@@ -9,12 +9,11 @@ namespace OpenConquer.Protocol.Framing;
 public static class WireFrameEncoder
 {
     /// <summary>
-    /// Gets the complete encoded frame length using the full range supported by
-    /// the 16-bit TQ frame length field.
+    /// Gets the complete encoded frame length using the full range supported by the 16 bit TQ frame length field.
     /// </summary>
     public static int GetFrameLength(IPacket packet)
     {
-        return GetFrameLength(packet, ushort.MaxValue);
+        return GetFrameLength(packet, maximumFrameLength: ushort.MaxValue);
     }
 
     /// <summary>
@@ -24,11 +23,9 @@ public static class WireFrameEncoder
     public static int GetFrameLength(IPacket packet, int maximumFrameLength)
     {
         ArgumentNullException.ThrowIfNull(packet);
-
         ValidateMaximumFrameLength(maximumFrameLength);
 
         ushort packetId = packet.PacketId;
-
         ValidatePacketId(packetId);
 
         int payloadLength = packet.PayloadLength;
@@ -37,8 +34,7 @@ public static class WireFrameEncoder
     }
 
     /// <summary>
-    /// Writes a complete TQ wire frame using the full range supported by the
-    /// 16-bit TQ frame length field.
+    /// Writes a complete TQ wire frame using the full range supported by the 16 bit TQ frame length field.
     /// </summary>
     /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination)
@@ -47,41 +43,23 @@ public static class WireFrameEncoder
     }
 
     /// <summary>
-    /// Writes a complete TQ wire frame, rejecting frames larger than
-    /// <paramref name="maximumFrameLength"/>.
+    /// Writes a complete TQ wire frame, rejecting frames larger than <paramref name="maximumFrameLength"/>.
     /// </summary>
-    /// <remarks>
-    /// Framing itself supports the full 16-bit wire length. Protocol-specific
-    /// boundaries may impose a smaller maximum, such as the 5517 game protocol's
-    /// 0x400-byte header-declared client packet limit.
-    ///
-    /// The destination may be larger than the encoded frame. Only the returned
-    /// number of bytes belong to the frame.
-    ///
-    /// If payload serialization fails, the frame region is cleared before the
-    /// exception is propagated.
-    /// </remarks>
     /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination, int maximumFrameLength)
     {
         ArgumentNullException.ThrowIfNull(packet);
-
         ValidateMaximumFrameLength(maximumFrameLength);
 
         ushort packetId = packet.PacketId;
-
         ValidatePacketId(packetId);
 
         int payloadLength = packet.PayloadLength;
-
         int frameLength = GetValidatedFrameLength(packetId, payloadLength, maximumFrameLength);
 
         if (destination.Length < frameLength)
         {
-            throw new ArgumentException(
-                $"Destination must contain at least {frameLength} bytes.",
-                nameof(destination)
-            );
+            throw new ArgumentException($"Destination must contain at least {frameLength} bytes.", nameof(destination));
         }
 
         Span<byte> frame = destination[..frameLength];
@@ -90,15 +68,11 @@ public static class WireFrameEncoder
         try
         {
             PacketWriter writer = new(payload);
-
             packet.WritePayload(ref writer);
 
             if (writer.Written != payloadLength)
             {
-                throw new InvalidOperationException(
-                    $"Packet {packetId} declared a payload length of "
-                        + $"{payloadLength} bytes but wrote {writer.Written} bytes."
-                );
+                throw new InvalidOperationException($"Packet {packetId} declared a payload length of {payloadLength} bytes but wrote {writer.Written} bytes.");
             }
 
             WireFrameHeader.Write(frame[..WireFrameHeader.Size], (ushort)frameLength, packetId);
@@ -120,27 +94,18 @@ public static class WireFrameEncoder
         }
     }
 
-    private static int GetValidatedFrameLength(
-        ushort packetId,
-        int payloadLength,
-        int maximumFrameLength
-    )
+    private static int GetValidatedFrameLength(ushort packetId, int payloadLength, int maximumFrameLength)
     {
         if (payloadLength < 0)
         {
-            throw new InvalidOperationException(
-                $"Packet {packetId} declared a negative payload length."
-            );
+            throw new InvalidOperationException($"Packet {packetId} declared a negative payload length.");
         }
 
         long frameLength = WireFrameHeader.Size + (long)payloadLength;
 
         if (frameLength > maximumFrameLength)
         {
-            throw new InvalidOperationException(
-                $"Packet {packetId} declares a {frameLength}-byte frame, "
-                    + $"which exceeds the {maximumFrameLength}-byte maximum."
-            );
+            throw new InvalidOperationException($"Packet {packetId} declares a {frameLength}-byte frame, which exceeds the {maximumFrameLength}-byte maximum.");
         }
 
         return (int)frameLength;
@@ -149,7 +114,6 @@ public static class WireFrameEncoder
     private static void ValidateMaximumFrameLength(int maximumFrameLength)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumFrameLength, WireFrameHeader.Size);
-
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumFrameLength, ushort.MaxValue);
     }
 }

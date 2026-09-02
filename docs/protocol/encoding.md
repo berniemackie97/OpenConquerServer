@@ -1,6 +1,6 @@
 # TQ Text Encoding
 
-This document records the text-encoding and string-field behavior currently implemented by
+This document records the text encoding and string field behavior currently implemented by
 `OpenConquer.Protocol`.
 
 For the protocol documentation index, see [README](README.md).

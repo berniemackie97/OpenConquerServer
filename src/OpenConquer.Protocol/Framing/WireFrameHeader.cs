@@ -21,10 +21,7 @@ public readonly struct WireFrameHeader(ushort length, ushort packetId)
             return false;
         }
 
-        header = new WireFrameHeader(
-            BinaryPrimitives.ReadUInt16LittleEndian(source[..sizeof(ushort)]),
-            BinaryPrimitives.ReadUInt16LittleEndian(source[sizeof(ushort)..Size])
-        );
+        header = new WireFrameHeader(length: BinaryPrimitives.ReadUInt16LittleEndian(source[..sizeof(ushort)]), packetId: BinaryPrimitives.ReadUInt16LittleEndian(source[sizeof(ushort)..Size]));
 
         return true;
     }
@@ -33,14 +30,10 @@ public readonly struct WireFrameHeader(ushort length, ushort packetId)
     {
         if (destination.Length < Size)
         {
-            throw new ArgumentException(
-                $"Destination must contain at least {Size} bytes.",
-                nameof(destination)
-            );
+            throw new ArgumentException($"Destination must contain at least {Size} bytes.", nameof(destination));
         }
 
         BinaryPrimitives.WriteUInt16LittleEndian(destination[..sizeof(ushort)], length);
-
         BinaryPrimitives.WriteUInt16LittleEndian(destination[sizeof(ushort)..Size], packetId);
     }
 }
