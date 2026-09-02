@@ -16,8 +16,10 @@ The implemented protocol foundation currently contains:
 ```text
 OpenConquer.Protocol
 ├── Framing
-│   ├── WireFrameHeader
-│   └── WireFrameEncoder
+│   ├── WireFrameDecodeStatus
+│   ├── WireFrameDecoder
+│   ├── WireFrameEncoder
+│   └── WireFrameHeader
 ├── Packets
 │   └── IPacket
 ├── Serialization
@@ -28,34 +30,6 @@ OpenConquer.Protocol
 ```
 
 The concrete runtime encoding resolver remains internal to the protocol assembly.
-
-Implemented today:
-
-- 4-byte TQ frame headers
-- outbound complete-frame encoding
-- nonzero packet-identifier enforcement
-- generic `UInt16` frame-length enforcement
-- caller-supplied frame-length limits
-- little-endian primitive serialization
-- caller-owned fixed-capacity packet writing
-- transactional packet reading
-- Windows-1252, strict Windows-1252, and ASCII protocol text modes
-- fixed-width strings
-- byte-length-prefixed strings
-- deterministic reserved-byte and fixed-field padding
-
-Not yet implemented:
-
-- inbound stream frame extraction
-- game-session selection of the `0x400` compatibility limit
-- login packet families
-- game packet families
-- login handshake
-- game handshake
-- protocol cryptography
-- encrypted `TQServer` / `TQClient` signature handling
-
-Documentation must keep implemented functionality separate from verified future protocol boundaries.
 
 ## Reference
 
@@ -138,16 +112,12 @@ See [TQ Framing](framing.md).
 
 Native 5517 validation establishes packet identifier `0` as invalid for a complete TQ packet.
 
-`WireFrameEncoder` therefore requires:
-
-```text
-PacketId != 0
-```
-
 The rule is intentionally not embedded in `WireFrameHeader`.
 
-This distinction allows the raw four-byte structure to remain a faithful binary representation while
-the complete-frame encoder applies packet-level validity rules.
+`WireFrameEncoder` rejects packet identifier `0` before modifying destination memory.
+
+`WireFrameDecoder` returns `IncompleteFrame` until the complete declared packet is buffered, then
+returns `InvalidPacketId` when that complete packet has identifier `0`.
 
 ### Generic Packet Length
 
@@ -201,8 +171,8 @@ When that trailer is present, the corresponding stream unit may therefore occupy
 
 The generic framing layer does not hard-code the `0x400` limit.
 
-Instead, `WireFrameEncoder` accepts a caller-supplied maximum so the future game-session boundary
-can select `0x400` when that protocol slice is implemented.
+Instead, the generic framing APIs accept a caller-supplied maximum so the future game-session
+boundary can select `0x400` when that protocol slice is implemented.
 
 The existence of caller-supplied limits today does **not** mean the GameServer session boundary is
 already implemented.
@@ -266,6 +236,21 @@ This allows the future Transport implementation to select its buffering and pool
 forcing those decisions into Protocol.
 
 Borrowed protocol memory must not outlive the lifetime guaranteed by its owner.
+
+`WireFrameDecoder` likewise does not own inbound memory.
+
+It accepts a caller-owned `ReadOnlySequence<byte>` and, on success, returns a borrowed slice
+covering exactly the first complete TQ frame.
+
+The decoder does not:
+
+- allocate frame memory
+- coalesce segmented payloads
+- advance a transport buffer
+- retain the supplied sequence
+- perform network I/O
+
+The returned frame must not outlive the source memory supplied by the caller.
 
 ## PacketReader
 
@@ -552,7 +537,7 @@ See [TQ Framing](framing.md).
 
 ## Frame Limits
 
-`WireFrameEncoder` supports two framing modes:
+`WireFrameEncoder` and `WireFrameDecoder` support two framing modes:
 
 ```text
 generic framing
@@ -675,9 +660,11 @@ A new text mode requires:
 
 ## Protocol and Transport
 
-The current framing encoder operates on caller-owned contiguous memory.
+Outbound framing operates on caller-owned contiguous destination memory.
 
-That does not dictate how Transport must buffer sockets.
+Inbound framing accepts caller-owned `ReadOnlySequence<byte>` input. This matches segmented
+buffering such as `System.IO.Pipelines` without requiring Protocol to own a `PipeReader`, socket,
+pool, or other transport resource.
 
 Transport remains free to use:
 
@@ -690,68 +677,8 @@ other bounded buffering strategies
 
 provided ownership and lifetime rules are respected.
 
-Future inbound framing should likewise keep byte-stream ownership in Transport and wire
-interpretation in Protocol.
+The decoder interprets the first frame represented by the supplied bytes but does not advance or
+consume the transport buffer itself. On success, the returned frame boundary gives the caller the
+position through which it may advance its own buffer.
 
-Post-handshake game signature handling also remains outside the generic four-byte frame encoder.
-
-## Tests
-
-The current protocol test suite verifies:
-
-- primitive byte order
-- raw frame-header bytes
-- raw-header independence from complete-packet validity
-- complete-frame rejection of packet identifier `0`
-- generic maximum packets
-- caller-supplied packet limits
-- the known `0x400` game packet boundary when supplied by the caller
-- packet metadata snapshotting
-- payload-length enforcement
-- frame failure cleanup
-- reader cursor atomicity
-- writer validation and capacity atomicity
-- Windows-1252 wire behavior
-- observable default ANSI fallback behavior
-- strict Windows-1252 behavior
-- ASCII versus Windows-1252 behavior
-- unknown `TqTextEncoding` rejection
-- fixed-width string semantics
-- byte-length string semantics
-- embedded-null handling
-- deterministic zero padding
-- caller-owned memory behavior
-
-Tests prove externally meaningful protocol contracts rather than attempting to manufacture
-unreachable failure cases for the current closed encoding set.
-
-Protocol tests use xUnit v3 on Microsoft Testing Platform.
-
-Coverage integration uses `coverlet.MTP`.
-
-## Documentation Growth
-
-The current protocol documentation is:
-
-```text
-docs/protocol/
-├── README.md
-├── encoding.md
-└── framing.md
-```
-
-Future documents should follow actual verified implementation work.
-
-Likely examples include:
-
-```text
-login.md
-game.md
-cryptography.md
-packets/
-```
-
-They should not be created until those boundaries contain verified behavior worth documenting.
-
-Documentation should evolve alongside implementation so it remains an accurate protocol reference
-rather than a speculative design document.
+Post-handshake game signature handling remains outside the generic four-byte framing layer.

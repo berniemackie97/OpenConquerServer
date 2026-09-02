@@ -81,6 +81,7 @@ Transport
       ↓
 TCP socket
 ```
+
 ## Connection Ownership
 
 Each transport connection owns its network resources for its lifetime.
@@ -130,24 +131,51 @@ or:
 several frames
 ```
 
-Transport buffers an ordered stream rather than treating socket reads as application
-messages.
+Transport therefore treats inbound data as an ordered byte stream rather than treating socket reads
+as application messages.
+
+The Protocol framing boundary now accepts:
+
+```text
+ReadOnlySequence<byte>
+```
+
+so future buffered transport integration can expose segmented memory without coalescing it merely
+for framing.
 
 Conceptually:
 
 ```text
-socket read
+socket reads
     ↓
-transport input buffer
+transport-owned input buffer
     ↓
-Protocol framing
-    ├── incomplete frame -> retain bytes
-    └── complete frame   -> consume bytes
+WireFrameDecoder
+    ├── IncompleteHeader / IncompleteFrame -> retain bytes
+    ├── invalid frame                      -> protocol/session failure policy
+    └── Success                            -> process borrowed frame
+                                             then advance buffer
 ```
 
-Transport owns the buffered memory.
+`WireFrameDecoder` does not own or advance transport memory.
 
-Protocol may borrow that memory only within the lifetime guaranteed by the caller.
+Transport owns the buffered memory and controls its lifetime. Protocol may borrow that memory only
+within the lifetime guaranteed by the caller.
+
+This keeps:
+
+```text
+buffer ownership and advancement
+    -> Transport
+
+TQ header interpretation and frame validity
+    -> Protocol
+
+disconnect/session reaction to invalid protocol input
+    -> host/session integration
+```
+
+separate.
 
 ## Output Model
 
