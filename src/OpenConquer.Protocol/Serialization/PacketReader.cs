@@ -18,17 +18,17 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
 
     public byte ReadByte()
     {
-        return ReadSpan(sizeof(byte))[0];
+        return ReadSpan(count: sizeof(byte))[0];
     }
 
     public ushort ReadUInt16()
     {
-        return BinaryPrimitives.ReadUInt16LittleEndian(ReadSpan(sizeof(ushort)));
+        return BinaryPrimitives.ReadUInt16LittleEndian(source: ReadSpan(count: sizeof(ushort)));
     }
 
     public uint ReadUInt32()
     {
-        return BinaryPrimitives.ReadUInt32LittleEndian(ReadSpan(sizeof(uint)));
+        return BinaryPrimitives.ReadUInt32LittleEndian(source: ReadSpan(count: sizeof(uint)));
     }
 
     public ReadOnlySpan<byte> ReadBytes(int count)
@@ -61,7 +61,7 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
     {
         Encoding selectedEncoding = TqEncoding.Resolve(encoding);
 
-        ReadOnlySpan<byte> lengthField = PeekSpan(sizeof(byte));
+        ReadOnlySpan<byte> lengthField = PeekSpan(count: sizeof(byte));
         byte length = lengthField[0];
         int fieldLength = sizeof(byte) + length;
         ReadOnlySpan<byte> field = PeekSpan(fieldLength);
@@ -96,6 +96,6 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
             throw new InvalidOperationException("PacketReader: buffer underflow");
         }
 
-        return _buffer.Slice(_offset, count);
+        return _buffer.Slice(start: _offset, length: count);
     }
 }

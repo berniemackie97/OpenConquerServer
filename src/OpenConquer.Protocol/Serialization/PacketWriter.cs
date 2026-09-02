@@ -28,7 +28,7 @@ public ref struct PacketWriter(Span<byte> buffer)
 
     public void WriteByte(byte value)
     {
-        Span<byte> destination = GetWritableSpan(sizeof(byte));
+        Span<byte> destination = GetWritableSpan(count: sizeof(byte));
         destination[0] = value;
 
         _written += sizeof(byte);
@@ -44,7 +44,7 @@ public ref struct PacketWriter(Span<byte> buffer)
 
     public void WriteUInt16(ushort value)
     {
-        Span<byte> destination = GetWritableSpan(sizeof(ushort));
+        Span<byte> destination = GetWritableSpan(count: sizeof(ushort));
         BinaryPrimitives.WriteUInt16LittleEndian(destination, value);
 
         _written += sizeof(ushort);
@@ -52,7 +52,7 @@ public ref struct PacketWriter(Span<byte> buffer)
 
     public void WriteUInt32(uint value)
     {
-        Span<byte> destination = GetWritableSpan(sizeof(uint));
+        Span<byte> destination = GetWritableSpan(count: sizeof(uint));
         BinaryPrimitives.WriteUInt32LittleEndian(destination, value);
 
         _written += sizeof(uint);
@@ -60,7 +60,7 @@ public ref struct PacketWriter(Span<byte> buffer)
 
     public void WriteUInt64(ulong value)
     {
-        Span<byte> destination = GetWritableSpan(sizeof(ulong));
+        Span<byte> destination = GetWritableSpan(count: sizeof(ulong));
         BinaryPrimitives.WriteUInt64LittleEndian(destination, value);
 
         _written += sizeof(ulong);
@@ -126,6 +126,6 @@ public ref struct PacketWriter(Span<byte> buffer)
             throw new InvalidOperationException($"PacketWriter buffer overflow: requested {count} bytes with {Remaining} remaining.");
         }
 
-        return _buffer.Slice(_written, count);
+        return _buffer.Slice(start: _written, length: count);
     }
 }

@@ -7,12 +7,6 @@ namespace OpenConquer.Transport.Connections;
 /// Owns one established stream socket and exposes it through the transport
 /// connection contract.
 /// </summary>
-/// <remarks>
-/// Supplying a non-null <paramref name="socket"/> transfers ownership to this
-/// connection. The socket is disposed if construction subsequently fails.
-/// One receive and one send may execute concurrently. Overlapping operations
-/// in the same direction are rejected.
-/// </remarks>
 public sealed class SocketTransportConnection : ITransportConnection
 {
     private readonly Socket _socket;
@@ -28,10 +22,7 @@ public sealed class SocketTransportConnection : ITransportConnection
         {
             if (socket.SocketType != SocketType.Stream)
             {
-                throw new ArgumentException(
-                    "Transport connections require a stream socket.",
-                    nameof(socket)
-                );
+                throw new ArgumentException("Transport connections require a stream socket.", nameof(socket));
             }
 
             EndPoint? localEndPoint = socket.LocalEndPoint;
@@ -39,10 +30,7 @@ public sealed class SocketTransportConnection : ITransportConnection
 
             if (localEndPoint is null || remoteEndPoint is null)
             {
-                throw new ArgumentException(
-                    "Transport connections require an established socket with local and remote endpoints.",
-                    nameof(socket)
-                );
+                throw new ArgumentException("Transport connections require an established socket with local and remote endpoints.", nameof(socket));
             }
 
             _socket = socket;
@@ -56,25 +44,16 @@ public sealed class SocketTransportConnection : ITransportConnection
         }
     }
 
-    /// <inheritdoc />
     public EndPoint LocalEndPoint { get; }
-
-    /// <inheritdoc />
     public EndPoint RemoteEndPoint { get; }
 
-    /// <inheritdoc />
-    public async ValueTask<int> ReceiveAsync(
-        Memory<byte> buffer,
-        CancellationToken cancellationToken = default
-    )
+    public async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         if (Interlocked.Exchange(ref _receiveActive, 1) != 0)
         {
-            throw new InvalidOperationException(
-                "Only one receive operation may be active per transport connection."
-            );
+            throw new InvalidOperationException("Only one receive operation may be active per transport connection.");
         }
 
         try
@@ -84,9 +63,7 @@ public sealed class SocketTransportConnection : ITransportConnection
                 return 0;
             }
 
-            return await _socket
-                .ReceiveAsync(buffer, SocketFlags.None, cancellationToken)
-                .ConfigureAwait(false);
+            return await _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -94,19 +71,13 @@ public sealed class SocketTransportConnection : ITransportConnection
         }
     }
 
-    /// <inheritdoc />
-    public async ValueTask SendAsync(
-        ReadOnlyMemory<byte> buffer,
-        CancellationToken cancellationToken = default
-    )
+    public async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         if (Interlocked.Exchange(ref _sendActive, 1) != 0)
         {
-            throw new InvalidOperationException(
-                "Only one send operation may be active per transport connection."
-            );
+            throw new InvalidOperationException("Only one send operation may be active per transport connection.");
         }
 
         try
@@ -120,9 +91,7 @@ public sealed class SocketTransportConnection : ITransportConnection
 
             while (sent < buffer.Length)
             {
-                int count = await _socket
-                    .SendAsync(buffer[sent..], SocketFlags.None, cancellationToken)
-                    .ConfigureAwait(false);
+                int count = await _socket.SendAsync(buffer[sent..], SocketFlags.None, cancellationToken).ConfigureAwait(false);
 
                 if (count <= 0)
                 {
@@ -131,10 +100,7 @@ public sealed class SocketTransportConnection : ITransportConnection
 
                 if ((uint)count > (uint)(buffer.Length - sent))
                 {
-                    throw new IOException(
-                        $"Socket send reported {count} bytes with only "
-                            + $"{buffer.Length - sent} bytes remaining."
-                    );
+                    throw new IOException($"Socket send reported {count} bytes with only {buffer.Length - sent} bytes remaining.");
                 }
 
                 sent += count;
@@ -146,7 +112,6 @@ public sealed class SocketTransportConnection : ITransportConnection
         }
     }
 
-    /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposeState, 1) == 0)
