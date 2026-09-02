@@ -7,7 +7,7 @@ namespace OpenConquer.Transport.Connections;
 /// Owns one TCP listening socket and transfers accepted connections into the
 /// transport connection abstraction.
 /// </summary>
-public sealed class SocketTransportListener : IAsyncDisposable
+public sealed class SocketTransportListener : ITransportConnectionListener
 {
     private readonly Socket _socket;
     private int _disposeState;
