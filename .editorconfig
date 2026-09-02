@@ -64,6 +64,13 @@ csharp_space_between_parentheses = false
 csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async:suggestion
 
 # Naming
+#
+# IDE1006 carries every naming-rule violation. Without this line the rules below parse and
+# then report nothing on build, so the convention would be advisory only. Verified with a
+# probe type holding deliberately misnamed fields: absent this line the build reports zero
+# diagnostics for them.
+dotnet_diagnostic.IDE1006.severity = warning
+
 dotnet_naming_rule.private_fields_should_be_underscore_camel_case.severity = warning
 dotnet_naming_rule.private_fields_should_be_underscore_camel_case.symbols = private_fields
 dotnet_naming_rule.private_fields_should_be_underscore_camel_case.style = underscore_camel_case
