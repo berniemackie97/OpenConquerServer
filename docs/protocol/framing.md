@@ -2,8 +2,8 @@
 
 This document records the framing behavior currently implemented by `OpenConquer.Protocol`.
 
-It describes the common TQ frame header, outbound frame encoding, frame-size boundaries, packet
-payload contracts, and failure behavior.
+It describes the common TQ frame header, inbound frame extraction, outbound frame encoding,
+frame-size boundaries, packet payload contracts, memory ownership, and failure behavior.
 
 For the protocol documentation index, see [README](README.md).
 
@@ -38,8 +38,7 @@ Packet ID:  0x5678
 Payload:    AA BB
 ```
 
-The four-byte header and payload form the TQ packet represented by `WireFrameEncoder`.
-
+The four-byte header and payload form the TQ packet handled by the generic framing layer.
 Transport-level encryption or signature bytes that surround that packet are separate concerns.
 
 ## WireFrameHeader
@@ -70,15 +69,12 @@ This keeps the responsibilities separate:
 WireFrameHeader
     raw binary representation
 
-WireFrameEncoder
-    complete-packet validity
+WireFrameDecoder / WireFrameEncoder
+    generic complete-packet validity
 
 login/game protocol boundary
     path-specific compatibility rules
 ```
-
-`WireFrameHeader` should remain usable by future inbound framing without embedding packet-family
-policy into the binary header type.
 
 ## Byte Order
 
@@ -95,27 +91,37 @@ The current primitive protocol serializers follow the same little-endian rule.
 
 ## Packet Identifier
 
-Native 5517 packet validation requires the packet identifier to be nonzero.
+Native 5517 packet validation requires the packet identifier to be nonzero for a complete TQ packet.
 
-Therefore a complete packet encoded by `WireFrameEncoder` requires:
+Therefore:
 
-```
+```text
 PacketId != 0
 ```
 
-Packet identifier `0` is rejected before destination memory is modified.
+is a complete-packet framing rule.
 
-This is a complete-packet rule, not a raw-header rule.
+`WireFrameEncoder` rejects packet identifier `0` before destination memory is modified.
 
-The distinction is intentional:
+`WireFrameDecoder` does not reject the raw identifier until the complete header-declared packet is
+available. For example:
 
+```text
+valid declared length
+PacketId = 0
+not all declared bytes buffered
+    -> IncompleteFrame
+
+valid declared length
+PacketId = 0
+all declared bytes buffered
+    -> InvalidPacketId
 ```
-WireFrameHeader
-    may represent PacketId = 0
 
-WireFrameEncoder
-    rejects PacketId = 0
-```
+This preserves the native distinction between inspecting a raw header and validating a complete
+packet.
+
+The rule remains outside `WireFrameHeader`, which may faithfully represent `PacketId = 0`.
 
 Individual packet families may impose additional identifier expectations when they are implemented.
 
@@ -135,13 +141,12 @@ The largest corresponding payload is:
 65535 - 4 = 65531 bytes
 ```
 
-This is the generic framing limit supported by `WireFrameEncoder`.
-
+This is the generic framing limit supported by the framing layer.
 It is not automatically the valid maximum for every protocol path.
 
 ## Caller-Supplied Limits
 
-`WireFrameEncoder` supports a caller-supplied maximum packet length.
+`WireFrameEncoder` and `WireFrameDecoder` support a caller-supplied maximum packet length.
 
 This allows a future protocol boundary to impose a stricter compatibility limit while leaving the
 generic four-byte TQ framing primitive reusable.
@@ -159,6 +164,102 @@ protocol-specific caller
 The current foundation implements the ability to enforce such a supplied maximum.
 
 It does not yet contain the GameServer boundary that selects the game client's `0x400` limit.
+
+## Inbound Frame Extraction
+
+`WireFrameDecoder` interprets the first TQ frame in caller-owned buffered input.
+
+Its input is:
+
+```text
+ReadOnlySequence<byte>
+```
+
+rather than a socket, stream, `PipeReader`, pooled array, or transport connection.
+
+This allows the framing layer to operate directly over segmented transport buffers without taking
+ownership of transport mechanics.
+
+### Decode Results
+
+Inbound decoding produces one of five results:
+
+```text
+IncompleteHeader
+    fewer than 4 bytes are available
+
+InvalidFrameLength
+    the complete header is available
+    declared length is below 4
+    or declared length exceeds the caller-selected maximum
+
+IncompleteFrame
+    the declared length is valid
+    but fewer than the declared number of bytes are available
+
+InvalidPacketId
+    the complete declared frame is available
+    but PacketId is 0
+
+Success
+    the first complete valid frame is available
+```
+
+Invalid declared lengths are rejected as soon as the complete four-byte header is available.
+
+This is deliberate: a peer cannot force the server to wait for a payload whose declared size is
+already impossible or exceeds the caller-selected compatibility limit.
+
+Packet-identifier validation occurs only after all header-declared frame bytes are available because
+the nonzero identifier rule belongs to complete-packet validation.
+
+### Buffer Consumption
+
+`WireFrameDecoder` does not consume or advance the supplied sequence.
+
+On incomplete or invalid results:
+
+```text
+frame = empty
+```
+
+The parsed header is still returned whenever a complete four-byte header was available.
+
+On success, the returned frame:
+
+- begins at the start of the supplied sequence;
+- contains exactly the header-declared number of bytes;
+- excludes any bytes belonging to later coalesced frames;
+- may span multiple sequence segments;
+- borrows its memory from the supplied sequence.
+
+A transport caller can therefore advance its own buffer through the returned frame's end only after
+it has completed whatever protocol/session processing requires those bytes.
+
+### Segmented Input
+
+Neither the four-byte header nor the payload is required to occupy one contiguous memory segment.
+
+A header may arrive conceptually as:
+
+```text
+segment 1    06
+segment 2    00 78
+segment 3    56 AA BB
+```
+
+and still represent:
+
+```text
+Length:     6
+Packet ID:  0x5678
+Payload:    AA BB
+```
+
+Only the four header bytes are copied to temporary stack memory when the header itself crosses a
+segment boundary.
+
+The complete returned frame is not coalesced or copied.
 
 ## 5517 Game Packet Limit
 
@@ -450,10 +551,10 @@ WireFrameEncoder
 
 This prevents low-level binary structures from accumulating higher-level protocol policy.
 
-Future inbound framing should preserve the same separation.
+`WireFrameDecoder` preserves the same separation.
 
-A stream decoder may first parse a raw header, then apply complete-packet validation before exposing
-the packet to packet-specific decoding.
+It first interprets the raw four-byte header, validates declared frame length, waits until the
+complete declared frame exists, and only then applies the nonzero complete-packet identifier rule.
 
 ## Protocol and Transport Boundary
 
@@ -463,6 +564,9 @@ Transport should provide ordered bytes and manage memory lifetime, buffering, ba
 socket behavior.
 
 Protocol determines what those bytes mean and which packet-level rules apply.
+
+`WireFrameDecoder` makes this boundary concrete by accepting a borrowed `ReadOnlySequence<byte>`
+rather than depending on Transport or `System.IO.Pipelines` directly.
 
 Transport should not contain rules such as:
 
@@ -479,69 +583,3 @@ At the same time, session-security concerns such as encryption state and the enc
 game signature trailer should not be pushed into the generic four-byte frame encoder.
 
 The networking boundary is documented in [Networking Architecture](../architecture/networking.md).
-
-## Current Implementation Boundary
-
-The framing foundation currently consists of:
-
-```
-Framing/
-├── WireFrameHeader
-└── WireFrameEncoder
-
-Packets/
-└── IPacket
-```
-
-Implemented now:
-
-- raw four-byte TQ header representation;
-- little-endian header read/write;
-- outbound complete-packet encoding;
-- nonzero packet-identifier enforcement;
-- generic `UInt16` packet-length enforcement;
-- caller-supplied maximum packet lengths;
-- exact payload-length enforcement;
-- deterministic failure cleanup.
-
-Not yet implemented:
-
-- inbound stream packet extraction;
-- game-session selection of the `0x400` compatibility limit;
-- encrypted `TQServer` / `TQClient` signature handling;
-- login/game handshake framing;
-- protocol cryptography;
-- packet-family dispatch.
-
-Those future slices should reuse this foundation rather than collapsing their policy back into
-generic framing.
-
-## Tested Invariants
-
-The current protocol tests verify:
-
-- exact four-byte header representation;
-- little-endian length and packet identifier;
-- raw-header independence from complete-packet policy;
-- rejection of packet identifier `0` by complete-frame encoding;
-- zero-length payload packets;
-- maximum `UInt16` packet;
-- rejection above the generic maximum;
-- caller-provided maximum packet lengths;
-- exact `0x400` caller-supplied boundary behavior;
-- insufficient destination behavior;
-- payload underwrite detection;
-- payload overwrite prevention;
-- packet-region clearing after serialization failure;
-- header commit only after successful payload serialization;
-- packet metadata read once per encoding operation;
-- pre-write metadata failures leaving destination memory unchanged.
-
-The `0x400` tests establish that the generic encoder can enforce that boundary when supplied by a
-caller.
-
-They do not imply that a GameServer/session boundary selecting that limit has already been
-implemented.
-
-Tests should remain focused on externally meaningful framing behavior, compatibility invariants, and
-ownership guarantees rather than implementation trivia.

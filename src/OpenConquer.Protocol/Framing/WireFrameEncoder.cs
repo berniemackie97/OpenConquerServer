@@ -23,7 +23,7 @@ public static class WireFrameEncoder
     public static int GetFrameLength(IPacket packet, int maximumFrameLength)
     {
         ArgumentNullException.ThrowIfNull(packet);
-        ValidateMaximumFrameLength(maximumFrameLength);
+        WireFrameValidation.ValidateMaximumFrameLength(maximumFrameLength);
 
         ushort packetId = packet.PacketId;
         ValidatePacketId(packetId);
@@ -49,7 +49,7 @@ public static class WireFrameEncoder
     public static int WriteFrame(IPacket packet, Span<byte> destination, int maximumFrameLength)
     {
         ArgumentNullException.ThrowIfNull(packet);
-        ValidateMaximumFrameLength(maximumFrameLength);
+        WireFrameValidation.ValidateMaximumFrameLength(maximumFrameLength);
 
         ushort packetId = packet.PacketId;
         ValidatePacketId(packetId);
@@ -88,7 +88,7 @@ public static class WireFrameEncoder
 
     private static void ValidatePacketId(ushort packetId)
     {
-        if (packetId == 0)
+        if (!WireFrameValidation.IsPacketIdValid(packetId))
         {
             throw new InvalidOperationException("Packet identifier 0 is invalid.");
         }
@@ -109,11 +109,5 @@ public static class WireFrameEncoder
         }
 
         return (int)frameLength;
-    }
-
-    private static void ValidateMaximumFrameLength(int maximumFrameLength)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumFrameLength, WireFrameHeader.Size);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumFrameLength, ushort.MaxValue);
     }
 }
