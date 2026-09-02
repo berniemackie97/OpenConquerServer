@@ -38,9 +38,14 @@ public sealed class TransportConnectionAdmissionQueueTests
 
         Assert.Equal(2, queue.Capacity);
 
-        Assert.True(queue.TryAdmit(first));
-        Assert.True(queue.TryAdmit(second));
-        Assert.False(queue.TryAdmit(rejected));
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(first));
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(second));
+
+        Assert.Equal(
+            TransportConnectionAdmissionResult.CapacityExhausted,
+            queue.TryAdmit(rejected)
+        );
 
         Assert.False(first.IsDisposed);
         Assert.False(second.IsDisposed);
@@ -64,7 +69,8 @@ public sealed class TransportConnectionAdmissionQueueTests
         queue.Complete();
         queue.Complete();
 
-        Assert.False(queue.TryAdmit(connection));
+        Assert.Equal(TransportConnectionAdmissionResult.Completed, queue.TryAdmit(connection));
+
         Assert.False(connection.IsDisposed);
 
         await queue.DisposeAsync();
@@ -83,9 +89,11 @@ public sealed class TransportConnectionAdmissionQueueTests
         TrackingTransportConnection second = new();
         TrackingTransportConnection third = new();
 
-        Assert.True(queue.TryAdmit(first));
-        Assert.True(queue.TryAdmit(second));
-        Assert.True(queue.TryAdmit(third));
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(first));
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(second));
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(third));
 
         queue.Complete();
 
@@ -142,7 +150,7 @@ public sealed class TransportConnectionAdmissionQueueTests
         TrackingTransportConnection connection = new();
         InvalidOperationException failure = new("admission failed");
 
-        Assert.True(queue.TryAdmit(connection));
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(connection));
 
         queue.Complete(failure);
 
@@ -173,15 +181,18 @@ public sealed class TransportConnectionAdmissionQueueTests
         TransportConnectionAdmissionQueue queue = new(capacity: 3);
 
         InvalidOperationException firstFailure = new("first disposal failed");
+
         IOException secondFailure = new("second disposal failed");
 
         TrackingTransportConnection first = new(firstFailure);
         TrackingTransportConnection second = new();
         TrackingTransportConnection third = new(secondFailure);
 
-        Assert.True(queue.TryAdmit(first));
-        Assert.True(queue.TryAdmit(second));
-        Assert.True(queue.TryAdmit(third));
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(first));
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(second));
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(third));
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
             queue.DisposeAsync().AsTask()
