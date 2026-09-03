@@ -114,6 +114,37 @@ public sealed class LoginFrameWriterTests
     }
 
     [Fact]
+    public async Task WriteAsync_SnapshotsPacketMetadataOnce()
+    {
+        Pipe pipe = new();
+
+        try
+        {
+            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+
+            MetadataChangingPacket packet = new();
+
+            await writer.WriteAsync(packet, TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, packet.PacketIdReadCount);
+
+            Assert.Equal(1, packet.PayloadLengthReadCount);
+
+            byte[] actual = await ReadAvailableAsync(
+                pipe.Reader,
+                TestContext.Current.CancellationToken
+            );
+
+            Assert.Equal(Convert.FromHexString("15481873A3"), actual);
+        }
+        finally
+        {
+            await pipe.Writer.CompleteAsync();
+            await pipe.Reader.CompleteAsync();
+        }
+    }
+
+    [Fact]
     public async Task WriteAsync_RejectsOversizedFrameWithoutAdvancingCipherOrWritingBytes()
     {
         Pipe pipe = new();
@@ -125,6 +156,40 @@ public sealed class LoginFrameWriterTests
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 writer
                     .WriteAsync(new OversizedLoginPacket(), TestContext.Current.CancellationToken)
+                    .AsTask()
+            );
+
+            await writer.WriteAsync(
+                new LoginSeedPacket(seed: 0x1234_5678),
+                TestContext.Current.CancellationToken
+            );
+
+            byte[] actual = await ReadAvailableAsync(
+                pipe.Reader,
+                TestContext.Current.CancellationToken
+            );
+
+            Assert.Equal(Convert.FromHexString("C54869128E317C0F"), actual);
+        }
+        finally
+        {
+            await pipe.Writer.CompleteAsync();
+            await pipe.Reader.CompleteAsync();
+        }
+    }
+
+    [Fact]
+    public async Task WriteAsync_PacketSerializationFailureDoesNotAdvanceCipherOrPoisonWriter()
+    {
+        Pipe pipe = new();
+
+        try
+        {
+            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                writer
+                    .WriteAsync(new ThrowingLoginPacket(), TestContext.Current.CancellationToken)
                     .AsTask()
             );
 
@@ -279,6 +344,50 @@ public sealed class LoginFrameWriterTests
         }
     }
 
+    [Fact]
+    public async Task WriteAsync_CompletedOutputPermanentlyPoisonsWriter()
+    {
+        Pipe pipe = new();
+
+        await pipe.Reader.CompleteAsync();
+
+        try
+        {
+            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+
+            InvalidOperationException completionException =
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    writer
+                        .WriteAsync(
+                            new LoginSeedPacket(seed: 0x1234_5678),
+                            TestContext.Current.CancellationToken
+                        )
+                        .AsTask()
+                );
+
+            Assert.Equal("The login output pipeline is completed.", completionException.Message);
+
+            InvalidOperationException terminalException =
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    writer
+                        .WriteAsync(
+                            new LoginSeedPacket(seed: 0x1234_5678),
+                            TestContext.Current.CancellationToken
+                        )
+                        .AsTask()
+                );
+
+            Assert.Equal(
+                "The login frame writer cannot be reused after an output failure.",
+                terminalException.Message
+            );
+        }
+        finally
+        {
+            await pipe.Writer.CompleteAsync();
+        }
+    }
+
     private static async Task<byte[]> ReadAvailableAsync(
         PipeReader reader,
         CancellationToken cancellationToken
@@ -307,6 +416,52 @@ public sealed class LoginFrameWriterTests
             throw new InvalidOperationException(
                 "An oversized login packet must be rejected before payload serialization."
             );
+        }
+    }
+
+    private sealed class ThrowingLoginPacket : IPacket
+    {
+        public ushort PacketId => 0x1234;
+
+        public int PayloadLength => 1;
+
+        public void WritePayload(ref PacketWriter writer)
+        {
+            writer.WriteByte(0xAA);
+
+            throw new InvalidOperationException("Packet serialization failed.");
+        }
+    }
+
+    private sealed class MetadataChangingPacket : IPacket
+    {
+        public int PacketIdReadCount { get; private set; }
+
+        public int PayloadLengthReadCount { get; private set; }
+
+        public ushort PacketId
+        {
+            get
+            {
+                PacketIdReadCount++;
+
+                return PacketIdReadCount == 1 ? (ushort)0x1234 : (ushort)0xFFFF;
+            }
+        }
+
+        public int PayloadLength
+        {
+            get
+            {
+                PayloadLengthReadCount++;
+
+                return PayloadLengthReadCount == 1 ? 1 : 500;
+            }
+        }
+
+        public void WritePayload(ref PacketWriter writer)
+        {
+            writer.WriteByte(0xAA);
         }
     }
 }
