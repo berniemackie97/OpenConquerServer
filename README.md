@@ -1,5 +1,7 @@
 # OpenConquer Server
 
+[![CI](https://github.com/berniemackie97/OpenConquerServer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/berniemackie97/OpenConquerServer/actions/workflows/ci.yml)
+
 OpenConquer Server is an open source server emulator for **Conquer Online 5517**, rebuilt in C# on
 **.NET 10**.
 
@@ -62,7 +64,7 @@ flowchart TD
 
 ## Documentation
 
-Detailed design and compatibility documentation lives under [`docs`](docs).
+Detailed design and compatibility documentation lives under [docs](docs).
 
 ### Architecture
 
