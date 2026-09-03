@@ -23,10 +23,7 @@ internal sealed class LoginInboundFrame : IDisposable
 
         if (packetId == 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(packetId),
-                "Packet identifier 0 is invalid."
-            );
+            throw new ArgumentOutOfRangeException(nameof(packetId), "Packet identifier 0 is invalid.");
         }
 
         _buffer = buffer;
@@ -35,7 +32,6 @@ internal sealed class LoginInboundFrame : IDisposable
     }
 
     public int FrameLength { get; }
-
     public ushort PacketId { get; }
 
     public ReadOnlyMemory<byte> Payload

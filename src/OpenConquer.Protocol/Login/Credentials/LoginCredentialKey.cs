@@ -18,10 +18,7 @@ public static class LoginCredentialKey
     {
         if (destination.Length < Length)
         {
-            throw new ArgumentException(
-                $"Destination must contain at least {Length} bytes.",
-                nameof(destination)
-            );
+            throw new ArgumentException($"Destination must contain at least {Length} bytes.", nameof(destination));
         }
 
         MsvcCrtRandom random = new(loginSeed);

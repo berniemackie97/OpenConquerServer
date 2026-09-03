@@ -4,8 +4,7 @@ using System.Security.Cryptography;
 namespace OpenConquer.AccountServer.Login.Handshake;
 
 /// <summary>
-/// Generates account-login seeds using the operating system cryptographic
-/// random-number generator.
+/// Generates account login seeds using the operating system cryptographic random number generator.
 /// </summary>
 internal sealed class CryptographicLoginSeedGenerator : ILoginSeedGenerator
 {

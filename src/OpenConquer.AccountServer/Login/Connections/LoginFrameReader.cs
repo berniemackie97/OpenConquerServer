@@ -31,9 +31,7 @@ internal sealed class LoginFrameReader
         _cipher = cipher;
     }
 
-    public async ValueTask<LoginInboundFrame?> ReadAsync(
-        CancellationToken cancellationToken = default
-    )
+    public async ValueTask<LoginInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
     {
         EnterRead();
 
@@ -51,9 +49,7 @@ internal sealed class LoginFrameReader
 
             while (true)
             {
-                ReadResult result = await _reader
-                    .ReadAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                ReadResult result = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
 
                 ReadOnlySequence<byte> remaining = result.Buffer;
 
@@ -68,9 +64,7 @@ internal sealed class LoginFrameReader
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        throw new OperationCanceledException(
-                            "The login input pipeline canceled the frame read."
-                        );
+                        throw new OperationCanceledException("The login input pipeline canceled the frame read.");
                     }
 
                     while (!remaining.IsEmpty)
@@ -81,10 +75,7 @@ internal sealed class LoginFrameReader
 
                         int copyLength = (int)Math.Min(remaining.Length, bytesNeeded);
 
-                        ReadOnlySequence<byte> encrypted = remaining.Slice(
-                            start: 0,
-                            length: copyLength
-                        );
+                        ReadOnlySequence<byte> encrypted = remaining.Slice(start: 0, length: copyLength);
 
                         encrypted.CopyTo(frameBuffer.AsSpan(written, copyLength));
 
@@ -100,44 +91,26 @@ internal sealed class LoginFrameReader
 
                         if (frameLength == 0 && written == WireFrameHeader.Size)
                         {
-                            _ = WireFrameHeader.TryRead(
-                                frameBuffer.AsSpan(0, WireFrameHeader.Size),
-                                out WireFrameHeader header
-                            );
+                            _ = WireFrameHeader.TryRead(frameBuffer.AsSpan(0, WireFrameHeader.Size), out WireFrameHeader header);
 
                             frameLength = header.Length;
 
-                            if (
-                                frameLength < WireFrameHeader.Size
-                                || frameLength > LoginProtocolLimits.MaximumFrameLength
-                            )
+                            if (frameLength < WireFrameHeader.Size || frameLength > LoginProtocolLimits.MaximumFrameLength)
                             {
-                                throw new InvalidDataException(
-                                    $"Login frame declares invalid length {frameLength}; "
-                                        + $"expected {WireFrameHeader.Size} through "
-                                        + $"{LoginProtocolLimits.MaximumFrameLength} bytes."
-                                );
+                                throw new InvalidDataException($"Login frame declares invalid length {frameLength} expected {WireFrameHeader.Size} through {LoginProtocolLimits.MaximumFrameLength} bytes.");
                             }
                         }
 
                         if (frameLength != 0 && written == frameLength)
                         {
-                            ReadOnlySequence<byte> plaintextFrame = new(
-                                frameBuffer.AsMemory(0, frameLength)
-                            );
+                            ReadOnlySequence<byte> plaintextFrame = new(frameBuffer.AsMemory(0, frameLength));
 
-                            WireFrameDecodeStatus status = WireFrameDecoder.Decode(
-                                plaintextFrame,
-                                LoginProtocolLimits.MaximumFrameLength,
-                                out WireFrameHeader header,
-                                out _
-                            );
+                            WireFrameDecodeStatus status = WireFrameDecoder.Decode(plaintextFrame, LoginProtocolLimits.MaximumFrameLength,
+                                out WireFrameHeader header, out _);
 
                             if (status != WireFrameDecodeStatus.Success)
                             {
-                                throw new InvalidDataException(
-                                    $"Login frame validation failed with status '{status}'."
-                                );
+                                throw new InvalidDataException($"Login frame validation failed with status '{status}'.");
                             }
 
                             packetId = header.PacketId;
@@ -156,10 +129,7 @@ internal sealed class LoginFrameReader
 
                         int expectedLength = frameLength == 0 ? WireFrameHeader.Size : frameLength;
 
-                        throw new EndOfStreamException(
-                            $"Login input completed with an incomplete frame: "
-                                + $"{written} of {expectedLength} bytes were received."
-                        );
+                        throw new EndOfStreamException($"Login input completed with an incomplete frame: {written} of {expectedLength} bytes were received.");
                     }
                 }
                 finally
@@ -202,11 +172,7 @@ internal sealed class LoginFrameReader
 
     private void EnterRead()
     {
-        int previousState = Interlocked.CompareExchange(
-            ref _readState,
-            ReadStateActive,
-            ReadStateIdle
-        );
+        int previousState = Interlocked.CompareExchange(ref _readState, ReadStateActive, ReadStateIdle);
 
         switch (previousState)
         {
@@ -214,19 +180,13 @@ internal sealed class LoginFrameReader
                 return;
 
             case ReadStateActive:
-                throw new InvalidOperationException(
-                    "Only one login frame read may be active at a time."
-                );
+                throw new InvalidOperationException("Only one login frame read may be active at a time.");
 
             case ReadStateTerminal:
-                throw new InvalidOperationException(
-                    "The login frame reader cannot be reused after an input failure."
-                );
+                throw new InvalidOperationException("The login frame reader cannot be reused after an input failure.");
 
             default:
-                throw new InvalidOperationException(
-                    $"Unexpected login frame reader state '{previousState}'."
-                );
+                throw new InvalidOperationException($"Unexpected login frame reader state '{previousState}'.");
         }
     }
 }

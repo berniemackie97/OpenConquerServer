@@ -43,7 +43,6 @@ public static class LoginCredentialRc5Cipher
         }
 
         Span<uint> keyWords = stackalloc uint[KeyWordCount];
-
         Span<uint> subkeys = stackalloc uint[SubkeyCount];
 
         try
@@ -55,13 +54,11 @@ public static class LoginCredentialRc5Cipher
                 Span<byte> block = buffer.Slice(offset, BlockLength);
 
                 uint a = BinaryPrimitives.ReadUInt32LittleEndian(block);
-
                 uint b = BinaryPrimitives.ReadUInt32LittleEndian(block[sizeof(uint)..]);
 
                 for (int round = Rounds; round >= 1; round--)
                 {
                     b = BitOperations.RotateRight(unchecked(b - subkeys[(2 * round) + 1]), (int)(a & 31)) ^ a;
-
                     a = BitOperations.RotateRight(unchecked(a - subkeys[2 * round]), (int)(b & 31)) ^ b;
                 }
 
@@ -70,14 +67,12 @@ public static class LoginCredentialRc5Cipher
                 a = unchecked(a - subkeys[0]);
 
                 BinaryPrimitives.WriteUInt32LittleEndian(block, a);
-
                 BinaryPrimitives.WriteUInt32LittleEndian(block[sizeof(uint)..], b);
             }
         }
         finally
         {
             CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(keyWords));
-
             CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(subkeys));
         }
     }

@@ -44,11 +44,7 @@ internal sealed class LoginFrameWriter
 
             Memory<byte> destination = _writer.GetMemory(LoginProtocolLimits.MaximumFrameLength);
 
-            int written = WireFrameEncoder.WriteFrame(
-                packet,
-                destination.Span,
-                LoginProtocolLimits.MaximumFrameLength
-            );
+            int written = WireFrameEncoder.WriteFrame(packet, destination.Span, LoginProtocolLimits.MaximumFrameLength);
 
             streamStateMayHaveAdvanced = true;
 
@@ -62,9 +58,7 @@ internal sealed class LoginFrameWriter
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                throw new OperationCanceledException(
-                    "The login output pipeline canceled the frame flush."
-                );
+                throw new OperationCanceledException("The login output pipeline canceled the frame flush.");
             }
 
             if (flush.IsCompleted)
@@ -92,11 +86,7 @@ internal sealed class LoginFrameWriter
 
     private void EnterWrite()
     {
-        int previousState = Interlocked.CompareExchange(
-            ref _writeState,
-            WriteStateActive,
-            WriteStateIdle
-        );
+        int previousState = Interlocked.CompareExchange(ref _writeState, WriteStateActive, WriteStateIdle);
 
         switch (previousState)
         {
@@ -104,19 +94,13 @@ internal sealed class LoginFrameWriter
                 return;
 
             case WriteStateActive:
-                throw new InvalidOperationException(
-                    "Only one login frame write may be active at a time."
-                );
+                throw new InvalidOperationException("Only one login frame write may be active at a time.");
 
             case WriteStateTerminal:
-                throw new InvalidOperationException(
-                    "The login frame writer cannot be reused after an output failure."
-                );
+                throw new InvalidOperationException("The login frame writer cannot be reused after an output failure.");
 
             default:
-                throw new InvalidOperationException(
-                    $"Unexpected login frame writer state '{previousState}'."
-                );
+                throw new InvalidOperationException($"Unexpected login frame writer state '{previousState}'.");
         }
     }
 }

@@ -15,19 +15,12 @@ public static class LoginAccountRequestPacket
 
     public const int AccountNameOffset = 0;
     public const int AccountNameLength = 128;
-
     public const int CredentialFieldOffset = AccountNameOffset + AccountNameLength;
-
     public const int CredentialFieldLength = 128;
-
     public const int StandardCredentialTransformLength = 32;
-
     public const int ServerNameOffset = CredentialFieldOffset + CredentialFieldLength;
-
     public const int ServerNameLength = 16;
-
     public const int PayloadLength = AccountNameLength + CredentialFieldLength + ServerNameLength;
-
     public const int FrameLength = WireFrameHeader.Size + PayloadLength;
 
     /// <summary>
@@ -38,11 +31,7 @@ public static class LoginAccountRequestPacket
     /// shipped 5517 path. The remaining 96 bytes are intentionally ignored
     /// rather than treated as a validity condition.
     /// </remarks>
-    public static bool TryDecodeStandard5517(
-        ReadOnlySpan<byte> payload,
-        uint loginSeed,
-        out LoginAccountRequest? request
-    )
+    public static bool TryDecodeStandard5517(ReadOnlySpan<byte> payload, uint loginSeed, out LoginAccountRequest? request)
     {
         request = null;
 
@@ -51,13 +40,9 @@ public static class LoginAccountRequestPacket
             return false;
         }
 
-        ReadOnlySpan<byte> accountNameBytes = ReadNullTerminatedField(
-            payload.Slice(AccountNameOffset, AccountNameLength)
-        );
+        ReadOnlySpan<byte> accountNameBytes = ReadNullTerminatedField(payload.Slice(AccountNameOffset, AccountNameLength));
 
-        ReadOnlySpan<byte> serverNameBytes = ReadNullTerminatedField(
-            payload.Slice(ServerNameOffset, ServerNameLength)
-        );
+        ReadOnlySpan<byte> serverNameBytes = ReadNullTerminatedField(payload.Slice(ServerNameOffset, ServerNameLength));
 
         string accountName = DecodeAnsi(accountNameBytes);
 
@@ -73,19 +58,13 @@ public static class LoginAccountRequestPacket
 
         try
         {
-            payload
-                .Slice(CredentialFieldOffset, StandardCredentialTransformLength)
-                .CopyTo(credential);
+            payload.Slice(CredentialFieldOffset, StandardCredentialTransformLength).CopyTo(credential);
 
             LoginCredentialKey.Derive(loginSeed, key);
 
             LoginCredentialRc5Cipher.Decrypt(key, credential);
 
-            int passwordLength = LoginPasswordKeypadDecoder.Decode(
-                accountNameBytes,
-                credential,
-                password
-            );
+            int passwordLength = LoginPasswordKeypadDecoder.Decode(accountNameBytes, credential, password);
 
             request = new LoginAccountRequest(accountName, serverName, password, passwordLength);
 
