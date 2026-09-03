@@ -12,7 +12,6 @@ public sealed class LoginSeedPacket(uint seed) : IPacket
     public const int PayloadSize = sizeof(uint);
 
     public ushort PacketId => PacketIdentifier;
-
     public int PayloadLength => PayloadSize;
 
     public uint Seed { get; } = seed;

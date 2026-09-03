@@ -14,19 +14,13 @@ public sealed class LoginAccountRequest : IDisposable
 {
     private char[]? _password;
 
-    internal LoginAccountRequest(
-        string accountName,
-        string serverName,
-        char[] password,
-        int passwordLength
-    )
+    internal LoginAccountRequest(string accountName, string serverName, char[] password, int passwordLength)
     {
         ArgumentNullException.ThrowIfNull(accountName);
         ArgumentNullException.ThrowIfNull(serverName);
         ArgumentNullException.ThrowIfNull(password);
 
         ArgumentOutOfRangeException.ThrowIfNegative(passwordLength);
-
         ArgumentOutOfRangeException.ThrowIfGreaterThan(passwordLength, password.Length);
 
         AccountName = accountName;
@@ -37,9 +31,7 @@ public sealed class LoginAccountRequest : IDisposable
     }
 
     public string AccountName { get; }
-
     public string ServerName { get; }
-
     public int PasswordLength { get; }
 
     /// <summary>
@@ -47,15 +39,11 @@ public sealed class LoginAccountRequest : IDisposable
     /// </summary>
     public void CopyPasswordTo(Span<char> destination)
     {
-        char[] password =
-            _password ?? throw new ObjectDisposedException(nameof(LoginAccountRequest));
+        char[] password = _password ?? throw new ObjectDisposedException(nameof(LoginAccountRequest));
 
         if (destination.Length < PasswordLength)
         {
-            throw new ArgumentException(
-                $"Destination must contain at least {PasswordLength} characters.",
-                nameof(destination)
-            );
+            throw new ArgumentException($"Destination must contain at least {PasswordLength} characters.", nameof(destination));
         }
 
         password.AsSpan(0, PasswordLength).CopyTo(destination);

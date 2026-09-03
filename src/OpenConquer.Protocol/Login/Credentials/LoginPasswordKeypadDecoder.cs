@@ -89,18 +89,11 @@ public static class LoginPasswordKeypadDecoder
     /// The number of characters written. A zero byte or a value not represented
     /// by the native keypad table terminates decoding.
     /// </returns>
-    public static int Decode(
-        ReadOnlySpan<byte> accountNameBytes,
-        ReadOnlySpan<byte> source,
-        Span<char> destination
-    )
+    public static int Decode(ReadOnlySpan<byte> accountNameBytes, ReadOnlySpan<byte> source, Span<char> destination)
     {
         if (destination.Length < source.Length)
         {
-            throw new ArgumentException(
-                $"Destination must contain at least {source.Length} characters.",
-                nameof(destination)
-            );
+            throw new ArgumentException($"Destination must contain at least {source.Length} characters.", nameof(destination));
         }
 
         Span<byte> valueByIndex = stackalloc byte[KeyEntryCount];
@@ -129,10 +122,7 @@ public static class LoginPasswordKeypadDecoder
         return written;
     }
 
-    private static void BuildPermutation(
-        ReadOnlySpan<byte> accountNameBytes,
-        Span<byte> valueByIndex
-    )
+    private static void BuildPermutation(ReadOnlySpan<byte> accountNameBytes, Span<byte> valueByIndex)
     {
         int seed = 0;
 
@@ -171,10 +161,7 @@ public static class LoginPasswordKeypadDecoder
                     continue;
                 }
 
-                (valueByIndex[index], valueByIndex[candidate]) = (
-                    valueByIndex[candidate],
-                    valueByIndex[index]
-                );
+                (valueByIndex[index], valueByIndex[candidate]) = (valueByIndex[candidate], valueByIndex[index]);
 
                 (weights[index], weights[candidate]) = (weights[candidate], weights[index]);
             }

@@ -10,8 +10,7 @@ using OpenConquer.Transport.Connections;
 namespace OpenConquer.AccountServer.Login.Connections;
 
 /// <summary>
-/// Owns the transport, buffering, login cipher, and framed I/O state for one
-/// account-login connection.
+/// Owns the transport, buffering, login cipher, and framed I/O state for one account login connection.
 /// </summary>
 internal sealed class LoginConnectionSession : IAsyncDisposable
 {
@@ -43,26 +42,15 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
         LoginLegacyStreamCipher cipher = new();
 
         _frameReader = new LoginFrameReader(_inputPipe.Reader, cipher);
-
         _frameWriter = new LoginFrameWriter(_outputPipe.Writer, cipher);
 
-        _inputPump = TransportConnectionInput.PumpAsync(
-            connection,
-            _inputPipe.Writer,
-            _lifetimeCancellation.Token
-        );
-
-        _outputPump = TransportConnectionOutput.PumpAsync(
-            connection,
-            _outputPipe.Reader,
-            _lifetimeCancellation.Token
-        );
+        _inputPump = TransportConnectionInput.PumpAsync(connection, _inputPipe.Writer, _lifetimeCancellation.Token);
+        _outputPump = TransportConnectionOutput.PumpAsync(connection, _outputPipe.Reader, _lifetimeCancellation.Token);
     }
 
     public uint LoginSeed { get; private set; }
 
     public EndPoint LocalEndPoint => _connection.LocalEndPoint;
-
     public EndPoint RemoteEndPoint => _connection.RemoteEndPoint;
 
     /// <summary>
@@ -75,11 +63,7 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
     /// operation. If opening fails, the connection and all session resources
     /// are disposed before the failure is propagated.
     /// </remarks>
-    public static async ValueTask<LoginConnectionSession> OpenAsync(
-        ITransportConnection connection,
-        ILoginSeedGenerator seedGenerator,
-        CancellationToken cancellationToken = default
-    )
+    public static async ValueTask<LoginConnectionSession> OpenAsync(ITransportConnection connection, ILoginSeedGenerator seedGenerator, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(seedGenerator);
@@ -122,9 +106,7 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
         }
     }
 
-    public async ValueTask<LoginInboundFrame?> ReadAsync(
-        CancellationToken cancellationToken = default
-    )
+    public async ValueTask<LoginInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
@@ -265,7 +247,6 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
         }
 
         await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false);
-
         await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false);
 
         try
@@ -279,59 +260,36 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
 
         if (cleanupExceptions is not null)
         {
-            throw new AggregateException(
-                "One or more login connection session resources failed to dispose.",
-                cleanupExceptions
-            );
+            throw new AggregateException("One or more login connection session resources failed to dispose.", cleanupExceptions);
         }
     }
 
     private static Pipe CreateInputPipe()
     {
-        return new Pipe(
-            new PipeOptions(
-                pauseWriterThreshold: LoginProtocolLimits.MaximumFrameLength,
-                resumeWriterThreshold: LoginProtocolLimits.MaximumFrameLength / 2,
-                minimumSegmentSize: LoginProtocolLimits.MaximumFrameLength,
-                useSynchronizationContext: false
-            )
-        );
+        return new Pipe(new PipeOptions(pauseWriterThreshold: LoginProtocolLimits.MaximumFrameLength, resumeWriterThreshold: LoginProtocolLimits.MaximumFrameLength / 2,
+                minimumSegmentSize: LoginProtocolLimits.MaximumFrameLength, useSynchronizationContext: false));
     }
 
     private static Pipe CreateOutputPipe()
     {
-        return new Pipe(
-            new PipeOptions(
-                pauseWriterThreshold: 1,
-                resumeWriterThreshold: 1,
-                minimumSegmentSize: LoginProtocolLimits.MaximumFrameLength,
-                useSynchronizationContext: false
-            )
-        );
+        return new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1, minimumSegmentSize: LoginProtocolLimits.MaximumFrameLength, useSynchronizationContext: false));
     }
 
     private async Task ThrowForInputPumpCompletionDuringOpenAsync()
     {
         await _inputPump.ConfigureAwait(false);
 
-        throw new EndOfStreamException(
-            "The login connection input pump completed before the initial handshake finished."
-        );
+        throw new EndOfStreamException("The login connection input pump completed before the initial handshake finished.");
     }
 
     private async Task ThrowForOutputPumpCompletionAsync()
     {
         await _outputPump.ConfigureAwait(false);
 
-        throw new EndOfStreamException(
-            "The login connection output pump completed before the pending frame write."
-        );
+        throw new EndOfStreamException("The login connection output pump completed before the pending frame write.");
     }
 
-    private static AggregateException CreateOpenFailure(
-        Exception openException,
-        Exception cleanupException
-    )
+    private static AggregateException CreateOpenFailure(Exception openException, Exception cleanupException)
     {
         List<Exception> failures = [openException];
 
@@ -344,10 +302,7 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
             failures.Add(cleanupException);
         }
 
-        return new AggregateException(
-            "Failed to open the login connection session and cleanup also failed.",
-            failures
-        );
+        return new AggregateException("Failed to open the login connection session and cleanup also failed.", failures);
     }
 
     private static async Task ObservePumpShutdownAsync(Task pump)
