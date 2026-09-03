@@ -34,18 +34,12 @@ public static class LoginCredentialRc5Cipher
     {
         if (key.Length != KeyLength)
         {
-            throw new ArgumentException(
-                $"Login credential RC5 keys must contain exactly {KeyLength} bytes.",
-                nameof(key)
-            );
+            throw new ArgumentException($"Login credential RC5 keys must contain exactly {KeyLength} bytes.", nameof(key));
         }
 
         if (buffer.Length % BlockLength != 0)
         {
-            throw new ArgumentException(
-                $"Login credential RC5 input must be a multiple of {BlockLength} bytes.",
-                nameof(buffer)
-            );
+            throw new ArgumentException($"Login credential RC5 input must be a multiple of {BlockLength} bytes.", nameof(buffer));
         }
 
         Span<uint> keyWords = stackalloc uint[KeyWordCount];
@@ -66,15 +60,9 @@ public static class LoginCredentialRc5Cipher
 
                 for (int round = Rounds; round >= 1; round--)
                 {
-                    b =
-                        BitOperations.RotateRight(
-                            unchecked(b - subkeys[(2 * round) + 1]),
-                            (int)(a & 31)
-                        ) ^ a;
+                    b = BitOperations.RotateRight(unchecked(b - subkeys[(2 * round) + 1]), (int)(a & 31)) ^ a;
 
-                    a =
-                        BitOperations.RotateRight(unchecked(a - subkeys[2 * round]), (int)(b & 31))
-                        ^ b;
+                    a = BitOperations.RotateRight(unchecked(a - subkeys[2 * round]), (int)(b & 31)) ^ b;
                 }
 
                 b = unchecked(b - subkeys[1]);
@@ -98,9 +86,7 @@ public static class LoginCredentialRc5Cipher
     {
         for (int index = 0; index < keyWords.Length; index++)
         {
-            keyWords[index] = BinaryPrimitives.ReadUInt32LittleEndian(
-                key.Slice(index * sizeof(uint), sizeof(uint))
-            );
+            keyWords[index] = BinaryPrimitives.ReadUInt32LittleEndian(key.Slice(index * sizeof(uint), sizeof(uint)));
         }
 
         subkeys[0] = P32;
@@ -118,17 +104,11 @@ public static class LoginCredentialRc5Cipher
 
         for (int iteration = 0; iteration < KeyScheduleMixIterations; iteration++)
         {
-            a = subkeys[subkeyIndex] = BitOperations.RotateLeft(
-                unchecked(subkeys[subkeyIndex] + a + b),
-                3
-            );
+            a = subkeys[subkeyIndex] = BitOperations.RotateLeft(unchecked(subkeys[subkeyIndex] + a + b), 3);
 
             uint rotation = unchecked(a + b);
 
-            b = keyWords[keyWordIndex] = BitOperations.RotateLeft(
-                unchecked(keyWords[keyWordIndex] + rotation),
-                (int)(rotation & 31)
-            );
+            b = keyWords[keyWordIndex] = BitOperations.RotateLeft(unchecked(keyWords[keyWordIndex] + rotation), (int)(rotation & 31));
 
             subkeyIndex++;
 

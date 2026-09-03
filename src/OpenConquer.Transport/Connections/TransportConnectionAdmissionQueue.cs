@@ -10,9 +10,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
     private readonly Channel<ITransportConnection> _channel;
     private readonly Lock _completionGate = new();
 
-    private readonly TaskCompletionSource _admissionCompleted = new(
-        TaskCreationOptions.RunContinuationsAsynchronously
-    );
+    private readonly TaskCompletionSource _admissionCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private bool _isCompleted;
 
@@ -22,15 +20,13 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
 
         Capacity = capacity;
 
-        _channel = Channel.CreateBounded<ITransportConnection>(
-            new BoundedChannelOptions(capacity)
-            {
-                FullMode = BoundedChannelFullMode.Wait,
-                SingleWriter = false,
-                SingleReader = false,
-                AllowSynchronousContinuations = false,
-            }
-        );
+        _channel = Channel.CreateBounded<ITransportConnection>(new BoundedChannelOptions(capacity)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleWriter = false,
+            SingleReader = false,
+            AllowSynchronousContinuations = false,
+        });
     }
 
     public int Capacity { get; }
@@ -63,9 +59,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
     /// Reads admitted connections until admission is completed. Ownership of
     /// each yielded connection transfers to the consumer.
     /// </summary>
-    public IAsyncEnumerable<ITransportConnection> ReadAllAsync(
-        CancellationToken cancellationToken = default
-    )
+    public IAsyncEnumerable<ITransportConnection> ReadAllAsync(CancellationToken cancellationToken = default)
     {
         return _channel.Reader.ReadAllAsync(cancellationToken);
     }
@@ -113,10 +107,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
 
         if (disposalExceptions is not null)
         {
-            throw new AggregateException(
-                "One or more queued transport connections failed to dispose.",
-                disposalExceptions
-            );
+            throw new AggregateException("One or more queued transport connections failed to dispose.", disposalExceptions);
         }
     }
 }
