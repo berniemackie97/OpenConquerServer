@@ -7,7 +7,7 @@ namespace OpenConquer.Application.Accounts.Authentication;
 /// persistence, password-hashing technology, and authentication-attempt
 /// protection implementation.
 /// </summary>
-public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordVerifier passwordVerifier, IAccountAuthenticationAttemptLimiter attemptLimiter )
+public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordVerifier passwordVerifier, IAccountAuthenticationAttemptLimiter attemptLimiter)
     : IAccountAuthenticator
 {
     private readonly IAccountAuthenticationRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
