@@ -1,7 +1,7 @@
 namespace OpenConquer.Protocol.Compatibility;
 
 /// <summary>
-/// Reproduces the legacy Microsoft C runtime <c>srand</c>/<c>rand</c>
+/// Reproduces the Microsoft C runtime <c>srand</c>/<c>rand</c>
 /// sequence used by Conquer Online 5517 protocol compatibility code.
 /// </summary>
 /// <remarks>

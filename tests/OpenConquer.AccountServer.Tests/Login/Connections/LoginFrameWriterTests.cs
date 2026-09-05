@@ -15,7 +15,7 @@ public sealed class LoginFrameWriterTests
     [Fact]
     public void Constructor_RejectsNullWriter()
     {
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         Assert.Throws<ArgumentNullException>(() => new LoginFrameWriter(null!, cipher));
     }
@@ -43,7 +43,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
                 writer.WriteAsync(null!, TestContext.Current.CancellationToken).AsTask()
@@ -63,7 +63,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             await writer.WriteAsync(
                 new LoginSeedPacket(seed: 0x1234_5678),
@@ -91,7 +91,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             LoginSeedPacket packet = new(seed: 0x1234_5678);
 
@@ -120,7 +120,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             MetadataChangingPacket packet = new();
 
@@ -151,7 +151,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 writer
@@ -185,7 +185,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 writer
@@ -219,7 +219,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             using CancellationTokenSource cancellation =
                 CancellationTokenSource.CreateLinkedTokenSource(
@@ -266,7 +266,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             Task firstWrite = writer
                 .WriteAsync(
@@ -309,7 +309,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             pipe.Writer.CancelPendingFlush();
 
@@ -353,7 +353,7 @@ public sealed class LoginFrameWriterTests
 
         try
         {
-            LoginFrameWriter writer = new(pipe.Writer, new LoginLegacyStreamCipher());
+            LoginFrameWriter writer = new(pipe.Writer, new LoginStreamCipher());
 
             InvalidOperationException completionException =
                 await Assert.ThrowsAsync<InvalidOperationException>(() =>

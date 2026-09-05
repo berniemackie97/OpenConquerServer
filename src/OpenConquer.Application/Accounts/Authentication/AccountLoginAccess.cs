@@ -5,7 +5,7 @@ namespace OpenConquer.Application.Accounts.Authentication;
 /// </summary>
 /// <remarks>
 /// This is intentionally independent of gameplay or staff roles. Persistence
-/// adapters may map legacy permission/status representations into this narrow
+/// adapters may map persisted permission/status representations into this narrow
 /// authentication decision.
 /// </remarks>
 public enum AccountLoginAccess

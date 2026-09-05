@@ -39,7 +39,7 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
         _inputPipe = CreateInputPipe();
         _outputPipe = CreateOutputPipe();
 
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         _frameReader = new LoginFrameReader(_inputPipe.Reader, cipher);
         _frameWriter = new LoginFrameWriter(_outputPipe.Writer, cipher);
@@ -110,18 +110,11 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        Task<LoginInboundFrame?> readTask = _frameReader.ReadAsync(cancellationToken).AsTask();
-
-        Task completedTask = await Task.WhenAny(readTask, _inputPump).ConfigureAwait(false);
-
-        if (completedTask == _inputPump)
-        {
-            await _inputPump.ConfigureAwait(false);
-        }
-
         try
         {
-            return await readTask.ConfigureAwait(false);
+            // The pump completes the pipe on every exit. Await the frame operation itself
+            // so a pump failure cannot leave an unobserved task owning decrypted memory.
+            return await _frameReader.ReadAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -140,18 +133,14 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
 
         ThrowIfDisposed();
 
-        Task writeTask = _frameWriter.WriteAsync(packet, cancellationToken).AsTask();
-
-        Task completedTask = await Task.WhenAny(writeTask, _outputPump).ConfigureAwait(false);
-
-        if (completedTask == _outputPump)
-        {
-            await ThrowForOutputPumpCompletionAsync().ConfigureAwait(false);
-        }
-
         try
         {
-            await writeTask.ConfigureAwait(false);
+            await _frameWriter.WriteAsync(packet, cancellationToken).ConfigureAwait(false);
+
+            if (_outputPump.IsCompleted)
+            {
+                await ThrowForOutputPumpCompletionAsync().ConfigureAwait(false);
+            }
         }
         catch
         {
@@ -191,18 +180,34 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
     {
         Task writeTask = WriteAsync(new LoginSeedPacket(seed), cancellationToken).AsTask();
 
-        Task completedTask = await Task.WhenAny(writeTask, _inputPump).ConfigureAwait(false);
-
-        if (completedTask == _inputPump)
+        try
         {
-            await ThrowForInputPumpCompletionDuringOpenAsync().ConfigureAwait(false);
+            Task completedTask = await Task.WhenAny(writeTask, _inputPump).ConfigureAwait(false);
+            if (completedTask == _inputPump)
+            {
+                await ThrowForInputPumpCompletionDuringOpenAsync().ConfigureAwait(false);
+            }
+
+            await writeTask.ConfigureAwait(false);
+
+            if (_inputPump.IsCompleted)
+            {
+                await ThrowForInputPumpCompletionDuringOpenAsync().ConfigureAwait(false);
+            }
         }
-
-        await writeTask.ConfigureAwait(false);
-
-        if (_inputPump.IsCompleted)
+        catch
         {
-            await ThrowForInputPumpCompletionDuringOpenAsync().ConfigureAwait(false);
+            _outputPipe.Writer.CancelPendingFlush();
+            try
+            {
+                await writeTask.ConfigureAwait(false);
+            }
+            catch
+            {
+                // Preserve the opening failure after observing the aborted seed write.
+            }
+
+            throw;
         }
     }
 

@@ -4,7 +4,7 @@ namespace OpenConquer.Application.Accounts.Authentication;
 /// Provides password hashing and verification without exposing a concrete
 /// password-storage implementation to Application.
 /// </summary>
-public interface IAccountPasswordVerifier
+public interface IAccountPasswordHasher
 {
     /// <summary>
     /// Verifies a supplied password against a persisted encoded hash.

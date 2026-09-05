@@ -18,11 +18,11 @@ internal sealed class LoginFrameReader
     private const int ReadStateTerminal = 2;
 
     private readonly PipeReader _reader;
-    private readonly LoginLegacyStreamCipher _cipher;
+    private readonly LoginStreamCipher _cipher;
 
     private int _readState;
 
-    public LoginFrameReader(PipeReader reader, LoginLegacyStreamCipher cipher)
+    public LoginFrameReader(PipeReader reader, LoginStreamCipher cipher)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(cipher);

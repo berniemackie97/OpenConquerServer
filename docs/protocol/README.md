@@ -9,27 +9,32 @@ layouts, text encoding, limits, handshakes, cryptography, and compatibility quir
 Internal server architecture is documented separately under
 [`docs/architecture`](../architecture/README.md).
 
-## Current Foundation
+## Current Implementation
 
-The implemented protocol foundation currently contains:
+| Area | Implemented coverage |
+| --- | --- |
+| Framing | Four-byte header, segmented decoder, bounded encoder, complete-frame validation. |
+| Serialization/text | Caller-owned readers/writers; ANSI, strict ANSI, ASCII; fixed and byte-prefixed strings. |
+| Login cryptography | Independent inbound/outbound legacy-TQ stream state; seed-derived RC5-32/12/16 key and credential decryption; signed-account-byte keypad permutation. |
+| Login packets | Server seed 1059 (8 bytes), standard client credentials 1060 (276 bytes), server authentication response 1055 (36 bytes), client MAC report 1100 (52 bytes), AccountServer resource report 1052 (28 bytes). |
+| Login limits | 524-byte complete-frame ceiling for the audited login packet set; packet-specific exact lengths are checked separately. |
 
-```text
-OpenConquer.Protocol
-├── Framing
-│   ├── WireFrameDecodeStatus
-│   ├── WireFrameDecoder
-│   ├── WireFrameEncoder
-│   └── WireFrameHeader
-├── Packets
-│   └── IPacket
-├── Serialization
-│   ├── PacketReader
-│   └── PacketWriter
-└── Text
-    └── TqTextEncoding
-```
+`LoginAccountRequest` owns disposable password memory. Username normalization and credential
+length policy are enforced after wire decoding by Application using Domain rules. Trimming the
+account before the keypad step would change its seed and break compatibility.
 
-The concrete runtime encoding resolver remains internal to the protocol assembly.
+The concrete runtime encoding resolver and CRT random generator remain internal to Protocol.
+
+The 524-byte ceiling accommodates the verified 1084 frame size; it does **not** mean 1084 is
+implemented. Only standard 1060 credential decoding is supported. OEM, protected/mobile, Facebook,
+and custom registration variants are not implemented. Nor are GameServer DH/CAST5, signatures,
+login proofs, or gameplay packets. The two context-dependent 1052 forms must not be interchanged.
+
+AccountServer already integrates the login cipher and framed I/O with Transport pipelines, sends
+the seed, decodes requests, and validates the ordered post-authentication report pair. These are
+components, not a composed runnable authentication host. See
+[Networking Architecture](../architecture/networking.md) and the
+[baseline audit](../audits/main-rebaseline.md) for evidence and scope.
 
 ## Reference
 
@@ -177,7 +182,7 @@ boundary can select `0x400` when that protocol slice is implemented.
 The existence of caller-supplied limits today does **not** mean the GameServer session boundary is
 already implemented.
 
-Login and handshake paths may establish different limits as their own protocol evidence is audited.
+The implemented account-login path selects its separate 524-byte complete-frame ceiling.
 
 ## Protocol Boundary
 
@@ -232,8 +237,8 @@ Protocol serializers operate on caller-owned memory.
 - own the backing buffer
 - dispose caller memory
 
-This allows the future Transport implementation to select its buffering and pooling strategy without
-forcing those decisions into Protocol.
+Transport and AccountServer select their buffering strategy independently; the current login
+session integrates these APIs with `System.IO.Pipelines`.
 
 Borrowed protocol memory must not outlive the lifetime guaranteed by its owner.
 
@@ -622,7 +627,10 @@ socket abstractions
 dependency layout
 ```
 
-The legacy server is a compatibility oracle, not the architecture for the rewrite.
+OpenConquerPublic is the working server being ported. Preserve its proven behavior unless a
+verified native requirement or a documented production improvement justifies a deviation.
+Inventory the complete relevant legacy subsystem before changing its design. Native 5517 evidence
+has final authority for client-visible behavior.
 
 ## Adding Protocol APIs
 

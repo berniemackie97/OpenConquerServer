@@ -10,7 +10,10 @@ Conquer Online while the client was in version 5517. While faithful parity is th
 goal for the project, the plan is to design it in a way that is easily customizable and extensible.
 
 > **Status:** Early development. The server is being rebuilt from the ground up in focused, fully
-> tested implementation slices.
+> tested implementation slices. The executable entry points are not wired into runnable servers.
+> Current code covers transport, login protocol/session components, account authentication, and
+> password storage, and a MySQL authentication adapter; it does not yet provide account registration, login tickets,
+> or game sessions.
 
 ## Architecture
 
@@ -48,19 +51,18 @@ flowchart TD
 
 ### Projects
 
-- **OpenConquer.Domain** contains game and account rules, models, value objects, and invariants.
-- **OpenConquer.Application** owns use cases, authoritative world execution, commands,
-  orchestration, and infrastructure contracts.
-- **OpenConquer.Infrastructure** implements persistence and external dependencies, including the
-  account and game database boundaries.
-- **OpenConquer.Protocol** owns Conquer packet formats, framing, binary serialization, text
-  encoding, handshakes, cryptography, and wire compatibility.
-- **OpenConquer.Transport** owns TCP connections, buffering, backpressure, admission, and connection
-  lifetime.
-- **OpenConquer.Assets** owns original client data formats, maps, and static game-content loading.
-- **OpenConquer.AccountServer** is the login-server composition root.
-- **OpenConquer.GameServer** is the game-server composition root and integration boundary around the
-  authoritative world runtime.
+The dependency diagram describes project boundaries. Current implementation is:
+
+| Project | Implemented responsibility |
+| --- | --- |
+| **OpenConquer.Domain** | Account credential invariants. |
+| **OpenConquer.Application** | Account authentication orchestration and repository/verifier/attempt-limiter contracts. |
+| **OpenConquer.Infrastructure** | PBKDF2 password storage and transparent OpenConquerPublic Identity V3 verification/migration. This branch also implements MySQL authentication lookup and conditional hash replacement. |
+| **OpenConquer.Protocol** | Framing, serialization, text encoding, login stream cipher, credentials, and login packets. |
+| **OpenConquer.Transport** | TCP listeners/connections, bounded admission, input/output pumps, and connection lifetime. |
+| **OpenConquer.AccountServer** | Login session, seed/request handling, and post-authentication report readers. Host composition is not implemented. |
+| **OpenConquer.GameServer** | Project boundary only; no game runtime is implemented. |
+| **OpenConquer.Assets** | Project boundary only; no asset loaders are implemented. |
 
 ## Documentation
 
@@ -71,6 +73,9 @@ Detailed design and compatibility documentation lives under [docs](docs).
 - [Architecture overview](docs/architecture/README.md)
 - [Networking architecture](docs/architecture/networking.md)
 - [World execution](docs/architecture/world-execution.md)
+- [Authentication and password migration](docs/architecture/authentication.md)
+- [Main re-baseline audit](docs/audits/main-rebaseline.md)
+- [Persistence branch reconciliation](docs/audits/account-authentication-persistence.md)
 
 ### Protocol
 
@@ -90,22 +95,26 @@ src/
 └── OpenConquer.Transport/
 
 tests/
+├── OpenConquer.AccountServer.Tests/
+├── OpenConquer.Application.Tests/
+├── OpenConquer.Infrastructure.Tests/
 ├── OpenConquer.Protocol.Tests/
 └── OpenConquer.Transport.Tests/
 
-benchmarks/
-database/
-
 docs/
 ├── architecture/
+├── audits/
 └── protocol/
-
-tools/
 ```
+
+There are no tracked database schemas, migrations, benchmark projects, or tool scripts on `main`.
+The MySQL adapter targets the existing OpenConquerPublic account schema. Tests provision only
+ephemeral container databases; the application does not provision or migrate a live database.
 
 ## Requirements
 
 - .NET SDK 10.0.400
+- Docker for MySQL integration tests
 
 ## Build
 
@@ -135,7 +144,10 @@ Run the protocol suite directly:
 dotnet test tests/OpenConquer.Protocol.Tests/OpenConquer.Protocol.Tests.csproj -c Release --no-build
 ```
 
-Protocol tests use **xUnit v3** on **Microsoft Testing Platform**.
+All five test projects use **xUnit v3** on **Microsoft Testing Platform**. Infrastructure tests
+exercise real password derivations, migration, and MySQL persistence. Database tests use short-lived
+MySQL 8.4 containers through Testcontainers. The ASP.NET Core shared framework is used only by these tests
+to independently reproduce the legacy Identity hasher. It is included with the .NET SDK.
 
 Coverage integration is provided through `coverlet.MTP`:
 

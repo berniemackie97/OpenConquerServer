@@ -294,6 +294,35 @@ public sealed class LoginConnectionSessionTests
     }
 
     [Fact]
+    public async Task WriteAsync_PropagatesTransportFailureAfterOpening()
+    {
+        TestTransportConnection connection = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(VerifiedSeed), TestContext.Current.CancellationToken);
+        IOException failure = new("send failed after opening");
+        connection.FailSends(failure);
+
+        IOException observed = await Assert.ThrowsAsync<IOException>(() => session.WriteAsync(
+            new LoginSeedPacket(VerifiedSeed), TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Same(failure, observed);
+    }
+
+    [Fact]
+    public async Task ReadAsync_PendingPartialFramePropagatesTransportFailure()
+    {
+        TestTransportConnection connection = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(VerifiedSeed), TestContext.Current.CancellationToken);
+        Task<LoginInboundFrame?> read = session.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        connection.QueueReceive(Convert.FromHexString("D4848765"));
+        IOException failure = new("receive failed in credential frame");
+        connection.QueueReceiveFailure(failure);
+
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => read));
+    }
+
+    [Fact]
     public async Task DisposeAsync_CancelsOutstandingInputAndDisposesConnectionOnce()
     {
         TestTransportConnection connection = new();
@@ -413,7 +442,7 @@ public sealed class LoginConnectionSessionTests
 
         private readonly ArrayBufferWriter<byte> _sent = new();
 
-        private readonly Exception? _sendFailure;
+        private Exception? _sendFailure;
         private readonly Exception? _disposeFailure;
         private readonly bool _blockSends;
         private readonly bool _blockDispose;
@@ -469,6 +498,8 @@ public sealed class LoginConnectionSessionTests
         public Task ReceiveCancellationObserved => _receiveCancellationObserved.Task;
 
         public Task DisposeStarted => _disposeStarted.Task;
+
+        public void FailSends(Exception failure) => _sendFailure = failure;
 
         public async ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

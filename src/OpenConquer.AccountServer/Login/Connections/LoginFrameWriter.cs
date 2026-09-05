@@ -17,11 +17,11 @@ internal sealed class LoginFrameWriter
     private const int WriteStateTerminal = 2;
 
     private readonly PipeWriter _writer;
-    private readonly LoginLegacyStreamCipher _cipher;
+    private readonly LoginStreamCipher _cipher;
 
     private int _writeState;
 
-    public LoginFrameWriter(PipeWriter writer, LoginLegacyStreamCipher cipher)
+    public LoginFrameWriter(PipeWriter writer, LoginStreamCipher cipher)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(cipher);

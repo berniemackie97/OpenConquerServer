@@ -2,12 +2,12 @@ using OpenConquer.Protocol.Login.Cryptography;
 
 namespace OpenConquer.Protocol.Tests.Login.Cryptography;
 
-public sealed class LoginLegacyStreamCipherTests
+public sealed class LoginStreamCipherTests
 {
     [Fact]
     public void EncryptOutbound_MatchesVerifiedLoginSeedFrameVector()
     {
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         byte[] frame = [0x08, 0x00, 0x23, 0x04, 0x78, 0x56, 0x34, 0x12];
 
@@ -19,7 +19,7 @@ public sealed class LoginLegacyStreamCipherTests
     [Fact]
     public void DecryptInbound_MatchesVerifiedNativeEndpointVector()
     {
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         byte[] outboundProbe = [0x00];
 
@@ -37,7 +37,7 @@ public sealed class LoginLegacyStreamCipherTests
     [Fact]
     public void EncryptOutbound_PreservesStreamStateAcrossCalls()
     {
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         byte[] frame = [0x08, 0x00, 0x23, 0x04, 0x78, 0x56, 0x34, 0x12];
 
@@ -51,7 +51,7 @@ public sealed class LoginLegacyStreamCipherTests
     [Fact]
     public void EncryptOutbound_CarriesPositionIntoHighByte()
     {
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         byte[] buffer = new byte[258];
 
@@ -69,7 +69,7 @@ public sealed class LoginLegacyStreamCipherTests
     [Fact]
     public void EncryptOutbound_RepeatsKeystreamAfterFullPositionRange()
     {
-        LoginLegacyStreamCipher cipher = new();
+        LoginStreamCipher cipher = new();
 
         byte[] fullPositionRange = new byte[ushort.MaxValue + 1];
 

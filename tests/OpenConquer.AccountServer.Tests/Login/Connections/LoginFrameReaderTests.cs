@@ -16,7 +16,7 @@ public sealed class LoginFrameReaderTests
     public void Constructor_RejectsNullReader()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new LoginFrameReader(null!, new LoginLegacyStreamCipher())
+            new LoginFrameReader(null!, new LoginStreamCipher())
         );
     }
 
@@ -43,7 +43,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             await pipe.Writer.WriteAsync(
                 Convert.FromHexString(FirstEncryptedFrame),
@@ -74,7 +74,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             byte[] ciphertext = Convert.FromHexString(FirstEncryptedFrame + SecondEncryptedFrame);
 
@@ -110,7 +110,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             await pipe.Writer.WriteAsync(
                 Convert.FromHexString("D484"),
@@ -150,7 +150,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             LoginInboundFrame? frame = await reader.ReadAsync(
                 TestContext.Current.CancellationToken
@@ -178,7 +178,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             EndOfStreamException exception = await Assert.ThrowsAsync<EndOfStreamException>(() =>
                 reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()
@@ -209,7 +209,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             await pipe.Writer.WriteAsync(
                 Convert.FromHexString("6484A525"),
@@ -246,7 +246,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             using CancellationTokenSource cancellation =
                 CancellationTokenSource.CreateLinkedTokenSource(
@@ -284,7 +284,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(pipe.Reader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(pipe.Reader, new LoginStreamCipher());
 
             Task<LoginInboundFrame?> firstRead = reader
                 .ReadAsync(TestContext.Current.CancellationToken)
@@ -330,7 +330,7 @@ public sealed class LoginFrameReaderTests
 
         try
         {
-            LoginFrameReader reader = new(throwingReader, new LoginLegacyStreamCipher());
+            LoginFrameReader reader = new(throwingReader, new LoginStreamCipher());
 
             await pipe.Writer.WriteAsync(
                 Convert.FromHexString(FirstEncryptedFrame),
