@@ -1,6 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\OpenConquer.Application\OpenConquer.Application.csproj" />
     <ProjectReference Include="..\OpenConquer.Domain\OpenConquer.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OpenConquer.Infrastructure.Tests" />
   </ItemGroup>
 </Project>

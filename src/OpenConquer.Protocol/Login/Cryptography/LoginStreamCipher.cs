@@ -1,7 +1,7 @@
 namespace OpenConquer.Protocol.Login.Cryptography;
 
 /// <summary>
-/// Implements the stateful legacy stream transform used by the 5517 account
+/// Implements the stateful stream transform used by the 5517 account
 /// login connection.
 /// </summary>
 /// <remarks>
@@ -11,7 +11,7 @@ namespace OpenConquer.Protocol.Login.Cryptography;
 ///
 /// Inbound and outbound byte positions are independent streams.
 /// </remarks>
-public sealed class LoginLegacyStreamCipher
+public sealed class LoginStreamCipher
 {
     private const byte XorMask = 0xAB;
 

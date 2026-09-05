@@ -6,17 +6,23 @@ namespace OpenConquer.Application.Accounts.Authentication;
 public interface IAccountAuthenticationRepository
 {
     /// <summary>
-    /// Finds the persisted authentication state for an account name.
+    /// Finds the persisted authentication state for a validated, trimmed account name.
+    /// Matching case/collation semantics belong to the persistence adapter.
+    /// Each call must read current authoritative state, including when revalidating
+    /// after a failed conditional login update.
     /// </summary>
     ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(string accountName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Optimistically replaces an obsolete password hash after successful
-    /// authentication.
+    /// Atomically records the login timestamp and optional password-hash migration if
+    /// the account identity, username, and password hash still match the snapshot and
+    /// its current permission allows login. Comparisons of hashes must be byte-exact.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> when the expected hash was still current and was
-    /// replaced; otherwise <see langword="false"/>.
+    /// <see langword="true"/> when a matching account was updated, including an
+    /// identical timestamp; otherwise <see langword="false"/>. Null replacement retains
+    /// the password hash. A false result requires credential and access revalidation.
     /// </returns>
-    ValueTask<bool> TryReplacePasswordHashAsync(uint accountId, string expectedPasswordHash, string replacementPasswordHash, CancellationToken cancellationToken = default);
+    ValueTask<bool> TryRecordLoginAsync(AccountAuthenticationSnapshot account, string? replacementPasswordHash,
+        uint loginTimestamp, CancellationToken cancellationToken = default);
 }

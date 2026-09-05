@@ -18,7 +18,7 @@ The transport layer is designed for:
 
 - explicit resource ownership
 - asynchronous socket I/O
-- ordered perconnection input and output
+- ordered per-connection input and output
 - bounded buffering and queues
 - explicit overload behavior
 - deterministic connection shutdown
@@ -140,8 +140,9 @@ The Protocol framing boundary now accepts:
 ReadOnlySequence<byte>
 ```
 
-so future buffered transport integration can expose segmented memory without coalescing it merely
-for framing.
+so buffered transport integration can expose segmented memory without coalescing it merely
+for framing. The login path already uses pipelines: `LoginFrameReader` incrementally decrypts
+into bounded owned frame memory, then passes the complete frame to `WireFrameDecoder`.
 
 Conceptually:
 
@@ -221,6 +222,29 @@ This simplifies:
 - backpressure
 
 A single send progression does not require a dedicated thread.
+
+## Implemented Login Integration
+
+`LoginConnectionSession` owns a connection, input/output pipes, a login cipher with independent
+directional positions, both transport pumps, and lifetime cancellation. Opening sends the encrypted
+1059 seed. Opening failure disposes transferred resources; disposal cancels I/O and observes both
+pumps. Input buffering pauses at the 524-byte login limit; output backpressure waits for consumption.
+
+`LoginFrameReader` handles fragmented and coalesced encrypted input, validates the frame limit,
+and transfers disposable plaintext frames. It rejects overlapping reads and becomes terminal after
+a failure that may have advanced cipher state. `LoginFrameWriter` similarly serializes, encrypts,
+and flushes one frame at a time, rejecting reuse after a potentially partial write.
+
+`LoginAccountRequestReader` decodes standard 1060 and transfers disposable password ownership.
+`LoginPostAuthenticationReportReader` checks 1100 then AccountServer 1052, correlates both session
+UIDs, and validates MAC text and `res.dat`. These reports are untrusted telemetry, not authorization.
+
+The current executable entry points do not compose these components into running servers.
+Persistence, attempt-limiter implementation, request/IP throttling, worker/deadline policy,
+authentication-response orchestration, ticket issuance, and GameServer handoff are not implemented
+on `main`. A bounded transport queue alone does not replace the legacy host's admission and
+brute-force protections. These distinctions are recorded in the
+[baseline audit](../audits/main-rebaseline.md).
 
 ## Related Documentation
 
