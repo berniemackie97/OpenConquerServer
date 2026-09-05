@@ -3,32 +3,25 @@ using OpenConquer.Application.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts;
 
-/// <summary>Reads and conditionally records account authentication using EF Core.</summary>
-public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbContext> contextFactory)
-    : IAccountAuthenticationRepository
+public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbContext> contextFactory) : IAccountAuthenticationRepository
 {
-    private readonly IDbContextFactory<AccountDbContext> _contextFactory = contextFactory
-        ?? throw new ArgumentNullException(nameof(contextFactory));
+    private readonly IDbContextFactory<AccountDbContext> _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
 
-    public async ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(
-        string accountName, CancellationToken cancellationToken = default)
+    public async ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(string accountName, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(accountName);
         cancellationToken.ThrowIfCancellationRequested();
 
         await using AccountDbContext db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        var account = await db.Accounts.AsNoTracking()
-            .Where(candidate => candidate.Username == accountName)
-            .Select(candidate => new { candidate.Id, candidate.Username, candidate.PasswordHash, candidate.Permission })
+
+        AccountAuthenticationSnapshot? account = await db.Accounts.AsNoTracking().Where(candidate => candidate.Username == accountName)
+            .Select(candidate => new AccountAuthenticationSnapshot(candidate.Id, candidate.Username, candidate.PasswordHash, MapAccess(candidate.Permission)))
             .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
-        return account is null ? null : new AccountAuthenticationSnapshot(
-            account.Id, account.Username, account.PasswordHash, MapAccess(account.Permission));
+        return account;
     }
 
-    public async ValueTask<bool> TryRecordLoginAsync(
-        AccountAuthenticationSnapshot account, string? replacementPasswordHash, uint loginTimestamp,
-        CancellationToken cancellationToken = default)
+    public async ValueTask<bool> TryRecordLoginAsync(AccountAuthenticationSnapshot account, string? replacementPasswordHash, uint loginTimestamp, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(account);
         ValidatePasswordHash(account.PasswordHash, nameof(account));
@@ -46,17 +39,11 @@ public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbC
         await using AccountDbContext db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         string passwordHash = replacementPasswordHash ?? account.PasswordHash;
 
-        // HEX compares every stored byte, including case and trailing spaces, independently
-        // of the account table's case-insensitive collation. The primary key bounds the work.
-        int affected = await db.Accounts
-            .Where(candidate => candidate.Id == account.AccountId
-                && EF.Functions.Hex(candidate.Username) == EF.Functions.Hex(account.Username)
-                && EF.Functions.Hex(candidate.PasswordHash) == EF.Functions.Hex(account.PasswordHash)
-                && candidate.Permission >= 1 && candidate.Permission <= 5)
+        int affected = await db.Accounts.Where(candidate => candidate.Id == account.AccountId && EF.Functions.Hex(candidate.Username) == EF.Functions.Hex(account.Username)
+                && EF.Functions.Hex(candidate.PasswordHash) == EF.Functions.Hex(account.PasswordHash) && candidate.Permission >= 1 && candidate.Permission <= 5)
             .ExecuteUpdateAsync(update => update
                 .SetProperty(candidate => candidate.PasswordHash, passwordHash)
-                .SetProperty(candidate => candidate.LoginTimestamp, loginTimestamp), cancellationToken)
-            .ConfigureAwait(false);
+                .SetProperty(candidate => candidate.LoginTimestamp, loginTimestamp), cancellationToken).ConfigureAwait(false);
 
         return affected switch
         {

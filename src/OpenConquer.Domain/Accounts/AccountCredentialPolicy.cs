@@ -1,7 +1,7 @@
 namespace OpenConquer.Domain.Accounts;
 
 /// <summary>
-/// Defines account credential invariants independently of wire-field widths and storage technology.
+/// Defines account credential invariantsz
 /// </summary>
 public static class AccountCredentialPolicy
 {
@@ -19,7 +19,7 @@ public static class AccountCredentialPolicy
     }
 
     /// <summary>
-    /// Validates the password verbatim; whitespace is significant and is never trimmed.
+    /// Validates the password verbatim, whitespace is significant and is never trimmed.
     /// </summary>
     public static bool IsValidPassword(ReadOnlySpan<char> password)
     {

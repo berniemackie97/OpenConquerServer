@@ -35,7 +35,6 @@ public static class WireFrameEncoder
     /// <summary>
     /// Writes a complete TQ wire frame using the full range supported by the 16 bit TQ frame length field.
     /// </summary>
-    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination)
     {
         return WriteFrame(packet, destination, maximumFrameLength: ushort.MaxValue);
@@ -44,7 +43,6 @@ public static class WireFrameEncoder
     /// <summary>
     /// Writes a complete TQ wire frame, rejecting frames larger than <paramref name="maximumFrameLength"/>.
     /// </summary>
-    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination, int maximumFrameLength)
     {
         ArgumentNullException.ThrowIfNull(packet);

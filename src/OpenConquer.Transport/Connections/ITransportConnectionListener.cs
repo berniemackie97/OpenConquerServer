@@ -1,8 +1,7 @@
 namespace OpenConquer.Transport.Connections;
 
 /// <summary>
-/// Accepts established transport connections and transfers ownership of each
-/// successful accept to the caller.
+/// Accepts established transport connections
 /// </summary>
 public interface ITransportConnectionListener : IAsyncDisposable
 {

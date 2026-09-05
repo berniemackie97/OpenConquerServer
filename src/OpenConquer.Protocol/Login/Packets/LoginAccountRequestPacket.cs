@@ -7,7 +7,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Defines and decodes the native standard account-login packet 1060.
+/// Defines and decodes the account login packet 1060.
 /// </summary>
 public static class LoginAccountRequestPacket
 {
@@ -24,13 +24,8 @@ public static class LoginAccountRequestPacket
     public const int FrameLength = WireFrameHeader.Size + PayloadLength;
 
     /// <summary>
-    /// Decodes the default retail 5517 packet-1060 credential envelope.
+    /// Decodes the default native 5517 packet 1060 credential envelope.
     /// </summary>
-    /// <remarks>
-    /// Only the first 32 credential bytes are transformed by the default
-    /// shipped 5517 path. The remaining 96 bytes are intentionally ignored
-    /// rather than treated as a validity condition.
-    /// </remarks>
     public static bool TryDecodeStandard5517(ReadOnlySpan<byte> payload, uint loginSeed, out LoginAccountRequest? request)
     {
         request = null;
@@ -41,15 +36,12 @@ public static class LoginAccountRequestPacket
         }
 
         ReadOnlySpan<byte> accountNameBytes = ReadNullTerminatedField(payload.Slice(AccountNameOffset, AccountNameLength));
-
         ReadOnlySpan<byte> serverNameBytes = ReadNullTerminatedField(payload.Slice(ServerNameOffset, ServerNameLength));
 
         string accountName = DecodeAnsi(accountNameBytes);
-
         string serverName = DecodeAnsi(serverNameBytes);
 
         Span<byte> credential = stackalloc byte[StandardCredentialTransformLength];
-
         Span<byte> key = stackalloc byte[LoginCredentialKey.Length];
 
         char[] password = new char[StandardCredentialTransformLength];
@@ -61,7 +53,6 @@ public static class LoginAccountRequestPacket
             payload.Slice(CredentialFieldOffset, StandardCredentialTransformLength).CopyTo(credential);
 
             LoginCredentialKey.Derive(loginSeed, key);
-
             LoginCredentialRc5Cipher.Decrypt(key, credential);
 
             int passwordLength = LoginPasswordKeypadDecoder.Decode(accountNameBytes, credential, password);
@@ -75,7 +66,6 @@ public static class LoginAccountRequestPacket
         finally
         {
             CryptographicOperations.ZeroMemory(key);
-
             CryptographicOperations.ZeroMemory(credential);
 
             if (!passwordOwnershipTransferred)

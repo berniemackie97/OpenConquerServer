@@ -7,26 +7,8 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Represents the native 5517 server-to-client account-authentication response
-/// packet 1055.
+/// Represents the server -> client account authentication response packet 1055.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Payload layout:
-/// </para>
-/// <code>
-/// +0x00 UInt32 session token
-/// +0x04 UInt32 authentication key or failure code
-/// +0x08 UInt32 game-server port
-/// +0x0C UInt32 additional session field
-/// +0x10 char[16] game-server IPv4 C-string
-/// </code>
-/// <para>
-/// A nonzero session token selects the native success branch. A zero session
-/// token selects the failure branch and causes the second field to be
-/// interpreted as a failure code.
-/// </para>
-/// </remarks>
 public sealed class LoginAccountAuthenticationResponsePacket : IPacket
 {
     public const ushort PacketIdentifier = 1055;
@@ -47,32 +29,12 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PayloadSize;
     public bool IsSuccess => SessionUid != 0;
-
     public uint SessionUid { get; }
-
-    /// <summary>
-    /// Gets the authentication key on success or the native login failure code
-    /// on failure.
-    /// </summary>
     public uint AuthenticationKeyOrFailureCode { get; }
-
     public uint GameServerPort { get; }
-
-    /// <summary>
-    /// Gets the additional success field copied by the native client into hero
-    /// runtime state and forwarded by the alternate game bootstrap path.
-    /// </summary>
-    /// <remarks>
-    /// Its precise native semantics remain unresolved. It is intentionally
-    /// modeled independently from <see cref="AuthenticationKeyOrFailureCode"/>.
-    /// </remarks>
     public uint AdditionalSessionField { get; }
-
     public string GameServerIp { get; }
 
-    /// <summary>
-    /// Creates a successful native account-authentication response.
-    /// </summary>
     public static LoginAccountAuthenticationResponsePacket Success(uint sessionUid, uint authenticationKey, uint gameServerPort, uint additionalSessionField, string gameServerIp)
     {
         if (sessionUid == 0)
@@ -83,9 +45,6 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
         return new LoginAccountAuthenticationResponsePacket(sessionUid, authenticationKey, gameServerPort, additionalSessionField, NormalizeGameServerIp(gameServerIp));
     }
 
-    /// <summary>
-    /// Creates a failed native account-authentication response.
-    /// </summary>
     public static LoginAccountAuthenticationResponsePacket Failure(LoginAccountAuthenticationFailureCode failureCode, uint gameServerPort, string gameServerIp)
     {
         if (!Enum.IsDefined(failureCode))

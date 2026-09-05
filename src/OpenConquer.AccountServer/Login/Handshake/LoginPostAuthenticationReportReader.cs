@@ -4,18 +4,8 @@ using OpenConquer.Protocol.Login.Packets;
 namespace OpenConquer.AccountServer.Login.Handshake;
 
 /// <summary>
-/// Consumes the two native client-to-AccountServer reports sent after a
-/// successful packet-1055 authentication response.
+/// Consumes the two client -> AccountServer reports sent after a successful packet 1055 authentication response.
 /// </summary>
-/// <remarks>
-/// The verified standard 5517 client sends packet 1100 first and the
-/// AccountServer form of packet 1052 second, then disconnects the account
-/// connection.
-///
-/// This reader validates protocol ordering and correlation only. The reports are
-/// client-controlled telemetry and do not authorize the later GameServer
-/// connection.
-/// </remarks>
 internal sealed class LoginPostAuthenticationReportReader
 {
     private const string ExpectedResourceName = "res.dat";
@@ -28,16 +18,7 @@ internal sealed class LoginPostAuthenticationReportReader
 
         _session = session;
     }
-
-    /// <summary>
-    /// Consumes the native packet-1100 and AccountServer packet-1052 sequence
-    /// associated with <paramref name="expectedSessionUid"/>.
-    /// </summary>
-    /// <remarks>
-    /// Transport failures and caller-requested cancellation propagate
-    /// unchanged. No authorization grant is revoked or otherwise mutated by
-    /// this operation.
-    /// </remarks>
+    
     public async ValueTask<LoginPostAuthenticationReportReadResult> ReadAsync(uint expectedSessionUid, CancellationToken cancellationToken = default)
     {
         if (expectedSessionUid == 0)

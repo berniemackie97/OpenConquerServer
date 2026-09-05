@@ -1,8 +1,7 @@
 namespace OpenConquer.AccountServer.Login.Handshake;
 
 /// <summary>
-/// Represents the result of consuming the native post-authentication
-/// AccountServer report sequence.
+/// Represents the result of consuming the native post authentication AccountServer report sequence.
 /// </summary>
 internal sealed class LoginPostAuthenticationReportReadResult
 {
@@ -15,23 +14,8 @@ internal sealed class LoginPostAuthenticationReportReadResult
     }
 
     public LoginPostAuthenticationReportReadStatus Status { get; }
-
-    /// <summary>
-    /// Gets the report phase being processed when a non-success outcome
-    /// occurred.
-    /// </summary>
     public LoginPostAuthenticationReportPhase? FailurePhase { get; }
-
-    /// <summary>
-    /// Gets the validated reports when <see cref="Status"/> is
-    /// <see cref="LoginPostAuthenticationReportReadStatus.Success"/>.
-    /// </summary>
     public LoginPostAuthenticationReports? Reports { get; }
-
-    /// <summary>
-    /// Gets the received packet identifier when <see cref="Status"/> is
-    /// <see cref="LoginPostAuthenticationReportReadStatus.UnexpectedPacket"/>.
-    /// </summary>
     public ushort? UnexpectedPacketId { get; }
 
     public static LoginPostAuthenticationReportReadResult Success(LoginPostAuthenticationReports reports)

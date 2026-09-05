@@ -30,14 +30,8 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
     }
 
     public int Capacity { get; }
-
     internal Task AdmissionCompleted => _admissionCompleted.Task;
 
-    /// <summary>
-    /// Attempts to admit a connection without waiting for capacity. Ownership
-    /// transfers to the queue only when the result is
-    /// <see cref="TransportConnectionAdmissionResult.Admitted"/>.
-    /// </summary>
     public TransportConnectionAdmissionResult TryAdmit(ITransportConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -55,19 +49,11 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Reads admitted connections until admission is completed. Ownership of
-    /// each yielded connection transfers to the consumer.
-    /// </summary>
     public IAsyncEnumerable<ITransportConnection> ReadAllAsync(CancellationToken cancellationToken = default)
     {
         return _channel.Reader.ReadAllAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Prevents further admissions while allowing already admitted connections
-    /// to be drained by consumers.
-    /// </summary>
     public void Complete(Exception? error = null)
     {
         lock (_completionGate)
@@ -84,9 +70,6 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Completes admission and disposes connections that remain buffered.
-    /// </summary>
     public async ValueTask DisposeAsync()
     {
         Complete();

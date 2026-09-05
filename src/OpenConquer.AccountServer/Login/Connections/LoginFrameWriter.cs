@@ -49,7 +49,6 @@ internal sealed class LoginFrameWriter
             streamStateMayHaveAdvanced = true;
 
             _cipher.EncryptOutbound(destination.Span[..written]);
-
             _writer.Advance(written);
 
             FlushResult flush = await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);

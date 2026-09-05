@@ -7,20 +7,11 @@ namespace OpenConquer.Protocol.Framing;
 /// </summary>
 public static class WireFrameDecoder
 {
-    /// <summary>
-    /// Decodes the first complete frame using the full range supported by the 16 bit TQ frame length field.
-    /// </summary>
     public static WireFrameDecodeStatus Decode(ReadOnlySequence<byte> source, out WireFrameHeader header, out ReadOnlySequence<byte> frame)
     {
         return Decode(source, maximumFrameLength: ushort.MaxValue, out header, out frame);
     }
 
-    /// <summary>
-    /// Decodes the first complete frame, rejecting frames larger than <paramref name="maximumFrameLength"/>.
-    /// </summary>
-    /// <remarks>
-    /// The returned frame borrows memory from <paramref name="source"/>. The caller controls that memory's lifetime.
-    /// </remarks>
     public static WireFrameDecodeStatus Decode(ReadOnlySequence<byte> source, int maximumFrameLength, out WireFrameHeader header, out ReadOnlySequence<byte> frame)
     {
         WireFrameValidation.ValidateMaximumFrameLength(maximumFrameLength);
