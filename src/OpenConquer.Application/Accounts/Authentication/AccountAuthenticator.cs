@@ -4,12 +4,9 @@ using OpenConquer.Domain.Accounts;
 namespace OpenConquer.Application.Accounts.Authentication;
 
 /// <summary>
-/// Implements authoritative account password authentication independently of
-/// persistence, password-hashing technology, and authentication-attempt
-/// protection implementation.
+/// Implements authoritative account password authentication.
 /// </summary>
-public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher,
-    IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
+public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher, IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
     : IAccountAuthenticator
 {
     private const int MaximumPersistenceAttempts = 2;
@@ -26,8 +23,7 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!AccountCredentialPolicy.TryNormalizeUsername(accountName, out string username) ||
-            !AccountCredentialPolicy.IsValidPassword(password.Span))
+        if (!AccountCredentialPolicy.TryNormalizeUsername(accountName, out string username) || !AccountCredentialPolicy.IsValidPassword(password.Span))
         {
             return AccountAuthenticationResult.InvalidCredentials();
         }
@@ -54,8 +50,6 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
 
         using (authenticationAttempt)
         {
-            // One conflict may be a concurrent password migration. Revalidate the complete
-            // snapshot once; sustained contention must not turn into unbounded password work.
             for (int attempt = 0; attempt < MaximumPersistenceAttempts; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -109,8 +103,7 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                 }
 
                 uint timestamp = checked((uint)_timeProvider.GetUtcNow().ToUnixTimeSeconds());
-                bool recorded = await _repository.TryRecordLoginAsync(account, replacementPasswordHash, timestamp,
-                    cancellationToken).ConfigureAwait(false);
+                bool recorded = await _repository.TryRecordLoginAsync(account, replacementPasswordHash, timestamp, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
                 if (recorded)

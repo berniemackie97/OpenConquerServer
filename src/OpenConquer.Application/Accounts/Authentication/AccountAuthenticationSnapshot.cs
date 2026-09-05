@@ -1,8 +1,7 @@
 namespace OpenConquer.Application.Accounts.Authentication;
 
 /// <summary>
-/// Contains the minimal persisted account state required to authenticate one
-/// login attempt.
+/// Contains the minimal persisted account state required to authenticate one login attempt.
 /// </summary>
 public sealed class AccountAuthenticationSnapshot
 {

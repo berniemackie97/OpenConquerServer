@@ -1,16 +1,8 @@
 namespace OpenConquer.Protocol.Login.Cryptography;
 
 /// <summary>
-/// Implements the stateful stream transform used by the 5517 account
-/// login connection.
+/// Implements the stream transform used by account login connection.
 /// </summary>
-/// <remarks>
-/// The native client transform applies the generated keystream before the
-/// nibble swap and 0xAB mask. The server endpoint therefore applies the
-/// inverse ordering for both outbound encryption and inbound decryption.
-///
-/// Inbound and outbound byte positions are independent streams.
-/// </remarks>
 public sealed class LoginStreamCipher
 {
     private const byte XorMask = 0xAB;
@@ -22,7 +14,7 @@ public sealed class LoginStreamCipher
     private ushort _inboundPosition;
 
     /// <summary>
-    /// Encrypts server-to-client account traffic in place.
+    /// Encrypts server -> client account traffic.
     /// </summary>
     public void EncryptOutbound(Span<byte> buffer)
     {
@@ -30,7 +22,7 @@ public sealed class LoginStreamCipher
     }
 
     /// <summary>
-    /// Decrypts client-to-server account traffic in place.
+    /// Decrypts client -> server account traffic.
     /// </summary>
     public void DecryptInbound(Span<byte> buffer)
     {

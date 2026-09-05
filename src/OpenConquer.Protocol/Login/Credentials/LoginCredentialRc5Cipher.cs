@@ -6,13 +6,8 @@ using System.Security.Cryptography;
 namespace OpenConquer.Protocol.Login.Credentials;
 
 /// <summary>
-/// Implements the RC5-32/12/16 block cipher used by the native 5517 login
-/// credential field.
+/// Implements the RC5 32/12/16 block cipher
 /// </summary>
-/// <remarks>
-/// This is protocol-compatibility cryptography. The parameters, byte order,
-/// and key schedule are fixed by verified native-client behavior.
-/// </remarks>
 public static class LoginCredentialRc5Cipher
 {
     public const int KeyLength = 16;
@@ -27,8 +22,7 @@ public static class LoginCredentialRc5Cipher
     private const uint Q32 = 0x9E3779B9;
 
     /// <summary>
-    /// Decrypts one or more complete native login credential RC5 blocks in
-    /// place.
+    /// Decrypts one or more complete RC5 blocks.
     /// </summary>
     public static void Decrypt(ReadOnlySpan<byte> key, Span<byte> buffer)
     {

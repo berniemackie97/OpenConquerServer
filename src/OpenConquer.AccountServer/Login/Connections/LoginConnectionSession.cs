@@ -53,16 +53,6 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
     public EndPoint LocalEndPoint => _connection.LocalEndPoint;
     public EndPoint RemoteEndPoint => _connection.RemoteEndPoint;
 
-    /// <summary>
-    /// Takes ownership of <paramref name="connection"/>, starts the duplex
-    /// transport pumps, generates the per-connection login seed, and sends the
-    /// encrypted seed frame before returning the live session.
-    /// </summary>
-    /// <remarks>
-    /// After argument validation, ownership of the connection transfers to this
-    /// operation. If opening fails, the connection and all session resources
-    /// are disposed before the failure is propagated.
-    /// </remarks>
     public static async ValueTask<LoginConnectionSession> OpenAsync(ITransportConnection connection, ILoginSeedGenerator seedGenerator, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -112,8 +102,6 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
 
         try
         {
-            // The pump completes the pipe on every exit. Await the frame operation itself
-            // so a pump failure cannot leave an unobserved task owning decrypted memory.
             return await _frameReader.ReadAsync(cancellationToken).ConfigureAwait(false);
         }
         catch

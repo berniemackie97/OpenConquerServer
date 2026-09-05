@@ -36,9 +36,6 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
         return ReadSpan(count);
     }
 
-    /// <summary>
-    /// Reads a fixed width, zero padded string using the selected TQ text encoding.
-    /// </summary>
     public string ReadFixedString(int width, TqTextEncoding encoding = TqTextEncoding.Ansi)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(width);
@@ -54,9 +51,6 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
         return result;
     }
 
-    /// <summary>
-    /// Reads a TQ byte length prefixed string using the selected TQ text encoding.
-    /// </summary>
     public string ReadByteString(TqTextEncoding encoding = TqTextEncoding.Ansi)
     {
         Encoding selectedEncoding = TqEncoding.Resolve(encoding);

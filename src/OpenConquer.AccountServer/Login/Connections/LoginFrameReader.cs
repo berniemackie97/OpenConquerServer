@@ -8,8 +8,7 @@ using OpenConquer.Protocol.Login.Cryptography;
 namespace OpenConquer.AccountServer.Login.Connections;
 
 /// <summary>
-/// Reads, decrypts, and validates client-to-server account-login frames from
-/// the connection's caller-owned input pipeline.
+/// Reads, decrypts, and validates client -> server account login frames.
 /// </summary>
 internal sealed class LoginFrameReader
 {
@@ -52,7 +51,6 @@ internal sealed class LoginFrameReader
                 ReadResult result = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
 
                 ReadOnlySequence<byte> remaining = result.Buffer;
-
                 SequencePosition consumed = remaining.Start;
 
                 bool frameComplete = false;
@@ -70,9 +68,7 @@ internal sealed class LoginFrameReader
                     while (!remaining.IsEmpty)
                     {
                         int targetLength = frameLength == 0 ? WireFrameHeader.Size : frameLength;
-
                         int bytesNeeded = targetLength - written;
-
                         int copyLength = (int)Math.Min(remaining.Length, bytesNeeded);
 
                         ReadOnlySequence<byte> encrypted = remaining.Slice(start: 0, length: copyLength);
@@ -105,8 +101,7 @@ internal sealed class LoginFrameReader
                         {
                             ReadOnlySequence<byte> plaintextFrame = new(frameBuffer.AsMemory(0, frameLength));
 
-                            WireFrameDecodeStatus status = WireFrameDecoder.Decode(plaintextFrame, LoginProtocolLimits.MaximumFrameLength,
-                                out WireFrameHeader header, out _);
+                            WireFrameDecodeStatus status = WireFrameDecoder.Decode(plaintextFrame, LoginProtocolLimits.MaximumFrameLength, out WireFrameHeader header, out _);
 
                             if (status != WireFrameDecodeStatus.Success)
                             {

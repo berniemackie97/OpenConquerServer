@@ -2,14 +2,9 @@ using System.Net;
 
 namespace OpenConquer.Transport.Connections;
 
-/// <summary>
-/// Accepts established transport connections and transfers them into bounded
-/// admission while explicitly rejecting overload.
-/// </summary>
 public static class TransportConnectionAcceptLoop
 {
-    public static async Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue,
-        Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
+    public static async Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(listener);
         ArgumentNullException.ThrowIfNull(admissionQueue);

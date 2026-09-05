@@ -5,23 +5,8 @@ using OpenConquer.Application.Accounts.Authentication;
 namespace OpenConquer.Infrastructure.Security;
 
 /// <summary>
-/// Stores and verifies account passwords using the version-1 OpenConquer
-/// PBKDF2-HMAC-SHA256 password-storage scheme.
+/// Stores and verifies account passwords.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Version 1 fixes the complete KDF contract:
-/// PBKDF2-HMAC-SHA256, 600,000 iterations, a 16-byte random salt, and a
-/// 32-byte derived key.
-/// </para>
-/// <para>
-/// Verification also accepts the exact Identity V3 profile emitted by OpenConquerPublic:
-/// HMAC-SHA512, 220,000 iterations, a 16-byte salt, and a 32-byte subkey.
-/// Successful Identity V3 verification requests migration to version 1. Persisted cost
-/// parameters never control work: every verification performs both fixed derivations,
-/// including decoys and malformed hashes, to avoid revealing the stored scheme.
-/// </para>
-/// </remarks>
 public sealed class AccountPasswordHasher : IAccountPasswordHasher
 {
     private const string CurrentSchemePrefix = "$openconquer$pbkdf2-sha256$v=1$";
@@ -39,8 +24,6 @@ public sealed class AccountPasswordHasher : IAccountPasswordHasher
     private const int SaltBase64Length = 24;
     private const int DerivedKeyBase64Length = 44;
 
-    // Public decoy material makes every failed lookup perform both fixed derivations.
-    // Matching it cannot authenticate: VerifyCore also requires a valid stored scheme.
     private static ReadOnlySpan<byte> DecoySalt =>
     [
         0x7A, 0x5C, 0x93, 0xE1, 0xD4, 0x7F, 0x2B, 0x68,
@@ -136,8 +119,7 @@ public sealed class AccountPasswordHasher : IAccountPasswordHasher
 
     private static bool TryDecodeIdentityV3(string passwordHash, Span<byte> salt, Span<byte> derivedKey)
     {
-        if (passwordHash.Length != IdentityV3Prefix.Length + IdentityV3EncodedLength ||
-            !passwordHash.StartsWith(IdentityV3Prefix, StringComparison.Ordinal))
+        if (passwordHash.Length != IdentityV3Prefix.Length + IdentityV3EncodedLength || !passwordHash.StartsWith(IdentityV3Prefix, StringComparison.Ordinal))
         {
             return false;
         }

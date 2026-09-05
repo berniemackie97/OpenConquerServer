@@ -1,8 +1,7 @@
 namespace OpenConquer.Application.Accounts.Authentication;
 
 /// <summary>
-/// Describes the externally usable outcome of an account authentication
-/// attempt.
+/// Describes the externally usable outcome of an account authentication attempt.
 /// </summary>
 public enum AccountAuthenticationStatus
 {

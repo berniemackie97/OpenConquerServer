@@ -8,9 +8,7 @@ namespace OpenConquer.Protocol.Framing;
 public readonly struct WireFrameHeader(ushort length, ushort packetId)
 {
     public const int Size = sizeof(ushort) * 2;
-
     public ushort Length { get; } = length;
-
     public ushort PacketId { get; } = packetId;
 
     public static bool TryRead(ReadOnlySpan<byte> source, out WireFrameHeader header)

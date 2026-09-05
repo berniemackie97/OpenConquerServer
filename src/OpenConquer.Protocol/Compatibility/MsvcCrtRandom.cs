@@ -1,25 +1,15 @@
 namespace OpenConquer.Protocol.Compatibility;
 
 /// <summary>
-/// Reproduces the Microsoft C runtime <c>srand</c>/<c>rand</c>
-/// sequence used by Conquer Online 5517 protocol compatibility code.
+/// Reproduces the Microsoft C runtime <c>srand</c>/<c>rand</c> sequence.
 /// </summary>
-/// <remarks>
-/// This is a deterministic compatibility primitive, not a cryptographically
-/// secure random-number generator.
-/// </remarks>
-internal struct MsvcCrtRandom
+internal struct MsvcCrtRandom(uint seed)
 {
     private const uint Multiplier = 0x343FD;
     private const uint Increment = 0x269EC3;
     private const uint ResultMask = 0x7FFF;
 
-    private uint _state;
-
-    public MsvcCrtRandom(uint seed)
-    {
-        _state = seed;
-    }
+    private uint _state = seed;
 
     public int Next()
     {

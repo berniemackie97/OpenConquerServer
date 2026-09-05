@@ -4,8 +4,7 @@ using OpenConquer.Protocol.Login.Packets;
 namespace OpenConquer.AccountServer.Login.Handshake;
 
 /// <summary>
-/// Consumes and decodes the account credential request from one established
-/// login connection.
+/// Consumes and decodes the account credential request from one established login connection.
 /// </summary>
 internal sealed class LoginAccountRequestReader
 {
@@ -18,17 +17,6 @@ internal sealed class LoginAccountRequestReader
         _session = session;
     }
 
-    /// <summary>
-    /// Reads the next login frame and classifies it as the native standard 5517
-    /// account request, clean end-of-stream, an unexpected packet, or an
-    /// invalid account request.
-    /// </summary>
-    /// <remarks>
-    /// Transport failures and caller-requested cancellation propagate
-    /// unchanged. The consumed inbound frame is disposed on every outcome.
-    /// On success, ownership of the decoded request transfers through the
-    /// returned result.
-    /// </remarks>
     public async ValueTask<LoginAccountRequestReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         LoginInboundFrame? inboundFrame = await _session.ReadAsync(cancellationToken).ConfigureAwait(false);

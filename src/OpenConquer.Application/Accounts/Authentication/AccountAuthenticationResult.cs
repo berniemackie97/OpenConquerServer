@@ -13,16 +13,8 @@ public readonly record struct AccountAuthenticationResult
     }
 
     public AccountAuthenticationStatus Status { get; }
-
-    /// <summary>
-    /// Gets the authenticated account identifier when
-    /// <see cref="Status"/> is <see cref="AccountAuthenticationStatus.Success"/>.
-    /// </summary>
     public uint AccountId { get; }
-
-    /// <summary>Gets the canonical persisted username on success; otherwise null.</summary>
     public string? Username { get; }
-
     public bool IsSuccess => Status == AccountAuthenticationStatus.Success;
 
     public static AccountAuthenticationResult Succeeded(uint accountId, string username)

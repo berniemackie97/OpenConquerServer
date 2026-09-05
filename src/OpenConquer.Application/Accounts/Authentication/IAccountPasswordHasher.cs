@@ -1,8 +1,7 @@
 namespace OpenConquer.Application.Accounts.Authentication;
 
 /// <summary>
-/// Provides password hashing and verification without exposing a concrete
-/// password-storage implementation to Application.
+/// Provides password hashing and verification.
 /// </summary>
 public interface IAccountPasswordHasher
 {
@@ -12,8 +11,7 @@ public interface IAccountPasswordHasher
     AccountPasswordVerificationStatus VerifyPassword(string passwordHash, ReadOnlySpan<char> password);
 
     /// <summary>
-    /// Performs equivalent password-verification work for an account lookup
-    /// miss so account existence cannot be inferred from password-hashing cost.
+    /// Performs equivalent password verification work for an account lookup miss so account existence cannot be inferred
     /// </summary>
     void VerifyDecoy(ReadOnlySpan<char> password);
 
