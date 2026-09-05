@@ -1,5 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -332,9 +332,15 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
     {
         AccountRecord account = new()
         {
-            Username = Guid.NewGuid().ToString("N"), PasswordHash = hash, Permission = permission,
-            Email = "account@example.test", EmailVerification = "verification", EmailStatus = 1,
-            SecurityQuestion = "question", SecurityAnswer = "answer", RegistrationOperationId = new string('a', 32) + Guid.NewGuid().ToString("N"),
+            Username = Guid.NewGuid().ToString("N"),
+            PasswordHash = hash,
+            Permission = permission,
+            Email = "account@example.test",
+            EmailVerification = "verification",
+            EmailStatus = 1,
+            SecurityQuestion = "question",
+            SecurityAnswer = "answer",
+            RegistrationOperationId = new string('a', 32) + Guid.NewGuid().ToString("N"),
         };
         await using AccountDbContext db = await database.ContextFactory.CreateDbContextAsync(CancellationToken);
         db.Accounts.Add(account);
