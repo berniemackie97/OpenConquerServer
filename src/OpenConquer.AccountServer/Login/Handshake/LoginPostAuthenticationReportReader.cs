@@ -18,7 +18,7 @@ internal sealed class LoginPostAuthenticationReportReader
 
         _session = session;
     }
-    
+
     public async ValueTask<LoginPostAuthenticationReportReadResult> ReadAsync(uint expectedSessionUid, CancellationToken cancellationToken = default)
     {
         if (expectedSessionUid == 0)
