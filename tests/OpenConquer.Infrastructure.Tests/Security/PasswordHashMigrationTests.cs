@@ -20,10 +20,19 @@ public sealed class PasswordHashMigrationTests
         string identityV3Hash = CreateIdentityV3Hash(password);
         MigrationRepository repository = new(identityV3Hash);
         AccountPasswordHasher verifier = new();
-        AccountAuthenticator authenticator = new(repository, verifier, new AttemptLimiter(), TimeProvider.System);
+        AccountAuthenticator authenticator = new(
+            repository,
+            verifier,
+            new AttemptLimiter(),
+            TimeProvider.System
+        );
 
-        AccountAuthenticationResult result = await authenticator.AuthenticateAsync("  Bernie  ", password.AsMemory(),
-            IPAddress.Loopback, TestContext.Current.CancellationToken);
+        AccountAuthenticationResult result = await authenticator.AuthenticateAsync(
+            "  Bernie  ",
+            password.AsMemory(),
+            IPAddress.Loopback,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.True(result.IsSuccess);
         Assert.Equal(42u, result.AccountId);
@@ -32,10 +41,22 @@ public sealed class PasswordHashMigrationTests
         Assert.Equal("Bernie", result.Username);
         Assert.Equal(identityV3Hash, repository.ExpectedHash);
         Assert.StartsWith("$openconquer$pbkdf2-sha256$v=1$", repository.Hash);
-        Assert.Equal(AccountPasswordVerificationStatus.Success, verifier.VerifyPassword(repository.Hash, password));
+        Assert.Equal(
+            AccountPasswordVerificationStatus.Success,
+            verifier.VerifyPassword(repository.Hash, password)
+        );
 
-        Assert.True((await authenticator.AuthenticateAsync("Bernie", password.AsMemory(), IPAddress.Loopback,
-            TestContext.Current.CancellationToken)).IsSuccess);
+        Assert.True(
+            (
+                await authenticator.AuthenticateAsync(
+                    "Bernie",
+                    password.AsMemory(),
+                    IPAddress.Loopback,
+                    TestContext.Current.CancellationToken
+                )
+            ).IsSuccess
+        );
+
         Assert.Equal(1, repository.Replacements);
     }
 
@@ -44,10 +65,19 @@ public sealed class PasswordHashMigrationTests
     {
         string hash = CreateIdentityV3Hash("Test1234");
         MigrationRepository repository = new(hash);
-        AccountAuthenticator authenticator = new(repository, new AccountPasswordHasher(), new AttemptLimiter(), TimeProvider.System);
+        AccountAuthenticator authenticator = new(
+            repository,
+            new AccountPasswordHasher(),
+            new AttemptLimiter(),
+            TimeProvider.System
+        );
 
-        AccountAuthenticationResult result = await authenticator.AuthenticateAsync("Bernie", "wrong".AsMemory(),
-            IPAddress.Loopback, TestContext.Current.CancellationToken);
+        AccountAuthenticationResult result = await authenticator.AuthenticateAsync(
+            "Bernie",
+            "wrong".AsMemory(),
+            IPAddress.Loopback,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(AccountAuthenticationStatus.InvalidCredentials, result.Status);
         Assert.Equal(hash, repository.Hash);
@@ -57,17 +87,42 @@ public sealed class PasswordHashMigrationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AuthenticateAsync_RehashConflictVerifiesTheActualReplacementPassword(bool passwordReset)
+    public async Task AuthenticateAsync_RehashConflictVerifiesTheActualReplacementPassword(
+        bool passwordReset
+    )
     {
         AccountPasswordHasher verifier = new();
-        string concurrentHash = verifier.HashPassword(passwordReset ? "reset-password" : "Test1234");
-        MigrationRepository repository = new(CreateIdentityV3Hash("Test1234")) { ConflictHash = concurrentHash };
-        AccountAuthenticator authenticator = new(repository, verifier, new AttemptLimiter(), TimeProvider.System);
 
-        AccountAuthenticationResult result = await authenticator.AuthenticateAsync("Bernie", "Test1234".AsMemory(),
-            IPAddress.Loopback, TestContext.Current.CancellationToken);
+        string concurrentHash = verifier.HashPassword(
+            passwordReset ? "reset-password" : "Test1234"
+        );
 
-        Assert.Equal(passwordReset ? AccountAuthenticationStatus.InvalidCredentials : AccountAuthenticationStatus.Success, result.Status);
+        MigrationRepository repository = new(CreateIdentityV3Hash("Test1234"))
+        {
+            ConflictHash = concurrentHash,
+        };
+
+        AccountAuthenticator authenticator = new(
+            repository,
+            verifier,
+            new AttemptLimiter(),
+            TimeProvider.System
+        );
+
+        AccountAuthenticationResult result = await authenticator.AuthenticateAsync(
+            "Bernie",
+            "Test1234".AsMemory(),
+            IPAddress.Loopback,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            passwordReset
+                ? AccountAuthenticationStatus.InvalidCredentials
+                : AccountAuthenticationStatus.Success,
+            result.Status
+        );
+
         Assert.Equal(concurrentHash, repository.Hash);
         Assert.Equal(0, repository.Replacements);
     }
@@ -87,6 +142,7 @@ public sealed class PasswordHashMigrationTests
     public void VerifyPassword_RejectsAlteredIdentityParameters(int offset, uint value)
     {
         byte[] bytes = Convert.FromBase64String(CreateIdentityV3Hash("Test1234")[Prefix.Length..]);
+
         if (offset == 0)
         {
             bytes[0] = (byte)value;
@@ -97,8 +153,11 @@ public sealed class PasswordHashMigrationTests
         }
 
         AccountPasswordHasher verifier = new();
-        Assert.Equal(AccountPasswordVerificationStatus.Failed,
-            verifier.VerifyPassword(Prefix + Convert.ToBase64String(bytes), "Test1234"));
+
+        Assert.Equal(
+            AccountPasswordVerificationStatus.Failed,
+            verifier.VerifyPassword(Prefix + Convert.ToBase64String(bytes), "Test1234")
+        );
     }
 
     [Theory]
@@ -108,8 +167,10 @@ public sealed class PasswordHashMigrationTests
     [InlineData("AQAAAAIA")]
     public void VerifyPassword_MalformedIdentityFailsClosed(string encoded)
     {
-        Assert.Equal(AccountPasswordVerificationStatus.Failed,
-            new AccountPasswordHasher().VerifyPassword(Prefix + encoded, "Test1234"));
+        Assert.Equal(
+            AccountPasswordVerificationStatus.Failed,
+            new AccountPasswordHasher().VerifyPassword(Prefix + encoded, "Test1234")
+        );
     }
 
     [Fact]
@@ -117,50 +178,103 @@ public sealed class PasswordHashMigrationTests
     {
         string identityV3 = CreateIdentityV3Hash("Test1234");
         AccountPasswordHasher verifier = new();
-        foreach (string invalid in new[] { identityV3[..^4], identityV3 + "AAAA", identityV3[Prefix.Length..], identityV3 + "$extra" })
+
+        string[] invalidHashes =
+        [
+            identityV3[..^4],
+            identityV3 + "AAAA",
+            identityV3[Prefix.Length..],
+            identityV3 + "$extra",
+        ];
+
+        foreach (string invalid in invalidHashes)
         {
-            Assert.Equal(AccountPasswordVerificationStatus.Failed, verifier.VerifyPassword(invalid, "Test1234"));
+            Assert.Equal(
+                AccountPasswordVerificationStatus.Failed,
+                verifier.VerifyPassword(invalid, "Test1234")
+            );
         }
     }
 
     internal static string CreateIdentityV3Hash(string password)
     {
-        // The same framework hasher and options used by OpenConquerPublic, independent of our parser.
-        PasswordHasher<object> identity = new(Options.Create(new PasswordHasherOptions
-        {
-            CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV3,
-            IterationCount = 220_000,
-        }));
+        // The same framework hasher and options used by OpenConquerPublic,
+        // independent of our parser.
+        PasswordHasher<object> identity = new(
+            Options.Create(
+                new PasswordHasherOptions
+                {
+                    CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV3,
+                    IterationCount = 220_000,
+                }
+            )
+        );
+
         return Prefix + identity.HashPassword(new object(), password);
     }
 
     private sealed class MigrationRepository(string hash) : IAccountAuthenticationRepository
     {
+        private const uint AccountId = 42;
+        private const ulong AccountStateRevision = 1;
+
+        private ulong _passwordCredentialRevision = 1;
+
         public string Hash { get; private set; } = hash;
         public string? ConflictHash { get; init; }
         public string? LastName { get; private set; }
         public string? ExpectedHash { get; private set; }
+        public DateTimeOffset? LastSuccessfulLoginAt { get; private set; }
         public int Replacements { get; private set; }
 
-        public ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(string accountName, CancellationToken cancellationToken = default)
+        public ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(
+            string accountName,
+            CancellationToken cancellationToken = default
+        )
         {
             cancellationToken.ThrowIfCancellationRequested();
+
             LastName = accountName;
-            return ValueTask.FromResult<AccountAuthenticationSnapshot?>(new(42, "Bernie", Hash, AccountLoginAccess.Allowed));
+
+            AccountAuthenticationSnapshot snapshot = new(
+                accountId: AccountId,
+                username: "Bernie",
+                passwordHash: Hash,
+                access: AccountLoginAccess.Allowed,
+                accountStateRevision: AccountStateRevision,
+                passwordCredentialRevision: _passwordCredentialRevision
+            );
+
+            return ValueTask.FromResult<AccountAuthenticationSnapshot?>(snapshot);
         }
 
-        public ValueTask<bool> TryRecordLoginAsync(AccountAuthenticationSnapshot account, string? replacementPasswordHash,
-            uint loginTimestamp, CancellationToken cancellationToken = default)
+        public ValueTask<bool> TryRecordSuccessfulLoginAsync(
+            AccountAuthenticationSnapshot account,
+            string? replacementPasswordHash,
+            DateTimeOffset successfulLoginAt,
+            CancellationToken cancellationToken = default
+        )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Assert.Equal(42u, account.AccountId);
+
+            Assert.Equal(AccountId, account.AccountId);
+            Assert.Equal(AccountLoginAccess.Allowed, account.Access);
+            Assert.Equal(AccountStateRevision, account.AccountStateRevision);
+
             ExpectedHash = account.PasswordHash;
+
             if (ConflictHash is not null && Hash != ConflictHash)
             {
                 Hash = ConflictHash;
+                _passwordCredentialRevision++;
+
                 return ValueTask.FromResult(false);
             }
-            if (!string.Equals(Hash, account.PasswordHash, StringComparison.Ordinal))
+
+            if (
+                !string.Equals(Hash, account.PasswordHash, StringComparison.Ordinal)
+                || account.PasswordCredentialRevision != _passwordCredentialRevision
+            )
             {
                 return ValueTask.FromResult(false);
             }
@@ -168,18 +282,26 @@ public sealed class PasswordHashMigrationTests
             if (replacementPasswordHash is not null)
             {
                 Hash = replacementPasswordHash;
+                _passwordCredentialRevision++;
                 Replacements++;
             }
+
+            LastSuccessfulLoginAt = successfulLoginAt;
+
             return ValueTask.FromResult(true);
         }
     }
 
     private sealed class AttemptLimiter : IAccountAuthenticationAttemptLimiter
     {
-        public bool TryBeginAuthentication(IPAddress remoteAddress, uint accountId,
-            [NotNullWhen(true)] out IAccountAuthenticationAttemptLease? attempt)
+        public bool TryBeginAuthentication(
+            IPAddress remoteAddress,
+            uint accountId,
+            [NotNullWhen(true)] out IAccountAuthenticationAttemptLease? attempt
+        )
         {
             attempt = new AttemptLease();
+
             return true;
         }
     }
@@ -187,6 +309,7 @@ public sealed class PasswordHashMigrationTests
     private sealed class AttemptLease : IAccountAuthenticationAttemptLease
     {
         public void Complete(bool credentialsAccepted) { }
+
         public void Dispose() { }
     }
 }

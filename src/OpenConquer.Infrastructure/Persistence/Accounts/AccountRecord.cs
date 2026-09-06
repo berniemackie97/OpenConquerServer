@@ -1,16 +1,24 @@
+using OpenConquer.Domain.Accounts;
+
 namespace OpenConquer.Infrastructure.Persistence.Accounts;
 
 internal sealed class AccountRecord
 {
-    public uint Id { get; set; }
+    public uint AccountId { get; set; }
     public string Username { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string EmailVerification { get; set; } = string.Empty;
-    public byte EmailStatus { get; set; }
-    public string SecurityAnswer { get; set; } = string.Empty;
-    public string SecurityQuestion { get; set; } = string.Empty;
-    public uint Permission { get; set; }
-    public uint LoginTimestamp { get; set; }
-    public string? RegistrationOperationId { get; set; }
+    public AccountAccessStatus AccessStatus { get; set; }
+    public AccountAuthorityRole AuthorityRole { get; set; }
+    public Guid CreationOperationId { get; set; }
+    public DateTime? LastSuccessfulLoginAtUtc { get; set; }
+    public ulong StateRevision { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public AccountActorKind CreatedByActorKind { get; set; }
+    public uint? CreatedByAccountId { get; set; }
+    public DateTime StateChangedAtUtc { get; set; }
+    public AccountActorKind StateChangedByActorKind { get; set; }
+    public uint? StateChangedByAccountId { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
+    public AccountActorKind? DeletedByActorKind { get; set; }
+    public uint? DeletedByAccountId { get; set; }
+    public AccountPasswordCredentialRecord PasswordCredential { get; set; } = null!;
 }

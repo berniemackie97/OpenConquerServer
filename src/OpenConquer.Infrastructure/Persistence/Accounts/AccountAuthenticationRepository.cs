@@ -1,85 +1,136 @@
 using Microsoft.EntityFrameworkCore;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts;
 
-/// <summary>Reads and conditionally records account authentication using EF Core.</summary>
-public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbContext> contextFactory)
-    : IAccountAuthenticationRepository
+public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbContext> contextFactory) : IAccountAuthenticationRepository
 {
-    private readonly IDbContextFactory<AccountDbContext> _contextFactory = contextFactory
-        ?? throw new ArgumentNullException(nameof(contextFactory));
+    private readonly IDbContextFactory<AccountDbContext> _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
 
-    public async ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(
-        string accountName, CancellationToken cancellationToken = default)
+    public async ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(string accountName, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(accountName);
         cancellationToken.ThrowIfCancellationRequested();
 
         await using AccountDbContext db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        var account = await db.Accounts.AsNoTracking()
-            .Where(candidate => candidate.Username == accountName)
-            .Select(candidate => new { candidate.Id, candidate.Username, candidate.PasswordHash, candidate.Permission })
-            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
-        return account is null ? null : new AccountAuthenticationSnapshot(
-            account.Id, account.Username, account.PasswordHash, MapAccess(account.Permission));
+        AccountAuthenticationSnapshot? snapshot = await db.Accounts.AsNoTracking().Where(candidate => candidate.Username == accountName)
+            .Select(candidate => new AccountAuthenticationSnapshot(
+                candidate.AccountId,
+                candidate.Username,
+                candidate.PasswordCredential.PasswordHash,
+                candidate.DeletedAtUtc != null ? AccountLoginAccess.Denied
+                    : candidate.AccessStatus == AccountAccessStatus.Active
+                        ? AccountLoginAccess.Allowed
+                    : candidate.AccessStatus == AccountAccessStatus.Banned
+                        ? AccountLoginAccess.Banned
+                    : AccountLoginAccess.Denied,
+                candidate.StateRevision,
+                candidate.PasswordCredential.Revision
+            )).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+        return snapshot;
     }
 
-    public async ValueTask<bool> TryRecordLoginAsync(
-        AccountAuthenticationSnapshot account, string? replacementPasswordHash, uint loginTimestamp,
-        CancellationToken cancellationToken = default)
+    public async ValueTask<bool> TryRecordSuccessfulLoginAsync(AccountAuthenticationSnapshot account, string? replacementPasswordHash, DateTimeOffset successfulLoginAt, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(account);
         ValidatePasswordHash(account.PasswordHash, nameof(account));
+
         if (replacementPasswordHash is not null)
         {
             ValidatePasswordHash(replacementPasswordHash, nameof(replacementPasswordHash));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
         if (account.Access != AccountLoginAccess.Allowed)
         {
             return false;
         }
 
         await using AccountDbContext db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        string passwordHash = replacementPasswordHash ?? account.PasswordHash;
 
-        // HEX compares every stored byte, including case and trailing spaces, independently
-        // of the account table's case-insensitive collation. The primary key bounds the work.
-        int affected = await db.Accounts
-            .Where(candidate => candidate.Id == account.AccountId
-                && EF.Functions.Hex(candidate.Username) == EF.Functions.Hex(account.Username)
-                && EF.Functions.Hex(candidate.PasswordHash) == EF.Functions.Hex(account.PasswordHash)
-                && candidate.Permission >= 1 && candidate.Permission <= 5)
-            .ExecuteUpdateAsync(update => update
-                .SetProperty(candidate => candidate.PasswordHash, passwordHash)
-                .SetProperty(candidate => candidate.LoginTimestamp, loginTimestamp), cancellationToken)
-            .ConfigureAwait(false);
+        DateTime successfulLoginAtUtc = successfulLoginAt.UtcDateTime;
 
-        return affected switch
+        int affected;
+        int expectedAffected;
+
+        if (replacementPasswordHash is null)
         {
-            0 => false,
-            1 => true,
-            _ => throw new InvalidOperationException("Authentication updated more than one account."),
-        };
-    }
+            affected = await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                    UPDATE `accounts` AS `a`
+                    INNER JOIN `account_password_credentials` AS `c`
+                        ON `c`.`account_id` = `a`.`account_id`
+                    SET `a`.`last_successful_login_at_utc` =
+                        CASE
+                            WHEN `a`.`last_successful_login_at_utc` IS NULL
+                                OR `a`.`last_successful_login_at_utc` < {successfulLoginAtUtc}
+                            THEN {successfulLoginAtUtc}
+                            ELSE `a`.`last_successful_login_at_utc`
+                        END
+                    WHERE `a`.`account_id` = {account.AccountId}
+                      AND `a`.`username` COLLATE utf8mb4_0900_bin =
+                          {account.Username} COLLATE utf8mb4_0900_bin
+                      AND `a`.`access_status` = {(byte)AccountAccessStatus.Active}
+                      AND `a`.`deleted_at_utc` IS NULL
+                      AND `a`.`state_revision` = {account.AccountStateRevision}
+                      AND `c`.`password_hash` = {account.PasswordHash}
+                      AND `c`.`revision` = {account.PasswordCredentialRevision};
+                    """, cancellationToken).ConfigureAwait(false);
 
-    private static AccountLoginAccess MapAccess(uint permission)
-    {
-        return permission switch
+            expectedAffected = 1;
+        }
+        else
         {
-            1 or 2 or 3 or 4 or 5 => AccountLoginAccess.Allowed,
-            255 => AccountLoginAccess.Banned,
-            _ => AccountLoginAccess.Denied,
-        };
+            affected = await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                    UPDATE `accounts` AS `a`
+                    INNER JOIN `account_password_credentials` AS `c`
+                        ON `c`.`account_id` = `a`.`account_id`
+                    SET `a`.`last_successful_login_at_utc` =
+                            CASE
+                                WHEN `a`.`last_successful_login_at_utc` IS NULL
+                                    OR `a`.`last_successful_login_at_utc` < {successfulLoginAtUtc}
+                                THEN {successfulLoginAtUtc}
+                                ELSE `a`.`last_successful_login_at_utc`
+                            END,
+                        `c`.`password_hash` = {replacementPasswordHash},
+                        `c`.`password_changed_at_utc` = {successfulLoginAtUtc},
+                        `c`.`revision` = `c`.`revision` + 1
+                    WHERE `a`.`account_id` = {account.AccountId}
+                      AND `a`.`username` COLLATE utf8mb4_0900_bin =
+                          {account.Username} COLLATE utf8mb4_0900_bin
+                      AND `a`.`access_status` = {(byte)AccountAccessStatus.Active}
+                      AND `a`.`deleted_at_utc` IS NULL
+                      AND `a`.`state_revision` = {account.AccountStateRevision}
+                      AND `c`.`password_hash` = {account.PasswordHash}
+                      AND `c`.`revision` = {account.PasswordCredentialRevision};
+                    """, cancellationToken).ConfigureAwait(false);
+
+            expectedAffected = 2;
+        }
+
+        if (affected == 0)
+        {
+            return false;
+        }
+
+        if (affected != expectedAffected)
+        {
+            throw new InvalidOperationException($"Authentication persistence affected an unexpected number of rows. Expected {expectedAffected}, but MySQL reported {affected}.");
+        }
+
+        return true;
     }
 
     private static void ValidatePasswordHash(string hash, string parameterName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hash, parameterName);
-        if (hash.Length > AccountConfiguration.MaximumPasswordHashLength)
+
+        if (hash.Length > AccountPasswordCredentialConfiguration.MaximumPasswordHashLength)
         {
             throw new ArgumentException("A password hash cannot exceed 255 characters.", parameterName);
         }

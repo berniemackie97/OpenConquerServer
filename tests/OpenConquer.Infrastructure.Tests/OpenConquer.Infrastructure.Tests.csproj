@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
@@ -24,7 +25,4 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="Fixtures/accounts.sql" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 </Project>

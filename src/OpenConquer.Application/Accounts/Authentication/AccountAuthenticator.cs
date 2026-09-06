@@ -8,8 +8,7 @@ namespace OpenConquer.Application.Accounts.Authentication;
 /// persistence, password-hashing technology, and authentication-attempt
 /// protection implementation.
 /// </summary>
-public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher,
-    IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
+public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher, IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
     : IAccountAuthenticator
 {
     private const int MaximumPersistenceAttempts = 2;
@@ -26,8 +25,7 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!AccountCredentialPolicy.TryNormalizeUsername(accountName, out string username) ||
-            !AccountCredentialPolicy.IsValidPassword(password.Span))
+        if (!AccountCredentialPolicy.TryNormalizeUsername(accountName, out string username) || !AccountCredentialPolicy.IsValidPassword(password.Span))
         {
             return AccountAuthenticationResult.InvalidCredentials();
         }
@@ -54,8 +52,6 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
 
         using (authenticationAttempt)
         {
-            // One conflict may be a concurrent password migration. Revalidate the complete
-            // snapshot once; sustained contention must not turn into unbounded password work.
             for (int attempt = 0; attempt < MaximumPersistenceAttempts; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -92,7 +88,7 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                         break;
 
                     default:
-                        throw new InvalidOperationException($"Account authentication snapshot contains unsupported login access {account.Access}.");
+                        throw new InvalidOperationException($"Authentication snapshot contains unsupported login access {account.Access}.");
                 }
 
                 string? replacementPasswordHash = null;
@@ -108,9 +104,10 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                     }
                 }
 
-                uint timestamp = checked((uint)_timeProvider.GetUtcNow().ToUnixTimeSeconds());
-                bool recorded = await _repository.TryRecordLoginAsync(account, replacementPasswordHash, timestamp,
-                    cancellationToken).ConfigureAwait(false);
+                DateTimeOffset successfulLoginAt = _timeProvider.GetUtcNow();
+
+                bool recorded = await _repository.TryRecordSuccessfulLoginAsync(account, replacementPasswordHash, successfulLoginAt, cancellationToken).ConfigureAwait(false);
+
                 cancellationToken.ThrowIfCancellationRequested();
 
                 if (recorded)
@@ -125,7 +122,9 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                 }
 
                 AccountAuthenticationSnapshot? refreshed = await _repository.FindByNameAsync(username, cancellationToken).ConfigureAwait(false);
+
                 cancellationToken.ThrowIfCancellationRequested();
+
                 if (refreshed is null || refreshed.AccountId != account.AccountId)
                 {
                     _passwordHasher.VerifyDecoy(password.Span);

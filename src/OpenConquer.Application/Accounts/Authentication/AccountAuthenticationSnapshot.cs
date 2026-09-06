@@ -1,12 +1,8 @@
 namespace OpenConquer.Application.Accounts.Authentication;
 
-/// <summary>
-/// Contains the minimal persisted account state required to authenticate one
-/// login attempt.
-/// </summary>
 public sealed class AccountAuthenticationSnapshot
 {
-    public AccountAuthenticationSnapshot(uint accountId, string username, string passwordHash, AccountLoginAccess access)
+    public AccountAuthenticationSnapshot(uint accountId, string username, string passwordHash, AccountLoginAccess access, ulong accountStateRevision, ulong passwordCredentialRevision)
     {
         if (accountId == 0)
         {
@@ -21,14 +17,28 @@ public sealed class AccountAuthenticationSnapshot
             throw new ArgumentOutOfRangeException(nameof(access), access, "The account login access value is not supported.");
         }
 
+        if (accountStateRevision == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(accountStateRevision), "An account state revision must be greater than zero.");
+        }
+
+        if (passwordCredentialRevision == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(passwordCredentialRevision), "A password credential revision must be greater than zero.");
+        }
+
         AccountId = accountId;
         Username = username;
         PasswordHash = passwordHash;
         Access = access;
+        AccountStateRevision = accountStateRevision;
+        PasswordCredentialRevision = passwordCredentialRevision;
     }
 
     public uint AccountId { get; }
     public string Username { get; }
     public string PasswordHash { get; }
     public AccountLoginAccess Access { get; }
+    public ulong AccountStateRevision { get; }
+    public ulong PasswordCredentialRevision { get; }
 }
