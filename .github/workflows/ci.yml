@@ -41,11 +41,24 @@ jobs:
       - name: Restore locked dependencies
         run: dotnet restore OpenConquer.Server.slnx --locked-mode
 
+      - name: Restore local tools
+        run: dotnet tool restore
+
       - name: Verify formatting
         run: dotnet format OpenConquer.Server.slnx --verify-no-changes --no-restore
 
       - name: Build
         run: dotnet build OpenConquer.Server.slnx --configuration Release --no-restore
+
+      - name: Verify account schema model
+        run: >
+          dotnet tool run dotnet-ef --
+          migrations has-pending-model-changes
+          --configuration Release
+          --no-build
+          --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj
+          --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj
+          --context AccountDbContext
 
       - name: Test
         run: dotnet test OpenConquer.Server.slnx --configuration Release --no-build --no-restore
