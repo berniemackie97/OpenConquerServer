@@ -1,3 +1,5 @@
+using OpenConquer.Domain.Accounts;
+
 namespace OpenConquer.Application.Accounts.Authentication;
 
 public sealed class AccountAuthenticationSnapshot
@@ -9,7 +11,11 @@ public sealed class AccountAuthenticationSnapshot
             throw new ArgumentOutOfRangeException(nameof(accountId), "A persisted authentication snapshot must identify an account.");
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        if (!AccountCredentialPolicy.IsCanonicalUsername(username))
+        {
+            throw new ArgumentException("A persisted authentication snapshot requires a canonical account username.", nameof(username));
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
 
         if (!Enum.IsDefined(access))
