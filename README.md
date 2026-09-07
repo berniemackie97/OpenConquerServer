@@ -11,9 +11,10 @@ goal for the project, the plan is to design it in a way that is easily customiza
 
 > **Status:** Early development. The server is being rebuilt from the ground up in focused, fully
 > tested implementation slices. The executable entry points are not wired into runnable servers.
-> Current code covers transport, login protocol/session components, account authentication, and
-> password storage, and a MySQL authentication adapter; it does not yet provide account registration, login tickets,
-> or game sessions.
+> Current code covers transport, login protocol/session components, account authentication and
+> password storage, MySQL account persistence, durable game-login ticket issuance, and atomic
+> single-use game-login ticket redemption. Account registration, production host composition, and
+> game sessions are not yet implemented.
 
 ## Architecture
 
@@ -53,16 +54,16 @@ flowchart TD
 
 The dependency diagram describes project boundaries. Current implementation is:
 
-| Project | Implemented responsibility |
-| --- | --- |
-| **OpenConquer.Domain** | Account credential invariants. |
-| **OpenConquer.Application** | Account authentication orchestration and repository/verifier/attempt-limiter contracts. |
-| **OpenConquer.Infrastructure** | PBKDF2 password storage and transparent OpenConquerPublic Identity V3 verification/migration. This branch also implements MySQL authentication lookup and conditional hash replacement. |
-| **OpenConquer.Protocol** | Framing, serialization, text encoding, login stream cipher, credentials, and login packets. |
-| **OpenConquer.Transport** | TCP listeners/connections, bounded admission, input/output pumps, and connection lifetime. |
-| **OpenConquer.AccountServer** | Login session, seed/request handling, and post-authentication report readers. Host composition is not implemented. |
-| **OpenConquer.GameServer** | Project boundary only; no game runtime is implemented. |
-| **OpenConquer.Assets** | Project boundary only; no asset loaders are implemented. |
+| Project                        | Implemented responsibility                                                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OpenConquer.Domain**         | Account credential and authorization-state invariants.                                                                                                                                                              |
+| **OpenConquer.Application**    | Account authentication and game-login ticket orchestration with persistence, verifier, token-generator, and abuse-protection contracts.                                                                             |
+| **OpenConquer.Infrastructure** | Rewrite-owned MySQL account persistence, PBKDF2 password storage and transparent OpenConquerPublic Identity V3 migration, durable game-login ticket grant/redemption persistence, and ticket-verifier cryptography. |
+| **OpenConquer.Protocol**       | Framing, serialization, text encoding, login stream cipher, credentials, and login packets.                                                                                                                         |
+| **OpenConquer.Transport**      | TCP listeners/connections, bounded admission, input/output pumps, and connection lifetime.                                                                                                                          |
+| **OpenConquer.AccountServer**  | Login session, seed/request handling, and post-authentication report readers. Host composition is not implemented.                                                                                                  |
+| **OpenConquer.GameServer**     | Project boundary only; no game runtime is implemented.                                                                                                                                                              |
+| **OpenConquer.Assets**         | Project boundary only; no asset loaders are implemented.                                                                                                                                                            |
 
 ## Documentation
 
@@ -74,8 +75,7 @@ Detailed design and compatibility documentation lives under [docs](docs).
 - [Networking architecture](docs/architecture/networking.md)
 - [World execution](docs/architecture/world-execution.md)
 - [Authentication and password migration](docs/architecture/authentication.md)
-- [Main re-baseline audit](docs/audits/main-rebaseline.md)
-- [Persistence branch reconciliation](docs/audits/account-authentication-persistence.md)
+- [Server baseline audit](docs/audits/server-baseline.md)
 
 ### Protocol
 
@@ -107,9 +107,11 @@ docs/
 └── protocol/
 ```
 
-There are no tracked database schemas, migrations, benchmark projects, or tool scripts on `main`.
-The MySQL adapter targets the existing OpenConquerPublic account schema. Tests provision only
-ephemeral container databases; the application does not provision or migrate a live database.
+The account database schema is rewrite-owned and versioned through EF Core migrations under
+`OpenConquer.Infrastructure`. Tests provision ephemeral MySQL 8.4 databases through Testcontainers
+and apply those migrations before exercising the runtime persistence adapters. Production database
+migration and host deployment orchestration are intentionally separate from runtime application
+startup.
 
 ## Requirements
 
@@ -145,9 +147,10 @@ dotnet test tests/OpenConquer.Protocol.Tests/OpenConquer.Protocol.Tests.csproj -
 ```
 
 All five test projects use **xUnit v3** on **Microsoft Testing Platform**. Infrastructure tests
-exercise real password derivations, migration, and MySQL persistence. Database tests use short-lived
-MySQL 8.4 containers through Testcontainers. The ASP.NET Core shared framework is used only by these tests
-to independently reproduce the legacy Identity hasher. It is included with the .NET SDK.
+exercise real password derivations, schema migration, MySQL authentication persistence, durable
+game-login ticket grant, and atomic single-use ticket redemption. Database tests use short-lived
+MySQL 8.4 containers through Testcontainers. The ASP.NET Core shared framework is used only by these
+tests to independently reproduce the legacy Identity hasher. It is included with the .NET SDK.
 
 Coverage integration is provided through `coverlet.MTP`:
 
