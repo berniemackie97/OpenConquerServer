@@ -98,7 +98,6 @@ public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbC
                                 ELSE `a`.`last_successful_login_at_utc`
                             END,
                         `c`.`password_hash` = {replacementPasswordHash},
-                        `c`.`password_changed_at_utc` = {successfulLoginAtUtc},
                         `c`.`revision` = `c`.`revision` + 1
                     WHERE `a`.`account_id` = {account.AccountId}
                       AND `a`.`username` COLLATE utf8mb4_0900_bin =

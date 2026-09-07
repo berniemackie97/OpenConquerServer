@@ -182,7 +182,10 @@ The persistence predicate checks:
 - original password hash;
 - password credential revision.
 
-A password rehash additionally replaces the hash and increments the credential revision.
+A password rehash replaces the stored hash and increments the password credential revision because
+the persisted credential representation changed. It preserves `password_changed_at_utc`: transparent
+hash migration does not change the user's password secret and therefore must not rewrite password-
+change history.
 
 This compare-and-swap boundary prevents stale authentication results from silently recording or
 migrating credentials after relevant account state changes.
