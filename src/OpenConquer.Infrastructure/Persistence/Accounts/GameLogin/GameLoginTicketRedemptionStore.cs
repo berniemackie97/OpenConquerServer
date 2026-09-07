@@ -6,7 +6,7 @@ using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
-internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource, GameLoginTicketAuthenticationKeyRing authenticationKeyRing )
+internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource, GameLoginTicketAuthenticationKeyRing authenticationKeyRing)
     : IGameLoginTicketRedemptionStore
 {
     private readonly MySqlDataSource _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
