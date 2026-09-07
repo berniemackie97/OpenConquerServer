@@ -4,6 +4,8 @@ using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Domain.Accounts;
 using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts;
+using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
+using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 

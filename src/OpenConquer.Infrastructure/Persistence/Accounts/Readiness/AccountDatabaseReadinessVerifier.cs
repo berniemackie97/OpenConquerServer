@@ -1,6 +1,8 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using OpenConquer.Infrastructure.Persistence.Accounts;
+using OpenConquer.Infrastructure.Persistence.Accounts.Context;
+using OpenConquer.Infrastructure.Persistence.Schema;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 

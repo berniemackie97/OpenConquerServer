@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Infrastructure.Security;
+using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Tests.Security;
 

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OpenConquer.Infrastructure.Persistence;
+using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 
 #nullable disable
 

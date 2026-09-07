@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Infrastructure.Security;
+using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Tests.Security;
 
