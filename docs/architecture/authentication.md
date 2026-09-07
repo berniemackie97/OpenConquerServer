@@ -19,7 +19,11 @@ GameLoginTicketIssuer
     ↓
 atomic durable ticket grant
     ↓
-future GameServer redemption
+GameLoginTicketRedeemer
+    ↓
+atomic single-use ticket redemption
+    ↓
+authorized game-login identity
 ```
 
 Authentication proves credentials at a point in time. A game-login ticket is the separate durable
@@ -287,7 +291,7 @@ rotation.
 Unknown persisted verifier-key IDs fail closed.
 
 Production AccountServer and GameServer database identities must not receive ticket `UPDATE`
-permission. Ticket records are immutable grants: issuance inserts them, successful future redemption
+permission. Ticket records are immutable grants: issuance inserts them, successful redemption
 consumes them, and revocation or maintenance deletes them.
 
 ## Grant cancellation and failure semantics
@@ -308,6 +312,150 @@ after an unknown commit result could create misleading session state.
 
 Session-UID primary-key collision is the one expected persistence conflict translated into an
 allocation-retry result.
+
+## Game-login ticket redemption
+
+`GameLoginTicketRedeemer` owns the application-level redemption use case.
+
+It validates the supplied native-width credentials before attempting persistence and delegates
+redemption abuse protection to `IGameLoginTicketRedemptionAttemptLimiter`.
+
+A redemption attempt consists of:
+
+- nonzero `SessionUid`;
+- nonzero `AuthenticationKey`;
+- remote network address for the attempt-protection boundary;
+- the UTC attempt instant supplied to persistence.
+
+A successful redemption returns only:
+
+- account ID;
+- canonical username;
+- `SessionUid`.
+
+The raw `AuthenticationKey` is authentication proof only and is not carried into the authorized
+game-login identity.
+
+The redemption use case verifies that persistence cannot return an identity for a different
+`SessionUid`.
+
+Production redemption attempt limiting is not yet implemented. The application contract exists so
+that GameServer composition cannot treat persistence-level credential verification as sufficient
+protection for the native 32-bit authentication key.
+
+## Atomic redemption persistence
+
+`GameLoginTicketRedemptionStore` implements durable single-use redemption with MySqlConnector.
+
+Each redemption uses an explicit `READ COMMITTED` transaction and operates only on the durable
+ticket row.
+
+The operation executes:
+
+```text
+SELECT game_login_tickets
+WHERE session_uid = ?
+FOR UPDATE
+    ↓
+validate expiration
+    ↓
+verify AuthenticationKey
+    ↓
+DELETE exact ticket
+    ↓
+COMMIT
+    ↓
+return authorized identity
+```
+
+The ticket row is the durable authorization grant. Redemption therefore does not re-query the
+account or password credential tables.
+
+Authorization-invalidating account mutations must instead revoke outstanding tickets in the same
+transaction as the mutation. This keeps account mutation and ticket redemption ownership separate
+and avoids introducing a second account-authorization decision into the GameServer login path.
+
+A missing ticket returns no identity.
+
+A ticket is expired when:
+
+```text
+attempted_at_utc >= expires_at_utc
+```
+
+Expired tickets are rejected without being consumed. Bounded maintenance owns physical removal of
+expired grants.
+
+An invalid `AuthenticationKey` is rejected without consuming the ticket, allowing the legitimate
+bearer to redeem an otherwise valid grant.
+
+Authentication-key verification uses the verifier key ID persisted with the ticket. Historical
+configured verification keys can therefore validate tickets issued before an active-key rotation.
+
+An unknown persisted verification-key ID fails closed as an operational error and does not consume
+the ticket.
+
+Persisted account identity is validated before a successful authorization can be returned. Invalid
+durable identity state therefore fails closed rather than becoming a game-login identity.
+
+After successful verifier validation, redemption deletes the exact locked ticket row and requires
+exactly one affected row.
+
+The authorized identity is returned only after the deletion transaction commits successfully.
+
+## Redemption concurrency
+
+`SELECT ... FOR UPDATE` serializes concurrent redemption attempts for the same `SessionUid`.
+
+For concurrent valid attempts:
+
+```text
+redeemer A
+redeemer B
+    ↓
+same ticket row
+    ↓
+one row-lock winner
+    ↓
+verify
+    ↓
+DELETE
+    ↓
+COMMIT
+    ↓
+second contender observes no ticket
+```
+
+Exactly one valid redemption can therefore produce an authorized identity.
+
+An invalid-key contender cannot consume the grant. If an invalid and valid attempt contend for the
+same ticket, InnoDB serializes access to the row; the invalid attempt rolls back without deletion
+and the valid attempt can subsequently verify and consume the grant.
+
+Integration tests exercise these behaviors against real MySQL/InnoDB, including deterministic
+row-lock contention rather than relying on scheduler timing.
+
+## Redemption cancellation and failure semantics
+
+Caller cancellation is honored while redemption can still be safely abandoned.
+
+Cancellation while waiting for the ticket row lock aborts the attempt without consuming the ticket.
+
+After successful verification, deletion still occurs inside the transaction. If cancellation is
+observed before entering the commit phase, the transaction is rolled back and the ticket remains
+available.
+
+Once redemption enters the commit phase, commit uses a non-cancelable token. This prevents caller
+cancellation from converting a known committed destructive redemption into an apparent canceled
+operation.
+
+A successful identity is returned only after commit succeeds.
+
+Database failures and ambiguous commit outcomes propagate. The redemption store does not
+automatically retry the destructive transaction because an unknown commit result may mean the ticket
+has already been consumed.
+
+A caller must therefore not blindly retry a redemption after an ambiguous persistence failure.
 
 ## Schema and migration behavior
 
@@ -344,12 +492,10 @@ storage representations.
 
 ## Current game-login boundary
 
-The durable grant foundation exists on `main`.
+Durable ticket issuance and atomic single-use redemption persistence are implemented.
 
 The following boundaries are not yet implemented and must not be assumed to exist:
 
-- production game-login ticket redemption persistence;
-- single-use destructive redemption;
 - production redemption attempt limiting;
 - transactional ticket revocation from password/account-state mutation paths;
 - bounded expired-ticket cleanup;
@@ -363,8 +509,7 @@ Hosts must remain unexposed until the required security and operational boundari
 respective login paths are complete.
 
 Future password reset, suspension, ban, deletion, and other authentication-invalidating mutations
-must coordinate with ticket revocation using the same persistence lock ordering required by ticket
-grant.
+must coordinate with ticket revocation using the persistence lock ordering required by ticket grant.
 
 ## Native compatibility boundary
 
