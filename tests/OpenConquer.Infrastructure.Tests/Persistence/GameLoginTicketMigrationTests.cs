@@ -46,7 +46,7 @@ public sealed class GameLoginTicketMigrationTests
 
         await MigrateAsync(connectionString, ProtectedTicketMigrationId);
 
-        await AssertTicketTableIsEmptyAsync(connectionString);
+        await AssertTicketCountAsync(connectionString, expectedCount: 0);
 
         await AssertProtectedCredentialColumnsAsync(connectionString);
 
@@ -85,7 +85,7 @@ public sealed class GameLoginTicketMigrationTests
 
         await SimulateCommittedStructuralUpgradeWithoutMetadataAsync(connectionString);
 
-        await AssertTicketTableIsEmptyAsync(connectionString);
+        await AssertTicketCountAsync(connectionString, expectedCount: 0);
 
         await AssertProtectedCredentialColumnsAsync(connectionString);
 
@@ -99,7 +99,7 @@ public sealed class GameLoginTicketMigrationTests
 
         await MigrateAsync(connectionString, ProtectedTicketMigrationId);
 
-        await AssertTicketTableIsEmptyAsync(connectionString);
+        await AssertTicketCountAsync(connectionString, expectedCount: 0);
 
         await AssertProtectedCredentialColumnsAsync(connectionString);
 
@@ -114,6 +114,112 @@ public sealed class GameLoginTicketMigrationTests
             InitialMigrationId,
             ProtectedTicketMigrationId
         );
+    }
+
+    [Fact]
+    public async Task ProtectGameLoginTicketAuthenticationKey_DowngradesPopulatedV2SchemaToCanonicalV1()
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+
+        await database.StartAsync(CancellationToken);
+
+        string connectionString = database.GetConnectionString();
+
+        await ConfigureDatabaseAsync(connectionString);
+
+        await MigrateAsync(connectionString, ProtectedTicketMigrationId);
+
+        const uint sessionUid = 0x2132_4354u;
+
+        await InsertProtectedTicketAsync(connectionString, sessionUid);
+
+        await AssertTicketCountAsync(connectionString, expectedCount: 1);
+
+        await AssertProtectedCredentialColumnsAsync(connectionString);
+
+        await AssertCompatibilityAsync(
+            connectionString,
+            expectedSchemaVersion: 2,
+            ProtectedTicketMigrationId
+        );
+
+        await AssertMigrationHistoryAsync(
+            connectionString,
+            InitialMigrationId,
+            ProtectedTicketMigrationId
+        );
+
+        await MigrateAsync(connectionString, InitialMigrationId);
+
+        await AssertTicketCountAsync(connectionString, expectedCount: 0);
+
+        await AssertLegacyCredentialColumnAsync(connectionString);
+
+        await AssertProtectedChecksAbsentAsync(connectionString);
+
+        await AssertCompatibilityAsync(
+            connectionString,
+            expectedSchemaVersion: 1,
+            InitialMigrationId
+        );
+
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId);
+    }
+
+    [Fact]
+    public async Task ProtectGameLoginTicketAuthenticationKey_WhenStructuralDowngradeCommittedWithoutMetadata_ResumesSafely()
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+
+        await database.StartAsync(CancellationToken);
+
+        string connectionString = database.GetConnectionString();
+
+        await ConfigureDatabaseAsync(connectionString);
+
+        await MigrateAsync(connectionString, ProtectedTicketMigrationId);
+
+        const uint sessionUid = 0x3142_5364u;
+
+        await InsertProtectedTicketAsync(connectionString, sessionUid);
+
+        await AssertTicketCountAsync(connectionString, expectedCount: 1);
+
+        await SimulateCommittedStructuralDowngradeWithoutMetadataAsync(connectionString);
+
+        await AssertTicketCountAsync(connectionString, expectedCount: 0);
+
+        await AssertLegacyCredentialColumnAsync(connectionString);
+
+        await AssertProtectedChecksAbsentAsync(connectionString);
+
+        await AssertCompatibilityAsync(
+            connectionString,
+            expectedSchemaVersion: 2,
+            ProtectedTicketMigrationId
+        );
+
+        await AssertMigrationHistoryAsync(
+            connectionString,
+            InitialMigrationId,
+            ProtectedTicketMigrationId
+        );
+
+        await MigrateAsync(connectionString, InitialMigrationId);
+
+        await AssertTicketCountAsync(connectionString, expectedCount: 0);
+
+        await AssertLegacyCredentialColumnAsync(connectionString);
+
+        await AssertProtectedChecksAbsentAsync(connectionString);
+
+        await AssertCompatibilityAsync(
+            connectionString,
+            expectedSchemaVersion: 1,
+            InitialMigrationId
+        );
+
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId);
     }
 
     private static MySqlContainer CreateDatabaseContainer()
@@ -173,53 +279,7 @@ public sealed class GameLoginTicketMigrationTests
             CancellationToken
         );
 
-        uint accountId;
-
-        await using (MySqlCommand insertAccount = connection.CreateCommand())
-        {
-            insertAccount.Transaction = transaction;
-
-            insertAccount.CommandText = """
-                INSERT INTO `accounts`
-                    (`username`,
-                     `access_status`,
-                     `authority_role`,
-                     `creation_operation_id`,
-                     `last_successful_login_at_utc`,
-                     `state_revision`,
-                     `created_at_utc`,
-                     `created_by_actor_kind`,
-                     `created_by_account_id`,
-                     `state_changed_at_utc`,
-                     `state_changed_by_actor_kind`,
-                     `state_changed_by_account_id`,
-                     `deleted_at_utc`,
-                     `deleted_by_actor_kind`,
-                     `deleted_by_account_id`)
-                VALUES
-                    ('MigrationTicket',
-                     1,
-                     1,
-                     UUID_TO_BIN(UUID()),
-                     NULL,
-                     1,
-                     '2026-01-01 00:00:00',
-                     3,
-                     NULL,
-                     '2026-01-01 00:00:00',
-                     3,
-                     NULL,
-                     NULL,
-                     NULL,
-                     NULL)
-                """;
-
-            int affected = await insertAccount.ExecuteNonQueryAsync(CancellationToken);
-
-            Assert.Equal(1, affected);
-
-            accountId = checked((uint)insertAccount.LastInsertedId);
-        }
+        uint accountId = await InsertMigrationAccountAsync(connection, transaction);
 
         await using (MySqlCommand insertTicket = connection.CreateCommand())
         {
@@ -242,11 +302,12 @@ public sealed class GameLoginTicketMigrationTests
                      '2026-01-01 00:06:00')
                 """;
 
-            insertTicket.Parameters.AddWithValue("@session_uid", sessionUid);
+            insertTicket.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
 
-            insertTicket.Parameters.AddWithValue("@authentication_key", authenticationKey);
+            insertTicket.Parameters.Add("@authentication_key", MySqlDbType.UInt32).Value =
+                authenticationKey;
 
-            insertTicket.Parameters.AddWithValue("@account_id", accountId);
+            insertTicket.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = accountId;
 
             int affected = await insertTicket.ExecuteNonQueryAsync(CancellationToken);
 
@@ -254,6 +315,114 @@ public sealed class GameLoginTicketMigrationTests
         }
 
         await transaction.CommitAsync(CancellationToken);
+    }
+
+    private static async Task InsertProtectedTicketAsync(string connectionString, uint sessionUid)
+    {
+        await using MySqlConnection connection = new(connectionString);
+
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlTransaction transaction = await connection.BeginTransactionAsync(
+            CancellationToken
+        );
+
+        uint accountId = await InsertMigrationAccountAsync(connection, transaction);
+
+        byte[] verifier = Enumerable.Range(1, 32).Select(value => checked((byte)value)).ToArray();
+
+        await using (MySqlCommand insertTicket = connection.CreateCommand())
+        {
+            insertTicket.Transaction = transaction;
+
+            insertTicket.CommandText = """
+                INSERT INTO `game_login_tickets`
+                    (`session_uid`,
+                     `account_id`,
+                     `username`,
+                     `issued_at_utc`,
+                     `expires_at_utc`,
+                     `authentication_key_verifier`,
+                     `authentication_key_verifier_key_id`)
+                VALUES
+                    (@session_uid,
+                     @account_id,
+                     'MigrationTicket',
+                     '2026-01-01 00:01:00',
+                     '2026-01-01 00:06:00',
+                     @authentication_key_verifier,
+                     @authentication_key_verifier_key_id)
+                """;
+
+            insertTicket.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
+
+            insertTicket.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = accountId;
+
+            insertTicket
+                .Parameters.Add("@authentication_key_verifier", MySqlDbType.Binary, verifier.Length)
+                .Value = verifier;
+
+            insertTicket
+                .Parameters.Add("@authentication_key_verifier_key_id", MySqlDbType.UInt16)
+                .Value = (ushort)7;
+
+            int affected = await insertTicket.ExecuteNonQueryAsync(CancellationToken);
+
+            Assert.Equal(1, affected);
+        }
+
+        await transaction.CommitAsync(CancellationToken);
+    }
+
+    private static async Task<uint> InsertMigrationAccountAsync(
+        MySqlConnection connection,
+        MySqlTransaction transaction
+    )
+    {
+        await using MySqlCommand insertAccount = connection.CreateCommand();
+
+        insertAccount.Transaction = transaction;
+
+        insertAccount.CommandText = """
+            INSERT INTO `accounts`
+                (`username`,
+                 `access_status`,
+                 `authority_role`,
+                 `creation_operation_id`,
+                 `last_successful_login_at_utc`,
+                 `state_revision`,
+                 `created_at_utc`,
+                 `created_by_actor_kind`,
+                 `created_by_account_id`,
+                 `state_changed_at_utc`,
+                 `state_changed_by_actor_kind`,
+                 `state_changed_by_account_id`,
+                 `deleted_at_utc`,
+                 `deleted_by_actor_kind`,
+                 `deleted_by_account_id`)
+            VALUES
+                ('MigrationTicket',
+                 1,
+                 1,
+                 UUID_TO_BIN(UUID()),
+                 NULL,
+                 1,
+                 '2026-01-01 00:00:00',
+                 3,
+                 NULL,
+                 '2026-01-01 00:00:00',
+                 3,
+                 NULL,
+                 NULL,
+                 NULL,
+                 NULL)
+            """;
+
+        int affected = await insertAccount.ExecuteNonQueryAsync(CancellationToken);
+
+        Assert.Equal(1, affected);
+
+        return checked((uint)insertAccount.LastInsertedId);
     }
 
     private static async Task SimulateCommittedStructuralUpgradeWithoutMetadataAsync(
@@ -290,6 +459,38 @@ public sealed class GameLoginTicketMigrationTests
         }
     }
 
+    private static async Task SimulateCommittedStructuralDowngradeWithoutMetadataAsync(
+        string connectionString
+    )
+    {
+        await using MySqlConnection connection = new(connectionString);
+
+        await connection.OpenAsync(CancellationToken);
+
+        await using (MySqlCommand deleteTickets = connection.CreateCommand())
+        {
+            deleteTickets.CommandText = """
+                DELETE FROM `game_login_tickets`
+                """;
+
+            await deleteTickets.ExecuteNonQueryAsync(CancellationToken);
+        }
+
+        await using (MySqlCommand alterTickets = connection.CreateCommand())
+        {
+            alterTickets.CommandText = """
+                ALTER TABLE `game_login_tickets`
+                    DROP CHECK `CK_game_login_tickets_session_uid`,
+                    DROP CHECK `CK_game_login_tickets_verifier_key_id`,
+                    DROP COLUMN `authentication_key_verifier`,
+                    DROP COLUMN `authentication_key_verifier_key_id`,
+                    ADD COLUMN `authentication_key` INT UNSIGNED NOT NULL
+                """;
+
+            await alterTickets.ExecuteNonQueryAsync(CancellationToken);
+        }
+    }
+
     private static async Task AssertLegacyTicketExistsAsync(
         string connectionString,
         uint sessionUid,
@@ -308,15 +509,16 @@ public sealed class GameLoginTicketMigrationTests
             WHERE `session_uid` = @session_uid
             """;
 
-        command.Parameters.AddWithValue("@session_uid", sessionUid);
+        command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
 
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
+
         Assert.Equal(authenticationKey, Convert.ToUInt32(result));
     }
 
-    private static async Task AssertTicketTableIsEmptyAsync(string connectionString)
+    private static async Task AssertTicketCountAsync(string connectionString, long expectedCount)
     {
         await using MySqlConnection connection = new(connectionString);
 
@@ -332,7 +534,8 @@ public sealed class GameLoginTicketMigrationTests
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(0L, Convert.ToInt64(result));
+
+        Assert.Equal(expectedCount, Convert.ToInt64(result));
     }
 
     private static async Task AssertProtectedCredentialColumnsAsync(string connectionString)
@@ -377,6 +580,81 @@ public sealed class GameLoginTicketMigrationTests
         ];
 
         Assert.Equal(expected, actual);
+    }
+
+    private static async Task AssertLegacyCredentialColumnAsync(string connectionString)
+    {
+        await using MySqlConnection connection = new(connectionString);
+
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT
+                `COLUMN_NAME`,
+                `COLUMN_TYPE`,
+                `IS_NULLABLE`,
+                `COLUMN_DEFAULT`
+            FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = 'game_login_tickets'
+              AND `COLUMN_NAME` IN
+                  ('authentication_key',
+                   'authentication_key_verifier',
+                   'authentication_key_verifier_key_id')
+            ORDER BY `COLUMN_NAME`
+            """;
+
+        List<(string Name, string ColumnType, string IsNullable, bool HasDefault)> actual = [];
+
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
+
+        while (await reader.ReadAsync(CancellationToken))
+        {
+            actual.Add(
+                (reader.GetString(0), reader.GetString(1), reader.GetString(2), !reader.IsDBNull(3))
+            );
+        }
+
+        (string Name, string ColumnType, string IsNullable, bool HasDefault)[] expected =
+        [
+            ("authentication_key", "int unsigned", "NO", false),
+        ];
+
+        Assert.Equal(expected, actual);
+    }
+
+    private static async Task AssertProtectedChecksAbsentAsync(string connectionString)
+    {
+        await using MySqlConnection connection = new(connectionString);
+
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT `CONSTRAINT_NAME`
+            FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = 'game_login_tickets'
+              AND `CONSTRAINT_TYPE` = 'CHECK'
+              AND `CONSTRAINT_NAME` IN
+                  ('CK_game_login_tickets_session_uid',
+                   'CK_game_login_tickets_verifier_key_id')
+            ORDER BY `CONSTRAINT_NAME`
+            """;
+
+        List<string> actual = [];
+
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
+
+        while (await reader.ReadAsync(CancellationToken))
+        {
+            actual.Add(reader.GetString(0));
+        }
+
+        Assert.Empty(actual);
     }
 
     private static async Task AssertCompatibilityAsync(

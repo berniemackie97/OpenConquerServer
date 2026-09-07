@@ -1,83 +1,399 @@
 # Account authentication
 
-`AccountAuthenticator` owns the use case. `AccountCredentialPolicy` in Domain defines the legacy
-credential invariants; Application applies them before invoking any repository or expensive verifier.
-Protocol decodes wire fields and Infrastructure implements password storage, without duplicating
-account rules in either layer.
+`AccountAuthenticator` owns the credential-authentication use case. `AccountCredentialPolicy` in
+Domain defines the legacy credential invariants; Application applies them before invoking
+persistence or expensive password verification. Protocol decodes wire fields and Infrastructure
+implements password storage and durable authentication persistence without duplicating account rules
+across layers.
+
+Authentication and game-login authorization are separate boundaries:
+
+```text
+credentials
+    ↓
+AccountAuthenticator
+    ↓
+successful authentication snapshot
+    ↓
+GameLoginTicketIssuer
+    ↓
+atomic durable ticket grant
+    ↓
+future GameServer redemption
+```
+
+Authentication proves credentials at a point in time. A game-login ticket is the separate durable
+authorization grant used to bridge the AccountServer and GameServer connection phases.
 
 ## Credential contract
 
 - Trim surrounding username whitespace, then require 1–32 .NET characters.
 - Preserve case, internal whitespace, and the legacy unrestricted character set. Persistence owns
-  account matching/collation; this use case does not lowercase identifiers.
-- Require 1–128 password characters. Empty/default password memory is invalid. Never trim or
-  normalize a password; an all-space nonempty password satisfies the legacy length policy.
-- Return `InvalidCredentials` for invalid supplied values before dependency calls. Null account-name
-  and remote-address arguments remain explicit caller contract errors.
-- Keep caller-owned password memory valid and unchanged until authentication completes. The
-  authenticator and verifier do not retain it. The login request owner clears its buffer on disposal.
+  account lookup collation; the authentication use case does not lowercase identifiers.
+- Require 1–128 password characters. Empty/default password memory is invalid.
+- Never trim or normalize passwords. An all-space nonempty password satisfies the legacy length
+  policy.
+- Return `InvalidCredentials` for invalid supplied values before repository or password-verifier
+  work.
+- Null account-name and remote-address arguments remain explicit caller contract errors.
+- Keep caller-owned password memory valid and unchanged until authentication completes.
+- The authenticator and verifier do not retain caller password memory.
 
-The native packet has a 128-byte account field and transforms only 32 credential bytes on the
-standard path. Those wire dimensions are distinct from account policy. In particular, keypad decoding
-must use the original account bytes **before** trimming the account for lookup.
+The native login packet has a 128-byte account field and transforms only 32 credential bytes on the
+standard path. Those wire dimensions are distinct from account policy. In particular, keypad
+decoding must use the original account bytes before trimming the username for lookup.
 
-## Authorization and concurrency
+## Authentication authorization and concurrency
 
-Account misses perform decoy verification. Resolved accounts acquire an attempt lease before
-password verification; denied admission does not perform password work. The password is verified
-before exposing banned status. A valid password for a denied/banned account is recorded as accepted
-credentials, but cannot authorize login or trigger migration. Unknown verifier statuses fail closed.
-Cancellation and exceptions abandon the lease; completed outcomes are reported exactly once.
+Account misses perform decoy password verification. Resolved accounts acquire an authentication
+attempt lease before password verification; denied admission does not perform password work.
 
-Obsolete hashes are replaced through compare-and-swap against the exact original stored hash.
-When replacement loses a race, authentication re-reads the account once and re-verifies its password
-and access. A concurrent successful migration can still authenticate. A reset to a different password,
-account deletion/recreation, or changed access cannot authorize the obsolete snapshot. Revalidation
-never attempts a second migration, so contention cannot cause an unbounded retry loop.
+The password is verified before exposing banned status. Valid credentials for a denied or banned
+account are recorded as accepted credentials by the attempt-protection boundary but cannot authorize
+login or trigger password migration.
 
-Authentication is a point-in-time credential decision, not a persistent session grant. The repository
-contract does not atomically lock password/access state through subsequent ticket issuance.
-Game-session authorization and revocation remain separate, unimplemented boundaries on `main`.
+Unknown password-verifier statuses fail closed. Cancellation and exceptions abandon the attempt
+lease; completed authentication outcomes are reported exactly once.
 
-## Password formats and migration
+Successful authentication carries the exact identity and persistence revisions required to authorize
+a subsequent ticket grant:
 
-New hashes use `$openconquer$pbkdf2-sha256$v=1$`, PBKDF2-HMAC-SHA256 with 600,000 iterations,
-a random 16-byte salt, and a 32-byte derived key. The existing format remains unchanged.
+- account ID;
+- canonical persisted username;
+- account state revision;
+- password credential revision.
 
-The verifier also accepts `$openconquer$identity-v3$` with the exact profile generated throughout
-OpenConquerPublic's hasher history: Identity marker 1, PRF 2 (HMAC-SHA512), 220,000 iterations,
-16-byte salt, and 32-byte subkey. The three header integers are big-endian. This layout is verified
-against the [Microsoft Identity implementation](https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Identity/Extensions.Core/src/PasswordHasher.cs),
-a fixed independent vector, and hashes produced by the actual framework hasher in tests.
+A successful result reflects an allowed access decision at authentication time, but that decision is
+not carried forward as authoritative state. Ticket grant independently revalidates current account
+access and deletion state under its database lock.
 
-Only a matching password returns `SuccessRehashNeeded`. Application then creates a current hash
-and requests conditional replacement; wrong passwords never migrate. This preserves existing
-OpenConquerPublic accounts without an offline password reset or plaintext export.
+Those revisions are part of the authentication result because authentication and ticket persistence
+are separate operations. They prevent a previously valid credential decision from silently becoming
+a game-session grant after account or password state changes.
 
-The fixed-profile allowlist is intentional: it preserves what the legacy writer actually emitted,
-while rejecting persisted iteration/length/PRF values that could drive unbounded CPU or allocation.
-Unprefixed values, Identity V2, custom Identity profiles, malformed or extended records fail closed.
-They were not emitted by this legacy writer. Older plaintext/custom-salt support was explicitly
-removed from OpenConquerPublic in commit `6c66e2a`; this correction does not re-enable it.
+## Password hash migration
+
+Obsolete hashes are replaced through compare-and-swap against the exact original authentication
+snapshot.
+
+When replacement loses a race, authentication re-reads the account once and re-verifies:
+
+- password;
+- account identity;
+- account access;
+- account state revision;
+- password credential state.
+
+A concurrent successful password migration can still authenticate. A password reset to a different
+password, account deletion/recreation, access change, or other authentication-state change cannot
+authorize the obsolete snapshot.
+
+Revalidation never attempts a second password migration, so contention cannot cause an unbounded
+retry loop.
+
+A successful password migration increments the password credential revision. The successful
+authentication result carries the effective revision representing the state that was actually
+authenticated and persisted.
+
+## Password formats
+
+New hashes use:
+
+```text
+$openconquer$pbkdf2-sha256$v=1$
+```
+
+with:
+
+- PBKDF2-HMAC-SHA256;
+- 600,000 iterations;
+- random 16-byte salt;
+- 32-byte derived key.
+
+The verifier also accepts:
+
+```text
+$openconquer$identity-v3$
+```
+
+using the exact profile emitted by the preserved OpenConquerPublic implementation:
+
+- Identity marker 1;
+- PRF 2 / HMAC-SHA512;
+- 220,000 iterations;
+- 16-byte salt;
+- 32-byte subkey;
+- big-endian metadata integers.
+
+This compatibility profile is verified against the Microsoft Identity implementation, an independent
+fixed vector, and hashes generated by the framework hasher in tests.
+
+Only a matching password can return `SuccessRehashNeeded`. Application then creates a current-format
+hash and requests conditional replacement. Wrong passwords never migrate persisted credentials.
+
+The fixed legacy-profile allowlist is intentional. Persisted iteration counts, lengths, PRFs, and
+formats are not treated as attacker-controlled password-work parameters.
+
+Unprefixed values, Identity V2, unsupported Identity V3 profiles, malformed records, and extended
+records fail closed. Older plaintext/custom-salt password handling removed from OpenConquerPublic is
+not reintroduced.
 
 ## Verification work and sensitive memory
 
-Every verification path performs one 600,000-round SHA256 derivation and one 220,000-round SHA512
-derivation, each producing 32 bytes followed by a fixed-time comparison. The applicable format uses
-its decoded salt/key; the other uses decoy material. Account misses and malformed records use
-decoys for both. A decoy match can never authenticate because a valid decoded scheme is also
-required. The shared verifier has no mutable per-request fields.
+Password verification performs the bounded current and legacy derivations required to reduce
+account-existence and password-format timing distinctions during migration.
 
-This deliberately adds the legacy KDF cost to current-hash verification to avoid distinguishing
-account misses, malformed storage, and legacy/current accounts by hashing work during migration.
-It does not claim identical total request latency: lookup, admission rejection, successful migration,
-and scheduling have different costs. The host must enforce request and concurrency budgets before
-exposing authentication to untrusted traffic.
+The applicable persisted format uses its decoded salt and key. The other derivation uses decoy
+material. Account misses and malformed records use decoys for both supported profiles.
 
-Salts, decoded records, and derived-key buffers use bounded stack storage and are cleared in
-`finally` blocks. Passwords enter the platform PBKDF2 API as spans. Tests exercise concurrent mixed
-operations, real legacy migration, invalid metadata, wrong passwords, and warmed/rotated median
-verification timings. Timing tests are isolated from other tests in the same test process.
+A decoy comparison can never authenticate because successful authentication additionally requires a
+valid decoded persisted password scheme.
 
-No database adapter or registration service is implemented on `main`. Migration tests validate the
-real authenticator and cryptography with a test repository; they do not assert durable SQL behavior.
+The password verifier has no mutable per-request state.
+
+Temporary salts, decoded records, and derived-key buffers use bounded storage and are cleared after
+use. Caller password memory remains caller-owned.
+
+This work does not claim identical total request latency. Database lookup, attempt admission,
+successful password migration, scheduling, and other request work can differ. The host must enforce
+authentication request and concurrency budgets before exposing the login path to untrusted traffic.
+
+## Durable authentication persistence
+
+`AccountAuthenticationRepository` provides the durable MySQL authentication adapter.
+
+Account lookup returns a snapshot containing:
+
+- account identity;
+- canonical username;
+- password hash;
+- effective login access;
+- account state revision;
+- password credential revision.
+
+Successful-login persistence conditionally updates against the exact authenticated snapshot.
+
+The persistence predicate checks:
+
+- account ID;
+- canonical username;
+- active and undeleted account state;
+- account state revision;
+- original password hash;
+- password credential revision.
+
+A password rehash additionally replaces the hash and increments the credential revision.
+
+This compare-and-swap boundary prevents stale authentication results from silently recording or
+migrating credentials after relevant account state changes.
+
+## Game-login ticket grant
+
+`GameLoginTicketIssuer` owns game-login ticket issuance after successful account authentication.
+
+A ticket contains:
+
+- account ID;
+- canonical username;
+- `SessionUid`;
+- `AuthenticationKey`;
+- issue time;
+- expiration time.
+
+`SessionUid` and `AuthenticationKey` are nonzero 32-bit values generated with a cryptographically
+secure random-number generator.
+
+The ticket lifetime is five minutes.
+
+Session-UID collisions are retried with a completely fresh credential pair. Allocation is bounded;
+persistent collision exhaustion fails rather than retrying indefinitely.
+
+The AccountServer must not send a successful game-login handoff until durable ticket persistence has
+completed successfully.
+
+## Atomic grant persistence
+
+`GameLoginTicketGrantStore` implements the durable grant boundary with MySqlConnector rather than
+the normal retrying EF Core execution path.
+
+Each grant uses an explicit `READ COMMITTED` transaction.
+
+The persistence lock order is:
+
+```text
+accounts
+    ↓
+account_password_credentials
+    ↓
+game_login_tickets
+```
+
+The grant operation first locks and validates the account row using `SELECT ... FOR UPDATE`.
+
+It requires:
+
+- matching account ID;
+- exact canonical username;
+- active access status;
+- no deletion marker;
+- exact expected account state revision.
+
+It then locks the password credential row and requires the exact credential revision produced by the
+successful authentication result.
+
+Only after both authentication-state checks succeed may the ticket row be inserted.
+
+This closes the authentication-to-ticket TOCTOU window: a state-changing transaction that commits
+before the grant obtains the relevant locks makes the authentication snapshot stale and prevents the
+ticket from being issued.
+
+Database integration tests exercise this guarantee using real InnoDB row-lock contention for both
+account-state and password-credential mutations.
+
+## Ticket credential protection
+
+The native protocol requires the client to receive the 32-bit `AuthenticationKey`, but the rewrite
+does not persist that bearer secret directly.
+
+Persistence stores:
+
+- `SessionUid`;
+- account identity;
+- canonical username;
+- issue and expiration timestamps;
+- a fixed-size HMAC-SHA256 authentication-key verifier;
+- the verifier key ID.
+
+The verifier is domain-separated and binds:
+
+```text
+SessionUid || AuthenticationKey
+```
+
+under server-owned verification-key material.
+
+Authentication-key comparison is performed in process using fixed-time comparison.
+
+Raw `AuthenticationKey` values remain in application/wire memory and are not written to the account
+database.
+
+Verification keys are externally supplied server secrets. The keyring has one active key for new
+tickets and may retain historical keys so already-issued tickets remain verifiable during controlled
+rotation.
+
+Unknown persisted verifier-key IDs fail closed.
+
+Production AccountServer and GameServer database identities must not receive ticket `UPDATE`
+permission. Ticket records are immutable grants: issuance inserts them, successful future redemption
+consumes them, and revocation or maintenance deletes them.
+
+## Grant cancellation and failure semantics
+
+Caller cancellation is honored while a grant can still be safely abandoned.
+
+After the ticket insert but before the commit phase, observed cancellation causes rollback.
+
+Once the operation enters the commit phase, commit uses a non-cancelable token. A caller
+cancellation that arrives while commit is in progress must not turn a known durable ticket into an
+apparent cancellation result.
+
+A successful grant is returned only after commit succeeds.
+
+Database failures and ambiguous commit outcomes propagate as failures. The grant path does not
+automatically retry an ambiguous transaction, because repeating an authorization-grant transaction
+after an unknown commit result could create misleading session state.
+
+Session-UID primary-key collision is the one expected persistence conflict translated into an
+allocation-retry result.
+
+## Schema and migration behavior
+
+The current account schema stores protected game-login ticket verifiers rather than raw
+authentication keys.
+
+Migration:
+
+```text
+20260907004603_ProtectGameLoginTicketAuthenticationKey
+```
+
+upgrades the original ticket schema by:
+
+- deleting outstanding legacy tickets;
+- removing the raw `authentication_key` column;
+- adding the fixed-size verifier;
+- adding the verifier key ID;
+- adding nonzero ticket/key-ID checks;
+- updating account schema-compatibility metadata.
+
+MySQL DDL can implicitly commit. The migration therefore uses resumable conditional structural
+operations and validates the resulting physical schema before advancing compatibility metadata.
+
+Tests exercise:
+
+- populated v1 → v2 upgrade;
+- interrupted structural upgrade recovery;
+- populated v2 → canonical v1 downgrade;
+- interrupted structural downgrade recovery.
+
+Outstanding login tickets are intentionally discarded when moving between incompatible credential
+storage representations.
+
+## Current game-login boundary
+
+The durable grant foundation exists on `main`.
+
+The following boundaries are not yet implemented and must not be assumed to exist:
+
+- production game-login ticket redemption persistence;
+- single-use destructive redemption;
+- production redemption attempt limiting;
+- transactional ticket revocation from password/account-state mutation paths;
+- bounded expired-ticket cleanup;
+- production AccountServer/GameServer least-privilege database identities;
+- verification-key deployment and operational rotation orchestration;
+- AccountServer/GameServer host composition;
+- native 1055 AccountServer handoff packet integration;
+- native 1052 GameServer login proof integration.
+
+Hosts must remain unexposed until the required security and operational boundaries for their
+respective login paths are complete.
+
+Future password reset, suspension, ban, deletion, and other authentication-invalidating mutations
+must coordinate with ticket revocation using the same persistence lock ordering required by ticket
+grant.
+
+## Native compatibility boundary
+
+The native 5517 game-login protocol ultimately authenticates the GameServer connection using:
+
+```text
+SessionUid
+AuthenticationKey
+```
+
+The rewrite preserves those externally observable credential widths and semantics while replacing
+legacy internal weaknesses.
+
+Internal rewrite behavior is intentionally free to differ where native architecture is not
+externally observable. In particular:
+
+- a redundant internal ticket identifier is not required when it duplicates `SessionUid`;
+- raw bearer-key persistence is not required for protocol compatibility;
+- modern transaction ownership, least privilege, key management, bounded work, and failure semantics
+  replace legacy implementation choices.
+
+Compatibility work must continue to distinguish:
+
+```text
+externally observable native behavior
+```
+
+from:
+
+```text
+legacy internal implementation detail
+```
+
+The native 1055 and 1052 packet boundaries remain separate protocol work and are not claimed
+complete by the current persistence implementation.

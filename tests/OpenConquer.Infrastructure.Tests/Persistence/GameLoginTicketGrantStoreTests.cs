@@ -1,3 +1,4 @@
+using System.Data;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
@@ -474,6 +475,276 @@ public sealed class GameLoginTicketGrantStoreTests
 
             Assert.Equal(index == winnerIndex, verified);
         }
+    }
+
+    [Fact]
+    public async Task TryGrantAsync_WhenConcurrentAccountStateMutationCommits_RejectsStaleAuthentication()
+    {
+        AccountRecord account = await InsertAccountAsync();
+
+        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+
+        await using MySqlConnection mutationConnection = new(
+            _database.AdministrativeConnectionString
+        );
+
+        await mutationConnection.OpenAsync(CancellationToken);
+
+        await using MySqlTransaction mutationTransaction =
+            await mutationConnection.BeginTransactionAsync(
+                IsolationLevel.ReadCommitted,
+                CancellationToken
+            );
+
+        bool transactionCompleted = false;
+        Task<GameLoginTicketGrantStatus>? grantTask = null;
+
+        try
+        {
+            await using (MySqlCommand mutation = mutationConnection.CreateCommand())
+            {
+                mutation.Transaction = mutationTransaction;
+                mutation.CommandText = """
+                    UPDATE `accounts`
+                    SET
+                        `access_status` = @access_status,
+                        `state_revision` = `state_revision` + 1,
+                        `state_changed_at_utc` = @state_changed_at_utc,
+                        `state_changed_by_actor_kind` = @state_changed_by_actor_kind,
+                        `state_changed_by_account_id` = NULL
+                    WHERE `account_id` = @account_id;
+                    """;
+
+                mutation.Parameters.Add("@access_status", MySqlDbType.UByte).Value = (byte)
+                    AccountAccessStatus.Suspended;
+
+                mutation.Parameters.Add("@state_changed_at_utc", MySqlDbType.DateTime).Value =
+                    s_createdAtUtc.AddMinutes(1);
+
+                mutation.Parameters.Add("@state_changed_by_actor_kind", MySqlDbType.UByte).Value =
+                    (byte)AccountActorKind.System;
+
+                mutation.Parameters.Add("@account_id", MySqlDbType.UInt32).Value =
+                    account.AccountId;
+
+                int affected = await mutation.ExecuteNonQueryAsync(CancellationToken);
+
+                Assert.Equal(1, affected);
+            }
+
+            grantTask = _store
+                .TryGrantAsync(
+                    ticket,
+                    account.StateRevision,
+                    account.PasswordCredential.Revision,
+                    CancellationToken
+                )
+                .AsTask();
+
+            await WaitForInnoDbLockWaitAsync("accounts");
+
+            Assert.False(grantTask.IsCompleted);
+
+            await mutationTransaction.CommitAsync(CancellationToken.None);
+
+            transactionCompleted = true;
+
+            GameLoginTicketGrantStatus status = await grantTask.WaitAsync(
+                TimeSpan.FromSeconds(10),
+                CancellationToken
+            );
+
+            Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
+
+            Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        }
+        finally
+        {
+            if (!transactionCompleted)
+            {
+                try
+                {
+                    await mutationTransaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (InvalidOperationException) { }
+            }
+
+            if (grantTask is not null)
+            {
+                try
+                {
+                    await grantTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
+                }
+                catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task TryGrantAsync_WhenConcurrentPasswordCredentialMutationCommits_RejectsStaleAuthentication()
+    {
+        AccountRecord account = await InsertAccountAsync();
+
+        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+
+        await using MySqlConnection mutationConnection = new(
+            _database.AdministrativeConnectionString
+        );
+
+        await mutationConnection.OpenAsync(CancellationToken);
+
+        await using MySqlTransaction mutationTransaction =
+            await mutationConnection.BeginTransactionAsync(
+                IsolationLevel.ReadCommitted,
+                CancellationToken
+            );
+
+        bool transactionCompleted = false;
+        Task<GameLoginTicketGrantStatus>? grantTask = null;
+
+        try
+        {
+            await LockAccountAsync(mutationConnection, mutationTransaction, account.AccountId);
+
+            await using (MySqlCommand mutation = mutationConnection.CreateCommand())
+            {
+                mutation.Transaction = mutationTransaction;
+                mutation.CommandText = """
+                    UPDATE `account_password_credentials`
+                    SET
+                        `revision` = `revision` + 1,
+                        `password_changed_at_utc` = @password_changed_at_utc
+                    WHERE `account_id` = @account_id;
+                    """;
+
+                mutation.Parameters.Add("@password_changed_at_utc", MySqlDbType.DateTime).Value =
+                    s_createdAtUtc.AddMinutes(1);
+
+                mutation.Parameters.Add("@account_id", MySqlDbType.UInt32).Value =
+                    account.AccountId;
+
+                int affected = await mutation.ExecuteNonQueryAsync(CancellationToken);
+
+                Assert.Equal(1, affected);
+            }
+
+            grantTask = _store
+                .TryGrantAsync(
+                    ticket,
+                    account.StateRevision,
+                    account.PasswordCredential.Revision,
+                    CancellationToken
+                )
+                .AsTask();
+
+            await WaitForInnoDbLockWaitAsync("accounts");
+
+            Assert.False(grantTask.IsCompleted);
+
+            await mutationTransaction.CommitAsync(CancellationToken.None);
+
+            transactionCompleted = true;
+
+            GameLoginTicketGrantStatus status = await grantTask.WaitAsync(
+                TimeSpan.FromSeconds(10),
+                CancellationToken
+            );
+
+            Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
+
+            Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        }
+        finally
+        {
+            if (!transactionCompleted)
+            {
+                try
+                {
+                    await mutationTransaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (InvalidOperationException) { }
+            }
+
+            if (grantTask is not null)
+            {
+                try
+                {
+                    await grantTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
+                }
+                catch { }
+            }
+        }
+    }
+
+    private async Task LockAccountAsync(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        uint accountId
+    )
+    {
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT `account_id`
+            FROM `accounts`
+            WHERE `account_id` = @account_id
+            FOR UPDATE;
+            """;
+
+        command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = accountId;
+
+        object? result = await command.ExecuteScalarAsync(CancellationToken);
+
+        Assert.NotNull(result);
+    }
+
+    private async Task WaitForInnoDbLockWaitAsync(string tableName)
+    {
+        const int maximumPollingAttempts = 500;
+
+        await using MySqlConnection connection = new(_database.AdministrativeConnectionString);
+
+        await connection.OpenAsync(CancellationToken);
+
+        for (int attempt = 0; attempt < maximumPollingAttempts; attempt++)
+        {
+            await using MySqlCommand command = connection.CreateCommand();
+
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM `performance_schema`.`data_lock_waits` AS `waits`
+                INNER JOIN `performance_schema`.`data_locks` AS `requesting_lock`
+                    ON `requesting_lock`.`ENGINE_LOCK_ID`
+                        = `waits`.`REQUESTING_ENGINE_LOCK_ID`
+                WHERE `requesting_lock`.`OBJECT_SCHEMA` = @schema_name
+                  AND `requesting_lock`.`OBJECT_NAME` = @table_name
+                  AND `requesting_lock`.`LOCK_STATUS` = 'WAITING';
+                """;
+
+            command.Parameters.Add("@schema_name", MySqlDbType.VarChar).Value =
+                AccountDatabaseFixture.DatabaseName;
+
+            command.Parameters.Add("@table_name", MySqlDbType.VarChar).Value = tableName;
+
+            object? result = await command.ExecuteScalarAsync(CancellationToken);
+
+            long waitingLockCount = Convert.ToInt64(
+                result,
+                System.Globalization.CultureInfo.InvariantCulture
+            );
+
+            if (waitingLockCount > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(20), CancellationToken);
+        }
+
+        throw new TimeoutException(
+            $"MySQL did not report the expected InnoDB row-lock wait for table '{tableName}'."
+        );
     }
 
     private async Task<AccountRecord> InsertAccountAsync(
