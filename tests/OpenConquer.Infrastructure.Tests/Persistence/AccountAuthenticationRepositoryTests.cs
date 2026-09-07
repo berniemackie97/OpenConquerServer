@@ -291,13 +291,15 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
     }
 
     [Fact]
-    public async Task TryRecordSuccessfulLoginAsync_ReplacementUpdatesCredentialAtomically()
+    public async Task TryRecordSuccessfulLoginAsync_ReplacementPreservesPasswordChangeMetadataAndUpdatesCredentialAtomically()
     {
         AccountRecord account = await InsertAccountAsync();
 
         AccountAuthenticationSnapshot snapshot = Assert.IsType<AccountAuthenticationSnapshot>(
             await Repository.FindByNameAsync(account.Username, CancellationToken)
         );
+
+        DateTime originalPasswordChangedAtUtc = account.PasswordCredential.PasswordChangedAtUtc;
 
         DateTimeOffset successfulLoginAt = CreateSuccessfulLoginInstant();
 
@@ -313,9 +315,13 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
         AccountRecord saved = await ReadAccountAsync(account.AccountId);
 
         Assert.Equal(successfulLoginAt.UtcDateTime, saved.LastSuccessfulLoginAtUtc);
+
         Assert.Equal(account.StateRevision, saved.StateRevision);
+
         Assert.Equal(ReplacementPasswordHash, saved.PasswordCredential.PasswordHash);
-        Assert.Equal(successfulLoginAt.UtcDateTime, saved.PasswordCredential.PasswordChangedAtUtc);
+
+        Assert.Equal(originalPasswordChangedAtUtc, saved.PasswordCredential.PasswordChangedAtUtc);
+
         Assert.Equal(account.PasswordCredential.Revision + 1, saved.PasswordCredential.Revision);
     }
 
@@ -486,6 +492,8 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
             await Repository.FindByNameAsync(account.Username, CancellationToken)
         );
 
+        DateTime originalPasswordChangedAtUtc = account.PasswordCredential.PasswordChangedAtUtc;
+
         DateTimeOffset successfulLoginAt = CreateSuccessfulLoginInstant();
 
         Task<bool>[] operations = Enumerable
@@ -509,7 +517,11 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
         AccountRecord saved = await ReadAccountAsync(account.AccountId);
 
         Assert.StartsWith(ReplacementPasswordHash, saved.PasswordCredential.PasswordHash);
+
         Assert.Equal(2UL, saved.PasswordCredential.Revision);
+
+        Assert.Equal(originalPasswordChangedAtUtc, saved.PasswordCredential.PasswordChangedAtUtc);
+
         Assert.Equal(successfulLoginAt.UtcDateTime, saved.LastSuccessfulLoginAtUtc);
     }
 
