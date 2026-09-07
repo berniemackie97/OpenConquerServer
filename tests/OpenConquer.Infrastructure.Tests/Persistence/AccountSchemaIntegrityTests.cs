@@ -28,6 +28,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
         "CK_account_password_credentials_password_hash",
         "CK_account_password_credentials_revision",
         "CK_game_login_tickets_expiration",
+        "CK_game_login_tickets_session_uid",
+        "CK_game_login_tickets_verifier_key_id",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",
@@ -554,6 +556,74 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
             },
         };
 
+    public static TheoryData<string, string> GameLoginTicketConstraintCases =>
+        new()
+        {
+            {
+                "CK_game_login_tickets_expiration",
+                """
+                    INSERT INTO `game_login_tickets`
+                        (`session_uid`,
+                         `authentication_key_verifier`,
+                         `authentication_key_verifier_key_id`,
+                         `account_id`,
+                         `username`,
+                         `issued_at_utc`,
+                         `expires_at_utc`)
+                    VALUES
+                        (@account_id,
+                         0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
+                         1,
+                         @account_id,
+                         @username,
+                         '2026-01-01 00:01:00',
+                         '2026-01-01 00:01:00')
+                    """
+            },
+            {
+                "CK_game_login_tickets_session_uid",
+                """
+                    INSERT INTO `game_login_tickets`
+                        (`session_uid`,
+                         `authentication_key_verifier`,
+                         `authentication_key_verifier_key_id`,
+                         `account_id`,
+                         `username`,
+                         `issued_at_utc`,
+                         `expires_at_utc`)
+                    VALUES
+                        (0,
+                         0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
+                         1,
+                         @account_id,
+                         @username,
+                         '2026-01-01 00:01:00',
+                         '2026-01-01 00:02:00')
+                    """
+            },
+            {
+                "CK_game_login_tickets_verifier_key_id",
+                """
+                    INSERT INTO `game_login_tickets`
+                        (`session_uid`,
+                         `authentication_key_verifier`,
+                         `authentication_key_verifier_key_id`,
+                         `account_id`,
+                         `username`,
+                         `issued_at_utc`,
+                         `expires_at_utc`)
+                    VALUES
+                        (@account_id,
+                         0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
+                         0,
+                         @account_id,
+                         @username,
+                         '2026-01-01 00:01:00',
+                         '2026-01-01 00:02:00')
+                    """
+            },
+        };
+
     [Fact]
     public async Task CheckConstraintMetadata_ContainsExpectedContract()
     {
@@ -584,6 +654,51 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
             s_expectedCheckConstraints.Order(StringComparer.Ordinal),
             actual.Order(StringComparer.Ordinal)
         );
+    }
+
+    [Fact]
+    public async Task GameLoginTicketCredentialColumns_UseProtectedContract()
+    {
+        await using MySqlConnection connection = new(database.AdministrativeConnectionString);
+
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT
+                `COLUMN_NAME`,
+                `COLUMN_TYPE`,
+                `IS_NULLABLE`,
+                `COLUMN_DEFAULT`
+            FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = 'game_login_tickets'
+              AND `COLUMN_NAME` IN
+                  ('authentication_key',
+                   'authentication_key_verifier',
+                   'authentication_key_verifier_key_id')
+            ORDER BY `COLUMN_NAME`
+            """;
+
+        List<(string Name, string ColumnType, string IsNullable, bool HasDefault)> actual = [];
+
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
+
+        while (await reader.ReadAsync(CancellationToken))
+        {
+            actual.Add(
+                (reader.GetString(0), reader.GetString(1), reader.GetString(2), !reader.IsDBNull(3))
+            );
+        }
+
+        (string Name, string ColumnType, string IsNullable, bool HasDefault)[] expected =
+        [
+            ("authentication_key_verifier", "binary(32)", "NO", false),
+            ("authentication_key_verifier_key_id", "smallint unsigned", "NO", false),
+        ];
+
+        Assert.Equal(expected, actual);
     }
 
     [Theory]
@@ -634,29 +749,18 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
         );
     }
 
-    [Fact]
-    public async Task GameLoginTickets_RequireStrictlyIncreasingExpiration()
+    [Theory]
+    [MemberData(nameof(GameLoginTicketConstraintCases))]
+    public async Task GameLoginTickets_CheckConstraintsRejectInvalidState(
+        string expectedConstraint,
+        string commandText
+    )
     {
         uint accountId = await InsertReferenceAccountAsync();
 
         await AssertCheckConstraintViolationAsync(
-            "CK_game_login_tickets_expiration",
-            """
-            INSERT INTO `game_login_tickets`
-                (`session_uid`,
-                 `authentication_key`,
-                 `account_id`,
-                 `username`,
-                 `issued_at_utc`,
-                 `expires_at_utc`)
-            VALUES
-                (@account_id,
-                 1,
-                 @account_id,
-                 @username,
-                 '2026-01-01 00:01:00',
-                 '2026-01-01 00:01:00')
-            """,
+            expectedConstraint,
+            commandText,
             new MySqlParameter("@account_id", accountId),
             new MySqlParameter("@username", CreateUsername())
         );

@@ -10,7 +10,16 @@ public sealed class AccountAuthenticationTypesTests
     [Fact]
     public void Snapshot_RejectsZeroAccountId()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new AccountAuthenticationSnapshot(accountId: 0, "Bernie", "$hash$", AccountLoginAccess.Allowed, AccountStateRevision, PasswordCredentialRevision));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new AccountAuthenticationSnapshot(
+                accountId: 0,
+                "Bernie",
+                "$hash$",
+                AccountLoginAccess.Allowed,
+                AccountStateRevision,
+                PasswordCredentialRevision
+            )
+        );
     }
 
     [Theory]
@@ -79,12 +88,61 @@ public sealed class AccountAuthenticationTypesTests
     public void SuccessfulResult_RejectsZeroAccountId()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            AccountAuthenticationResult.Succeeded(accountId: 0, "Bernie")
+            AccountAuthenticationResult.Succeeded(
+                accountId: 0,
+                "Bernie",
+                AccountStateRevision,
+                PasswordCredentialRevision
+            )
         );
     }
 
     [Fact]
-    public void FailureResults_DoNotExposeAccountIdentity()
+    public void SuccessfulResult_RejectsZeroAccountStateRevision()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            AccountAuthenticationResult.Succeeded(
+                accountId: 1,
+                "Bernie",
+                accountStateRevision: 0,
+                PasswordCredentialRevision
+            )
+        );
+    }
+
+    [Fact]
+    public void SuccessfulResult_RejectsZeroPasswordCredentialRevision()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            AccountAuthenticationResult.Succeeded(
+                accountId: 1,
+                "Bernie",
+                AccountStateRevision,
+                passwordCredentialRevision: 0
+            )
+        );
+    }
+
+    [Fact]
+    public void SuccessfulResult_ExposesAuthoritativeIdentityAndRevisions()
+    {
+        AccountAuthenticationResult result = AccountAuthenticationResult.Succeeded(
+            accountId: 42,
+            "Bernie",
+            accountStateRevision: 7,
+            passwordCredentialRevision: 11
+        );
+
+        Assert.Equal(AccountAuthenticationStatus.Success, result.Status);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(42u, result.AccountId);
+        Assert.Equal("Bernie", result.Username);
+        Assert.Equal(7ul, result.AccountStateRevision);
+        Assert.Equal(11ul, result.PasswordCredentialRevision);
+    }
+
+    [Fact]
+    public void FailureResults_DoNotExposeAccountIdentityOrRevisions()
     {
         AccountAuthenticationResult invalidCredentials =
             AccountAuthenticationResult.InvalidCredentials();
@@ -94,15 +152,23 @@ public sealed class AccountAuthenticationTypesTests
         Assert.Equal(AccountAuthenticationStatus.InvalidCredentials, invalidCredentials.Status);
         Assert.False(invalidCredentials.IsSuccess);
         Assert.Equal(0u, invalidCredentials.AccountId);
+        Assert.Null(invalidCredentials.Username);
+        Assert.Equal(0ul, invalidCredentials.AccountStateRevision);
+        Assert.Equal(0ul, invalidCredentials.PasswordCredentialRevision);
 
         Assert.Equal(AccountAuthenticationStatus.Banned, banned.Status);
         Assert.False(banned.IsSuccess);
         Assert.Equal(0u, banned.AccountId);
-
-        Assert.Null(invalidCredentials.Username);
         Assert.Null(banned.Username);
-        Assert.False(default(AccountAuthenticationResult).IsSuccess);
-        Assert.Null(default(AccountAuthenticationResult).Username);
+        Assert.Equal(0ul, banned.AccountStateRevision);
+        Assert.Equal(0ul, banned.PasswordCredentialRevision);
+
+        AccountAuthenticationResult defaultResult = default(AccountAuthenticationResult);
+
+        Assert.False(defaultResult.IsSuccess);
+        Assert.Null(defaultResult.Username);
+        Assert.Equal(0ul, defaultResult.AccountStateRevision);
+        Assert.Equal(0ul, defaultResult.PasswordCredentialRevision);
     }
 
     [Theory]
@@ -123,7 +189,12 @@ public sealed class AccountAuthenticationTypesTests
         );
 
         Assert.ThrowsAny<ArgumentException>(() =>
-            AccountAuthenticationResult.Succeeded(1, username!)
+            AccountAuthenticationResult.Succeeded(
+                1,
+                username!,
+                AccountStateRevision,
+                PasswordCredentialRevision
+            )
         );
     }
 }

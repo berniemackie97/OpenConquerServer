@@ -3,11 +3,6 @@ using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Application.Accounts.Authentication;
 
-/// <summary>
-/// Implements authoritative account password authentication independently of
-/// persistence, password-hashing technology, and authentication-attempt
-/// protection implementation.
-/// </summary>
 public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher, IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
     : IAccountAuthenticator
 {
@@ -92,6 +87,7 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                 }
 
                 string? replacementPasswordHash = null;
+
                 if (verificationStatus == AccountPasswordVerificationStatus.SuccessRehashNeeded)
                 {
                     replacementPasswordHash = _passwordHasher.HashPassword(password.Span);
@@ -104,6 +100,8 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                     }
                 }
 
+                ulong effectivePasswordCredentialRevision = GetEffectivePasswordCredentialRevision(account.PasswordCredentialRevision, replacementPasswordHash is not null);
+
                 DateTimeOffset successfulLoginAt = _timeProvider.GetUtcNow();
 
                 bool recorded = await _repository.TryRecordSuccessfulLoginAsync(account, replacementPasswordHash, successfulLoginAt, cancellationToken).ConfigureAwait(false);
@@ -113,7 +111,8 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
                 if (recorded)
                 {
                     authenticationAttempt.Complete(credentialsAccepted: true);
-                    return AccountAuthenticationResult.Succeeded(account.AccountId, account.Username);
+
+                    return AccountAuthenticationResult.Succeeded(account.AccountId, account.Username, account.AccountStateRevision, effectivePasswordCredentialRevision);
                 }
 
                 if (attempt == MaximumPersistenceAttempts - 1)
@@ -138,5 +137,20 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
             authenticationAttempt.Complete(credentialsAccepted: false);
             return AccountAuthenticationResult.InvalidCredentials();
         }
+    }
+
+    private static ulong GetEffectivePasswordCredentialRevision(ulong currentRevision, bool passwordRehashed)
+    {
+        if (!passwordRehashed)
+        {
+            return currentRevision;
+        }
+
+        if (currentRevision == ulong.MaxValue)
+        {
+            throw new InvalidOperationException("The password-credential revision cannot be advanced beyond UInt64.MaxValue.");
+        }
+
+        return currentRevision + 1;
     }
 }
