@@ -1,5 +1,6 @@
 using System.Net;
 using OpenConquer.Transport.Connections;
+using OpenConquer.Transport.Extensions;
 
 namespace OpenConquer.Transport.Tests.Connections;
 

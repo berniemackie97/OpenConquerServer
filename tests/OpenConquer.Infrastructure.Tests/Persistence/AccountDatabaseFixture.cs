@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Infrastructure.Persistence;
+using OpenConquer.Infrastructure.Persistence.Accounts.Context;
+using OpenConquer.Infrastructure.Persistence.Accounts.Extensions;
 using Testcontainers.MySql;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;

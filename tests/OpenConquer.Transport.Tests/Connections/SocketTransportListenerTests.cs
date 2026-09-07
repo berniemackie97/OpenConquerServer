@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using OpenConquer.Transport.Connections;
+using OpenConquer.Transport.Sockets;
 
 namespace OpenConquer.Transport.Tests.Connections;
 

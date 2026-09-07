@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts;
+using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
+using OpenConquer.Infrastructure.Persistence.Schema;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 
