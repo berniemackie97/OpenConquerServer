@@ -414,8 +414,8 @@ A ticket is expired when:
 attempted_at_utc >= expires_at_utc
 ```
 
-Expired tickets are rejected without being consumed. Bounded maintenance owns physical removal of
-expired grants.
+Expired tickets are rejected without being consumed. Physical removal is owned separately by the
+bounded expiration-cleanup boundary described below.
 
 An invalid `AuthenticationKey` is rejected without consuming the ticket, allowing the legitimate
 bearer to redeem an otherwise valid grant.
@@ -488,6 +488,69 @@ has already been consumed.
 
 A caller must therefore not blindly retry a redemption after an ambiguous persistence failure.
 
+## Expired-ticket cleanup
+
+`GameLoginTicketExpirationCleaner` owns bounded physical removal of expired game-login tickets.
+
+Cleanup does not participate in the logical authorization decision. Redemption remains authoritative
+for determining whether a presented ticket is expired. Physical deletion deliberately trails logical
+expiration by a cleanup grace interval so ordinary cross-host clock differences do not make
+maintenance compete with the authentication boundary.
+
+The default cleanup policy is:
+
+- five-minute expiration grace;
+- maximum 1,000 rows removed per invocation.
+
+A configured batch size must remain between 1 and 10,000 rows. Expiration grace must be greater than
+zero and no greater than one day.
+
+Each invocation computes:
+
+```text
+cleanup_cutoff_utc = current_utc - expiration_grace
+```
+
+using the configured `TimeProvider`, then executes one bounded server-side deletion ordered by:
+
+```text
+expires_at_utc
+session_uid
+```
+
+Tickets are eligible for physical removal when:
+
+```text
+expires_at_utc <= cleanup_cutoff_utc
+```
+
+Ordering by expiration followed by `SessionUid` gives deterministic oldest-first selection when the
+eligible backlog exceeds the batch limit, including when multiple tickets share the same expiration
+timestamp.
+
+The cleaner performs exactly one database batch per invocation. It does not internally loop until
+the backlog is empty. Scheduling, invocation frequency, and any decision to run another batch belong
+to future host composition so one maintenance call cannot become unbounded database work.
+
+Cleanup uses one autocommit `DELETE` statement rather than loading ticket entities or opening an
+explicit application transaction. This maintenance operation is idempotent: if the caller cannot
+determine whether a deletion completed, a later cleanup pass can safely continue from the remaining
+rows.
+
+Cancellation is propagated to the database operation. Real MySQL/InnoDB integration tests verify
+that cancellation while waiting on a ticket row lock does not delete that ticket.
+
+Cleanup and redemption rely on normal InnoDB row locking when they contend for the same durable
+ticket. Because cleanup targets tickets that have already exceeded both logical expiration and the
+additional grace period, either ordering preserves authorization semantics: redemption cannot
+produce an identity for the expired ticket, and cleanup eventually removes it.
+
+The existing expiration index on `game_login_tickets.expires_at_utc` supports bounded cleanup, so no
+schema migration is required for this boundary.
+
+The cleanup primitive is implemented in Infrastructure but is not operationally scheduled until
+AccountServer/GameServer host composition is implemented.
+
 ## Schema and migration behavior
 
 The current account schema stores protected game-login ticket verifiers rather than raw
@@ -523,13 +586,12 @@ storage representations.
 
 ## Current game-login boundary
 
-Durable ticket issuance, atomic single-use redemption persistence, and production redemption attempt
-limiting are implemented.
+Durable ticket issuance, atomic single-use redemption persistence, production redemption attempt
+limiting, and bounded expired-ticket cleanup are implemented.
 
 The following boundaries are not yet implemented and must not be assumed to exist:
 
 - transactional ticket revocation from password/account-state mutation paths;
-- bounded expired-ticket cleanup;
 - production AccountServer/GameServer least-privilege database identities;
 - verification-key deployment and operational rotation orchestration;
 - AccountServer/GameServer host composition;
