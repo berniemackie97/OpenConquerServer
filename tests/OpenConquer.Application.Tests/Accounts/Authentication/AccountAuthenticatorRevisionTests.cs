@@ -24,6 +24,7 @@ public sealed class AccountAuthenticatorRevisionTests
         AccountAuthenticator authenticator = new(
             repository,
             new FakePasswordHasher(AccountPasswordVerificationStatus.Success),
+            new AllowAllRequestLimiter(),
             new AllowAllAttemptLimiter(),
             TimeProvider.System
         );
@@ -54,6 +55,7 @@ public sealed class AccountAuthenticatorRevisionTests
         AccountAuthenticator authenticator = new(
             repository,
             new FakePasswordHasher(AccountPasswordVerificationStatus.SuccessRehashNeeded),
+            new AllowAllRequestLimiter(),
             new AllowAllAttemptLimiter(),
             TimeProvider.System
         );
@@ -83,6 +85,7 @@ public sealed class AccountAuthenticatorRevisionTests
         AccountAuthenticator authenticator = new(
             repository,
             new FakePasswordHasher(AccountPasswordVerificationStatus.SuccessRehashNeeded),
+            new AllowAllRequestLimiter(),
             new AllowAllAttemptLimiter(),
             TimeProvider.System
         );
@@ -184,6 +187,28 @@ public sealed class AccountAuthenticatorRevisionTests
             throw new InvalidOperationException(
                 "Decoy verification is not expected in these tests."
             );
+        }
+    }
+
+    private sealed class AllowAllRequestLimiter : IAccountAuthenticationRequestLimiter
+    {
+        public bool TryBeginAuthentication(
+            IPAddress remoteAddress,
+            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request
+        )
+        {
+            ArgumentNullException.ThrowIfNull(remoteAddress);
+
+            request = new RequestLease();
+
+            return true;
+        }
+    }
+
+    private sealed class RequestLease : IAccountAuthenticationRequestLease
+    {
+        public void Dispose()
+        {
         }
     }
 

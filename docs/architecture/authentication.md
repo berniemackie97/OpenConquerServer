@@ -49,15 +49,83 @@ decoding must use the original account bytes before trimming the username for lo
 
 ## Authentication authorization and concurrency
 
-Account misses perform decoy password verification. Resolved accounts acquire an authentication
-attempt lease before password verification; denied admission does not perform password work.
+`AccountAuthenticator` owns both layers of authentication-work admission so callers cannot reach
+repository lookup or password verification without the required protection contracts.
+
+Syntactically invalid usernames and passwords are rejected before admission because they perform no
+repository lookup or password derivation. Validly shaped requests must first acquire an
+`IAccountAuthenticationRequestLease` before account resolution.
+
+The request lease remains held for the complete authentication operation, including:
+
+- account lookup;
+- account-miss decoy verification;
+- resolved-account password verification;
+- password rehash generation;
+- compare-and-swap successful-login persistence;
+- conflict re-read and password revalidation.
+
+Rejected request admission returns `InvalidCredentials` without repository or password-verifier
+work.
+
+Resolved accounts additionally acquire an `IAccountAuthenticationAttemptLease` before real password
+verification. Rejected resolved-account admission performs no password derivation.
+
+`AccountAuthenticationProtection` is the Infrastructure implementation of both
+`IAccountAuthenticationRequestLimiter` and `IAccountAuthenticationAttemptLimiter`. A single locked
+state model owns request admission, source state, account concurrency, account-source failure state,
+and the global tracked-state budget.
+
+Pre-resolution admission enforces:
+
+- a global concurrent-authentication limit;
+- a per-source token bucket;
+- a per-source concurrent-request limit;
+- a hard bound on tracked protection state.
+
+Resolved-account admission additionally enforces:
+
+- a per-account concurrent password-attempt limit;
+- a per-account-and-source failed-attempt window;
+- a per-account-and-source lockout.
+
+The default policy permits 30 authentication requests per source per minute, four concurrent
+requests per source, and 32 concurrent authentication requests globally. Resolved accounts permit at
+most two concurrent password attempts per account. Eight failed attempts for the same account and
+source within five minutes cause a five-minute account-source lockout.
+
+There is deliberately no global failed-attempt lockout keyed only by account ID. Such a policy would
+allow distributed unauthenticated clients to deny service to a known account. Per-account
+concurrency still bounds simultaneous password work across sources.
+
+In-flight resolved attempts count against the account-source failure budget so concurrent guesses
+cannot all enter password verification before completed failures reach the configured threshold.
+
+Source identity normalizes IPv4-mapped IPv6 addresses to IPv4 and groups native IPv6 addresses by
+/64. This prevents interface-identifier rotation from trivially bypassing source limits or
+multiplying tracked state.
+
+Protection windows use monotonic `TimeProvider` timestamps. Request-rate tokens are consumed when
+admission succeeds and are not refunded when the request lease is disposed.
+
+A failed credential result records an account-source failure. Accepted credentials clear failure
+state for that account and source, including valid credentials for an account whose current access
+state subsequently prevents login. Disposal of an incomplete attempt releases concurrency without
+recording a credential failure.
+
+Tracked source, in-flight account, and account-source state share one hard capacity budget. Expired
+inactive state is reclaimed opportunistically and under capacity pressure. Active state is never
+evicted to admit new work; when capacity cannot be safely reclaimed, admission fails closed.
+
+Account misses perform decoy password verification only after successful pre-resolution admission.
 
 The password is verified before exposing banned status. Valid credentials for a denied or banned
 account are recorded as accepted credentials by the attempt-protection boundary but cannot authorize
 login or trigger password migration.
 
-Unknown password-verifier statuses fail closed. Cancellation and exceptions abandon the attempt
-lease; completed authentication outcomes are reported exactly once.
+Unknown password-verifier statuses fail closed. Cancellation and exceptions abandon the resolved
+attempt lease and release the outer request lease. Completed authentication outcomes are reported
+exactly once.
 
 Successful authentication carries the exact identity and persistence revisions required to authorize
 a subsequent ticket grant:
@@ -74,6 +142,9 @@ access and deletion state under its database lock.
 Those revisions are part of the authentication result because authentication and ticket persistence
 are separate operations. They prevent a previously valid credential decision from silently becoming
 a game-session grant after account or password state changes.
+
+The concrete authentication protection implementation exists in Infrastructure but is not
+operationally active until AccountServer host composition wires the authentication path.
 
 ## Password hash migration
 
@@ -158,9 +229,11 @@ The password verifier has no mutable per-request state.
 Temporary salts, decoded records, and derived-key buffers use bounded storage and are cleared after
 use. Caller password memory remains caller-owned.
 
-This work does not claim identical total request latency. Database lookup, attempt admission,
-successful password migration, scheduling, and other request work can differ. The host must enforce
-authentication request and concurrency budgets before exposing the login path to untrusted traffic.
+This work does not claim identical total request latency. Database lookup, admission, successful
+password migration, scheduling, and other request work can differ. `AccountAuthenticator` requires
+pre-resolution and resolved-account admission contracts, and Infrastructure provides the bounded
+production implementation. AccountServer host composition must wire that implementation before the
+login path becomes operational.
 
 ## Durable authentication persistence
 

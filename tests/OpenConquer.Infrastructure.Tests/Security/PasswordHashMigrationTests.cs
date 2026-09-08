@@ -24,6 +24,7 @@ public sealed class PasswordHashMigrationTests
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new RequestLimiter(),
             new AttemptLimiter(),
             TimeProvider.System
         );
@@ -69,6 +70,7 @@ public sealed class PasswordHashMigrationTests
         AccountAuthenticator authenticator = new(
             repository,
             new AccountPasswordHasher(),
+            new RequestLimiter(),
             new AttemptLimiter(),
             TimeProvider.System
         );
@@ -106,6 +108,7 @@ public sealed class PasswordHashMigrationTests
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new RequestLimiter(),
             new AttemptLimiter(),
             TimeProvider.System
         );
@@ -290,6 +293,28 @@ public sealed class PasswordHashMigrationTests
             LastSuccessfulLoginAt = successfulLoginAt;
 
             return ValueTask.FromResult(true);
+        }
+    }
+
+    private sealed class RequestLimiter : IAccountAuthenticationRequestLimiter
+    {
+        public bool TryBeginAuthentication(
+            IPAddress remoteAddress,
+            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request
+        )
+        {
+            ArgumentNullException.ThrowIfNull(remoteAddress);
+
+            request = new RequestLease();
+
+            return true;
+        }
+    }
+
+    private sealed class RequestLease : IAccountAuthenticationRequestLease
+    {
+        public void Dispose()
+        {
         }
     }
 
