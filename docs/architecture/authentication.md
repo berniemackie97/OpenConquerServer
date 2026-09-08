@@ -339,9 +339,40 @@ game-login identity.
 The redemption use case verifies that persistence cannot return an identity for a different
 `SessionUid`.
 
-Production redemption attempt limiting is not yet implemented. The application contract exists so
-that GameServer composition cannot treat persistence-level credential verification as sufficient
-protection for the native 32-bit authentication key.
+`GameLoginTicketRedemptionAttemptLimiter` implements the production redemption abuse-protection
+boundary behind `IGameLoginTicketRedemptionAttemptLimiter`.
+
+Admission is evaluated atomically across:
+
+- a global concurrent-redemption limit;
+- a per-source token bucket;
+- a per-source concurrency limit;
+- a per-`SessionUid` concurrency limit;
+- a per-`SessionUid` failed-attempt window and lockout;
+- a hard bound on tracked protection state.
+
+The default policy permits 30 attempts per source per minute, four concurrent attempts per source,
+one concurrent attempt per `SessionUid`, and eight failed attempts per `SessionUid` within five
+minutes before a five-minute lockout. Global concurrent redemption is limited to 512 attempts and
+tracked source/session protection state is limited to 100,000 entries.
+
+Source identity normalizes IPv4-mapped IPv6 addresses to IPv4 and groups native IPv6 addresses by
+/64 so rotating interface identifiers cannot bypass source protection or multiply tracked state.
+
+Protection windows use monotonic `TimeProvider` timestamps. An admitted attempt permanently consumes
+its source rate permit even when the lease is later abandoned. `Complete(false)` records a failed
+authorization against the `SessionUid`; `Complete(true)` clears its failure state; disposal without
+completion releases concurrency reservations without recording a credential failure.
+
+In-flight attempts count toward the per-session failure budget so concurrent distributed guesses
+cannot all enter persistence before completed failures reach the configured threshold.
+
+Tracked state is bounded. Expired inactive entries are reclaimed opportunistically and under
+capacity pressure. If live protection state cannot be safely discarded, admission fails closed
+rather than evicting security evidence.
+
+The concrete limiter exists in Infrastructure but is not operationally active until the GameServer
+host composition wires the redemption path.
 
 ## Atomic redemption persistence
 
@@ -492,11 +523,11 @@ storage representations.
 
 ## Current game-login boundary
 
-Durable ticket issuance and atomic single-use redemption persistence are implemented.
+Durable ticket issuance, atomic single-use redemption persistence, and production redemption attempt
+limiting are implemented.
 
 The following boundaries are not yet implemented and must not be assumed to exist:
 
-- production redemption attempt limiting;
 - transactional ticket revocation from password/account-state mutation paths;
 - bounded expired-ticket cleanup;
 - production AccountServer/GameServer least-privilege database identities;
