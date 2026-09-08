@@ -3,13 +3,15 @@ using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Application.Accounts.Authentication;
 
-public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher, IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
+public sealed class AccountAuthenticator(IAccountAuthenticationRepository repository, IAccountPasswordHasher passwordHasher,
+    IAccountAuthenticationRequestLimiter requestLimiter, IAccountAuthenticationAttemptLimiter attemptLimiter, TimeProvider timeProvider)
     : IAccountAuthenticator
 {
     private const int MaximumPersistenceAttempts = 2;
 
     private readonly IAccountAuthenticationRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     private readonly IAccountPasswordHasher _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
+    private readonly IAccountAuthenticationRequestLimiter _requestLimiter = requestLimiter ?? throw new ArgumentNullException(nameof(requestLimiter));
     private readonly IAccountAuthenticationAttemptLimiter _attemptLimiter = attemptLimiter ?? throw new ArgumentNullException(nameof(attemptLimiter));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -24,6 +26,15 @@ public sealed class AccountAuthenticator(IAccountAuthenticationRepository reposi
         {
             return AccountAuthenticationResult.InvalidCredentials();
         }
+
+        if (!_requestLimiter.TryBeginAuthentication(remoteAddress, out IAccountAuthenticationRequestLease? authenticationRequest))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return AccountAuthenticationResult.InvalidCredentials();
+        }
+
+        using IAccountAuthenticationRequestLease requestLease = authenticationRequest;
 
         AccountAuthenticationSnapshot? account = await _repository.FindByNameAsync(username, cancellationToken).ConfigureAwait(false);
 

@@ -29,6 +29,7 @@ public sealed class AccountAuthenticatorTests
             new AccountAuthenticator(
                 new FakeRepository(),
                 new FakePasswordHasher(),
+                new FakeRequestLimiter(),
                 new FakeAttemptLimiter(),
                 null!
             )
@@ -40,14 +41,12 @@ public sealed class AccountAuthenticatorTests
     {
         DateTimeOffset successfulLoginAt = DateTimeOffset.FromUnixTimeSeconds(1_788_566_400);
 
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         AccountAuthenticator authenticator = new(
             repository,
             new FakePasswordHasher(),
+            new FakeRequestLimiter(),
             new FakeAttemptLimiter(),
             new FixedTimeProvider(successfulLoginAt)
         );
@@ -66,6 +65,43 @@ public sealed class AccountAuthenticatorTests
         Assert.Null(repository.LastReplacementPasswordHash);
     }
 
+    [Fact]
+    public async Task AuthenticateAsync_RequestLeaseRemainsHeldThroughPasswordVerificationAndPersistence()
+    {
+        FakeRequestLimiter requestLimiter = new();
+
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
+        };
+
+        FakePasswordHasher passwordVerifier = new();
+
+        passwordVerifier.OnVerifyPassword = () =>
+            Assert.False(requestLimiter.LastRequest!.IsDisposed);
+
+        repository.OnRecordSuccessfulLogin = () =>
+            Assert.False(requestLimiter.LastRequest!.IsDisposed);
+
+        AccountAuthenticator authenticator = new(
+            repository,
+            passwordVerifier,
+            requestLimiter,
+            new FakeAttemptLimiter(),
+            TimeProvider.System
+        );
+
+        AccountAuthenticationResult result = await authenticator.AuthenticateAsync(
+            AccountName,
+            Password.AsMemory(),
+            s_remoteAddress,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsSuccess);
+        Assert.True(requestLimiter.LastRequest!.IsDisposed);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -73,10 +109,7 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         repository.OnRecordSuccessfulLogin = () =>
         {
@@ -90,11 +123,13 @@ public sealed class AccountAuthenticatorTests
             }
         };
 
+        FakeRequestLimiter requestLimiter = new();
         FakeAttemptLimiter limiter = new();
 
         AccountAuthenticator authenticator = new(
             repository,
             new FakePasswordHasher(),
+            requestLimiter,
             limiter,
             TimeProvider.System
         );
@@ -119,6 +154,7 @@ public sealed class AccountAuthenticatorTests
 
         Assert.False(limiter.LastAttempt!.IsCompleted);
         Assert.True(limiter.LastAttempt.IsDisposed);
+        Assert.True(requestLimiter.LastRequest!.IsDisposed);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
@@ -133,6 +169,7 @@ public sealed class AccountAuthenticatorTests
             new AccountAuthenticator(
                 null!,
                 new FakePasswordHasher(),
+                new FakeRequestLimiter(),
                 new FakeAttemptLimiter(),
                 TimeProvider.System
             )
@@ -145,6 +182,21 @@ public sealed class AccountAuthenticatorTests
         Assert.Throws<ArgumentNullException>(() =>
             new AccountAuthenticator(
                 new FakeRepository(),
+                null!,
+                new FakeRequestLimiter(),
+                new FakeAttemptLimiter(),
+                TimeProvider.System
+            )
+        );
+    }
+
+    [Fact]
+    public void Constructor_RejectsNullRequestLimiter()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new AccountAuthenticator(
+                new FakeRepository(),
+                new FakePasswordHasher(),
                 null!,
                 new FakeAttemptLimiter(),
                 TimeProvider.System
@@ -159,6 +211,7 @@ public sealed class AccountAuthenticatorTests
             new AccountAuthenticator(
                 new FakeRepository(),
                 new FakePasswordHasher(),
+                new FakeRequestLimiter(),
                 null!,
                 TimeProvider.System
             )
@@ -204,16 +257,15 @@ public sealed class AccountAuthenticatorTests
     {
         FakeRepository repository = new();
 
-        FakePasswordHasher passwordVerifier = new()
-        {
-            ExpectedPassword = Password,
-        };
+        FakePasswordHasher passwordVerifier = new() { ExpectedPassword = Password };
 
+        FakeRequestLimiter requestLimiter = new();
         FakeAttemptLimiter attemptLimiter = new();
 
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            requestLimiter,
             attemptLimiter,
             TimeProvider.System
         );
@@ -232,6 +284,10 @@ public sealed class AccountAuthenticatorTests
         Assert.Equal(1, repository.FindCount);
         Assert.Equal(AccountName, repository.LastAccountName);
 
+        Assert.Equal(1, requestLimiter.BeginCount);
+        Assert.Equal(s_remoteAddress, requestLimiter.LastRemoteAddress);
+        Assert.True(requestLimiter.LastRequest!.IsDisposed);
+
         Assert.Equal(1, passwordVerifier.DecoyVerificationCount);
         Assert.True(passwordVerifier.DecoyPasswordMatched);
 
@@ -242,26 +298,63 @@ public sealed class AccountAuthenticatorTests
     }
 
     [Fact]
-    public async Task AuthenticateAsync_ProtectionRejectionReturnsInvalidCredentialsWithoutHashing()
+    public async Task AuthenticateAsync_RequestProtectionRejectionReturnsInvalidCredentialsWithoutDependencies()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new();
 
-        FakePasswordHasher passwordVerifier = new()
-        {
-            ExpectedPassword = Password,
-        };
+        FakePasswordHasher passwordVerifier = new() { ExpectedPassword = Password };
 
-        FakeAttemptLimiter attemptLimiter = new()
+        FakeRequestLimiter requestLimiter = new()
         {
             Admit = false,
         };
 
+        FakeAttemptLimiter attemptLimiter = new();
+
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            requestLimiter,
+            attemptLimiter,
+            TimeProvider.System
+        );
+
+        AccountAuthenticationResult result = await authenticator.AuthenticateAsync(
+            AccountName,
+            Password.AsMemory(),
+            s_remoteAddress,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(AccountAuthenticationStatus.InvalidCredentials, result.Status);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(0u, result.AccountId);
+
+        Assert.Equal(1, requestLimiter.BeginCount);
+        Assert.Equal(s_remoteAddress, requestLimiter.LastRemoteAddress);
+        Assert.Null(requestLimiter.LastRequest);
+
+        Assert.Equal(0, repository.FindCount);
+        Assert.Equal(0, passwordVerifier.PasswordVerificationCount);
+        Assert.Equal(0, passwordVerifier.DecoyVerificationCount);
+        Assert.Equal(0, passwordVerifier.HashCount);
+        Assert.Equal(0, attemptLimiter.BeginCount);
+        Assert.Equal(0, repository.PasswordHashReplacementCount);
+    }
+
+    [Fact]
+    public async Task AuthenticateAsync_ProtectionRejectionReturnsInvalidCredentialsWithoutHashing()
+    {
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+
+        FakePasswordHasher passwordVerifier = new() { ExpectedPassword = Password };
+
+        FakeAttemptLimiter attemptLimiter = new() { Admit = false };
+
+        AccountAuthenticator authenticator = new(
+            repository,
+            passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -286,10 +379,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_InvalidPasswordReturnsInvalidCredentials()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -302,6 +392,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -331,10 +422,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_InvalidPasswordDoesNotRevealBannedAccount()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Banned),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Banned) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -347,6 +435,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -369,10 +458,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ValidPasswordForBannedAccountReturnsBanned()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Banned),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Banned) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -385,6 +471,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -410,10 +497,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ValidPasswordForDeniedAccountReturnsInvalidCredentials()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Denied),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Denied) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -426,6 +510,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -448,10 +533,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ValidPasswordForAllowedAccountReturnsAccountId()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -464,6 +546,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -510,6 +593,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -536,6 +620,8 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_RepeatedPersistenceConflictsRejectAuthentication()
     {
+        FakeRequestLimiter requestLimiter = new();
+
         FakeRepository repository = new()
         {
             Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
@@ -547,11 +633,14 @@ public sealed class AccountAuthenticatorTests
             ExpectedPassword = Password,
             VerificationStatus = AccountPasswordVerificationStatus.SuccessRehashNeeded,
             ReplacementPasswordHash = ReplacementPasswordHash,
+            OnVerifyPassword = () =>
+                Assert.False(requestLimiter.LastRequest!.IsDisposed),
         };
 
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            requestLimiter,
             new FakeAttemptLimiter(),
             TimeProvider.System
         );
@@ -565,17 +654,16 @@ public sealed class AccountAuthenticatorTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(0u, result.AccountId);
+        Assert.Equal(2, passwordVerifier.PasswordVerificationCount);
         Assert.Equal(2, repository.PasswordHashReplacementCount);
         Assert.Equal(2, repository.FindCount);
+        Assert.True(requestLimiter.LastRequest!.IsDisposed);
     }
 
     [Fact]
     public async Task AuthenticateAsync_BannedAccountDoesNotRehashPassword()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Banned),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Banned) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -586,6 +674,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             new FakeAttemptLimiter(),
             TimeProvider.System
         );
@@ -613,6 +702,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -651,6 +741,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             new FakeRepository(),
             passwordVerifier,
+            new FakeRequestLimiter(),
             new FakeAttemptLimiter(),
             TimeProvider.System
         );
@@ -674,10 +765,7 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -690,6 +778,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -716,10 +805,7 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -734,6 +820,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             passwordVerifier,
+            new FakeRequestLimiter(),
             attemptLimiter,
             TimeProvider.System
         );
@@ -773,10 +860,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_OversizedPasswordNeverReachesDependencies()
     {
-        await AssertRejectedBeforeDependencies(
-            AccountName,
-            new string('x', 129).AsMemory()
-        );
+        await AssertRejectedBeforeDependencies(AccountName, new string('x', 129).AsMemory());
     }
 
     [Fact]
@@ -792,11 +876,13 @@ public sealed class AccountAuthenticatorTests
     {
         FakeRepository repository = new();
         FakePasswordHasher verifier = new();
+        FakeRequestLimiter requestLimiter = new();
         FakeAttemptLimiter limiter = new();
 
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            requestLimiter,
             limiter,
             TimeProvider.System
         );
@@ -815,6 +901,7 @@ public sealed class AccountAuthenticatorTests
         Assert.Equal(0, verifier.PasswordVerificationCount);
         Assert.Equal(0, verifier.DecoyVerificationCount);
         Assert.Equal(0, verifier.HashCount);
+        Assert.Equal(0, requestLimiter.BeginCount);
         Assert.Equal(0, limiter.BeginCount);
     }
 
@@ -832,19 +919,14 @@ public sealed class AccountAuthenticatorTests
         string password
     )
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
-        FakePasswordHasher verifier = new()
-        {
-            ExpectedPassword = password,
-        };
+        FakePasswordHasher verifier = new() { ExpectedPassword = password };
 
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new FakeRequestLimiter(),
             new FakeAttemptLimiter(),
             TimeProvider.System
         );
@@ -866,19 +948,14 @@ public sealed class AccountAuthenticatorTests
     {
         string password = new('x', 128);
 
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
-        FakePasswordHasher verifier = new()
-        {
-            ExpectedPassword = password,
-        };
+        FakePasswordHasher verifier = new() { ExpectedPassword = password };
 
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new FakeRequestLimiter(),
             new FakeAttemptLimiter(),
             TimeProvider.System
         );
@@ -941,8 +1018,7 @@ public sealed class AccountAuthenticatorTests
         {
             repository.Snapshot = CreateSnapshot(access);
             verifier.VerificationStatus = refreshedStatus;
-            repository.RecordSuccessfulLoginResult =
-                repository.SuccessfulLoginRecordCount > 1;
+            repository.RecordSuccessfulLoginResult = repository.SuccessfulLoginRecordCount > 1;
         };
 
         FakeAttemptLimiter limiter = new();
@@ -950,6 +1026,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new FakeRequestLimiter(),
             limiter,
             TimeProvider.System
         );
@@ -1007,6 +1084,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new FakeRequestLimiter(),
             limiter,
             TimeProvider.System
         );
@@ -1034,10 +1112,7 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         repository.OnRecordSuccessfulLogin = () =>
         {
@@ -1061,6 +1136,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new FakeRequestLimiter(),
             limiter,
             TimeProvider.System
         );
@@ -1090,10 +1166,7 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_UnsupportedVerifierStatusAbandonsAttempt()
     {
-        FakeRepository repository = new()
-        {
-            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed),
-        };
+        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
 
         FakePasswordHasher verifier = new()
         {
@@ -1105,6 +1178,7 @@ public sealed class AccountAuthenticatorTests
         AccountAuthenticator authenticator = new(
             repository,
             verifier,
+            new FakeRequestLimiter(),
             limiter,
             TimeProvider.System
         );
@@ -1130,6 +1204,7 @@ public sealed class AccountAuthenticatorTests
         return new AccountAuthenticator(
             new FakeRepository(),
             new FakePasswordHasher(),
+            new FakeRequestLimiter(),
             new FakeAttemptLimiter(),
             TimeProvider.System
         );
@@ -1272,6 +1347,49 @@ public sealed class AccountAuthenticatorTests
             OnHashPassword?.Invoke();
 
             return ReplacementPasswordHash;
+        }
+    }
+
+    private sealed class FakeRequestLimiter : IAccountAuthenticationRequestLimiter
+    {
+        public bool Admit { get; set; } = true;
+
+        public int BeginCount { get; private set; }
+
+        public IPAddress? LastRemoteAddress { get; private set; }
+
+        public FakeRequestLease? LastRequest { get; private set; }
+
+        public bool TryBeginAuthentication(
+            IPAddress remoteAddress,
+            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request
+        )
+        {
+            BeginCount++;
+            LastRemoteAddress = remoteAddress;
+
+            if (!Admit)
+            {
+                request = null;
+                return false;
+            }
+
+            FakeRequestLease concreteRequest = new();
+
+            LastRequest = concreteRequest;
+            request = concreteRequest;
+
+            return true;
+        }
+    }
+
+    private sealed class FakeRequestLease : IAccountAuthenticationRequestLease
+    {
+        public bool IsDisposed { get; private set; }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
         }
     }
 
