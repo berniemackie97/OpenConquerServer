@@ -414,8 +414,8 @@ A ticket is expired when:
 attempted_at_utc >= expires_at_utc
 ```
 
-Expired tickets are rejected without being consumed. Bounded maintenance owns physical removal of
-expired grants.
+Expired tickets are rejected without being consumed. Physical removal is owned separately by the
+bounded expiration-cleanup boundary described below.
 
 An invalid `AuthenticationKey` is rejected without consuming the ticket, allowing the legitimate
 bearer to redeem an otherwise valid grant.
@@ -488,6 +488,28 @@ has already been consumed.
 
 A caller must therefore not blindly retry a redemption after an ambiguous persistence failure.
 
+## Expired-ticket cleanup
+
+`GameLoginTicketExpirationCleaner` owns bounded physical removal of expired game-login tickets.
+
+Cleanup does not participate in the logical authorization decision. Redemption remains authoritative
+for determining whether a presented ticket is expired. Physical deletion deliberately trails logical
+expiration by a cleanup grace interval so ordinary cross-host clock differences do not make
+maintenance compete with the authentication boundary.
+
+The default cleanup policy is:
+
+- five-minute expiration grace;
+- maximum 1,000 rows removed per invocation.
+
+A configured batch size must remain between 1 and 10,000 rows. Expiration grace must be greater than
+zero and no greater than one day.
+
+Each invocation computes:
+
+````text
+cleanup_cutoff_utc = current_utc - expiration_grace:
+
 ## Schema and migration behavior
 
 The current account schema stores protected game-login ticket verifiers rather than raw
@@ -497,7 +519,7 @@ Migration:
 
 ```text
 20260907004603_ProtectGameLoginTicketAuthenticationKey
-```
+````
 
 upgrades the original ticket schema by:
 
@@ -523,13 +545,12 @@ storage representations.
 
 ## Current game-login boundary
 
-Durable ticket issuance, atomic single-use redemption persistence, and production redemption attempt
-limiting are implemented.
+Durable ticket issuance, atomic single-use redemption persistence, production redemption attempt
+limiting, and bounded expired-ticket cleanup are implemented.
 
 The following boundaries are not yet implemented and must not be assumed to exist:
 
 - transactional ticket revocation from password/account-state mutation paths;
-- bounded expired-ticket cleanup;
 - production AccountServer/GameServer least-privilege database identities;
 - verification-key deployment and operational rotation orchestration;
 - AccountServer/GameServer host composition;
