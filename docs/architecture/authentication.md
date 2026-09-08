@@ -507,8 +507,49 @@ zero and no greater than one day.
 
 Each invocation computes:
 
-````text
-cleanup_cutoff_utc = current_utc - expiration_grace:
+```text
+cleanup_cutoff_utc = current_utc - expiration_grace
+```
+
+using the configured `TimeProvider`, then executes one bounded server-side deletion ordered by:
+
+```text
+expires_at_utc
+session_uid
+```
+
+Tickets are eligible for physical removal when:
+
+```text
+expires_at_utc <= cleanup_cutoff_utc
+```
+
+Ordering by expiration followed by `SessionUid` gives deterministic oldest-first selection when the
+eligible backlog exceeds the batch limit, including when multiple tickets share the same expiration
+timestamp.
+
+The cleaner performs exactly one database batch per invocation. It does not internally loop until
+the backlog is empty. Scheduling, invocation frequency, and any decision to run another batch belong
+to future host composition so one maintenance call cannot become unbounded database work.
+
+Cleanup uses one autocommit `DELETE` statement rather than loading ticket entities or opening an
+explicit application transaction. This maintenance operation is idempotent: if the caller cannot
+determine whether a deletion completed, a later cleanup pass can safely continue from the remaining
+rows.
+
+Cancellation is propagated to the database operation. Real MySQL/InnoDB integration tests verify
+that cancellation while waiting on a ticket row lock does not delete that ticket.
+
+Cleanup and redemption rely on normal InnoDB row locking when they contend for the same durable
+ticket. Because cleanup targets tickets that have already exceeded both logical expiration and the
+additional grace period, either ordering preserves authorization semantics: redemption cannot
+produce an identity for the expired ticket, and cleanup eventually removes it.
+
+The existing expiration index on `game_login_tickets.expires_at_utc` supports bounded cleanup, so no
+schema migration is required for this boundary.
+
+The cleanup primitive is implemented in Infrastructure but is not operationally scheduled until
+AccountServer/GameServer host composition is implemented.
 
 ## Schema and migration behavior
 
@@ -519,7 +560,7 @@ Migration:
 
 ```text
 20260907004603_ProtectGameLoginTicketAuthenticationKey
-````
+```
 
 upgrades the original ticket schema by:
 
