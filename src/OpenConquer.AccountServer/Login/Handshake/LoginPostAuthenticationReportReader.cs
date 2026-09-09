@@ -3,19 +3,6 @@ using OpenConquer.Protocol.Login.Packets;
 
 namespace OpenConquer.AccountServer.Login.Handshake;
 
-/// <summary>
-/// Consumes the two native client-to-AccountServer reports sent after a
-/// successful packet-1055 authentication response.
-/// </summary>
-/// <remarks>
-/// The verified standard 5517 client sends packet 1100 first and the
-/// AccountServer form of packet 1052 second, then disconnects the account
-/// connection.
-///
-/// This reader validates protocol ordering and correlation only. The reports are
-/// client-controlled telemetry and do not authorize the later GameServer
-/// connection.
-/// </remarks>
 internal sealed class LoginPostAuthenticationReportReader
 {
     private const string ExpectedResourceName = "res.dat";
@@ -25,36 +12,46 @@ internal sealed class LoginPostAuthenticationReportReader
     public LoginPostAuthenticationReportReader(LoginConnectionSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
-
         _session = session;
     }
 
-    /// <summary>
-    /// Consumes the native packet-1100 and AccountServer packet-1052 sequence
-    /// associated with <paramref name="expectedSessionUid"/>.
-    /// </summary>
-    /// <remarks>
-    /// Transport failures and caller-requested cancellation propagate
-    /// unchanged. No authorization grant is revoked or otherwise mutated by
-    /// this operation.
-    /// </remarks>
-    public async ValueTask<LoginPostAuthenticationReportReadResult> ReadAsync(uint expectedSessionUid, CancellationToken cancellationToken = default)
+    public ValueTask<LoginPostAuthenticationReportReadResult> ReadAsync(uint expectedSessionUid, CancellationToken cancellationToken = default)
+    {
+        return ReadCoreAsync(expectedSessionUid, phaseTimeout: null, cancellationToken);
+    }
+
+    public ValueTask<LoginPostAuthenticationReportReadResult> ReadAsync(uint expectedSessionUid, TimeSpan phaseTimeout, CancellationToken cancellationToken = default)
+    {
+        if (phaseTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(phaseTimeout), "The report phase timeout must be greater than zero.");
+        }
+
+        return ReadCoreAsync(expectedSessionUid, phaseTimeout, cancellationToken);
+    }
+
+    private async ValueTask<LoginPostAuthenticationReportReadResult> ReadCoreAsync(uint expectedSessionUid, TimeSpan? phaseTimeout, CancellationToken cancellationToken)
     {
         if (expectedSessionUid == 0)
         {
             throw new ArgumentOutOfRangeException(nameof(expectedSessionUid), "The expected post-authentication session UID must be nonzero.");
         }
 
-        LoginInboundFrame? macInboundFrame = await _session.ReadAsync(cancellationToken).ConfigureAwait(false);
+        FrameReadResult macRead = await ReadFrameAsync(phaseTimeout, cancellationToken).ConfigureAwait(false);
 
-        if (macInboundFrame is null)
+        if (macRead.TimedOut)
+        {
+            return LoginPostAuthenticationReportReadResult.TimedOut(LoginPostAuthenticationReportPhase.MacAddressReport);
+        }
+
+        if (macRead.Frame is null)
         {
             return LoginPostAuthenticationReportReadResult.EndOfStream(LoginPostAuthenticationReportPhase.MacAddressReport);
         }
 
         string macAddress;
 
-        using (LoginInboundFrame frame = macInboundFrame)
+        using (LoginInboundFrame frame = macRead.Frame)
         {
             if (frame.PacketId != LoginAccountMacAddressReportPacket.PacketIdentifier)
             {
@@ -81,16 +78,21 @@ internal sealed class LoginPostAuthenticationReportReader
             macAddress = decodedReport.MacAddress;
         }
 
-        LoginInboundFrame? resourceInboundFrame = await _session.ReadAsync(cancellationToken).ConfigureAwait(false);
+        FrameReadResult resourceRead = await ReadFrameAsync(phaseTimeout, cancellationToken).ConfigureAwait(false);
 
-        if (resourceInboundFrame is null)
+        if (resourceRead.TimedOut)
+        {
+            return LoginPostAuthenticationReportReadResult.TimedOut(LoginPostAuthenticationReportPhase.ResourceVersionReport);
+        }
+
+        if (resourceRead.Frame is null)
         {
             return LoginPostAuthenticationReportReadResult.EndOfStream(LoginPostAuthenticationReportPhase.ResourceVersionReport);
         }
 
         int resourceVersion;
 
-        using (LoginInboundFrame frame = resourceInboundFrame)
+        using (LoginInboundFrame frame = resourceRead.Frame)
         {
             if (frame.PacketId != LoginAccountResourceVersionReportPacket.PacketIdentifier)
             {
@@ -120,6 +122,26 @@ internal sealed class LoginPostAuthenticationReportReader
         return LoginPostAuthenticationReportReadResult.Success(new LoginPostAuthenticationReports(macAddress, resourceVersion));
     }
 
+    private async ValueTask<FrameReadResult> ReadFrameAsync(TimeSpan? phaseTimeout, CancellationToken cancellationToken)
+    {
+        if (phaseTimeout is null)
+        {
+            return new FrameReadResult(await _session.ReadAsync(cancellationToken).ConfigureAwait(false), TimedOut: false);
+        }
+
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(phaseTimeout.Value);
+
+        try
+        {
+            return new FrameReadResult(await _session.ReadAsync(timeout.Token).ConfigureAwait(false), TimedOut: false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
+        {
+            return new FrameReadResult(Frame: null, TimedOut: true);
+        }
+    }
+
     private static bool IsValidMacAddress(string macAddress)
     {
         if (macAddress.Length == 0)
@@ -142,4 +164,6 @@ internal sealed class LoginPostAuthenticationReportReader
 
         return true;
     }
+
+    private readonly record struct FrameReadResult(LoginInboundFrame? Frame, bool TimedOut);
 }

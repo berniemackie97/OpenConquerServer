@@ -46,6 +46,11 @@ internal sealed class LoginPostAuthenticationReportReadResult
         return Failure(LoginPostAuthenticationReportReadStatus.EndOfStream, phase);
     }
 
+    public static LoginPostAuthenticationReportReadResult TimedOut(LoginPostAuthenticationReportPhase phase)
+    {
+        return Failure(LoginPostAuthenticationReportReadStatus.TimedOut, phase);
+    }
+
     public static LoginPostAuthenticationReportReadResult UnexpectedPacket(LoginPostAuthenticationReportPhase phase, ushort packetId)
     {
         return new LoginPostAuthenticationReportReadResult(LoginPostAuthenticationReportReadStatus.UnexpectedPacket, phase, reports: null, packetId);

@@ -1,194 +1,401 @@
 # Conquer Online 5517 Protocol
 
-This directory documents the wire behavior OpenConquer must preserve for compatibility with the
-Conquer Online 5517 client.
+This directory documents client-visible **Conquer Online 5517** wire behavior implemented or
+verified by OpenConquer.
 
-Protocol documentation covers externally observable behavior such as framing, byte order, field
-layouts, text encoding, limits, handshakes, cryptography, and compatibility quirks.
+Internal server architecture belongs under [`docs/architecture`](../architecture/README.md).
 
-Internal server architecture is documented separately under
-[`docs/architecture`](../architecture/README.md).
+## Current Coverage
 
-## Current Implementation
+| Area                                      | Status                  |
+| ----------------------------------------- | ----------------------- |
+| TQ framing                                | Implemented             |
+| Binary serialization                      | Implemented             |
+| Windows-1252 / ASCII text encoding        | Implemented             |
+| AccountServer login stream cipher         | Implemented             |
+| Standard 5517 credential decoding         | Implemented             |
+| AccountServer authentication response     | Implemented             |
+| AccountServer post-authentication reports | Implemented             |
+| Standard AccountServer login transaction  | Implemented             |
+| Protected/mobile login variants           | Recognized, unsupported |
+| GameServer handshake                      | Not implemented         |
+| GameServer login proof                    | Not implemented         |
+| Game packet signatures                    | Not implemented         |
+| Gameplay packets                          | Not implemented         |
 
-| Area | Implemented coverage |
-| --- | --- |
-| Framing | Four-byte header, segmented decoder, bounded encoder, complete-frame validation. |
-| Serialization/text | Caller-owned readers/writers; ANSI, strict ANSI, ASCII; fixed and byte-prefixed strings. |
-| Login cryptography | Independent inbound/outbound legacy-TQ stream state; seed-derived RC5-32/12/16 key and credential decryption; signed-account-byte keypad permutation. |
-| Login packets | Server seed 1059 (8 bytes), standard client credentials 1060 (276 bytes), server authentication response 1055 (36 bytes), client MAC report 1100 (52 bytes), AccountServer resource report 1052 (28 bytes). |
-| Login limits | 524-byte complete-frame ceiling for the audited login packet set; packet-specific exact lengths are checked separately. |
+Detailed shared contracts:
 
-`LoginAccountRequest` owns disposable password memory. Username normalization and credential
-length policy are enforced after wire decoding by Application using Domain rules. Trimming the
-account before the keypad step would change its seed and break compatibility.
+- [TQ Framing](framing.md)
+- [TQ Text Encoding](encoding.md)
 
-The concrete runtime encoding resolver and CRT random generator remain internal to Protocol.
+## Common TQ Frame
 
-The 524-byte ceiling accommodates the verified 1084 frame size; it does **not** mean 1084 is
-implemented. Only standard 1060 credential decoding is supported. OEM, protected/mobile, Facebook,
-and custom registration variants are not implemented. Nor are GameServer DH/CAST5, signatures,
-login proofs, or gameplay packets. The two context-dependent 1052 forms must not be interchanged.
+All currently implemented TQ packets use a four-byte little-endian header:
 
-AccountServer already integrates the login cipher and framed I/O with Transport pipelines, sends
-the seed, decodes requests, and validates the ordered post-authentication report pair. These are
-components, not a composed runnable authentication host. See
-[Networking Architecture](../architecture/networking.md) and the
-[baseline audit](../audits/main-rebaseline.md) for evidence and scope.
+| Offset | Size | Field              |
+| -----: | ---: | ------------------ |
+| `0x00` |    2 | Total frame length |
+| `0x02` |    2 | Packet identifier  |
 
-## Reference
-
-### [TQ Framing](framing.md)
-
-The framing reference owns the detailed contract for:
-
-- the 4-byte common TQ header
-- little-endian header fields
-- raw-header versus complete-packet validation
-- nonzero complete-packet identifiers
-- the generic `UInt16` packet-length limit
-- caller-supplied packet-length limits
-- the 5517 game-client `0x400` packet boundary
-- the separate 8-byte game signature trailer
-- `IPacket`
-- payload-length enforcement
-- caller-owned frame memory
-- frame commit ordering
-- serialization failure cleanup
-- Protocol/Transport framing ownership
-
-### [TQ Text Encoding](encoding.md)
-
-The encoding reference owns the detailed contract for:
-
-- `TqTextEncoding`
-- Windows-1252
-- strict Windows-1252
-- ASCII
-- fixed-width strings
-- byte-length-prefixed strings
-- zero padding
-- embedded-null semantics
-- reader and writer failure behavior
-- field-level truncation policy
-
-Additional protocol documents should be introduced only when an implemented or verified
-compatibility boundary becomes large enough to justify one.
-
-## Core Wire Rules
-
-### Byte Order
-
-Protocol integers currently supported by the shared serializer use little-endian byte order.
+The declared length includes the header:
 
 ```text
-UInt16 0x1234
--> 34 12
-
-UInt32 0x89ABCDEF
--> EF CD AB 89
+FrameLength = 4 + PayloadLength
 ```
 
-Primitive APIs are added from actual protocol evidence rather than made artificially symmetrical.
+Packet identifier `0` is invalid for a complete TQ packet.
 
-### Common TQ Header
-
-A common TQ packet begins with:
-
-| Offset | Size | Field               |
-| -----: | ---: | ------------------- |
-|      0 |    2 | Total packet length |
-|      2 |    2 | Packet identifier   |
-
-The declared length includes the four-byte header:
-
-```text
-PacketLength = 4 + PayloadLength
-```
-
-The raw header representation does not itself decide whether the values describe a valid complete
-packet.
-
-Complete-packet validation belongs to the framing boundary.
-
-See [TQ Framing](framing.md).
-
-### Packet Identifier
-
-Native 5517 validation establishes packet identifier `0` as invalid for a complete TQ packet.
-
-The rule is intentionally not embedded in `WireFrameHeader`.
-
-`WireFrameEncoder` rejects packet identifier `0` before modifying destination memory.
-
-`WireFrameDecoder` returns `IncompleteFrame` until the complete declared packet is buffered, then
-returns `InvalidPacketId` when that complete packet has identifier `0`.
-
-### Generic Packet Length
-
-The common packet-length field is a `UInt16`.
-
-The maximum representable header-declared TQ packet size is therefore:
+The generic length field is `UInt16`, giving a maximum representable complete frame of:
 
 ```text
 65535 bytes
 ```
 
-That corresponds to a maximum payload of:
+Protocol-specific paths may impose lower limits.
+
+## Frame Limits
+
+| Path                    | Complete TQ frame limit |
+| ----------------------- | ----------------------: |
+| Generic framing         |             65535 bytes |
+| AccountServer login     |               524 bytes |
+| 5517 GameServer traffic |    `0x400` / 1024 bytes |
+
+The `0x400` GameServer limit is verified native behavior but is **not yet active**, because the
+GameServer session boundary is not implemented.
+
+The later game protocol also uses a separate eight-byte signature trailer. That trailer is outside
+the header-declared `0x400` TQ frame:
 
 ```text
-65531 bytes
+0x400 TQ frame
++ 0x008 signature
+= 0x408 stream bytes
 ```
 
-This is the generic framing limit.
+Generic framing does not hard-code either AccountServer or GameServer limits. The owning protocol
+path supplies its limit.
 
-It is not automatically the valid maximum for every protocol path.
+## AccountServer Login Packets
 
-### 5517 Game Packet Limit
+| Packet | Direction       | Complete size | Purpose                                    |
+| -----: | --------------- | ------------: | ------------------------------------------ |
+| `1059` | Server → Client |       8 bytes | Login seed                                 |
+| `1060` | Client → Server |     276 bytes | Standard account credentials               |
+| `1055` | Server → Client |      36 bytes | Authentication result / GameServer handoff |
+| `1100` | Client → Server |      52 bytes | MAC-address report                         |
+| `1052` | Client → Server |      28 bytes | `res.dat` version report                   |
 
-Native 5517 client behavior establishes a stricter game-packet boundary:
+Packet `1052` is context-sensitive. The 28-byte AccountServer report is distinct from the later
+GameServer login-proof packet using the same identifier.
+
+## Standard AccountServer Transaction
+
+The implemented standard 5517 flow is:
 
 ```text
-0x400 bytes
-1024 bytes
+connection established
+    ↓
+1059 login seed
+    ↓
+1060 credential request
+    ↓
+credential authentication
+    ↓
+durable GameServer login-ticket grant
+    ↓
+1055 authentication response
+    ↓
+1100 MAC report
+    ↓
+1052 res.dat version report
+    ↓
+AccountServer transaction complete
 ```
 
-This value applies to the **header-declared TQ packet**:
+A successful `1055` is never sent before the GameServer login ticket has been durably granted.
+
+The AccountServer transaction is implemented, but the executable listener, admission queue, worker
+pool, and production composition root are not yet wired.
+
+## Login Seed and Stream Cipher
+
+The AccountServer sends packet `1059` immediately after the login connection is opened.
+
+Its payload is one `UInt32` login seed.
+
+AccountServer traffic uses the legacy TQ stream transform with independent state for:
+
+```text
+client → server
+server → client
+```
+
+Inbound and outbound byte positions must not share state.
+
+The seed is also used to derive the standard `1060` credential decryption key.
+
+## Standard Credential Request — 1060
+
+The standard retail 5517 credential payload is 272 bytes:
+
+|  Offset | Size | Field            |
+| ------: | ---: | ---------------- |
+|  `0x00` |  128 | Account name     |
+|  `0x80` |  128 | Credential field |
+| `0x100` |   16 | Server name      |
+
+Complete frame size:
 
 ```text
 4-byte header
-+
-payload
++ 272-byte payload
+= 276 bytes
 ```
 
-It does not include the separate eight-byte signature trailer used by the post-handshake encrypted
-game protocol.
+Only the first 32 bytes of the 128-byte credential field are transformed by the standard 5517 path.
 
-When that trailer is present, the corresponding stream unit may therefore occupy:
+Credential decoding uses:
 
 ```text
-0x400-byte TQ packet
-+
-0x008-byte signature material
-=
-0x408 bytes
+login seed
+    ↓
+seed-derived RC5-32/12/16 key
+    ↓
+decrypt first 32 credential bytes
+    ↓
+account-dependent keypad permutation
+    ↓
+password characters
 ```
 
-The generic framing layer does not hard-code the `0x400` limit.
+The keypad permutation uses the original account bytes from the packet. The account name must not be
+trimmed or normalized before that step.
 
-Instead, the generic framing APIs accept a caller-supplied maximum so the future game-session
-boundary can select `0x400` when that protocol slice is implemented.
+The remaining 96 credential bytes are not treated as a validity condition by the standard path.
 
-The existence of caller-supplied limits today does **not** mean the GameServer session boundary is
-already implemented.
+Decoded password memory is mutable and explicitly disposable.
 
-The implemented account-login path selects its separate 524-byte complete-frame ceiling.
+Application-level username and password policy is applied only after wire decoding.
 
-## Protocol Boundary
+## Unsupported Credential Variants
 
-`OpenConquer.Protocol` owns the interpretation and production of Conquer wire data.
+Only packet `1060` is implemented as an authentication request.
 
-It owns concepts such as:
+Known alternate login packet identifiers include:
+
+| Packet | Current handling                                |
+| -----: | ----------------------------------------------- |
+| `1084` | Recognized protected-login variant; unsupported |
+| `1098` | Recognized mobile-login variant; unsupported    |
+
+These variants fail closed and do not enter standard credential decoding.
+
+Unknown login request packet identifiers are also rejected.
+
+The 524-byte AccountServer frame ceiling accommodates verified login traffic including packet
+`1084`; it does not imply support for that packet.
+
+OEM, Facebook, custom registration, and other non-standard login paths are not implemented.
+
+## Authentication Response — 1055
+
+Packet `1055` has a 32-byte payload:
+
+| Offset | Size | Field                              |
+| -----: | ---: | ---------------------------------- |
+| `0x00` |    4 | Session UID                        |
+| `0x04` |    4 | Authentication key or failure code |
+| `0x08` |    4 | GameServer port                    |
+| `0x0C` |    4 | Additional session field           |
+| `0x10` |   16 | GameServer IPv4 address            |
+
+### Success
+
+A nonzero session UID selects the native success path.
+
+The implemented standard handoff sends:
+
+```text
+SessionUid               = durable ticket SessionUid
+AuthenticationKey        = durable ticket AuthenticationKey
+GameServerPort           = configured GameServer port
+AdditionalSessionField   = AuthenticationKey
+GameServerIp             = configured IPv4 address
+```
+
+The authentication key is intentionally written into both `0x04` and `0x0C` for the standard
+AccountServer handoff, matching preserved server behavior.
+
+The protocol model keeps the fields separate because the complete native meaning of `0x0C` remains
+unresolved.
+
+### Failure
+
+A zero session UID selects the failure path. The field at `0x04` becomes the native failure code.
+
+Verified codes:
+
+| Code | Meaning                 |
+| ---: | ----------------------- |
+|  `1` | Invalid credentials     |
+| `12` | Banned account          |
+| `57` | Invalid account/request |
+
+Current AccountServer mappings include:
+
+```text
+wrong credentials                -> 1
+unsupported 1084 / 1098 request -> 1
+stale authentication snapshot    -> 1
+banned account                   -> 12
+malformed standard 1060          -> 57
+unknown login packet             -> 57
+```
+
+If account state changes between successful credential authentication and durable ticket grant, the
+grant fails closed and the client receives generic failure `1`.
+
+## Durable GameServer Handoff
+
+`1055` success represents more than successful password verification.
+
+Before success is sent:
+
+1. credentials must authenticate;
+2. current account/password revisions must still match;
+3. a nonzero session UID and authentication key must be allocated;
+4. the GameServer login ticket must be durably committed.
+
+This prevents a stale authentication result from producing a usable GameServer bearer credential
+after an authentication-invalidating account mutation.
+
+Ticket persistence and account security semantics are documented in
+[Authentication](../architecture/authentication.md).
+
+## MAC Report — 1100
+
+Packet `1100` has a 48-byte payload:
+
+| Offset | Size | Field                                  |
+| -----: | ---: | -------------------------------------- |
+| `0x00` |    4 | Session UID                            |
+| `0x04` |   40 | MAC-address field                      |
+| `0x2C` |    4 | Semantically unresolved trailing bytes |
+
+Complete frame size:
+
+```text
+52 bytes
+```
+
+AccountServer validation requires:
+
+- session UID matches the issued ticket;
+- MAC address is empty or exactly 12 uppercase hexadecimal characters.
+
+The four trailing bytes are structurally consumed but have no assigned semantic meaning in current
+evidence.
+
+## Resource-Version Report — 1052
+
+The AccountServer form of packet `1052` has a 24-byte payload:
+
+| Offset | Size | Field            |
+| -----: | ---: | ---------------- |
+| `0x00` |    4 | Session UID      |
+| `0x04` |    4 | Resource version |
+| `0x08` |   16 | Resource name    |
+
+Complete frame size:
+
+```text
+28 bytes
+```
+
+AccountServer validation requires:
+
+- session UID matches the issued ticket;
+- resource name is exactly `res.dat`.
+
+The resource-version value is accepted as client telemetry.
+
+## Post-Authentication Reports
+
+The standard client sends:
+
+```text
+1100 MAC report
+    ↓
+1052 res.dat version report
+```
+
+The order is enforced.
+
+Each report read receives an independent bounded phase timeout.
+
+Report failures are non-authoritative telemetry failures. They do **not** revoke an already-issued
+GameServer login ticket.
+
+This includes:
+
+- missing report;
+- timeout;
+- unexpected packet;
+- malformed report;
+- session mismatch;
+- invalid MAC format;
+- unexpected resource name.
+
+Authentication authorization was already established by the durable ticket grant before these
+reports are consumed.
+
+## Text Encoding
+
+Implemented protocol text modes are:
+
+| `TqTextEncoding` | Runtime encoding                     |
+| ---------------- | ------------------------------------ |
+| `Ansi`           | Windows-1252                         |
+| `StrictAnsi`     | Windows-1252 with exception fallback |
+| `Ascii`          | ASCII                                |
+
+Shared packet APIs do not accept arbitrary runtime `Encoding` instances.
+
+Fixed-width strings:
+
+- consume their full field width;
+- terminate logically at the first null byte;
+- zero-fill unused outbound bytes;
+- reject outbound embedded null characters;
+- are not silently truncated by generic serializers.
+
+Byte-length-prefixed strings use one byte for encoded length and therefore support at most 255
+encoded bytes.
+
+See [TQ Text Encoding](encoding.md) for the complete contract.
+
+## Serialization and Memory Ownership
+
+Protocol serializers operate on caller-owned memory.
+
+`PacketReader` is a non-owning cursor over inbound bytes.
+
+`PacketWriter` is a non-owning fixed-capacity writer over outbound memory.
+
+`WireFrameDecoder` accepts caller-owned `ReadOnlySequence<byte>` input and does not advance the
+transport buffer itself.
+
+`WireFrameEncoder` serializes payload before committing the common frame header.
+
+Important failure guarantees are documented in:
+
+- [TQ Framing](framing.md)
+- [TQ Text Encoding](encoding.md)
+
+## Protocol / Transport Boundary
+
+`OpenConquer.Protocol` owns:
 
 ```text
 packet identifiers
@@ -196,497 +403,56 @@ packet layouts
 framing
 serialization
 text encoding
-handshakes
 protocol cryptography
 wire compatibility
 ```
 
-It does not own:
+`OpenConquer.Transport` owns:
 
 ```text
-TCP sockets
+TCP
 connection lifetime
-transport buffering
+buffer movement
+I/O
 backpressure
-database access
-gameplay state
+admission
 ```
 
-The transport side of this boundary is documented in
-[Networking Architecture](../architecture/networking.md).
+Protocol does not own sockets or transport queues.
 
-The distinction is:
+Transport does not interpret Conquer packet semantics.
 
-```text
-Protocol
-"What do these bytes mean?"
+See [Networking Architecture](../architecture/networking.md).
 
-Transport
-"How do these bytes move?"
-```
+## Evidence Policy
 
-## Memory Ownership
+Client-visible behavior is derived from:
 
-Protocol serializers operate on caller-owned memory.
+- reconstructed/native 5517 client behavior;
+- preserved OpenConquerPublic server behavior;
+- packet captures when available;
+- verified protocol vectors and tests.
 
-`PacketWriter` does not:
+Native 5517 client behavior has final authority for compatibility.
 
-- allocate frame memory
-- rent arrays
-- grow its destination
-- own the backing buffer
-- dispose caller memory
+Legacy server code is behavioral evidence, not an architecture template. Its class layout,
+threading, socket abstractions, and ownership patterns are not automatically carried into the
+rewrite.
 
-Transport and AccountServer select their buffering strategy independently; the current login
-session integrates these APIs with `System.IO.Pipelines`.
+Protocol APIs are added only when supported by concrete wire requirements.
 
-Borrowed protocol memory must not outlive the lifetime guaranteed by its owner.
+## Not Yet Implemented
 
-`WireFrameDecoder` likewise does not own inbound memory.
+The current protocol surface does not include:
 
-It accepts a caller-owned `ReadOnlySequence<byte>` and, on success, returns a borrowed slice
-covering exactly the first complete TQ frame.
+- AccountServer registration variants;
+- protected/mobile credential decoding;
+- GameServer Diffie-Hellman handshake;
+- CAST5 game-channel encryption;
+- game packet signatures;
+- GameServer `1052` login proof;
+- character/session bootstrap;
+- gameplay packets.
 
-The decoder does not:
-
-- allocate frame memory
-- coalesce segmented payloads
-- advance a transport buffer
-- retain the supplied sequence
-- perform network I/O
-
-The returned frame must not outlive the source memory supplied by the caller.
-
-## PacketReader
-
-`PacketReader` is a non-owning cursor over caller-provided protocol bytes.
-
-The current primitive read surface is intentionally limited to proven protocol requirements:
-
-```text
-Byte
-UInt16
-UInt32
-Raw bytes
-```
-
-String reads are:
-
-```text
-ReadFixedString
-ReadByteString
-```
-
-Both accept `TqTextEncoding`.
-
-Successful field reads consume exactly the bytes belonging to that field.
-
-Failures that occur before a field is successfully consumed leave the cursor at its previous
-position.
-
-Current meaningful examples include:
-
-```text
-primitive underflow
-fixed-width underflow
-truncated byte-length string
-unknown TqTextEncoding
-```
-
-The current closed decoder set does not rely on a synthetic invalid Windows-1252 byte case to define
-reader behavior.
-
-## PacketWriter
-
-`PacketWriter` is a non-owning fixed-capacity writer over caller-owned memory.
-
-The current primitive write surface is:
-
-```text
-Byte
-UInt16
-UInt32
-UInt64
-Raw bytes
-Reserved bytes
-```
-
-String writes are:
-
-```text
-WriteFixedString
-WriteByteString
-```
-
-Both accept `TqTextEncoding`.
-
-The writer never expands its backing storage.
-
-Validation occurs before a string field is committed.
-
-Examples include:
-
-- null source rejection
-- invalid fixed-field width
-- embedded null rejection for fixed-width strings
-- encoded value wider than a fixed-width field
-- encoded byte-string value longer than 255 bytes
-- strict encoding rejection of an unrepresentable source value
-- unknown `TqTextEncoding`
-
-If a write exceeds remaining capacity, the operation fails without advancing its committed position.
-
-Previously committed bytes are never rolled back by a later failed write.
-
-## Failure Semantics
-
-The binary foundation avoids exposing misleading partially committed protocol state.
-
-Current guarantees include:
-
-```text
-PacketReader field failure
-    -> reader position unchanged
-
-PacketWriter validation failure
-    -> writer position unchanged
-
-PacketWriter capacity failure
-    -> writer position unchanged
-
-PacketWriter string encoding failure during pre-write validation
-    -> destination unchanged
-    -> writer position unchanged
-
-WireFrameEncoder serialization failure
-    -> attempted frame region cleared
-```
-
-`PacketWriter` does not claim a destination field and then promise generic rollback for arbitrary
-encoding failures.
-
-The supported encoding set is closed, string byte counts are established before destination memory
-is selected, and the shared writer exposes only the protocol text modes justified by current
-evidence.
-
-Detailed guarantees belong in [TQ Framing](framing.md) and [TQ Text Encoding](encoding.md).
-
-## Text Encoding
-
-The public string API exposes only protocol text modes currently justified by 5517 evidence:
-
-```text
-TqTextEncoding.Ansi
-TqTextEncoding.StrictAnsi
-TqTextEncoding.Ascii
-```
-
-The protocol assembly maps those selectors internally to concrete runtime encodings.
-
-Packet serialization does not accept arbitrary `System.Text.Encoding` instances.
-
-This keeps the shared protocol surface closed over established wire behavior instead of exposing an
-unjustified encoding extension point.
-
-### ANSI
-
-The default text mode is:
-
-```text
-TqTextEncoding.Ansi
-```
-
-It maps internally to Windows-1252 using the runtime's default code-page fallback behavior.
-
-The API intentionally does not promise that the runtime fallback is a replacement-only strategy.
-
-### Strict ANSI
-
-```text
-TqTextEncoding.StrictAnsi
-```
-
-maps to Windows-1252 using exception fallbacks.
-
-Its important current distinction is outbound encoding: source characters that cannot be represented
-in Windows-1252 are rejected rather than silently transformed through the default fallback behavior.
-
-### ASCII
-
-```text
-TqTextEncoding.Ascii
-```
-
-maps to seven-bit ASCII using the runtime's standard ASCII fallback behavior.
-
-It is used only where protocol evidence establishes an ASCII field.
-
-See [TQ Text Encoding](encoding.md) for the detailed string contract.
-
-## Fixed-Width Strings
-
-A fixed-width TQ string occupies exactly its declared field width.
-
-Unused bytes are zero-filled.
-
-When reading, the first `0x00` terminates the logical value while the reader still consumes the
-entire field width.
-
-An outbound fixed-width source may not contain an embedded null character:
-
-```text
-"A\0B"
-    -> rejected
-```
-
-The generic writer does not truncate a value that exceeds the field width.
-
-Field-specific truncation belongs to the owner of that packet field and must be justified by packet
-evidence.
-
-## Byte-Length-Prefixed Strings
-
-Byte-length-prefixed TQ strings use one unsigned byte for the encoded value length.
-
-The maximum encoded value length is therefore:
-
-```text
-255 bytes
-```
-
-The prefix counts encoded bytes, not .NET characters.
-
-Unlike fixed-width strings, embedded null bytes are valid because the explicit prefix determines the
-field boundary.
-
-## Reserved Bytes
-
-Protocol-reserved bytes are deterministic.
-
-`PacketWriter.Reserve` clears reserved memory rather than merely advancing across caller-owned
-storage.
-
-Unused bytes in fixed-width string fields are likewise cleared.
-
-This prevents stale contents from reusable buffers from appearing on the wire.
-
-## Truncation and Transformation
-
-Generic protocol utilities do not silently:
-
-```text
-truncate
-normalize
-sanitize
-transform
-```
-
-string values unless that behavior is intrinsic to the wire format itself.
-
-Those decisions belong to the packet, application, or gameplay rule that owns the field.
-
-Legacy helpers are evidence only for the specific call sites that used them.
-
-## Outbound Packet Contract
-
-Outbound packets implement `IPacket`.
-
-The contract consists of:
-
-```text
-PacketId
-PayloadLength
-WritePayload
-```
-
-Packets serialize only their payload.
-
-They do not reproduce the common TQ header themselves.
-
-```text
-packet payload
-      ↓
-WireFrameEncoder
-      ↓
-common TQ header + payload
-```
-
-`WireFrameEncoder` snapshots `PacketId` and `PayloadLength` before payload serialization begins.
-
-It validates the captured packet identifier and declared payload length before frame construction.
-
-The packet then receives exactly its declared payload capacity.
-
-Therefore:
-
-```text
-actual payload < declared payload
-    -> rejected
-
-actual payload > declared payload
-    -> bounded PacketWriter rejects the write
-
-actual payload = declared payload
-    -> accepted
-```
-
-A complete packet with:
-
-```text
-PacketId == 0
-```
-
-is rejected before destination memory is modified.
-
-See [TQ Framing](framing.md).
-
-## Frame Limits
-
-`WireFrameEncoder` and `WireFrameDecoder` support two framing modes:
-
-```text
-generic framing
-    -> maximum UInt16 packet length
-
-caller-constrained framing
-    -> lower maximum supplied by the protocol path
-```
-
-This distinction is important because the common header representation and a path-specific client
-compatibility limit are not the same thing.
-
-The current foundation can enforce `0x400` when explicitly supplied by a caller.
-
-The future game-session boundary is responsible for actually selecting that value for 5517 game
-traffic.
-
-Generic framing must not silently impose the game client's `0x400` limit on unrelated protocol
-paths.
-
-## Frame Commit Ordering
-
-The outbound encoder serializes the payload before committing the common frame header.
-
-Conceptually:
-
-```text
-capture packet metadata
-    ↓
-validate packet identifier and length
-    ↓
-validate destination
-    ↓
-serialize payload
-    ↓
-verify exact payload length
-    ↓
-write common frame header
-```
-
-A payload serialization failure therefore cannot leave a valid-looking header in front of an
-incomplete payload.
-
-If frame construction fails after the attempted frame region has been selected, that region is
-cleared.
-
-Bytes beyond the attempted frame remain untouched.
-
-## Compatibility Evidence
-
-Protocol behavior is established from evidence rather than assumptions.
-
-Useful evidence includes:
-
-- legacy OpenConquer packet implementations
-- legacy framing and parsing code
-- observed 5517 client behavior
-- packet captures
-- static client analysis
-- original client data where relevant
-
-Evidence may establish:
-
-```text
-packet identifier
-field offset
-field width
-byte order
-encoding
-packet limit
-cipher behavior
-signature behavior
-```
-
-It does not automatically justify retaining legacy:
-
-```text
-class structure
-buffer ownership
-threading model
-socket abstractions
-dependency layout
-```
-
-OpenConquerPublic is the working server being ported. Preserve its proven behavior unless a
-verified native requirement or a documented production improvement justifies a deviation.
-Inventory the complete relevant legacy subsystem before changing its design. Native 5517 evidence
-has final authority for client-visible behavior.
-
-## Adding Protocol APIs
-
-Shared protocol APIs should be introduced only when evidence demonstrates a real wire requirement.
-
-Do not add operations merely for symmetry or convenience.
-
-For example:
-
-```text
-PacketWriter
-    Byte
-    UInt16
-    UInt32
-    UInt64
-
-PacketReader
-    Byte
-    UInt16
-    UInt32
-```
-
-The writer currently needs `UInt64`; the reader does not.
-
-That asymmetry is intentional until inbound protocol evidence requires otherwise.
-
-The same rule applies to text encodings.
-
-A new text mode requires:
-
-1. verified protocol evidence;
-2. a new `TqTextEncoding` value;
-3. a canonical internal runtime mapping;
-4. tests for its observable wire behavior.
-
-## Protocol and Transport
-
-Outbound framing operates on caller-owned contiguous destination memory.
-
-Inbound framing accepts caller-owned `ReadOnlySequence<byte>` input. This matches segmented
-buffering such as `System.IO.Pipelines` without requiring Protocol to own a `PipeReader`, socket,
-pool, or other transport resource.
-
-Transport remains free to use:
-
-```text
-System.IO.Pipelines
-pooled memory
-socket buffers
-other bounded buffering strategies
-```
-
-provided ownership and lifetime rules are respected.
-
-The decoder interprets the first frame represented by the supplied bytes but does not advance or
-consume the transport buffer itself. On success, the returned frame boundary gives the caller the
-position through which it may advance its own buffer.
-
-Post-handshake game signature handling remains outside the generic four-byte framing layer.
+These boundaries should be documented when their implementation or native evidence is sufficiently
+complete.
