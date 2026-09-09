@@ -5,11 +5,16 @@ namespace OpenConquer.Transport.Admission;
 
 public static class TransportConnectionAcceptLoop
 {
-    public static async Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue,
-        Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
+    public static Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
+    {
+        return RunAsync(listener, admissionQueue, static () => { }, reportRejectionDisposalFailure, cancellationToken);
+    }
+
+    public static async Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue, Action reportCapacityRejection, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(listener);
         ArgumentNullException.ThrowIfNull(admissionQueue);
+        ArgumentNullException.ThrowIfNull(reportCapacityRejection);
         ArgumentNullException.ThrowIfNull(reportRejectionDisposalFailure);
 
         while (true)
@@ -68,6 +73,7 @@ public static class TransportConnectionAcceptLoop
 
                 case TransportConnectionAdmissionResult.CapacityExhausted:
                     await DisposeOverloadRejectedConnectionAsync(connection, reportRejectionDisposalFailure).ConfigureAwait(false);
+                    ReportCapacityRejection(reportCapacityRejection);
                     break;
 
                 case TransportConnectionAdmissionResult.Completed:
@@ -79,6 +85,18 @@ public static class TransportConnectionAcceptLoop
 
                     throw new InvalidOperationException($"Unexpected transport admission result '{result}'.");
             }
+        }
+    }
+
+    private static void ReportCapacityRejection(Action reporter)
+    {
+        try
+        {
+            reporter();
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException("Failed to report a transport connection capacity rejection.", exception);
         }
     }
 

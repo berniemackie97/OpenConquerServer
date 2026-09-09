@@ -62,9 +62,10 @@ public sealed class AccountPersistenceTests
             services.GetRequiredService<IAccountMutationStore>(),
             services.GetRequiredService<IAccountMutationStore>());
 
-        Assert.Same(
-            services.GetRequiredService<AccountDatabaseReadinessVerifier>(),
-            services.GetRequiredService<AccountDatabaseReadinessVerifier>());
+        AccountDatabaseReadinessVerifier readinessVerifier = services.GetRequiredService<AccountDatabaseReadinessVerifier>();
+
+        Assert.Same(readinessVerifier, services.GetRequiredService<AccountDatabaseReadinessVerifier>());
+        Assert.Same(readinessVerifier, services.GetRequiredService<IAccountDatabaseReadinessVerifier>());
 
         Assert.Empty(first.ChangeTracker.Entries());
         Assert.Empty(second.ChangeTracker.Entries());

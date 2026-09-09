@@ -6,7 +6,7 @@ using OpenConquer.Infrastructure.Persistence.Schema;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 
-public sealed class AccountDatabaseReadinessVerifier(IDbContextFactory<AccountDbContext> contextFactory)
+public sealed class AccountDatabaseReadinessVerifier(IDbContextFactory<AccountDbContext> contextFactory) : IAccountDatabaseReadinessVerifier
 {
     private readonly IDbContextFactory<AccountDbContext> _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
 

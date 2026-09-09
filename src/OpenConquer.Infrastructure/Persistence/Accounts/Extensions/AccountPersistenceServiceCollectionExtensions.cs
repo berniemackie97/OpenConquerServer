@@ -34,6 +34,7 @@ public static class AccountPersistenceServiceCollectionExtensions
         services.AddSingleton<IAccountMutationStore>(provider =>
             new AccountMutationStore(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<AccountDatabaseReadinessVerifier>();
+        services.AddSingleton<IAccountDatabaseReadinessVerifier>(provider => provider.GetRequiredService<AccountDatabaseReadinessVerifier>());
 
         return services;
     }
