@@ -285,6 +285,14 @@ secure random-number generator.
 
 The ticket lifetime is five minutes.
 
+Application owns that lifetime as duration policy. It does not establish the durable issue or
+expiration wall-clock instants.
+
+For each allocation attempt, Application supplies the authenticated account identity, a fresh
+`SessionUid` / `AuthenticationKey` pair, and the ticket lifetime to persistence. MySQL establishes
+the durable issue and expiration timestamps. A successful grant returns the final `GameLoginTicket`
+containing the exact timestamps persisted by the database.
+
 Session-UID collisions are retried with a completely fresh credential pair. Allocation is bounded;
 persistent collision exhaustion fails rather than retrying indefinitely.
 
@@ -322,6 +330,20 @@ It then locks the password credential row and requires the exact credential revi
 successful authentication result.
 
 Only after both authentication-state checks succeed may the ticket row be inserted.
+
+MySQL is the wall-clock authority for durable ticket issuance. The insert establishes:
+
+```text
+issued_at_utc  = UTC_TIMESTAMP(6)
+expires_at_utc = TIMESTAMPADD(MICROSECOND, ticket_lifetime_microseconds, UTC_TIMESTAMP(6))
+```
+
+Issue and expiration therefore derive from the database clock rather than the AccountServer process
+clock.
+
+After insertion, persistence reads the stored timestamps inside the same transaction and constructs
+the final `GameLoginTicket` from those exact durable values. The returned expiration must remain
+exactly the Application-supplied ticket lifetime after the persisted issue instant.
 
 This closes the authentication-to-ticket TOCTOU window: a state-changing transaction that commits
 before the grant obtains the relevant locks makes the authentication snapshot stale and prevents the
@@ -397,8 +419,10 @@ A redemption attempt consists of:
 
 - nonzero `SessionUid`;
 - nonzero `AuthenticationKey`;
-- remote network address for the attempt-protection boundary;
-- the UTC attempt instant supplied to persistence.
+- remote network address for the attempt-protection boundary.
+
+Application does not supply a wall-clock redemption instant to persistence. MySQL is authoritative
+for durable ticket-expiration decisions.
 
 A successful redemption returns only:
 
@@ -432,10 +456,12 @@ tracked source/session protection state is limited to 100,000 entries.
 Source identity normalizes IPv4-mapped IPv6 addresses to IPv4 and groups native IPv6 addresses by
 /64 so rotating interface identifiers cannot bypass source protection or multiply tracked state.
 
-Protection windows use monotonic `TimeProvider` timestamps. An admitted attempt permanently consumes
-its source rate permit even when the lease is later abandoned. `Complete(false)` records a failed
-authorization against the `SessionUid`; `Complete(true)` clears its failure state; disposal without
-completion releases concurrency reservations without recording a credential failure.
+Protection windows use monotonic `TimeProvider` timestamps. That clock is intentionally limited to
+in-memory abuse-protection durations and is not authoritative for durable ticket issue, expiration,
+redemption, or cleanup decisions. An admitted attempt permanently consumes its source rate permit
+even when the lease is later abandoned. `Complete(false)` records a failed authorization against the
+`SessionUid`; `Complete(true)` clears its failure state; disposal without completion releases
+concurrency reservations without recording a credential failure.
 
 In-flight attempts count toward the per-session failure budget so concurrent distributed guesses
 cannot all enter persistence before completed failures reach the configured threshold.
@@ -461,11 +487,14 @@ SELECT game_login_tickets
 WHERE session_uid = ?
 FOR UPDATE
     ↓
+SELECT UTC_TIMESTAMP(6)
+    ↓
 validate expiration
     ↓
 verify AuthenticationKey
     ↓
 DELETE exact ticket
+WHERE expires_at_utc > UTC_TIMESTAMP(6)
     ↓
 COMMIT
     ↓
@@ -481,10 +510,16 @@ and avoids introducing a second account-authorization decision into the GameServ
 
 A missing ticket returns no identity.
 
-A ticket is expired when:
+The initial locking `SELECT` deliberately contains no wall-clock predicate. MySQL current-time
+functions use the executing statement's current-time value, while `SELECT ... FOR UPDATE` may block
+waiting for an existing row lock. Evaluating expiration in that locking statement could therefore
+leave the operation using a timestamp established before the lock was actually acquired.
+
+After the row lock has been acquired, redemption executes a separate `SELECT UTC_TIMESTAMP(6)`. A
+ticket is expired when:
 
 ```text
-attempted_at_utc >= expires_at_utc
+database_utc_now >= expires_at_utc
 ```
 
 Expired tickets are rejected without being consumed. Physical removal is owned separately by the
@@ -502,8 +537,13 @@ the ticket.
 Persisted account identity is validated before a successful authorization can be returned. Invalid
 durable identity state therefore fails closed rather than becoming a game-login identity.
 
-After successful verifier validation, redemption deletes the exact locked ticket row and requires
-exactly one affected row.
+After successful verifier validation, redemption deletes the exact locked ticket row only while
+`expires_at_utc > UTC_TIMESTAMP(6)`. This second fresh database-time check closes the race in which
+a ticket expires after the post-lock expiration check but before consumption.
+
+One affected row means the ticket was consumed. Zero affected rows after locking an existing ticket
+means expiration crossed before consumption; redemption rolls back and returns no identity while
+leaving physical removal to cleanup.
 
 The authorized identity is returned only after the deletion transaction commits successfully.
 
@@ -567,8 +607,9 @@ A caller must therefore not blindly retry a redemption after an ambiguous persis
 
 Cleanup does not participate in the logical authorization decision. Redemption remains authoritative
 for determining whether a presented ticket is expired. Physical deletion deliberately trails logical
-expiration by a cleanup grace interval so ordinary cross-host clock differences do not make
-maintenance compete with the authentication boundary.
+expiration by a cleanup grace interval so maintenance does not unnecessarily compete with the
+authorization boundary. The grace is not compensation for independent AccountServer or GameServer
+wall clocks; MySQL is authoritative for the durable ticket lifecycle.
 
 The default cleanup policy is:
 
@@ -578,13 +619,21 @@ The default cleanup policy is:
 A configured batch size must remain between 1 and 10,000 rows. Expiration grace must be greater than
 zero and no greater than one day.
 
-Each invocation computes:
+Each invocation uses the MySQL clock to compute:
 
 ```text
-cleanup_cutoff_utc = current_utc - expiration_grace
+cleanup_cutoff_utc = UTC_TIMESTAMP(6) - expiration_grace
 ```
 
-using the configured `TimeProvider`, then executes one bounded server-side deletion ordered by:
+The concrete deletion uses `TIMESTAMPADD` with `UTC_TIMESTAMP(6)` rather than accepting a
+process-generated wall-clock cutoff.
+
+MySQL `DATETIME(6)` has microsecond precision. If the configured `TimeSpan` contains a
+sub-microsecond remainder, Infrastructure rounds the grace upward to the next whole microsecond.
+That can delay cleanup by less than one microsecond but cannot cause deletion earlier than policy
+permits.
+
+The bounded server-side deletion is ordered by:
 
 ```text
 expires_at_utc
@@ -612,6 +661,11 @@ rows.
 
 Cancellation is propagated to the database operation. Real MySQL/InnoDB integration tests verify
 that cancellation while waiting on a ticket row lock does not delete that ticket.
+
+Because the cleanup cutoff belongs to the `DELETE` statement itself, a row-lock wait can make that
+cutoff conservative by the time the row becomes available. This can delay physical cleanup until a
+later invocation but cannot extend logical authorization: redemption independently performs fresh
+database-time expiration checks.
 
 Cleanup and redemption rely on normal InnoDB row locking when they contend for the same durable
 ticket. Because cleanup targets tickets that have already exceeded both logical expiration and the

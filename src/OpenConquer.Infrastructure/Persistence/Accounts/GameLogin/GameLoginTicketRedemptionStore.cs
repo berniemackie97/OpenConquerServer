@@ -10,10 +10,9 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
     : IGameLoginTicketRedemptionStore
 {
     private readonly MySqlDataSource _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-
     private readonly GameLoginTicketAuthenticationKeyRing _authenticationKeyRing = authenticationKeyRing ?? throw new ArgumentNullException(nameof(authenticationKeyRing));
 
-    public async ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken = default)
+    public async ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, CancellationToken cancellationToken = default)
     {
         if (sessionUid == 0)
         {
@@ -40,7 +39,9 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
 
         using (ticket)
         {
-            if (attemptedAtUtc.UtcDateTime >= ticket.ExpiresAtUtc)
+            DateTime databaseUtcNow = await ReadDatabaseUtcNowAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+
+            if (databaseUtcNow >= ticket.ExpiresAtUtc)
             {
                 await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
                 return null;
@@ -56,7 +57,13 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            await DeleteTicketAsync(connection, transaction, sessionUid, cancellationToken).ConfigureAwait(false);
+            bool deleted = await TryDeleteUnexpiredTicketAsync(connection, transaction, sessionUid, cancellationToken).ConfigureAwait(false);
+
+            if (!deleted)
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return null;
+            }
 
             if (cancellationToken.IsCancellationRequested)
             {
@@ -65,6 +72,7 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
             }
 
             await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+
             return ticket.Identity;
         }
     }
@@ -97,44 +105,58 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
 
         uint accountId = reader.GetUInt32(0);
         string username = reader.GetString(1);
-        DateTime expiresAtUtc = reader.GetDateTime(2);
+        DateTime expiresAtUtc = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
         ushort authenticationKeyVerifierKeyId = reader.GetUInt16(3);
-
-        GameLoginTicketIdentity identity = new(accountId, username, sessionUid);
-
         byte[] authenticationKeyVerifier = reader.GetFieldValue<byte[]>(4);
 
-        return new PersistedTicket(identity, expiresAtUtc, authenticationKeyVerifierKeyId, authenticationKeyVerifier);
+        return new PersistedTicket(new GameLoginTicketIdentity(accountId, username, sessionUid), expiresAtUtc, authenticationKeyVerifierKeyId, authenticationKeyVerifier);
     }
 
-    private static async ValueTask DeleteTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid, CancellationToken cancellationToken)
+    private static async ValueTask<DateTime> ReadDatabaseUtcNowAsync(MySqlConnection connection, MySqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.Transaction = transaction;
+        command.CommandText = "SELECT UTC_TIMESTAMP(6);";
+
+        object? result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+
+        if (result is not DateTime databaseUtcNow)
+        {
+            throw new InvalidOperationException("MySQL did not return a valid UTC timestamp during game-login ticket redemption.");
+        }
+
+        return DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc);
+    }
+
+    private static async ValueTask<bool> TryDeleteUnexpiredTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
         command.Transaction = transaction;
         command.CommandText = """
             DELETE FROM `game_login_tickets`
-            WHERE `session_uid` = @session_uid;
+            WHERE `session_uid` = @session_uid
+              AND `expires_at_utc` > UTC_TIMESTAMP(6);
             """;
 
         command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
 
         int affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        if (affected != 1)
+        return affected switch
         {
-            throw new InvalidOperationException($"Game-login ticket redemption persistence affected an unexpected number of rows. Expected 1, but MySQL reported {affected}.");
-        }
+            0 => false,
+            1 => true,
+            _ => throw new InvalidOperationException($"Game-login ticket redemption persistence affected an unexpected number of rows. Expected at most 1, but MySQL reported {affected}."),
+        };
     }
 
     private sealed class PersistedTicket(GameLoginTicketIdentity identity, DateTime expiresAtUtc, ushort authenticationKeyVerifierKeyId, byte[] authenticationKeyVerifier) : IDisposable
     {
         public GameLoginTicketIdentity Identity { get; } = identity;
-
         public DateTime ExpiresAtUtc { get; } = expiresAtUtc;
-
         public ushort AuthenticationKeyVerifierKeyId { get; } = authenticationKeyVerifierKeyId;
-
         public byte[] AuthenticationKeyVerifier { get; } = authenticationKeyVerifier;
 
         public void Dispose()

@@ -2,11 +2,10 @@ using System.Net;
 
 namespace OpenConquer.Application.Accounts.GameLogin;
 
-public sealed class GameLoginTicketRedeemer(IGameLoginTicketRedemptionStore redemptionStore, IGameLoginTicketRedemptionAttemptLimiter attemptLimiter, TimeProvider timeProvider)
+public sealed class GameLoginTicketRedeemer(IGameLoginTicketRedemptionStore redemptionStore, IGameLoginTicketRedemptionAttemptLimiter attemptLimiter)
 {
     private readonly IGameLoginTicketRedemptionStore _redemptionStore = redemptionStore ?? throw new ArgumentNullException(nameof(redemptionStore));
     private readonly IGameLoginTicketRedemptionAttemptLimiter _attemptLimiter = attemptLimiter ?? throw new ArgumentNullException(nameof(attemptLimiter));
-    private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public async ValueTask<GameLoginTicketIdentity?> RedeemAsync(uint sessionUid, uint authenticationKey, IPAddress remoteAddress, CancellationToken cancellationToken = default)
     {
@@ -22,20 +21,16 @@ public sealed class GameLoginTicketRedeemer(IGameLoginTicketRedemptionStore rede
         if (!_attemptLimiter.TryBeginRedemption(remoteAddress, sessionUid, out IGameLoginTicketRedemptionAttemptLease? redemptionAttempt))
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             return null;
         }
 
         using (redemptionAttempt)
         {
-            DateTimeOffset attemptedAtUtc = _timeProvider.GetUtcNow().ToUniversalTime();
-
-            GameLoginTicketIdentity? identity = await _redemptionStore.TryRedeemAsync(sessionUid, authenticationKey, attemptedAtUtc, cancellationToken).ConfigureAwait(false);
+            GameLoginTicketIdentity? identity = await _redemptionStore.TryRedeemAsync(sessionUid, authenticationKey, cancellationToken).ConfigureAwait(false);
 
             if (identity is null)
             {
                 redemptionAttempt.Complete(authorizationAccepted: false);
-
                 return null;
             }
 

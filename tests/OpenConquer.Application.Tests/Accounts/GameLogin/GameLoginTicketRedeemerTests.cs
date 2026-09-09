@@ -13,38 +13,16 @@ public sealed class GameLoginTicketRedeemerTests
 
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.20");
 
-    private static readonly DateTimeOffset s_attemptedAtUtc = new(
-        2026,
-        9,
-        6,
-        22,
-        30,
-        0,
-        TimeSpan.Zero
-    );
-
     [Fact]
     public void Constructor_RejectsNullRedemptionStore()
     {
-        Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketRedeemer(null!, new FakeAttemptLimiter(), TimeProvider.System)
-        );
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketRedeemer(null!, new FakeAttemptLimiter()));
     }
 
     [Fact]
     public void Constructor_RejectsNullAttemptLimiter()
     {
-        Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketRedeemer(new FakeRedemptionStore(), null!, TimeProvider.System)
-        );
-    }
-
-    [Fact]
-    public void Constructor_RejectsNullTimeProvider()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketRedeemer(new FakeRedemptionStore(), new FakeAttemptLimiter(), null!)
-        );
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketRedeemer(new FakeRedemptionStore(), null!));
     }
 
     [Fact]
@@ -52,19 +30,9 @@ public sealed class GameLoginTicketRedeemerTests
     {
         FakeRedemptionStore store = new();
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(store, limiter, TimeProvider.System);
-
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            redeemer
-                .RedeemAsync(
-                    SessionUid,
-                    AuthenticationKey,
-                    null!,
-                    TestContext.Current.CancellationToken
-                )
-                .AsTask()
-        );
+        await Assert.ThrowsAsync<ArgumentNullException>(() => redeemer.RedeemAsync(SessionUid, AuthenticationKey, null!, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, limiter.BeginCount);
         Assert.Equal(0, store.RedemptionCount);
@@ -78,18 +46,9 @@ public sealed class GameLoginTicketRedeemerTests
 
         FakeRedemptionStore store = new();
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            redeemer
-                .RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token)
-                .AsTask()
-        );
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token).AsTask());
 
         Assert.Equal(0, limiter.BeginCount);
         Assert.Equal(0, store.RedemptionCount);
@@ -100,19 +59,9 @@ public sealed class GameLoginTicketRedeemerTests
     {
         FakeRedemptionStore store = new();
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(
-            0,
-            AuthenticationKey,
-            s_remoteAddress,
-            TestContext.Current.CancellationToken
-        );
+        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(0, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken);
 
         Assert.Null(identity);
         Assert.Equal(0, limiter.BeginCount);
@@ -124,19 +73,9 @@ public sealed class GameLoginTicketRedeemerTests
     {
         FakeRedemptionStore store = new();
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(
-            SessionUid,
-            0,
-            s_remoteAddress,
-            TestContext.Current.CancellationToken
-        );
+        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(SessionUid, 0, s_remoteAddress, TestContext.Current.CancellationToken);
 
         Assert.Null(identity);
         Assert.Equal(0, limiter.BeginCount);
@@ -147,29 +86,16 @@ public sealed class GameLoginTicketRedeemerTests
     public async Task RedeemAsync_ProtectionRejectionReturnsNullWithoutPersistence()
     {
         FakeRedemptionStore store = new();
-
         FakeAttemptLimiter limiter = new() { Admit = false };
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(
-            SessionUid,
-            AuthenticationKey,
-            s_remoteAddress,
-            TestContext.Current.CancellationToken
-        );
+        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken);
 
         Assert.Null(identity);
-
         Assert.Equal(1, limiter.BeginCount);
         Assert.Equal(s_remoteAddress, limiter.LastRemoteAddress);
         Assert.Equal(SessionUid, limiter.LastSessionUid);
         Assert.Null(limiter.LastAttempt);
-
         Assert.Equal(0, store.RedemptionCount);
     }
 
@@ -179,49 +105,26 @@ public sealed class GameLoginTicketRedeemerTests
         using CancellationTokenSource cancellation = new();
 
         FakeAttemptLimiter limiter = new() { Admit = false, OnBegin = cancellation.Cancel };
-
         FakeRedemptionStore store = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            redeemer
-                .RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token)
-                .AsTask()
-        );
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token).AsTask());
 
         Assert.Equal(1, limiter.BeginCount);
         Assert.Equal(0, store.RedemptionCount);
     }
 
     [Fact]
-    public async Task RedeemAsync_SuccessForwardsAdmissionCredentialsAndAuthoritativeTime()
+    public async Task RedeemAsync_SuccessForwardsCredentialsAndCompletesAttemptAsAccepted()
     {
         GameLoginTicketIdentity expected = new(AccountId, Username, SessionUid);
-
         FakeRedemptionStore store = new() { Result = expected };
-
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(
-            SessionUid,
-            AuthenticationKey,
-            s_remoteAddress,
-            TestContext.Current.CancellationToken
-        );
+        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken);
 
         Assert.Same(expected, identity);
-
         Assert.Equal(1, limiter.BeginCount);
         Assert.Equal(s_remoteAddress, limiter.LastRemoteAddress);
         Assert.Equal(SessionUid, limiter.LastSessionUid);
@@ -235,50 +138,16 @@ public sealed class GameLoginTicketRedeemerTests
         Assert.Equal(1, store.RedemptionCount);
         Assert.Equal(SessionUid, store.LastSessionUid);
         Assert.Equal(AuthenticationKey, store.LastAuthenticationKey);
-        Assert.Equal(s_attemptedAtUtc, store.LastAttemptedAtUtc);
-    }
-
-    [Fact]
-    public async Task RedeemAsync_NormalizesAttemptTimeToUtc()
-    {
-        DateTimeOffset localTime = new(2026, 9, 6, 18, 30, 0, TimeSpan.FromHours(-4));
-
-        FakeRedemptionStore store = new();
-        FakeAttemptLimiter limiter = new();
-
-        GameLoginTicketRedeemer redeemer = new(store, limiter, new FixedTimeProvider(localTime));
-
-        await redeemer.RedeemAsync(
-            SessionUid,
-            AuthenticationKey,
-            s_remoteAddress,
-            TestContext.Current.CancellationToken
-        );
-
-        Assert.Equal(localTime.ToUniversalTime(), store.LastAttemptedAtUtc);
-
-        Assert.Equal(TimeSpan.Zero, store.LastAttemptedAtUtc!.Value.Offset);
     }
 
     [Fact]
     public async Task RedeemAsync_UnredeemableTicketCompletesAttemptAsRejected()
     {
         FakeRedemptionStore store = new() { Result = null };
-
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(
-            SessionUid,
-            AuthenticationKey,
-            s_remoteAddress,
-            TestContext.Current.CancellationToken
-        );
+        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken);
 
         Assert.Null(identity);
         Assert.Equal(1, store.RedemptionCount);
@@ -294,25 +163,10 @@ public sealed class GameLoginTicketRedeemerTests
     public async Task RedeemAsync_PersistenceFailureAbandonsAttemptWithoutRetry()
     {
         FakeRedemptionStore store = new() { Exception = new IOException("Persistence failed.") };
-
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        await Assert.ThrowsAsync<IOException>(() =>
-            redeemer
-                .RedeemAsync(
-                    SessionUid,
-                    AuthenticationKey,
-                    s_remoteAddress,
-                    TestContext.Current.CancellationToken
-                )
-                .AsTask()
-        );
+        await Assert.ThrowsAsync<IOException>(() => redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, store.RedemptionCount);
 
@@ -334,18 +188,9 @@ public sealed class GameLoginTicketRedeemerTests
         };
 
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            redeemer
-                .RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token)
-                .AsTask()
-        );
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token).AsTask());
 
         Assert.Equal(1, store.RedemptionCount);
 
@@ -358,29 +203,11 @@ public sealed class GameLoginTicketRedeemerTests
     [Fact]
     public async Task RedeemAsync_MismatchedSessionIdentityFailsClosedAndAbandonsAttempt()
     {
-        FakeRedemptionStore store = new()
-        {
-            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid + 1),
-        };
-
+        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid + 1) };
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            redeemer
-                .RedeemAsync(
-                    SessionUid,
-                    AuthenticationKey,
-                    s_remoteAddress,
-                    TestContext.Current.CancellationToken
-                )
-                .AsTask()
-        );
+        await Assert.ThrowsAsync<InvalidOperationException>(() => redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, store.RedemptionCount);
 
@@ -396,23 +223,11 @@ public sealed class GameLoginTicketRedeemerTests
         using CancellationTokenSource cancellation = new();
 
         GameLoginTicketIdentity expected = new(AccountId, Username, SessionUid);
-
         FakeRedemptionStore store = new() { Result = expected, OnRedeem = cancellation.Cancel };
-
         FakeAttemptLimiter limiter = new();
+        GameLoginTicketRedeemer redeemer = new(store, limiter);
 
-        GameLoginTicketRedeemer redeemer = new(
-            store,
-            limiter,
-            new FixedTimeProvider(s_attemptedAtUtc)
-        );
-
-        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(
-            SessionUid,
-            AuthenticationKey,
-            s_remoteAddress,
-            cancellation.Token
-        );
+        GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, cancellation.Token);
 
         Assert.Same(expected, identity);
         Assert.True(cancellation.IsCancellationRequested);
@@ -425,33 +240,16 @@ public sealed class GameLoginTicketRedeemerTests
         Assert.True(attempt.IsDisposed);
     }
 
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow()
-        {
-            return now;
-        }
-    }
-
     private sealed class FakeAttemptLimiter : IGameLoginTicketRedemptionAttemptLimiter
     {
         public bool Admit { get; init; } = true;
-
         public Action? OnBegin { get; init; }
-
         public int BeginCount { get; private set; }
-
         public IPAddress? LastRemoteAddress { get; private set; }
-
         public uint LastSessionUid { get; private set; }
-
         public FakeAttemptLease? LastAttempt { get; private set; }
 
-        public bool TryBeginRedemption(
-            IPAddress remoteAddress,
-            uint sessionUid,
-            [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt
-        )
+        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt)
         {
             ArgumentNullException.ThrowIfNull(remoteAddress);
 
@@ -464,7 +262,6 @@ public sealed class GameLoginTicketRedeemerTests
             if (!Admit)
             {
                 attempt = null;
-
                 return false;
             }
 
@@ -480,9 +277,7 @@ public sealed class GameLoginTicketRedeemerTests
     private sealed class FakeAttemptLease : IGameLoginTicketRedemptionAttemptLease
     {
         public bool IsCompleted { get; private set; }
-
         public bool AuthorizationAccepted { get; private set; }
-
         public bool IsDisposed { get; private set; }
 
         public void Complete(bool authorizationAccepted)
@@ -494,9 +289,7 @@ public sealed class GameLoginTicketRedeemerTests
 
             if (IsCompleted)
             {
-                throw new InvalidOperationException(
-                    "The redemption attempt has already been completed."
-                );
+                throw new InvalidOperationException("The redemption attempt has already been completed.");
             }
 
             IsCompleted = true;
@@ -512,34 +305,20 @@ public sealed class GameLoginTicketRedeemerTests
     private sealed class FakeRedemptionStore : IGameLoginTicketRedemptionStore
     {
         public GameLoginTicketIdentity? Result { get; init; }
-
         public Exception? Exception { get; init; }
-
         public Action? OnRedeem { get; init; }
-
         public bool ObserveCancellationAfterCallback { get; init; }
-
         public int RedemptionCount { get; private set; }
-
         public uint? LastSessionUid { get; private set; }
-
         public uint? LastAuthenticationKey { get; private set; }
 
-        public DateTimeOffset? LastAttemptedAtUtc { get; private set; }
-
-        public ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(
-            uint sessionUid,
-            uint authenticationKey,
-            DateTimeOffset attemptedAtUtc,
-            CancellationToken cancellationToken = default
-        )
+        public ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             RedemptionCount++;
             LastSessionUid = sessionUid;
             LastAuthenticationKey = authenticationKey;
-            LastAttemptedAtUtc = attemptedAtUtc;
 
             OnRedeem?.Invoke();
 

@@ -17,14 +17,12 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     private const ushort VerificationKeyId = 1;
 
     private static readonly DateTime s_createdAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-    private static readonly DateTimeOffset s_nowUtc = new(2026, 1, 2, 12, 30, 0, TimeSpan.Zero);
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     private readonly AccountDatabaseFixture _database;
     private readonly MySqlDataSource _dataSource;
     private readonly GameLoginTicketExpirationCleanerOptions _options;
-    private readonly FrozenTimeProvider _timeProvider;
     private readonly GameLoginTicketExpirationCleaner _cleaner;
 
     public GameLoginTicketExpirationCleanerTests(AccountDatabaseFixture database)
@@ -41,8 +39,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
 
         _dataSource = new MySqlDataSource(connection.ConnectionString);
         _options = new GameLoginTicketExpirationCleanerOptions();
-        _timeProvider = new FrozenTimeProvider(s_nowUtc);
-        _cleaner = new GameLoginTicketExpirationCleaner(_dataSource, _options, _timeProvider);
+        _cleaner = new GameLoginTicketExpirationCleaner(_dataSource, _options);
     }
 
     public async ValueTask InitializeAsync()
@@ -58,8 +55,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     [Fact]
     public void Constructor_WhenDataSourceIsNull_ThrowsArgumentNullException()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketExpirationCleaner(null!, _options, _timeProvider));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketExpirationCleaner(null!, _options));
 
         Assert.Equal("dataSource", exception.ParamName);
     }
@@ -67,34 +63,23 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     [Fact]
     public void Constructor_WhenOptionsAreNull_ThrowsArgumentNullException()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketExpirationCleaner(_dataSource, null!, _timeProvider));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketExpirationCleaner(_dataSource, null!));
 
         Assert.Equal("options", exception.ParamName);
-    }
-
-    [Fact]
-    public void Constructor_WhenTimeProviderIsNull_ThrowsArgumentNullException()
-    {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketExpirationCleaner(_dataSource, _options, null!));
-
-        Assert.Equal("timeProvider", exception.ParamName);
     }
 
     [Fact]
     public async Task DeleteExpiredBatchAsync_WhenAlreadyCancelled_ThrowsWithoutDeleting()
     {
         AccountRecord account = await InsertAccountAsync();
-        uint sessionUid = 100;
+        const uint sessionUid = 100;
 
-        await InsertTicketAsync(account, sessionUid, CleanupCutoffUtc().AddMinutes(-1));
+        await InsertTicketAsync(account, sessionUid, TimeSpan.FromMinutes(-6));
 
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            _cleaner.DeleteExpiredBatchAsync(cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _cleaner.DeleteExpiredBatchAsync(cancellation.Token).AsTask());
 
         Assert.True(await TicketExistsAsync(sessionUid));
     }
@@ -103,10 +88,9 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     public async Task DeleteExpiredBatchAsync_WhenNoTicketHasPassedCleanupCutoff_ReturnsZero()
     {
         AccountRecord account = await InsertAccountAsync();
-        DateTimeOffset cutoffUtc = CleanupCutoffUtc();
 
-        await InsertTicketAsync(account, 100, cutoffUtc.AddMilliseconds(1));
-        await InsertTicketAsync(account, 200, s_nowUtc.AddMinutes(1));
+        await InsertTicketAsync(account, 100, TimeSpan.FromMinutes(-4));
+        await InsertTicketAsync(account, 200, TimeSpan.FromMinutes(1));
 
         int affected = await _cleaner.DeleteExpiredBatchAsync(CancellationToken);
 
@@ -116,20 +100,19 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     }
 
     [Fact]
-    public async Task DeleteExpiredBatchAsync_DeletesOnlyTicketsAtOrBeforeCleanupCutoff()
+    public async Task DeleteExpiredBatchAsync_DeletesOnlyTicketsOutsideConfiguredGrace()
     {
         AccountRecord account = await InsertAccountAsync();
-        DateTimeOffset cutoffUtc = CleanupCutoffUtc();
 
         const uint olderSessionUid = 100;
         const uint boundarySessionUid = 200;
         const uint insideGraceSessionUid = 300;
         const uint unexpiredSessionUid = 400;
 
-        await InsertTicketAsync(account, olderSessionUid, cutoffUtc.AddSeconds(-1));
-        await InsertTicketAsync(account, boundarySessionUid, cutoffUtc);
-        await InsertTicketAsync(account, insideGraceSessionUid, cutoffUtc.AddMilliseconds(1));
-        await InsertTicketAsync(account, unexpiredSessionUid, s_nowUtc.AddMinutes(1));
+        await InsertTicketAsync(account, olderSessionUid, TimeSpan.FromMinutes(-6));
+        await InsertTicketAsync(account, boundarySessionUid, -_options.ExpirationGrace);
+        await InsertTicketAsync(account, insideGraceSessionUid, TimeSpan.FromMinutes(-4));
+        await InsertTicketAsync(account, unexpiredSessionUid, TimeSpan.FromMinutes(1));
 
         int affected = await _cleaner.DeleteExpiredBatchAsync(CancellationToken);
 
@@ -142,20 +125,41 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     }
 
     [Fact]
+    public async Task DeleteExpiredBatchAsync_UsesConfiguredExpirationGraceAgainstDatabaseUtc()
+    {
+        AccountRecord account = await InsertAccountAsync();
+
+        GameLoginTicketExpirationCleanerOptions options = new(expirationGrace: TimeSpan.FromMinutes(10));
+        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options);
+
+        const uint eligibleSessionUid = 100;
+        const uint protectedSessionUid = 200;
+
+        await InsertTicketAsync(account, eligibleSessionUid, TimeSpan.FromMinutes(-11));
+        await InsertTicketAsync(account, protectedSessionUid, TimeSpan.FromMinutes(-9));
+
+        int affected = await cleaner.DeleteExpiredBatchAsync(CancellationToken);
+
+        Assert.Equal(1, affected);
+        Assert.False(await TicketExistsAsync(eligibleSessionUid));
+        Assert.True(await TicketExistsAsync(protectedSessionUid));
+    }
+
+    [Fact]
     public async Task DeleteExpiredBatchAsync_EnforcesMaximumBatchSizeAndDeletesOldestTicketsFirst()
     {
         AccountRecord account = await InsertAccountAsync();
 
         GameLoginTicketExpirationCleanerOptions options = new(maximumBatchSize: 2);
-        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options, _timeProvider);
+        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options);
 
         const uint oldestSessionUid = 100;
         const uint middleSessionUid = 200;
         const uint newestSessionUid = 300;
 
-        await InsertTicketAsync(account, oldestSessionUid, CleanupCutoffUtc().AddMinutes(-3));
-        await InsertTicketAsync(account, middleSessionUid, CleanupCutoffUtc().AddMinutes(-2));
-        await InsertTicketAsync(account, newestSessionUid, CleanupCutoffUtc().AddMinutes(-1));
+        await InsertTicketAsync(account, oldestSessionUid, TimeSpan.FromMinutes(-8));
+        await InsertTicketAsync(account, middleSessionUid, TimeSpan.FromMinutes(-7));
+        await InsertTicketAsync(account, newestSessionUid, TimeSpan.FromMinutes(-6));
 
         int affected = await cleaner.DeleteExpiredBatchAsync(CancellationToken);
 
@@ -172,17 +176,18 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         AccountRecord account = await InsertAccountAsync();
 
         GameLoginTicketExpirationCleanerOptions options = new(maximumBatchSize: 2);
-        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options, _timeProvider);
-
-        DateTimeOffset expiration = CleanupCutoffUtc().AddMinutes(-1);
+        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options);
 
         const uint firstSessionUid = 100;
         const uint secondSessionUid = 200;
         const uint thirdSessionUid = 300;
 
-        await InsertTicketAsync(account, thirdSessionUid, expiration);
-        await InsertTicketAsync(account, firstSessionUid, expiration);
-        await InsertTicketAsync(account, secondSessionUid, expiration);
+        DateTime expirationUtc = await ReadDatabaseUtcNowAsync();
+        expirationUtc = expirationUtc.AddMinutes(-6);
+
+        await InsertTicketAsync(account, thirdSessionUid, expirationUtc);
+        await InsertTicketAsync(account, firstSessionUid, expirationUtc);
+        await InsertTicketAsync(account, secondSessionUid, expirationUtc);
 
         int affected = await cleaner.DeleteExpiredBatchAsync(CancellationToken);
 
@@ -199,11 +204,11 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         AccountRecord account = await InsertAccountAsync();
 
         GameLoginTicketExpirationCleanerOptions options = new(maximumBatchSize: 2);
-        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options, _timeProvider);
+        GameLoginTicketExpirationCleaner cleaner = new(_dataSource, options);
 
         for (uint sessionUid = 1; sessionUid <= 5; sessionUid++)
         {
-            await InsertTicketAsync(account, sessionUid, CleanupCutoffUtc().AddMinutes(-1));
+            await InsertTicketAsync(account, sessionUid, TimeSpan.FromMinutes(-6));
         }
 
         int firstBatch = await cleaner.DeleteExpiredBatchAsync(CancellationToken);
@@ -215,7 +220,6 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         Assert.Equal(2, secondBatch);
         Assert.Equal(1, thirdBatch);
         Assert.Equal(0, fourthBatch);
-
         Assert.Equal(0, await CountTicketsAsync());
     }
 
@@ -231,10 +235,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         byte[] verificationKey = new byte[GameLoginTicketAuthenticationKeyVerifier.VerificationKeySize];
         RandomNumberGenerator.Fill(verificationKey);
 
-        byte[] verifier = GameLoginTicketAuthenticationKeyVerifier.Create(
-            verificationKey,
-            sessionUid,
-            authenticationKey);
+        byte[] verifier = GameLoginTicketAuthenticationKeyVerifier.Create(verificationKey, sessionUid, authenticationKey);
 
         try
         {
@@ -242,21 +243,14 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                 verificationKeyId,
                 [new KeyValuePair<ushort, byte[]>(verificationKeyId, verificationKey)]);
 
-            await InsertTicketAsync(
-                account,
-                sessionUid,
-                CleanupCutoffUtc().AddMinutes(-1),
-                verifier,
-                verificationKeyId);
+            await InsertTicketAsync(account, sessionUid, TimeSpan.FromMinutes(-6), verifier, verificationKeyId);
 
             GameLoginTicketRedemptionStore redemptionStore = new(_dataSource, authenticationKeyRing);
 
             await using MySqlConnection lockConnection = new(_database.AdministrativeConnectionString);
             await lockConnection.OpenAsync(CancellationToken);
 
-            await using MySqlTransaction lockTransaction = await lockConnection.BeginTransactionAsync(
-                IsolationLevel.ReadCommitted,
-                CancellationToken);
+            await using MySqlTransaction lockTransaction = await lockConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken);
 
             bool lockTransactionCompleted = false;
             Task<int>? cleanupTask = null;
@@ -267,12 +261,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                 await LockTicketAsync(lockConnection, lockTransaction, sessionUid);
 
                 cleanupTask = _cleaner.DeleteExpiredBatchAsync(CancellationToken).AsTask();
-
-                redemptionTask = redemptionStore.TryRedeemAsync(
-                    sessionUid,
-                    authenticationKey,
-                    s_nowUtc,
-                    CancellationToken).AsTask();
+                redemptionTask = redemptionStore.TryRedeemAsync(sessionUid, authenticationKey, CancellationToken).AsTask();
 
                 await WaitForInnoDbLockWaitAsync("game_login_tickets", minimumWaitingLockCount: 2);
 
@@ -330,17 +319,14 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
     public async Task DeleteExpiredBatchAsync_WhenCancelledWhileWaitingForTicketLock_DoesNotDeleteTicket()
     {
         AccountRecord account = await InsertAccountAsync();
-
         const uint sessionUid = 500;
 
-        await InsertTicketAsync(account, sessionUid, CleanupCutoffUtc().AddMinutes(-1));
+        await InsertTicketAsync(account, sessionUid, TimeSpan.FromMinutes(-6));
 
         await using MySqlConnection lockConnection = new(_database.AdministrativeConnectionString);
         await lockConnection.OpenAsync(CancellationToken);
 
-        await using MySqlTransaction lockTransaction = await lockConnection.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            CancellationToken);
+        await using MySqlTransaction lockTransaction = await lockConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken);
 
         bool lockTransactionCompleted = false;
         Task<int>? cleanupTask = null;
@@ -435,26 +421,19 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         await using AccountDbContext db = await _database.ContextFactory.CreateDbContextAsync(CancellationToken);
 
         db.Accounts.Add(account);
-
         await db.SaveChangesAsync(CancellationToken);
 
         return account;
     }
 
-    private async Task InsertTicketAsync(AccountRecord account, uint sessionUid, DateTimeOffset expiresAtUtc)
+    private async Task InsertTicketAsync(AccountRecord account, uint sessionUid, TimeSpan expiresFromNow)
     {
         byte[] verifier = new byte[GameLoginTicketAuthenticationKeyVerifier.VerifierSize];
 
         try
         {
             RandomNumberGenerator.Fill(verifier);
-
-            await InsertTicketAsync(
-                account,
-                sessionUid,
-                expiresAtUtc,
-                verifier,
-                VerificationKeyId);
+            await InsertTicketAsync(account, sessionUid, expiresFromNow, verifier, VerificationKeyId);
         }
         finally
         {
@@ -462,13 +441,12 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         }
     }
 
-    private async Task InsertTicketAsync(
-        AccountRecord account,
-        uint sessionUid,
-        DateTimeOffset expiresAtUtc,
-        byte[] authenticationKeyVerifier,
-        ushort authenticationKeyVerifierKeyId)
+    private async Task InsertTicketAsync(AccountRecord account, uint sessionUid, TimeSpan expiresFromNow, byte[] authenticationKeyVerifier, ushort authenticationKeyVerifierKeyId)
     {
+        Assert.Equal(0, expiresFromNow.Ticks % TimeSpan.TicksPerMicrosecond);
+
+        long expirationOffsetMicroseconds = expiresFromNow.Ticks / TimeSpan.TicksPerMicrosecond;
+
         await using MySqlConnection connection = await _dataSource.OpenConnectionAsync(CancellationToken);
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -485,8 +463,8 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                 (@session_uid,
                  @account_id,
                  @username,
-                 @issued_at_utc,
-                 @expires_at_utc,
+                 TIMESTAMPADD(MINUTE, -5, TIMESTAMPADD(MICROSECOND, @expiration_offset_microseconds, UTC_TIMESTAMP(6))),
+                 TIMESTAMPADD(MICROSECOND, @expiration_offset_microseconds, UTC_TIMESTAMP(6)),
                  @authentication_key_verifier,
                  @authentication_key_verifier_key_id);
             """;
@@ -494,17 +472,69 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
         command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = account.AccountId;
         command.Parameters.Add("@username", MySqlDbType.VarChar, AccountCredentialPolicy.MaximumUsernameLength).Value = account.Username;
-        command.Parameters.Add("@issued_at_utc", MySqlDbType.DateTime).Value = expiresAtUtc.UtcDateTime.AddMinutes(-5);
-        command.Parameters.Add("@expires_at_utc", MySqlDbType.DateTime).Value = expiresAtUtc.UtcDateTime;
-        command.Parameters.Add(
-            "@authentication_key_verifier",
-            MySqlDbType.Binary,
-            GameLoginTicketAuthenticationKeyVerifier.VerifierSize).Value = authenticationKeyVerifier;
+        command.Parameters.Add("@expiration_offset_microseconds", MySqlDbType.Int64).Value = expirationOffsetMicroseconds;
+        command.Parameters.Add("@authentication_key_verifier", MySqlDbType.Binary, GameLoginTicketAuthenticationKeyVerifier.VerifierSize).Value = authenticationKeyVerifier;
         command.Parameters.Add("@authentication_key_verifier_key_id", MySqlDbType.UInt16).Value = authenticationKeyVerifierKeyId;
 
-        int affected = await command.ExecuteNonQueryAsync(CancellationToken);
+        Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
+    }
 
-        Assert.Equal(1, affected);
+    private async Task InsertTicketAsync(AccountRecord account, uint sessionUid, DateTime expiresAtUtc)
+    {
+        byte[] verifier = new byte[GameLoginTicketAuthenticationKeyVerifier.VerifierSize];
+
+        try
+        {
+            RandomNumberGenerator.Fill(verifier);
+
+            await using MySqlConnection connection = await _dataSource.OpenConnectionAsync(CancellationToken);
+            await using MySqlCommand command = connection.CreateCommand();
+
+            command.CommandText = """
+                INSERT INTO `game_login_tickets`
+                    (`session_uid`,
+                     `account_id`,
+                     `username`,
+                     `issued_at_utc`,
+                     `expires_at_utc`,
+                     `authentication_key_verifier`,
+                     `authentication_key_verifier_key_id`)
+                VALUES
+                    (@session_uid,
+                     @account_id,
+                     @username,
+                     @issued_at_utc,
+                     @expires_at_utc,
+                     @authentication_key_verifier,
+                     @authentication_key_verifier_key_id);
+                """;
+
+            command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
+            command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = account.AccountId;
+            command.Parameters.Add("@username", MySqlDbType.VarChar, AccountCredentialPolicy.MaximumUsernameLength).Value = account.Username;
+            command.Parameters.Add("@issued_at_utc", MySqlDbType.DateTime).Value = expiresAtUtc.AddMinutes(-5);
+            command.Parameters.Add("@expires_at_utc", MySqlDbType.DateTime).Value = expiresAtUtc;
+            command.Parameters.Add("@authentication_key_verifier", MySqlDbType.Binary, GameLoginTicketAuthenticationKeyVerifier.VerifierSize).Value = verifier;
+            command.Parameters.Add("@authentication_key_verifier_key_id", MySqlDbType.UInt16).Value = VerificationKeyId;
+
+            Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(verifier);
+        }
+    }
+
+    private async Task<DateTime> ReadDatabaseUtcNowAsync()
+    {
+        await using MySqlConnection connection = await _dataSource.OpenConnectionAsync(CancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.CommandText = "SELECT UTC_TIMESTAMP(6);";
+
+        DateTime databaseUtcNow = Assert.IsType<DateTime>(await command.ExecuteScalarAsync(CancellationToken));
+
+        return DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc);
     }
 
     private async Task LockTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid)
@@ -521,9 +551,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
 
         command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
 
-        object? result = await command.ExecuteScalarAsync(CancellationToken);
-
-        Assert.NotNull(result);
+        Assert.NotNull(await command.ExecuteScalarAsync(CancellationToken));
     }
 
     private async Task WaitForInnoDbLockWaitAsync(string tableName, long minimumWaitingLockCount = 1)
@@ -541,8 +569,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                 SELECT COUNT(*)
                 FROM `performance_schema`.`data_lock_waits` AS `waits`
                 INNER JOIN `performance_schema`.`data_locks` AS `requesting_lock`
-                    ON `requesting_lock`.`ENGINE_LOCK_ID`
-                        = `waits`.`REQUESTING_ENGINE_LOCK_ID`
+                    ON `requesting_lock`.`ENGINE_LOCK_ID` = `waits`.`REQUESTING_ENGINE_LOCK_ID`
                 WHERE `requesting_lock`.`OBJECT_SCHEMA` = @schema_name
                   AND `requesting_lock`.`OBJECT_NAME` = @table_name
                   AND `requesting_lock`.`LOCK_STATUS` = 'WAITING';
@@ -552,10 +579,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
             command.Parameters.Add("@table_name", MySqlDbType.VarChar).Value = tableName;
 
             object? result = await command.ExecuteScalarAsync(CancellationToken);
-
-            long waitingLockCount = Convert.ToInt64(
-                result,
-                System.Globalization.CultureInfo.InvariantCulture);
+            long waitingLockCount = Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
 
             if (waitingLockCount >= minimumWaitingLockCount)
             {
@@ -597,18 +621,5 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         return Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    private DateTimeOffset CleanupCutoffUtc()
-    {
-        return s_nowUtc - _options.ExpirationGrace;
-    }
-
-    private sealed class FrozenTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow()
-        {
-            return utcNow;
-        }
     }
 }

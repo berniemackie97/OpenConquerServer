@@ -4,24 +4,20 @@ using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Domain.Accounts;
-using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
-using OpenConquer.Infrastructure.Security;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 
-public sealed class GameLoginTicketGrantStoreTests
-    : IClassFixture<AccountDatabaseFixture>,
-        IAsyncLifetime
+public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDatabaseFixture>, IAsyncLifetime
 {
     private const ushort ActiveVerificationKeyId = 7;
-
     private const string PasswordHash = "$openconquer$ticket-grant-test$HashValue";
 
     private static readonly DateTime s_createdAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly TimeSpan s_ticketLifetime = TimeSpan.FromMinutes(5);
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
@@ -43,9 +39,7 @@ public sealed class GameLoginTicketGrantStoreTests
         };
 
         _dataSource = new MySqlDataSource(connection.ConnectionString);
-
         _authenticationKeyRing = CreateAuthenticationKeyRing();
-
         _store = new GameLoginTicketGrantStore(_dataSource, _authenticationKeyRing);
     }
 
@@ -57,63 +51,61 @@ public sealed class GameLoginTicketGrantStoreTests
     public async ValueTask DisposeAsync()
     {
         _authenticationKeyRing.Dispose();
-
         await _dataSource.DisposeAsync();
     }
 
     [Fact]
     public void Constructor_WhenDataSourceIsNull_ThrowsArgumentNullException()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketGrantStore(null!, _authenticationKeyRing)
-        );
-
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketGrantStore(null!, _authenticationKeyRing));
         Assert.Equal("dataSource", exception.ParamName);
     }
 
     [Fact]
     public void Constructor_WhenAuthenticationKeyRingIsNull_ThrowsArgumentNullException()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            new GameLoginTicketGrantStore(_dataSource, null!)
-        );
-
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketGrantStore(_dataSource, null!));
         Assert.Equal("authenticationKeyRing", exception.ParamName);
     }
 
     [Fact]
-    public async Task TryGrantAsync_WhenTicketIsNull_ThrowsArgumentNullException()
+    public async Task TryGrantAsync_WhenRequestIsNull_ThrowsArgumentNullException()
     {
         ArgumentNullException exception = await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            _store
-                .TryGrantAsync(
-                    null!,
-                    expectedAccountStateRevision: 1,
-                    expectedPasswordCredentialRevision: 1,
-                    CancellationToken
-                )
-                .AsTask()
-        );
+            _store.TryGrantAsync(null!, s_ticketLifetime, expectedAccountStateRevision: 1, expectedPasswordCredentialRevision: 1, CancellationToken).AsTask());
 
-        Assert.Equal("ticket", exception.ParamName);
+        Assert.Equal("request", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task TryGrantAsync_WhenTicketLifetimeIsZero_ThrowsArgumentOutOfRangeException()
+    {
+        GameLoginTicketGrantRequest request = CreateRequest(1, "TicketUser");
+
+        ArgumentOutOfRangeException exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            _store.TryGrantAsync(request, TimeSpan.Zero, expectedAccountStateRevision: 1, expectedPasswordCredentialRevision: 1, CancellationToken).AsTask());
+
+        Assert.Equal("ticketLifetime", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task TryGrantAsync_WhenTicketLifetimeCannotBeRepresentedAtMicrosecondPrecision_ThrowsArgumentException()
+    {
+        GameLoginTicketGrantRequest request = CreateRequest(1, "TicketUser");
+
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            _store.TryGrantAsync(request, TimeSpan.FromTicks(1), expectedAccountStateRevision: 1, expectedPasswordCredentialRevision: 1, CancellationToken).AsTask());
+
+        Assert.Equal("ticketLifetime", exception.ParamName);
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenExpectedAccountStateRevisionIsZero_ThrowsArgumentOutOfRangeException()
     {
-        GameLoginTicket ticket = CreateTicket(accountId: 1, username: "TicketUser");
+        GameLoginTicketGrantRequest request = CreateRequest(1, "TicketUser");
 
-        ArgumentOutOfRangeException exception =
-            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-                _store
-                    .TryGrantAsync(
-                        ticket,
-                        expectedAccountStateRevision: 0,
-                        expectedPasswordCredentialRevision: 1,
-                        CancellationToken
-                    )
-                    .AsTask()
-            );
+        ArgumentOutOfRangeException exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            _store.TryGrantAsync(request, s_ticketLifetime, expectedAccountStateRevision: 0, expectedPasswordCredentialRevision: 1, CancellationToken).AsTask());
 
         Assert.Equal("expectedAccountStateRevision", exception.ParamName);
     }
@@ -121,19 +113,10 @@ public sealed class GameLoginTicketGrantStoreTests
     [Fact]
     public async Task TryGrantAsync_WhenExpectedPasswordCredentialRevisionIsZero_ThrowsArgumentOutOfRangeException()
     {
-        GameLoginTicket ticket = CreateTicket(accountId: 1, username: "TicketUser");
+        GameLoginTicketGrantRequest request = CreateRequest(1, "TicketUser");
 
-        ArgumentOutOfRangeException exception =
-            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-                _store
-                    .TryGrantAsync(
-                        ticket,
-                        expectedAccountStateRevision: 1,
-                        expectedPasswordCredentialRevision: 0,
-                        CancellationToken
-                    )
-                    .AsTask()
-            );
+        ArgumentOutOfRangeException exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            _store.TryGrantAsync(request, s_ticketLifetime, expectedAccountStateRevision: 1, expectedPasswordCredentialRevision: 0, CancellationToken).AsTask());
 
         Assert.Equal("expectedPasswordCredentialRevision", exception.ParamName);
     }
@@ -142,154 +125,134 @@ public sealed class GameLoginTicketGrantStoreTests
     public async Task TryGrantAsync_WhenAlreadyCancelled_ThrowsWithoutPersistingTicket()
     {
         AccountRecord account = await InsertAccountAsync();
-
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
         using CancellationTokenSource cancellation = new();
-
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            _store
-                .TryGrantAsync(
-                    ticket,
-                    account.StateRevision,
-                    account.PasswordCredential.Revision,
-                    cancellation.Token
-                )
-                .AsTask()
-        );
+            _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, cancellation.Token).AsTask());
 
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
-    public async Task TryGrantAsync_WhenAuthenticationStateMatches_PersistsProtectedTicketDurably()
+    public async Task TryGrantAsync_WhenAuthenticationStateMatches_UsesDatabaseTimeAndReturnsExactDurableTicket()
     {
         AccountRecord account = await InsertAccountAsync();
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+        DateTime databaseUtcBefore = await ReadDatabaseUtcNowAsync();
 
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(
+            request,
+            s_ticketLifetime,
             account.StateRevision,
             account.PasswordCredential.Revision,
-            CancellationToken
-        );
+            CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.Granted, status);
+        DateTime databaseUtcAfter = await ReadDatabaseUtcNowAsync();
 
-        PersistedTicket persisted = Assert.IsType<PersistedTicket>(
-            await ReadTicketAsync(ticket.SessionUid)
-        );
+        Assert.Equal(GameLoginTicketGrantStatus.Granted, result.Status);
 
-        Assert.Equal(ticket.SessionUid, persisted.SessionUid);
+        GameLoginTicket granted = Assert.IsType<GameLoginTicket>(result.Ticket);
+        PersistedTicket persisted = Assert.IsType<PersistedTicket>(await ReadTicketAsync(request.SessionUid));
 
-        Assert.Equal(ticket.AccountId, persisted.AccountId);
+        Assert.Equal(request.AccountId, granted.AccountId);
+        Assert.Equal(request.Username, granted.Username);
+        Assert.Equal(request.SessionUid, granted.SessionUid);
+        Assert.Equal(request.AuthenticationKey, granted.AuthenticationKey);
 
-        Assert.Equal(ticket.Username, persisted.Username);
+        Assert.Equal(request.SessionUid, persisted.SessionUid);
+        Assert.Equal(request.AccountId, persisted.AccountId);
+        Assert.Equal(request.Username, persisted.Username);
 
-        Assert.Equal(ticket.IssuedAtUtc.UtcDateTime, persisted.IssuedAtUtc);
+        Assert.Equal(persisted.IssuedAtUtc, granted.IssuedAtUtc.UtcDateTime);
+        Assert.Equal(persisted.ExpiresAtUtc, granted.ExpiresAtUtc.UtcDateTime);
+        Assert.Equal(s_ticketLifetime, granted.ExpiresAtUtc - granted.IssuedAtUtc);
+        Assert.Equal(s_ticketLifetime, persisted.ExpiresAtUtc - persisted.IssuedAtUtc);
 
-        Assert.Equal(ticket.ExpiresAtUtc.UtcDateTime, persisted.ExpiresAtUtc);
+        Assert.InRange(persisted.IssuedAtUtc, databaseUtcBefore, databaseUtcAfter);
 
         Assert.Equal(ActiveVerificationKeyId, persisted.AuthenticationKeyVerifierKeyId);
+        Assert.Equal(GameLoginTicketAuthenticationKeyVerifier.VerifierSize, persisted.AuthenticationKeyVerifier.Length);
 
-        Assert.Equal(
-            GameLoginTicketAuthenticationKeyVerifier.VerifierSize,
-            persisted.AuthenticationKeyVerifier.Length
-        );
-
-        Assert.True(
-            _authenticationKeyRing.Verify(
-                persisted.AuthenticationKeyVerifierKeyId,
-                persisted.AuthenticationKeyVerifier,
-                ticket.SessionUid,
-                ticket.AuthenticationKey
-            )
-        );
+        Assert.True(_authenticationKeyRing.Verify(
+            persisted.AuthenticationKeyVerifierKeyId,
+            persisted.AuthenticationKeyVerifier,
+            request.SessionUid,
+            request.AuthenticationKey));
     }
 
     [Theory]
     [InlineData(AccountAccessStatus.Suspended)]
     [InlineData(AccountAccessStatus.Banned)]
-    public async Task TryGrantAsync_WhenAccountIsNotActive_ReturnsAuthenticationStateChanged(
-        AccountAccessStatus accessStatus
-    )
+    public async Task TryGrantAsync_WhenAccountIsNotActive_ReturnsAuthenticationStateChanged(AccountAccessStatus accessStatus)
     {
         AccountRecord account = await InsertAccountAsync(accessStatus);
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, CancellationToken);
 
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
-            account.StateRevision,
-            account.PasswordCredential.Revision,
-            CancellationToken
-        );
-
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenAccountIsDeleted_ReturnsAuthenticationStateChanged()
     {
         AccountRecord account = await InsertAccountAsync();
-
         await DeleteAccountAsync(account.AccountId);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(
+            request,
+            s_ticketLifetime,
             expectedAccountStateRevision: account.StateRevision,
             expectedPasswordCredentialRevision: account.PasswordCredential.Revision,
-            CancellationToken
-        );
+            CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenAccountStateRevisionIsStale_ReturnsAuthenticationStateChanged()
     {
         AccountRecord account = await InsertAccountAsync();
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
-
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(
+            request,
+            s_ticketLifetime,
             checked(account.StateRevision + 1),
             account.PasswordCredential.Revision,
-            CancellationToken
-        );
+            CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenPasswordCredentialRevisionIsStale_ReturnsAuthenticationStateChanged()
     {
         AccountRecord account = await InsertAccountAsync();
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
-
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(
+            request,
+            s_ticketLifetime,
             account.StateRevision,
             checked(account.PasswordCredential.Revision + 1),
-            CancellationToken
-        );
+            CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
@@ -298,183 +261,126 @@ public sealed class GameLoginTicketGrantStoreTests
         AccountRecord account = await InsertAccountAsync();
 
         string differentUsername = account.Username.ToUpperInvariant();
-
         Assert.NotEqual(account.Username, differentUsername);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, differentUsername);
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, differentUsername);
 
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
-            account.StateRevision,
-            account.PasswordCredential.Revision,
-            CancellationToken
-        );
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenAccountDoesNotExist_ReturnsAuthenticationStateChanged()
     {
-        GameLoginTicket ticket = CreateTicket(uint.MaxValue, "MissingAccount");
+        GameLoginTicketGrantRequest request = CreateRequest(uint.MaxValue, "MissingAccount");
 
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(
+            request,
+            s_ticketLifetime,
             expectedAccountStateRevision: 1,
             expectedPasswordCredentialRevision: 1,
-            CancellationToken
-        );
+            CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenPasswordCredentialDoesNotExist_ReturnsAuthenticationStateChanged()
     {
         AccountRecord account = await InsertAccountAsync();
-
         await RemovePasswordCredentialAdministrativelyAsync(account.AccountId);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicketGrantStatus status = await _store.TryGrantAsync(
-            ticket,
-            account.StateRevision,
-            account.PasswordCredential.Revision,
-            CancellationToken
-        );
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-        Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+        Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
     [Fact]
     public async Task TryGrantAsync_WhenSessionUidAlreadyExists_ReturnsCollisionWithoutReplacingExistingTicket()
     {
         AccountRecord account = await InsertAccountAsync();
-
         uint sessionUid = GenerateNonzeroUInt32();
 
-        GameLoginTicket originalTicket = CreateTicket(
-            account.AccountId,
-            account.Username,
-            sessionUid,
-            authenticationKey: 0x1020_3040u
-        );
+        GameLoginTicketGrantRequest originalRequest = CreateRequest(account.AccountId, account.Username, sessionUid, authenticationKey: 0x1020_3040u);
+        GameLoginTicketGrantRequest collidingRequest = CreateRequest(account.AccountId, account.Username, sessionUid, authenticationKey: 0x5060_7080u);
 
-        GameLoginTicket collidingTicket = CreateTicket(
-            account.AccountId,
-            account.Username,
-            sessionUid,
-            authenticationKey: 0x5060_7080u
-        );
-
-        GameLoginTicketGrantStatus originalStatus = await _store.TryGrantAsync(
-            originalTicket,
+        GameLoginTicketGrantResult originalResult = await _store.TryGrantAsync(
+            originalRequest,
+            s_ticketLifetime,
             account.StateRevision,
             account.PasswordCredential.Revision,
-            CancellationToken
-        );
+            CancellationToken);
 
-        GameLoginTicketGrantStatus collisionStatus = await _store.TryGrantAsync(
-            collidingTicket,
+        GameLoginTicketGrantResult collisionResult = await _store.TryGrantAsync(
+            collidingRequest,
+            s_ticketLifetime,
             account.StateRevision,
             account.PasswordCredential.Revision,
-            CancellationToken
-        );
+            CancellationToken);
 
-        Assert.Equal(GameLoginTicketGrantStatus.Granted, originalStatus);
+        Assert.Equal(GameLoginTicketGrantStatus.Granted, originalResult.Status);
+        Assert.NotNull(originalResult.Ticket);
 
-        Assert.Equal(GameLoginTicketGrantStatus.SessionUidCollision, collisionStatus);
+        Assert.Equal(GameLoginTicketGrantStatus.SessionUidCollision, collisionResult.Status);
+        Assert.Null(collisionResult.Ticket);
 
-        PersistedTicket persisted = Assert.IsType<PersistedTicket>(
-            await ReadTicketAsync(sessionUid)
-        );
+        PersistedTicket persisted = Assert.IsType<PersistedTicket>(await ReadTicketAsync(sessionUid));
 
-        Assert.True(
-            _authenticationKeyRing.Verify(
-                persisted.AuthenticationKeyVerifierKeyId,
-                persisted.AuthenticationKeyVerifier,
-                sessionUid,
-                originalTicket.AuthenticationKey
-            )
-        );
+        Assert.True(_authenticationKeyRing.Verify(
+            persisted.AuthenticationKeyVerifierKeyId,
+            persisted.AuthenticationKeyVerifier,
+            sessionUid,
+            originalRequest.AuthenticationKey));
 
-        Assert.False(
-            _authenticationKeyRing.Verify(
-                persisted.AuthenticationKeyVerifierKeyId,
-                persisted.AuthenticationKeyVerifier,
-                sessionUid,
-                collidingTicket.AuthenticationKey
-            )
-        );
+        Assert.False(_authenticationKeyRing.Verify(
+            persisted.AuthenticationKeyVerifierKeyId,
+            persisted.AuthenticationKeyVerifier,
+            sessionUid,
+            collidingRequest.AuthenticationKey));
     }
 
     [Fact]
     public async Task TryGrantAsync_ConcurrentSameSessionUidHasExactlyOneWinner()
     {
         AccountRecord account = await InsertAccountAsync();
-
         uint sessionUid = GenerateNonzeroUInt32();
 
-        GameLoginTicket[] tickets = Enumerable
-            .Range(0, 8)
-            .Select(index =>
-                CreateTicket(
-                    account.AccountId,
-                    account.Username,
-                    sessionUid,
-                    checked(0x7000_0001u + (uint)index)
-                )
-            )
+        GameLoginTicketGrantRequest[] requests = Enumerable.Range(0, 8)
+            .Select(index => CreateRequest(account.AccountId, account.Username, sessionUid, checked(0x7000_0001u + (uint)index)))
             .ToArray();
 
-        Task<GameLoginTicketGrantStatus>[] operations = tickets
-            .Select(ticket =>
-                _store
-                    .TryGrantAsync(
-                        ticket,
-                        account.StateRevision,
-                        account.PasswordCredential.Revision,
-                        CancellationToken
-                    )
-                    .AsTask()
-            )
+        Task<GameLoginTicketGrantResult>[] operations = requests
+            .Select(request => _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, CancellationToken).AsTask())
             .ToArray();
 
-        GameLoginTicketGrantStatus[] results = await Task.WhenAll(operations);
+        GameLoginTicketGrantResult[] results = await Task.WhenAll(operations);
 
-        Assert.Single(results, status => status == GameLoginTicketGrantStatus.Granted);
+        Assert.Single(results, result => result.Status == GameLoginTicketGrantStatus.Granted);
+        Assert.Equal(requests.Length - 1, results.Count(result => result.Status == GameLoginTicketGrantStatus.SessionUidCollision));
 
-        Assert.Equal(
-            tickets.Length - 1,
-            results.Count(status => status == GameLoginTicketGrantStatus.SessionUidCollision)
-        );
+        int winnerIndex = Array.FindIndex(results, result => result.Status == GameLoginTicketGrantStatus.Granted);
 
-        int winnerIndex = Array.FindIndex(
-            results,
-            status => status == GameLoginTicketGrantStatus.Granted
-        );
+        Assert.InRange(winnerIndex, 0, requests.Length - 1);
+        Assert.NotNull(results[winnerIndex].Ticket);
 
-        Assert.InRange(winnerIndex, 0, tickets.Length - 1);
+        PersistedTicket persisted = Assert.IsType<PersistedTicket>(await ReadTicketAsync(sessionUid));
 
-        PersistedTicket persisted = Assert.IsType<PersistedTicket>(
-            await ReadTicketAsync(sessionUid)
-        );
-
-        for (int index = 0; index < tickets.Length; index++)
+        for (int index = 0; index < requests.Length; index++)
         {
             bool verified = _authenticationKeyRing.Verify(
                 persisted.AuthenticationKeyVerifierKeyId,
                 persisted.AuthenticationKeyVerifier,
                 sessionUid,
-                tickets[index].AuthenticationKey
-            );
+                requests[index].AuthenticationKey);
 
             Assert.Equal(index == winnerIndex, verified);
         }
@@ -484,23 +390,15 @@ public sealed class GameLoginTicketGrantStoreTests
     public async Task TryGrantAsync_WhenConcurrentAccountStateMutationCommits_RejectsStaleAuthentication()
     {
         AccountRecord account = await InsertAccountAsync();
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
-
-        await using MySqlConnection mutationConnection = new(
-            _database.AdministrativeConnectionString
-        );
-
+        await using MySqlConnection mutationConnection = new(_database.AdministrativeConnectionString);
         await mutationConnection.OpenAsync(CancellationToken);
 
-        await using MySqlTransaction mutationTransaction =
-            await mutationConnection.BeginTransactionAsync(
-                IsolationLevel.ReadCommitted,
-                CancellationToken
-            );
+        await using MySqlTransaction mutationTransaction = await mutationConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken);
 
         bool transactionCompleted = false;
-        Task<GameLoginTicketGrantStatus>? grantTask = null;
+        Task<GameLoginTicketGrantResult>? grantTask = null;
 
         try
         {
@@ -518,48 +416,28 @@ public sealed class GameLoginTicketGrantStoreTests
                     WHERE `account_id` = @account_id;
                     """;
 
-                mutation.Parameters.Add("@access_status", MySqlDbType.UByte).Value = (byte)
-                    AccountAccessStatus.Suspended;
+                mutation.Parameters.Add("@access_status", MySqlDbType.UByte).Value = (byte)AccountAccessStatus.Suspended;
+                mutation.Parameters.Add("@state_changed_at_utc", MySqlDbType.DateTime).Value = s_createdAtUtc.AddMinutes(1);
+                mutation.Parameters.Add("@state_changed_by_actor_kind", MySqlDbType.UByte).Value = (byte)AccountActorKind.System;
+                mutation.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = account.AccountId;
 
-                mutation.Parameters.Add("@state_changed_at_utc", MySqlDbType.DateTime).Value =
-                    s_createdAtUtc.AddMinutes(1);
-
-                mutation.Parameters.Add("@state_changed_by_actor_kind", MySqlDbType.UByte).Value =
-                    (byte)AccountActorKind.System;
-
-                mutation.Parameters.Add("@account_id", MySqlDbType.UInt32).Value =
-                    account.AccountId;
-
-                int affected = await mutation.ExecuteNonQueryAsync(CancellationToken);
-
-                Assert.Equal(1, affected);
+                Assert.Equal(1, await mutation.ExecuteNonQueryAsync(CancellationToken));
             }
 
-            grantTask = _store
-                .TryGrantAsync(
-                    ticket,
-                    account.StateRevision,
-                    account.PasswordCredential.Revision,
-                    CancellationToken
-                )
-                .AsTask();
+            grantTask = _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, CancellationToken).AsTask();
 
             await WaitForInnoDbLockWaitAsync("accounts");
 
             Assert.False(grantTask.IsCompleted);
 
             await mutationTransaction.CommitAsync(CancellationToken.None);
-
             transactionCompleted = true;
 
-            GameLoginTicketGrantStatus status = await grantTask.WaitAsync(
-                TimeSpan.FromSeconds(10),
-                CancellationToken
-            );
+            GameLoginTicketGrantResult result = await grantTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken);
 
-            Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-            Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+            Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+            Assert.Null(result.Ticket);
+            Assert.Null(await ReadTicketAsync(request.SessionUid));
         }
         finally
         {
@@ -587,23 +465,15 @@ public sealed class GameLoginTicketGrantStoreTests
     public async Task TryGrantAsync_WhenConcurrentPasswordCredentialMutationCommits_RejectsStaleAuthentication()
     {
         AccountRecord account = await InsertAccountAsync();
+        GameLoginTicketGrantRequest request = CreateRequest(account.AccountId, account.Username);
 
-        GameLoginTicket ticket = CreateTicket(account.AccountId, account.Username);
-
-        await using MySqlConnection mutationConnection = new(
-            _database.AdministrativeConnectionString
-        );
-
+        await using MySqlConnection mutationConnection = new(_database.AdministrativeConnectionString);
         await mutationConnection.OpenAsync(CancellationToken);
 
-        await using MySqlTransaction mutationTransaction =
-            await mutationConnection.BeginTransactionAsync(
-                IsolationLevel.ReadCommitted,
-                CancellationToken
-            );
+        await using MySqlTransaction mutationTransaction = await mutationConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken);
 
         bool transactionCompleted = false;
-        Task<GameLoginTicketGrantStatus>? grantTask = null;
+        Task<GameLoginTicketGrantResult>? grantTask = null;
 
         try
         {
@@ -620,42 +490,26 @@ public sealed class GameLoginTicketGrantStoreTests
                     WHERE `account_id` = @account_id;
                     """;
 
-                mutation.Parameters.Add("@password_changed_at_utc", MySqlDbType.DateTime).Value =
-                    s_createdAtUtc.AddMinutes(1);
+                mutation.Parameters.Add("@password_changed_at_utc", MySqlDbType.DateTime).Value = s_createdAtUtc.AddMinutes(1);
+                mutation.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = account.AccountId;
 
-                mutation.Parameters.Add("@account_id", MySqlDbType.UInt32).Value =
-                    account.AccountId;
-
-                int affected = await mutation.ExecuteNonQueryAsync(CancellationToken);
-
-                Assert.Equal(1, affected);
+                Assert.Equal(1, await mutation.ExecuteNonQueryAsync(CancellationToken));
             }
 
-            grantTask = _store
-                .TryGrantAsync(
-                    ticket,
-                    account.StateRevision,
-                    account.PasswordCredential.Revision,
-                    CancellationToken
-                )
-                .AsTask();
+            grantTask = _store.TryGrantAsync(request, s_ticketLifetime, account.StateRevision, account.PasswordCredential.Revision, CancellationToken).AsTask();
 
             await WaitForInnoDbLockWaitAsync("accounts");
 
             Assert.False(grantTask.IsCompleted);
 
             await mutationTransaction.CommitAsync(CancellationToken.None);
-
             transactionCompleted = true;
 
-            GameLoginTicketGrantStatus status = await grantTask.WaitAsync(
-                TimeSpan.FromSeconds(10),
-                CancellationToken
-            );
+            GameLoginTicketGrantResult result = await grantTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken);
 
-            Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, status);
-
-            Assert.Null(await ReadTicketAsync(ticket.SessionUid));
+            Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
+            Assert.Null(result.Ticket);
+            Assert.Null(await ReadTicketAsync(request.SessionUid));
         }
         finally
         {
@@ -679,11 +533,7 @@ public sealed class GameLoginTicketGrantStoreTests
         }
     }
 
-    private async Task LockAccountAsync(
-        MySqlConnection connection,
-        MySqlTransaction transaction,
-        uint accountId
-    )
+    private async Task LockAccountAsync(MySqlConnection connection, MySqlTransaction transaction, uint accountId)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -697,20 +547,17 @@ public sealed class GameLoginTicketGrantStoreTests
 
         command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = accountId;
 
-        object? result = await command.ExecuteScalarAsync(CancellationToken);
-
-        Assert.NotNull(result);
+        Assert.NotNull(await command.ExecuteScalarAsync(CancellationToken));
     }
 
     private async Task WaitForInnoDbLockWaitAsync(string tableName)
     {
-        const int maximumPollingAttempts = 500;
+        const int MaximumPollingAttempts = 500;
 
         await using MySqlConnection connection = new(_database.AdministrativeConnectionString);
-
         await connection.OpenAsync(CancellationToken);
 
-        for (int attempt = 0; attempt < maximumPollingAttempts; attempt++)
+        for (int attempt = 0; attempt < MaximumPollingAttempts; attempt++)
         {
             await using MySqlCommand command = connection.CreateCommand();
 
@@ -718,24 +565,17 @@ public sealed class GameLoginTicketGrantStoreTests
                 SELECT COUNT(*)
                 FROM `performance_schema`.`data_lock_waits` AS `waits`
                 INNER JOIN `performance_schema`.`data_locks` AS `requesting_lock`
-                    ON `requesting_lock`.`ENGINE_LOCK_ID`
-                        = `waits`.`REQUESTING_ENGINE_LOCK_ID`
+                    ON `requesting_lock`.`ENGINE_LOCK_ID` = `waits`.`REQUESTING_ENGINE_LOCK_ID`
                 WHERE `requesting_lock`.`OBJECT_SCHEMA` = @schema_name
                   AND `requesting_lock`.`OBJECT_NAME` = @table_name
                   AND `requesting_lock`.`LOCK_STATUS` = 'WAITING';
                 """;
 
-            command.Parameters.Add("@schema_name", MySqlDbType.VarChar).Value =
-                AccountDatabaseFixture.DatabaseName;
-
+            command.Parameters.Add("@schema_name", MySqlDbType.VarChar).Value = AccountDatabaseFixture.DatabaseName;
             command.Parameters.Add("@table_name", MySqlDbType.VarChar).Value = tableName;
 
             object? result = await command.ExecuteScalarAsync(CancellationToken);
-
-            long waitingLockCount = Convert.ToInt64(
-                result,
-                System.Globalization.CultureInfo.InvariantCulture
-            );
+            long waitingLockCount = Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
 
             if (waitingLockCount > 0)
             {
@@ -745,14 +585,10 @@ public sealed class GameLoginTicketGrantStoreTests
             await Task.Delay(TimeSpan.FromMilliseconds(20), CancellationToken);
         }
 
-        throw new TimeoutException(
-            $"MySQL did not report the expected InnoDB row-lock wait for table '{tableName}'."
-        );
+        throw new TimeoutException($"MySQL did not report the expected InnoDB row-lock wait for table '{tableName}'.");
     }
 
-    private async Task<AccountRecord> InsertAccountAsync(
-        AccountAccessStatus accessStatus = AccountAccessStatus.Active
-    )
+    private async Task<AccountRecord> InsertAccountAsync(AccountAccessStatus accessStatus = AccountAccessStatus.Active)
     {
         string username = CreateUsername();
 
@@ -785,12 +621,9 @@ public sealed class GameLoginTicketGrantStoreTests
 
         account.PasswordCredential = credential;
 
-        await using AccountDbContext db = await _database.ContextFactory.CreateDbContextAsync(
-            CancellationToken
-        );
+        await using AccountDbContext db = await _database.ContextFactory.CreateDbContextAsync(CancellationToken);
 
         db.Accounts.Add(account);
-
         await db.SaveChangesAsync(CancellationToken);
 
         return account;
@@ -798,14 +631,9 @@ public sealed class GameLoginTicketGrantStoreTests
 
     private async Task DeleteAccountAsync(uint accountId)
     {
-        await using AccountDbContext db = await _database.ContextFactory.CreateDbContextAsync(
-            CancellationToken
-        );
+        await using AccountDbContext db = await _database.ContextFactory.CreateDbContextAsync(CancellationToken);
 
-        AccountRecord account = await db.Accounts.SingleAsync(
-            candidate => candidate.AccountId == accountId,
-            CancellationToken
-        );
+        AccountRecord account = await db.Accounts.SingleAsync(candidate => candidate.AccountId == accountId, CancellationToken);
 
         DateTime deletedAtUtc = s_createdAtUtc.AddMinutes(1);
 
@@ -823,7 +651,6 @@ public sealed class GameLoginTicketGrantStoreTests
     private async Task RemovePasswordCredentialAdministrativelyAsync(uint accountId)
     {
         await using MySqlConnection connection = new(_database.AdministrativeConnectionString);
-
         await connection.OpenAsync(CancellationToken);
 
         await using MySqlCommand command = connection.CreateCommand();
@@ -835,17 +662,12 @@ public sealed class GameLoginTicketGrantStoreTests
 
         command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = accountId;
 
-        int affected = await command.ExecuteNonQueryAsync(CancellationToken);
-
-        Assert.Equal(1, affected);
+        Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
     }
 
     private async Task<PersistedTicket?> ReadTicketAsync(uint sessionUid)
     {
-        await using MySqlConnection connection = await _dataSource.OpenConnectionAsync(
-            CancellationToken
-        );
-
+        await using MySqlConnection connection = await _dataSource.OpenConnectionAsync(CancellationToken);
         await using MySqlCommand command = connection.CreateCommand();
 
         command.CommandText = """
@@ -877,47 +699,44 @@ public sealed class GameLoginTicketGrantStoreTests
             reader.GetDateTime(3),
             reader.GetDateTime(4),
             reader.GetFieldValue<byte[]>(5),
-            reader.GetUInt16(6)
-        );
+            reader.GetUInt16(6));
 
         Assert.False(await reader.ReadAsync(CancellationToken));
 
         return ticket;
     }
 
-    private static GameLoginTicket CreateTicket(
-        uint accountId,
-        string username,
-        uint? sessionUid = null,
-        uint? authenticationKey = null
-    )
+    private async Task<DateTime> ReadDatabaseUtcNowAsync()
     {
-        DateTimeOffset issuedAtUtc = new(2026, 1, 2, 12, 0, 0, TimeSpan.Zero);
+        await using MySqlConnection connection = await _dataSource.OpenConnectionAsync(CancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
 
-        return new GameLoginTicket(
+        command.CommandText = "SELECT UTC_TIMESTAMP(6);";
+
+        DateTime databaseUtcNow = Assert.IsType<DateTime>(await command.ExecuteScalarAsync(CancellationToken));
+
+        return DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc);
+    }
+
+    private static GameLoginTicketGrantRequest CreateRequest(uint accountId, string username, uint? sessionUid = null, uint? authenticationKey = null)
+    {
+        return new GameLoginTicketGrantRequest(
             accountId,
             username,
             sessionUid ?? GenerateNonzeroUInt32(),
-            authenticationKey ?? GenerateNonzeroUInt32(),
-            issuedAtUtc,
-            issuedAtUtc.AddMinutes(5)
-        );
+            authenticationKey ?? GenerateNonzeroUInt32());
     }
 
     private static GameLoginTicketAuthenticationKeyRing CreateAuthenticationKeyRing()
     {
-        byte[] verificationKey = new byte[
-            GameLoginTicketAuthenticationKeyVerifier.VerificationKeySize
-        ];
-
+        byte[] verificationKey = new byte[GameLoginTicketAuthenticationKeyVerifier.VerificationKeySize];
         RandomNumberGenerator.Fill(verificationKey);
 
         try
         {
             return new GameLoginTicketAuthenticationKeyRing(
                 ActiveVerificationKeyId,
-                [new KeyValuePair<ushort, byte[]>(ActiveVerificationKeyId, verificationKey)]
-            );
+                [new KeyValuePair<ushort, byte[]>(ActiveVerificationKeyId, verificationKey)]);
         }
         finally
         {
@@ -936,7 +755,6 @@ public sealed class GameLoginTicketGrantStoreTests
             do
             {
                 RandomNumberGenerator.Fill(bytes);
-
                 value = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes);
             } while (value == 0);
 
@@ -953,28 +771,14 @@ public sealed class GameLoginTicketGrantStoreTests
         return "User" + Guid.NewGuid().ToString("N")[..28];
     }
 
-    private sealed class PersistedTicket(
-        uint sessionUid,
-        uint accountId,
-        string username,
-        DateTime issuedAtUtc,
-        DateTime expiresAtUtc,
-        byte[] authenticationKeyVerifier,
-        ushort authenticationKeyVerifierKeyId
-    )
+    private sealed class PersistedTicket(uint sessionUid, uint accountId, string username, DateTime issuedAtUtc, DateTime expiresAtUtc, byte[] authenticationKeyVerifier, ushort authenticationKeyVerifierKeyId)
     {
         public uint SessionUid { get; } = sessionUid;
-
         public uint AccountId { get; } = accountId;
-
         public string Username { get; } = username;
-
         public DateTime IssuedAtUtc { get; } = issuedAtUtc;
-
         public DateTime ExpiresAtUtc { get; } = expiresAtUtc;
-
         public byte[] AuthenticationKeyVerifier { get; } = authenticationKeyVerifier;
-
         public ushort AuthenticationKeyVerifierKeyId { get; } = authenticationKeyVerifierKeyId;
     }
 }
