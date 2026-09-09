@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
+using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Transport.Connections;
 
@@ -470,6 +471,79 @@ public sealed class LoginPostAuthenticationReportReaderTests
             LoginPostAuthenticationReportReadStatus.UnexpectedResourceName,
             LoginPostAuthenticationReportPhase.ResourceVersionReport
         );
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task ReadAsync_RejectsNonPositivePhaseTimeout(int milliseconds)
+    {
+        TestTransportConnection connection = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        LoginPostAuthenticationReportReader reader = new(session);
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => reader.ReadAsync(SessionUid, TimeSpan.FromMilliseconds(milliseconds), TestContext.Current.CancellationToken));
+
+        Assert.Equal("phaseTimeout", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task ReadAsync_PhaseTimeoutBeforeMacAddressReportIsClassified()
+    {
+        TestTransportConnection connection = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        LoginPostAuthenticationReportReader reader = new(session);
+
+        LoginPostAuthenticationReportReadResult result = await reader.ReadAsync(
+            SessionUid, TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+
+        AssertFailure(result, LoginPostAuthenticationReportReadStatus.TimedOut, LoginPostAuthenticationReportPhase.MacAddressReport);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ResetsPhaseTimeoutBeforeResourceVersionReport()
+    {
+        TimeSpan phaseTimeout = TimeSpan.FromSeconds(1);
+        TimeSpan interFrameDelay = TimeSpan.FromMilliseconds(600);
+
+        TestTransportConnection connection = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        byte[] macPayload = BuildMacAddressPayload(SessionUid, "001122AABBCC");
+        byte[] resourcePayload = BuildResourceVersionPayload(SessionUid, 5517, "res.dat");
+        byte[] encryptedFrames = BuildEncryptedClientFrames(
+            (LoginAccountMacAddressReportPacket.PacketIdentifier, macPayload),
+            (LoginAccountResourceVersionReportPacket.PacketIdentifier, resourcePayload));
+
+        int macFrameLength = WireFrameHeader.Size + LoginAccountMacAddressReportPacket.PayloadLength;
+
+        LoginPostAuthenticationReportReader reader = new(session);
+        Task<LoginPostAuthenticationReportReadResult> readTask = reader
+            .ReadAsync(SessionUid, phaseTimeout, TestContext.Current.CancellationToken)
+            .AsTask();
+
+        await Task.Delay(interFrameDelay, TestContext.Current.CancellationToken);
+        connection.QueueReceive(encryptedFrames[..macFrameLength]);
+
+        await Task.Delay(interFrameDelay, TestContext.Current.CancellationToken);
+        connection.QueueReceive(encryptedFrames[macFrameLength..]);
+
+        LoginPostAuthenticationReportReadResult result = await readTask.WaitAsync(
+            TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal(LoginPostAuthenticationReportReadStatus.Success, result.Status);
+        Assert.Null(result.FailurePhase);
+        Assert.Equal("001122AABBCC", Assert.IsType<LoginPostAuthenticationReports>(result.Reports).MacAddress);
+        Assert.Equal(5517, Assert.IsType<LoginPostAuthenticationReports>(result.Reports).ResourceVersion);
     }
 
     [Fact]
