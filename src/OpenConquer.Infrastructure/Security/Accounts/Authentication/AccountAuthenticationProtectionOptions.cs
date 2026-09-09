@@ -1,6 +1,6 @@
 namespace OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
-internal sealed class AccountAuthenticationProtectionOptions
+public sealed class AccountAuthenticationProtectionOptions
 {
     public const int DefaultRequestLimitPerSource = 30;
     public const int DefaultMaximumConcurrentRequestsPerSource = 4;
