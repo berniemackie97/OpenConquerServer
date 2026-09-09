@@ -2,7 +2,7 @@ using OpenConquer.Application.Accounts.Authentication;
 
 namespace OpenConquer.Application.Accounts.GameLogin;
 
-public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore, IGameLoginTicketTokenGenerator tokenGenerator, TimeProvider timeProvider)
+public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore, IGameLoginTicketTokenGenerator tokenGenerator)
 {
     private const int MaximumAllocationAttempts = 8;
 
@@ -10,25 +10,12 @@ public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore,
 
     private readonly IGameLoginTicketGrantStore _grantStore = grantStore ?? throw new ArgumentNullException(nameof(grantStore));
     private readonly IGameLoginTicketTokenGenerator _tokenGenerator = tokenGenerator ?? throw new ArgumentNullException(nameof(tokenGenerator));
-    private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public async ValueTask<GameLoginTicket?> IssueAsync(AccountAuthenticationResult authentication, CancellationToken cancellationToken = default)
     {
         ValidateAuthentication(authentication);
 
         cancellationToken.ThrowIfCancellationRequested();
-
-        DateTimeOffset issuedAtUtc = _timeProvider.GetUtcNow().ToUniversalTime();
-
-        DateTimeOffset expiresAtUtc;
-        try
-        {
-            expiresAtUtc = issuedAtUtc.Add(s_ticketLifetime);
-        }
-        catch (ArgumentOutOfRangeException exception)
-        {
-            throw new InvalidOperationException("The current UTC time cannot represent the configured game-login ticket lifetime.", exception);
-        }
 
         for (int attempt = 0; attempt < MaximumAllocationAttempts; attempt++)
         {
@@ -48,14 +35,13 @@ public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore,
                 throw new InvalidOperationException("The game-login ticket token generator returned a zero authentication key.");
             }
 
-            GameLoginTicket ticket = new(authentication.AccountId, authentication.Username!, sessionUid, authenticationKey, issuedAtUtc, expiresAtUtc);
+            GameLoginTicketGrantRequest request = new(authentication.AccountId, authentication.Username!, sessionUid, authenticationKey);
+            GameLoginTicketGrantResult result = await _grantStore.TryGrantAsync(request, s_ticketLifetime, authentication.AccountStateRevision, authentication.PasswordCredentialRevision, cancellationToken).ConfigureAwait(false);
 
-            GameLoginTicketGrantStatus status = await _grantStore.TryGrantAsync(ticket, authentication.AccountStateRevision, authentication.PasswordCredentialRevision, cancellationToken).ConfigureAwait(false);
-
-            switch (status)
+            switch (result.Status)
             {
                 case GameLoginTicketGrantStatus.Granted:
-                    return ticket;
+                    return ValidateGrantedTicket(result, request);
 
                 case GameLoginTicketGrantStatus.SessionUidCollision:
                     break;
@@ -64,11 +50,29 @@ public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore,
                     return null;
 
                 default:
-                    throw new InvalidOperationException($"Game-login ticket persistence returned unsupported grant status {status}.");
+                    throw new InvalidOperationException($"Game-login ticket persistence returned unsupported grant status {result.Status}.");
             }
         }
 
         throw new GameLoginTicketAllocationException();
+    }
+
+    private static GameLoginTicket ValidateGrantedTicket(GameLoginTicketGrantResult result, GameLoginTicketGrantRequest request)
+    {
+        GameLoginTicket ticket = result.Ticket ?? throw new InvalidOperationException("Game-login ticket persistence reported a successful grant without returning the durable ticket.");
+
+        if (ticket.AccountId != request.AccountId || !string.Equals(ticket.Username, request.Username, StringComparison.Ordinal)
+                                                  || ticket.SessionUid != request.SessionUid || ticket.AuthenticationKey != request.AuthenticationKey)
+        {
+            throw new InvalidOperationException("Game-login ticket persistence returned a durable ticket that does not match the requested grant.");
+        }
+
+        if (ticket.ExpiresAtUtc - ticket.IssuedAtUtc != s_ticketLifetime)
+        {
+            throw new InvalidOperationException("Game-login ticket persistence returned a durable ticket with an unexpected lifetime.");
+        }
+
+        return ticket;
     }
 
     private static void ValidateAuthentication(AccountAuthenticationResult authentication)
