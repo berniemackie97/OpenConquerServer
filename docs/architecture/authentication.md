@@ -1,316 +1,253 @@
-# Account authentication
+# Account Authentication
 
-`AccountAuthenticator` owns the credential-authentication use case. `AccountCredentialPolicy` in
-Domain defines the legacy credential invariants; Application applies them before invoking
-persistence or expensive password verification. Protocol decodes wire fields and Infrastructure
-implements password storage and durable authentication persistence without duplicating account rules
-across layers.
-
-Authentication and game-login authorization are separate boundaries:
+Authentication, AccountServer handoff, game-login authorization, account security mutations, and
+ticket redemption are separate boundaries.
 
 ```text
-credentials
+1060 credentials
     ↓
 AccountAuthenticator
     ↓
-successful authentication snapshot
+authenticated account snapshot
     ↓
 GameLoginTicketIssuer
     ↓
-atomic durable ticket grant
+durable ticket grant
+    ↓
+AccountServer 1055 handoff
+    ↓
+GameServer 1052 proof
     ↓
 GameLoginTicketRedeemer
-    ↓
-atomic single-use ticket redemption
     ↓
 authorized game-login identity
 ```
 
-Authentication proves credentials at a point in time. A game-login ticket is the separate durable
-authorization grant used to bridge the AccountServer and GameServer connection phases.
+The AccountServer side through durable `1055` handoff is implemented.
 
-## Credential contract
+The GameServer `1052` proof and game-session boundary are not yet implemented.
 
-- Trim surrounding username whitespace, then require 1–32 .NET characters.
-- Preserve case, internal whitespace, and the legacy unrestricted character set. Persistence owns
-  account lookup collation; the authentication use case does not lowercase identifiers.
-- Require 1–128 password characters. Empty/default password memory is invalid.
-- Never trim or normalize passwords. An all-space nonempty password satisfies the legacy length
-  policy.
-- Return `InvalidCredentials` for invalid supplied values before repository or password-verifier
-  work.
-- Null account-name and remote-address arguments remain explicit caller contract errors.
-- Keep caller-owned password memory valid and unchanged until authentication completes.
-- The authenticator and verifier do not retain caller password memory.
+## Ownership
 
-The native login packet has a 128-byte account field and transforms only 32 credential bytes on the
-standard path. Those wire dimensions are distinct from account policy. In particular, keypad
-decoding must use the original account bytes before trimming the username for lookup.
+| Layer          | Responsibility                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| Domain         | Credential and account-state rules                                                       |
+| Application    | Authentication, ticket issuance/redemption, account mutation orchestration               |
+| Infrastructure | Password verification, abuse protection, MySQL persistence, transactional security state |
+| Protocol       | 5517 login packets and cryptography                                                      |
+| AccountServer  | Standard 5517 authentication transaction                                                 |
+| GameServer     | Future ticket redemption and game-session composition                                    |
 
-## Authentication authorization and concurrency
+## Credential Contract
 
-`AccountAuthenticator` owns both layers of authentication-work admission so callers cannot reach
-repository lookup or password verification without the required protection contracts.
+Username:
 
-Syntactically invalid usernames and passwords are rejected before admission because they perform no
-repository lookup or password derivation. Validly shaped requests must first acquire an
-`IAccountAuthenticationRequestLease` before account resolution.
+- trim surrounding whitespace before account lookup;
+- require 1–32 .NET characters;
+- preserve case and internal whitespace;
+- do not lowercase or otherwise normalize.
 
-The request lease remains held for the complete authentication operation, including:
+Password:
 
-- account lookup;
-- account-miss decoy verification;
-- resolved-account password verification;
-- password rehash generation;
-- compare-and-swap successful-login persistence;
-- conflict re-read and password revalidation.
+- require 1–128 characters;
+- never trim or normalize;
+- empty/default memory is invalid;
+- caller retains ownership of supplied password memory;
+- authentication does not retain password memory.
 
-Rejected request admission returns `InvalidCredentials` without repository or password-verifier
-work.
+Invalid credential shape returns `InvalidCredentials` before persistence or password derivation.
 
-Resolved accounts additionally acquire an `IAccountAuthenticationAttemptLease` before real password
-verification. Rejected resolved-account admission performs no password derivation.
+The standard 5517 packet has different wire limits:
 
-`AccountAuthenticationProtection` is the Infrastructure implementation of both
-`IAccountAuthenticationRequestLimiter` and `IAccountAuthenticationAttemptLimiter`. A single locked
-state model owns request admission, source state, account concurrency, account-source failure state,
-and the global tracked-state budget.
+```text
+account field       128 bytes
+credential field    128 bytes
+transformed secret   32 bytes
+```
 
-Pre-resolution admission enforces:
+The original account bytes must be used for the native keypad transform before application-level
+username trimming.
 
-- a global concurrent-authentication limit;
-- a per-source token bucket;
-- a per-source concurrent-request limit;
-- a hard bound on tracked protection state.
+## Authentication Result
 
-Resolved-account admission additionally enforces:
+`AccountAuthenticator` returns:
 
-- a per-account concurrent password-attempt limit;
-- a per-account-and-source failed-attempt window;
-- a per-account-and-source lockout.
+```text
+Success
+InvalidCredentials
+Banned
+```
 
-The default policy permits 30 authentication requests per source per minute, four concurrent
-requests per source, and 32 concurrent authentication requests globally. Resolved accounts permit at
-most two concurrent password attempts per account. Eight failed attempts for the same account and
-source within five minutes cause a five-minute account-source lockout.
-
-There is deliberately no global failed-attempt lockout keyed only by account ID. Such a policy would
-allow distributed unauthenticated clients to deny service to a known account. Per-account
-concurrency still bounds simultaneous password work across sources.
-
-In-flight resolved attempts count against the account-source failure budget so concurrent guesses
-cannot all enter password verification before completed failures reach the configured threshold.
-
-Source identity normalizes IPv4-mapped IPv6 addresses to IPv4 and groups native IPv6 addresses by
-/64. This prevents interface-identifier rotation from trivially bypassing source limits or
-multiplying tracked state.
-
-Protection windows use monotonic `TimeProvider` timestamps. Request-rate tokens are consumed when
-admission succeeds and are not refunded when the request lease is disposed.
-
-A failed credential result records an account-source failure. Accepted credentials clear failure
-state for that account and source, including valid credentials for an account whose current access
-state subsequently prevents login. Disposal of an incomplete attempt releases concurrency without
-recording a credential failure.
-
-Tracked source, in-flight account, and account-source state share one hard capacity budget. Expired
-inactive state is reclaimed opportunistically and under capacity pressure. Active state is never
-evicted to admit new work; when capacity cannot be safely reclaimed, admission fails closed.
-
-Account misses perform decoy password verification only after successful pre-resolution admission.
-
-The password is verified before exposing banned status. Valid credentials for a denied or banned
-account are recorded as accepted credentials by the attempt-protection boundary but cannot authorize
-login or trigger password migration.
-
-Unknown password-verifier statuses fail closed. Cancellation and exceptions abandon the resolved
-attempt lease and release the outer request lease. Completed authentication outcomes are reported
-exactly once.
-
-Successful authentication carries the exact identity and persistence revisions required to authorize
-a subsequent ticket grant:
+Successful authentication carries:
 
 - account ID;
 - canonical persisted username;
 - account state revision;
 - password credential revision.
 
-A successful result reflects an allowed access decision at authentication time, but that decision is
-not carried forward as authoritative state. Ticket grant independently revalidates current account
-access and deletion state under its database lock.
+These revisions are required by ticket grant to reject stale authentication snapshots.
 
-Those revisions are part of the authentication result because authentication and ticket persistence
-are separate operations. They prevent a previously valid credential decision from silently becoming
-a game-session grant after account or password state changes.
+Authentication alone does not authorize a GameServer connection.
 
-The concrete authentication protection implementation exists in Infrastructure but is not
-operationally active until AccountServer host composition wires the authentication path.
+## Authentication Protection
 
-## Password hash migration
+Authentication work is bounded before expensive persistence and password verification.
 
-Obsolete hashes are replaced through compare-and-swap against the exact original authentication
-snapshot.
+Pre-resolution controls:
 
-When replacement loses a race, authentication re-reads the account once and re-verifies:
+- global concurrent authentication limit;
+- per-source request rate;
+- per-source concurrency;
+- bounded tracked protection state.
 
-- password;
-- account identity;
-- account access;
-- account state revision;
-- password credential state.
+Resolved-account controls:
 
-A concurrent successful password migration can still authenticate. A password reset to a different
-password, account deletion/recreation, access change, or other authentication-state change cannot
-authorize the obsolete snapshot.
+- per-account concurrent password attempts;
+- per-account/source failure window;
+- per-account/source lockout.
 
-Revalidation never attempts a second password migration, so contention cannot cause an unbounded
-retry loop.
+Default policy:
 
-A successful password migration increments the password credential revision. The successful
-authentication result carries the effective revision representing the state that was actually
-authenticated and persisted.
+| Control                                     |   Default |
+| ------------------------------------------- | --------: |
+| Requests per source                         | 30/minute |
+| Concurrent requests per source              |         4 |
+| Concurrent authentication requests globally |        32 |
+| Concurrent password attempts per account    |         2 |
+| Failed attempts before lockout              |         8 |
+| Failure window                              | 5 minutes |
+| Lockout duration                            | 5 minutes |
 
-Transparent password migration changes only the stored representation of the already-authenticated
-secret. It does not represent a user-visible password change and therefore does not revoke
-outstanding game-login tickets.
+There is no global failed-attempt lockout keyed only by account ID.
 
-## Password formats
+IPv4-mapped IPv6 addresses normalize to IPv4. Native IPv6 addresses are grouped by `/64`.
 
-New hashes use:
+Protection durations use monotonic `TimeProvider` time.
+
+Tracked state is bounded and fails closed when active state cannot be safely reclaimed.
+
+Account misses perform decoy password verification after request admission.
+
+The password is verified before exposing banned status.
+
+## Password Formats
+
+Current format:
 
 ```text
 $openconquer$pbkdf2-sha256$v=1$
 ```
 
-with:
+Parameters:
 
-- PBKDF2-HMAC-SHA256;
-- 600,000 iterations;
-- random 16-byte salt;
-- 32-byte derived key.
+| Property    | Value              |
+| ----------- | ------------------ |
+| KDF         | PBKDF2-HMAC-SHA256 |
+| Iterations  | 600,000            |
+| Salt        | 16 random bytes    |
+| Derived key | 32 bytes           |
 
-The verifier also accepts:
+Supported migration format:
 
 ```text
 $openconquer$identity-v3$
 ```
 
-using the exact profile emitted by the preserved OpenConquerPublic implementation:
+Verified legacy profile:
 
-- Identity marker 1;
-- PRF 2 / HMAC-SHA512;
-- 220,000 iterations;
-- 16-byte salt;
-- 32-byte subkey;
-- big-endian metadata integers.
+| Property          | Value           |
+| ----------------- | --------------- |
+| Identity marker   | 1               |
+| PRF               | 2 / HMAC-SHA512 |
+| Iterations        | 220,000         |
+| Salt              | 16 bytes        |
+| Subkey            | 32 bytes        |
+| Metadata integers | Big-endian      |
 
-This compatibility profile is verified against the Microsoft Identity implementation, an independent
-fixed vector, and hashes generated by the framework hasher in tests.
+Unsupported password records fail closed.
 
-Only a matching password can return `SuccessRehashNeeded`. Application then creates a current-format
-hash and requests conditional replacement. Wrong passwords never migrate persisted credentials.
+This includes:
 
-The fixed legacy-profile allowlist is intentional. Persisted iteration counts, lengths, PRFs, and
-formats are not treated as attacker-controlled password-work parameters.
+- unprefixed values;
+- Identity V2;
+- unsupported Identity V3 profiles;
+- malformed records;
+- extended records outside the verified profile.
 
-Unprefixed values, Identity V2, unsupported Identity V3 profiles, malformed records, and extended
-records fail closed. Older plaintext/custom-salt password handling removed from OpenConquerPublic is
-not reintroduced.
+Legacy plaintext/custom-salt password handling is not supported.
 
-## Verification work and sensitive memory
+## Password Migration
 
-Password verification performs the bounded current and legacy derivations required to reduce
-account-existence and password-format timing distinctions during migration.
+A valid legacy hash may be transparently migrated after successful authentication.
 
-The applicable persisted format uses its decoded salt and key. The other derivation uses decoy
-material. Account misses and malformed records use decoys for both supported profiles.
+Migration uses compare-and-swap against the authenticated persistence snapshot.
 
-A decoy comparison can never authenticate because successful authentication additionally requires a
-valid decoded persisted password scheme.
+If the replacement loses a race:
 
-The password verifier has no mutable per-request state.
+1. re-read the account once;
+2. revalidate password and account state;
+3. accept only if the resulting state still authenticates;
+4. do not attempt a second migration.
 
-Temporary salts, decoded records, and derived-key buffers use bounded storage and are cleared after
-use. Caller password memory remains caller-owned.
+Successful transparent migration:
 
-This work does not claim identical total request latency. Database lookup, admission, successful
-password migration, scheduling, and other request work can differ. `AccountAuthenticator` requires
-pre-resolution and resolved-account admission contracts, and Infrastructure provides the bounded
-production implementation. AccountServer host composition must wire that implementation before the
-login path becomes operational.
+```text
+password credential Revision++
+password_changed_at_utc unchanged
+outstanding game-login tickets preserved
+```
 
-## Durable authentication persistence
+Transparent migration changes the stored representation, not the user's secret.
 
-`AccountAuthenticationRepository` provides the durable MySQL authentication adapter.
+## Authentication Persistence
 
-Account lookup returns a snapshot containing:
+`AccountAuthenticationRepository` returns an authentication snapshot containing:
 
-- account identity;
+- account ID;
 - canonical username;
 - password hash;
 - effective login access;
 - account state revision;
 - password credential revision.
 
-Successful-login persistence conditionally updates against the exact authenticated snapshot.
+Successful-login persistence is conditional on the exact authenticated snapshot.
 
-The persistence predicate checks:
+Relevant state changes therefore prevent stale authentication results from being silently persisted
+or migrated.
 
-- account ID;
-- canonical username;
-- active and undeleted account state;
-- account state revision;
-- original password hash;
-- password credential revision.
+## Game-Login Ticket Grant
 
-A password rehash replaces the stored hash and increments the password credential revision because
-the persisted credential representation changed. It preserves `password_changed_at_utc`: transparent
-hash migration does not change the user's password secret and therefore must not rewrite password-
-change history or revoke already-issued game-login tickets.
-
-This compare-and-swap boundary prevents stale authentication results from silently recording or
-migrating credentials after relevant account state changes.
-
-## Game-login ticket grant
-
-`GameLoginTicketIssuer` owns game-login ticket issuance after successful account authentication.
+`GameLoginTicketIssuer` accepts only successful authentication results.
 
 A ticket contains:
 
 - account ID;
 - canonical username;
-- `SessionUid`;
-- `AuthenticationKey`;
+- nonzero `SessionUid`;
+- nonzero `AuthenticationKey`;
 - issue time;
 - expiration time.
 
-`SessionUid` and `AuthenticationKey` are nonzero 32-bit values generated with a cryptographically
-secure random-number generator.
+Ticket lifetime:
 
-The ticket lifetime is five minutes.
+```text
+5 minutes
+```
 
-Application owns that lifetime as duration policy. It does not establish the durable issue or
-expiration wall-clock instants.
+Application owns the duration.
 
-For each allocation attempt, Application supplies the authenticated account identity, a fresh
-`SessionUid` / `AuthenticationKey` pair, and the ticket lifetime to persistence. MySQL establishes
-the durable issue and expiration timestamps. A successful grant returns the final `GameLoginTicket`
-containing the exact timestamps persisted by the database.
+MySQL owns the durable issue and expiration timestamps.
 
-Session-UID collisions are retried with a completely fresh credential pair. Allocation is bounded;
-persistent collision exhaustion fails rather than retrying indefinitely.
+`SessionUid` collisions are retried with a fresh session UID and authentication key. Allocation is
+bounded.
 
-The AccountServer must not send a successful game-login handoff until durable ticket persistence has
-completed successfully.
+Persistent collision exhaustion fails.
 
-## Atomic grant persistence
+## Atomic Ticket Grant
 
-`GameLoginTicketGrantStore` implements the durable grant boundary with MySqlConnector rather than
-the normal retrying EF Core execution path.
+`GameLoginTicketGrantStore` uses an explicit MySQL `READ COMMITTED` transaction.
 
-Each grant uses an explicit `READ COMMITTED` transaction.
-
-The persistence lock order is:
+Lock order:
 
 ```text
 accounts
@@ -320,188 +257,180 @@ account_password_credentials
 game_login_tickets
 ```
 
-The grant operation first locks and validates the account row using `SELECT ... FOR UPDATE`.
-
-It requires:
+Grant requires:
 
 - matching account ID;
 - exact canonical username;
-- active access status;
-- no deletion marker;
-- exact expected account state revision.
+- active account;
+- account not deleted;
+- exact account state revision;
+- exact password credential revision.
 
-It then locks the password credential row and requires the exact credential revision produced by the
-successful authentication result.
+Only then may the ticket be inserted.
 
-Only after both authentication-state checks succeed may the ticket row be inserted.
+This closes the authentication-to-ticket race:
 
-MySQL is the wall-clock authority for durable ticket issuance. The insert establishes:
+```text
+security mutation commits first
+    -> authentication snapshot becomes stale
+    -> grant denied
+
+grant commits first
+    -> later invalidating mutation revokes the ticket
+```
+
+## Ticket Time Authority
+
+MySQL establishes durable ticket time:
 
 ```text
 issued_at_utc  = UTC_TIMESTAMP(6)
-expires_at_utc = TIMESTAMPADD(MICROSECOND, ticket_lifetime_microseconds, UTC_TIMESTAMP(6))
+expires_at_utc = issued_at_utc + 5 minutes
 ```
 
-Issue and expiration therefore derive from the database clock rather than the AccountServer process
-clock.
+The AccountServer process clock is not authoritative for ticket issue or expiration.
 
-After insertion, persistence reads the stored timestamps inside the same transaction and constructs
-the final `GameLoginTicket` from those exact durable values. The returned expiration must remain
-exactly the Application-supplied ticket lifetime after the persisted issue instant.
+The persisted timestamps are returned as part of the final granted ticket.
 
-This closes the authentication-to-ticket TOCTOU window: a state-changing transaction that commits
-before the grant obtains the relevant locks makes the authentication snapshot stale and prevents the
-ticket from being issued.
+## Authentication-Key Protection
 
-Database integration tests exercise this guarantee using real InnoDB row-lock contention for both
-account-state and password-credential mutations.
+The native client requires the raw 32-bit `AuthenticationKey`.
 
-## Ticket credential protection
+The database does not persist that bearer secret directly.
 
-The native protocol requires the client to receive the 32-bit `AuthenticationKey`, but the rewrite
-does not persist that bearer secret directly.
-
-Persistence stores:
+Stored ticket credential data includes:
 
 - `SessionUid`;
 - account identity;
 - canonical username;
-- issue and expiration timestamps;
-- a fixed-size HMAC-SHA256 authentication-key verifier;
-- the verifier key ID.
+- issue/expiration timestamps;
+- HMAC-SHA256 authentication-key verifier;
+- verifier key ID.
 
-The verifier is domain-separated and binds:
+The verifier binds:
 
 ```text
 SessionUid || AuthenticationKey
 ```
 
-under server-owned verification-key material.
+Authentication-key comparison uses fixed-time comparison.
 
-Authentication-key comparison is performed in process using fixed-time comparison.
+Verification keys are externally supplied server secrets.
 
-Raw `AuthenticationKey` values remain in application/wire memory and are not written to the account
-database.
+Historical verification keys may remain available during controlled rotation.
 
-Verification keys are externally supplied server secrets. The keyring has one active key for new
-tickets and may retain historical keys so already-issued tickets remain verifiable during controlled
-rotation.
+Unknown verifier key IDs fail closed.
 
-Unknown persisted verifier-key IDs fail closed.
+## AccountServer Handoff
 
-Production AccountServer and GameServer database identities must not receive ticket `UPDATE`
-permission. Ticket records are immutable grants: issuance inserts them, successful redemption
-consumes them, and revocation or maintenance deletes them.
+The standard 5517 AccountServer authentication transaction is implemented:
 
-## Grant cancellation and failure semantics
+```text
+1059 seed
+    ↓
+1060 credentials
+    ↓
+AccountAuthenticator
+    ↓
+GameLoginTicketIssuer
+    ↓
+durable MySQL grant
+    ↓
+1055 success
+```
 
-Caller cancellation is honored while a grant can still be safely abandoned.
+A successful `1055` is not emitted until durable ticket grant completes.
 
-After the ticket insert but before the commit phase, observed cancellation causes rollback.
+Successful `1055` uses:
 
-Once the operation enters the commit phase, commit uses a non-cancelable token. A caller
-cancellation that arrives while commit is in progress must not turn a known durable ticket into an
-apparent cancellation result.
+```text
+SessionUid             = ticket.SessionUid
+AuthenticationKey      = ticket.AuthenticationKey
+GameServerPort         = configured port
+AdditionalSessionField = ticket.AuthenticationKey
+GameServerIp           = configured IPv4 address
+```
 
-A successful grant is returned only after commit succeeds.
+Ticket grant returning a stale-authentication result maps to generic native credential failure `1`.
 
-Database failures and ambiguous commit outcomes propagate as failures. The grant path does not
-automatically retry an ambiguous transaction, because repeating an authorization-grant transaction
-after an unknown commit result could create misleading session state.
+Post-success `1100` and AccountServer `1052` reports are telemetry and do not revoke the issued
+ticket.
 
-Session-UID primary-key collision is the one expected persistence conflict translated into an
-allocation-retry result.
+See [Protocol Reference](../protocol/README.md).
 
-## Account security mutations
+## Account Security Mutations
 
-`AccountMutationService` owns application-level validation and password hashing for trusted account
-security mutations. `IAccountMutationStore` owns their durable transactional persistence boundary.
+`AccountMutationService` supports trusted operational mutation orchestration.
 
-The currently implemented mutation surface is deliberately operational rather than user-facing. A
-mutation context may represent:
-
-- `System`;
-- `Migration`.
-
-Authenticated-account self-service mutation is not exposed by this boundary. In particular, a future
-self-service password-change flow must re-verify the current password or otherwise perform
-equivalent reauthentication before invoking the durable reset operation.
-
-Staff-account mutation authorization is also separate future work. The legacy authority-role values
-are compatibility data, not an implicit numeric privilege hierarchy, so authorization must not infer
-that a numerically larger role may mutate a smaller one.
-
-The durable mutation operations are:
+Implemented durable operations:
 
 - access-status change;
 - authority-role change;
-- soft deletion;
-- restoration;
+- soft delete;
+- restore;
 - explicit password reset.
 
-Mutations return explicit outcomes:
+Current mutation actors:
 
-- `Applied`;
-- `AccountNotFound`;
-- `StateConflict`;
-- `InvalidState`;
-- `NoChange`.
+```text
+System
+Migration
+```
 
-Expected revisions are concurrency contracts rather than best-effort hints. A stale account-state or
-password-credential revision prevents the mutation from silently applying to state different from
-the caller's authenticated or administrative snapshot.
+Authenticated self-service mutation and staff authorization are not yet implemented.
 
-Deleted accounts are immutable through normal status, role, and password-reset operations.
-Restoration is the explicit operation that clears deletion state.
+Mutation outcomes:
 
-A same-status access mutation is a `NoChange`. It does not increment revision state, append an audit
-record, or revoke tickets.
+```text
+Applied
+AccountNotFound
+StateConflict
+InvalidState
+NoChange
+```
 
-## Mutation revision semantics
+Expected revisions are concurrency contracts.
 
-Account `StateRevision` advances when account authorization or lifecycle state changes:
+Deleted accounts cannot be changed through normal status, role, or password-reset operations.
+
+Restore is the explicit lifecycle operation.
+
+## Revision Semantics
+
+Account `StateRevision` advances for:
 
 - access-status change;
 - authority-role change;
 - deletion;
 - restoration.
 
-An explicit password reset does not advance `StateRevision`. It advances the password credential
-`Revision` because credential state changed independently of account authorization state.
+Password credential `Revision` advances for:
 
-Transparent successful-login password rehash also advances the password credential `Revision`,
-because the persisted credential representation changed, but it does not represent a changed secret.
+- explicit password reset;
+- transparent password rehash.
 
-The distinction is intentional:
+Important distinction:
 
 ```text
 explicit password reset
-    -> credential revision advances
+    -> credential Revision++
     -> outstanding tickets revoked
 
 transparent password rehash
-    -> credential revision advances
+    -> credential Revision++
     -> outstanding tickets preserved
 ```
 
-This prevents credential-representation maintenance from being confused with an
-authentication-invalidating security event.
+Explicit password reset does not increment `StateRevision`.
 
-## Transactional ticket revocation
+## Ticket Revocation
 
-Outstanding game-login tickets are bearer authorization credentials. An authentication-invalidating
-account mutation must therefore not commit while allowing an already-issued ticket for the previous
-security state to remain usable.
+Invariant:
 
-The implemented invariant is:
+> An issued bearer credential must not survive a newly committed authentication-invalidating
+> mutation.
 
-> An already-issued bearer credential must not survive a newly committed authentication-invalidating
-> account mutation.
-
-Revocation follows the semantics of the committed mutation event, not merely the destination account
-status.
-
-The current matrix is:
+Current revocation matrix:
 
 | Mutation                       | Revoke outstanding tickets |
 | ------------------------------ | -------------------------- |
@@ -517,524 +446,306 @@ The current matrix is:
 | Authority-role change          | No                         |
 | Transparent password rehash    | No                         |
 
-`Banned → Suspended` is an unban transition. It therefore does not revoke outstanding tickets even
-though the destination status is `Suspended`. This is why revocation is derived from mutation event
-semantics rather than from a simple destination-status check.
+`Banned → Suspended` is an unban event and does not revoke tickets.
 
-The persisted access-transition events are:
+Revocation follows mutation semantics, not destination status alone.
+
+## Mutation Audit Events
+
+Implemented event kinds:
 
 ```text
-Active -> Suspended       AccountSuspended
-Suspended -> Active       AccountReactivated
-
-Active -> Banned          AccountBanned
-Suspended -> Banned       AccountBanned
-
-Banned -> Active          AccountUnbanned
-Banned -> Suspended       AccountUnbanned
+AccountCreated
+AccountSuspended
+AccountReactivated
+AccountBanned
+AccountUnbanned
+AccountDeleted
+AccountRestored
+PasswordChanged
+PasswordMigrated
+AuthorityRoleChanged
 ```
 
-## Atomic mutation persistence
+Audit data includes:
 
-`AccountMutationStore` implements durable mutation and ticket revocation with MySqlConnector and
-explicit `READ COMMITTED` transactions.
+- target account;
+- event kind;
+- database-authoritative timestamp;
+- actor;
+- optional reason code;
+- correlation ID;
+- previous/new access status where applicable;
+- previous/new authority role where applicable.
 
-The lock order is:
+Audit insertion occurs in the same transaction as the mutation and required ticket revocation.
+
+## Atomic Mutation Persistence
+
+`AccountMutationStore` uses explicit MySQL `READ COMMITTED` transactions.
+
+Lock order:
 
 ```text
 accounts
     ↓
-account_password_credentials   only when the mutation requires credential state
+account_password_credentials   when required
     ↓
-game_login_tickets             only when the mutation revokes outstanding tickets
+game_login_tickets             when revocation is required
     ↓
 account_audit_events INSERT
 ```
 
-The target account row is always the serialization point.
+The account row is the serialization point.
 
-An explicit password reset additionally locks the password credential row before tickets. Mutations
-that invalidate outstanding bearer credentials lock the account's ticket rows before deleting them.
+This order matches ticket grant and avoids account/ticket lock inversion.
 
-This ordering matches the game-login grant boundary:
-
-```text
-accounts
-    ↓
-account_password_credentials
-    ↓
-game_login_tickets
-```
-
-A grant and an authentication-invalidating mutation therefore serialize through the account row
-rather than racing an unlocked ticket insertion against revocation.
-
-If grant owns the account row first, it may complete its credential validation and insert the
-ticket; the waiting mutation then obtains the account lock and revokes that newly issued ticket
-before the mutation can commit.
-
-If mutation owns the account row first, a concurrent grant waits. After the mutation commits, the
-grant observes changed account or credential revision/state and cannot authorize the stale
-authentication snapshot.
-
-Real MySQL/InnoDB integration tests deterministically exercise both orderings for account-state and
-password-reset races.
-
-## Mutation time and audit authority
-
-After all required mutation locks have been acquired, persistence reads:
+Mutation time is read from:
 
 ```text
 UTC_TIMESTAMP(6)
 ```
 
-from MySQL.
+after required locks are acquired.
 
-That database timestamp is shared by the durable state mutation and its audit record. Account
-state-change, deletion, password-change, and audit timestamps therefore do not depend on the host
-process wall clock after an arbitrary lock wait.
+The same database timestamp is used for state mutation and audit data.
 
-The audit record is inserted in the same transaction as the mutation and any required ticket
-deletion. Audit insertion failure therefore rolls back both the account mutation and ticket
-revocation.
+## Mutation / Redemption Concurrency
 
-Mutation audit records preserve:
+Ticket redemption does not lock the account row.
 
-- target account;
-- event kind;
-- database-authoritative occurrence time;
-- actor kind and actor account when applicable;
-- optional validated reason code;
-- correlation ID;
-- previous/new access status when applicable;
-- previous/new authority role when applicable.
-
-The current operational mutation context permits only `System` and `Migration` actors. Support for
-account actors requires a separate authorization boundary and, if cross-account mutation is
-introduced, deterministic multi-account lock ordering.
-
-## Mutation cancellation and failure semantics
-
-Caller cancellation is honored while a mutation can still be safely abandoned.
-
-Cancellation while waiting for the account, password-credential, or ticket lock aborts the operation
-and rolls back the transaction. Integration tests verify cancellation while waiting on both account
-and ticket locks without account changes, audit insertion, or ticket loss.
-
-Cancellation observed after the required locks but before commit likewise causes rollback.
-
-Once the mutation enters the commit phase, commit uses a non-cancelable token. This prevents caller
-cancellation from converting a known committed security mutation into an apparent canceled result.
-
-`Applied` is returned only after commit succeeds.
-
-Database failures and ambiguous commit outcomes propagate. The mutation store does not blindly retry
-an ambiguous transaction because the first commit attempt may already have changed account security
-state and revoked bearer credentials.
-
-## Mutation and redemption concurrency
-
-Ticket redemption deliberately locks only the ticket row and does not acquire the account row.
-Account security mutation owns account state and revocation; redemption owns consumption of an
-already-issued grant.
-
-The two operations therefore linearize through the ticket row when they overlap:
+Mutation and redemption linearize through the ticket row:
 
 ```text
 redemption wins
-    -> redemption locks and consumes ticket
+    -> ticket consumed
     -> mutation commits afterward
 
 mutation wins
-    -> mutation locks and deletes ticket
-    -> redemption cannot authorize afterward
+    -> ticket revoked
+    -> redemption cannot authorize
 ```
 
-There is no reverse ticket-to-account lock acquisition in redemption, so this interaction does not
-introduce an account/ticket lock-order inversion.
+Redemption never acquires ticket → account locks, avoiding reverse lock ordering.
 
-Real MySQL/InnoDB integration tests exercise both orderings.
+## Game-Login Ticket Redemption
 
-## Game-login ticket redemption
-
-`GameLoginTicketRedeemer` owns the application-level redemption use case.
-
-It validates the supplied native-width credentials before attempting persistence and delegates
-redemption abuse protection to `IGameLoginTicketRedemptionAttemptLimiter`.
-
-A redemption attempt consists of:
+`GameLoginTicketRedeemer` validates:
 
 - nonzero `SessionUid`;
 - nonzero `AuthenticationKey`;
-- remote network address for the attempt-protection boundary.
+- remote source address for attempt protection.
 
-Application does not supply a wall-clock redemption instant to persistence. MySQL is authoritative
-for durable ticket-expiration decisions.
-
-A successful redemption returns only:
+Successful redemption returns:
 
 - account ID;
 - canonical username;
 - `SessionUid`.
 
-The raw `AuthenticationKey` is authentication proof only and is not carried into the authorized
-game-login identity.
+The raw authentication key is not retained in the authorized identity.
 
-The redemption use case verifies that persistence cannot return an identity for a different
-`SessionUid`.
+GameServer integration for this boundary is not yet implemented.
 
-`GameLoginTicketRedemptionAttemptLimiter` implements the production redemption abuse-protection
-boundary behind `IGameLoginTicketRedemptionAttemptLimiter`.
+## Redemption Protection
 
-Admission is evaluated atomically across:
+Default production limits:
 
-- a global concurrent-redemption limit;
-- a per-source token bucket;
-- a per-source concurrency limit;
-- a per-`SessionUid` concurrency limit;
-- a per-`SessionUid` failed-attempt window and lockout;
-- a hard bound on tracked protection state.
+| Control                                |   Default |
+| -------------------------------------- | --------: |
+| Attempts per source                    | 30/minute |
+| Concurrent attempts per source         |         4 |
+| Concurrent attempts per `SessionUid`   |         1 |
+| Failed attempts before session lockout |         8 |
+| Failure window                         | 5 minutes |
+| Lockout duration                       | 5 minutes |
+| Global concurrent attempts             |       512 |
+| Tracked state limit                    |   100,000 |
 
-The default policy permits 30 attempts per source per minute, four concurrent attempts per source,
-one concurrent attempt per `SessionUid`, and eight failed attempts per `SessionUid` within five
-minutes before a five-minute lockout. Global concurrent redemption is limited to 512 attempts and
-tracked source/session protection state is limited to 100,000 entries.
+In-flight attempts count toward the session failure budget.
 
-Source identity normalizes IPv4-mapped IPv6 addresses to IPv4 and groups native IPv6 addresses by
-/64 so rotating interface identifiers cannot bypass source protection or multiply tracked state.
+Protection uses monotonic time.
 
-Protection windows use monotonic `TimeProvider` timestamps. That clock is intentionally limited to
-in-memory abuse-protection durations and is not authoritative for durable ticket issue, expiration,
-redemption, or cleanup decisions. An admitted attempt permanently consumes its source rate permit
-even when the lease is later abandoned. `Complete(false)` records a failed authorization against the
-`SessionUid`; `Complete(true)` clears its failure state; disposal without completion releases
-concurrency reservations without recording a credential failure.
+Tracked state is bounded and fails closed under unrecoverable capacity pressure.
 
-In-flight attempts count toward the per-session failure budget so concurrent distributed guesses
-cannot all enter persistence before completed failures reach the configured threshold.
+## Atomic Redemption
 
-Tracked state is bounded. Expired inactive entries are reclaimed opportunistically and under
-capacity pressure. If live protection state cannot be safely discarded, admission fails closed
-rather than evicting security evidence.
+`GameLoginTicketRedemptionStore` uses an explicit `READ COMMITTED` transaction.
 
-The concrete limiter exists in Infrastructure but is not operationally active until the GameServer
-host composition wires the redemption path.
-
-## Atomic redemption persistence
-
-`GameLoginTicketRedemptionStore` implements durable single-use redemption with MySqlConnector.
-
-Each redemption uses an explicit `READ COMMITTED` transaction and operates only on the durable
-ticket row.
-
-The operation executes:
+Flow:
 
 ```text
-SELECT game_login_tickets
-WHERE session_uid = ?
-FOR UPDATE
+SELECT ticket FOR UPDATE
     ↓
 SELECT UTC_TIMESTAMP(6)
     ↓
-validate expiration
+check expiration
     ↓
 verify AuthenticationKey
     ↓
-DELETE exact ticket
-WHERE expires_at_utc > UTC_TIMESTAMP(6)
+DELETE exact unexpired ticket
     ↓
 COMMIT
     ↓
-return authorized identity
+authorized identity
 ```
 
-The ticket row is the durable authorization grant. Redemption therefore does not re-query the
-account or password credential tables.
+The ticket row is the durable authorization grant.
 
-Authorization-invalidating account mutations revoke outstanding tickets in the same transaction as
-the mutation. This keeps account mutation and ticket redemption ownership separate and avoids
-introducing a second account-authorization decision into the GameServer login path.
+Redemption does not re-query account or password tables.
 
-A missing ticket returns no identity.
-
-The initial locking `SELECT` deliberately contains no wall-clock predicate. MySQL current-time
-functions use the executing statement's current-time value, while `SELECT ... FOR UPDATE` may block
-waiting for an existing row lock. Evaluating expiration in that locking statement could therefore
-leave the operation using a timestamp established before the lock was actually acquired.
-
-After the row lock has been acquired, redemption executes a separate `SELECT UTC_TIMESTAMP(6)`. A
-ticket is expired when:
+Missing ticket:
 
 ```text
-database_utc_now >= expires_at_utc
+no authorization
 ```
 
-Expired tickets are rejected without being consumed. Physical removal is owned separately by the
-bounded expiration-cleanup boundary described below.
-
-An invalid `AuthenticationKey` is rejected without consuming the ticket, allowing the legitimate
-bearer to redeem an otherwise valid grant.
-
-Authentication-key verification uses the verifier key ID persisted with the ticket. Historical
-configured verification keys can therefore validate tickets issued before an active-key rotation.
-
-An unknown persisted verification-key ID fails closed as an operational error and does not consume
-the ticket.
-
-Persisted account identity is validated before a successful authorization can be returned. Invalid
-durable identity state therefore fails closed rather than becoming a game-login identity.
-
-After successful verifier validation, redemption deletes the exact locked ticket row only while
-`expires_at_utc > UTC_TIMESTAMP(6)`. This second fresh database-time check closes the race in which
-a ticket expires after the post-lock expiration check but before consumption.
-
-One affected row means the ticket was consumed. Zero affected rows after locking an existing ticket
-means expiration crossed before consumption; redemption rolls back and returns no identity while
-leaving physical removal to cleanup.
-
-The authorized identity is returned only after the deletion transaction commits successfully.
-
-## Redemption concurrency
-
-`SELECT ... FOR UPDATE` serializes concurrent redemption attempts for the same `SessionUid`.
-
-For concurrent valid attempts:
+Expired ticket:
 
 ```text
-redeemer A
-redeemer B
-    ↓
-same ticket row
-    ↓
-one row-lock winner
-    ↓
-verify
-    ↓
-DELETE
-    ↓
-COMMIT
-    ↓
-second contender observes no ticket
+no authorization
+ticket left for cleanup
 ```
 
-Exactly one valid redemption can therefore produce an authorized identity.
-
-An invalid-key contender cannot consume the grant. If an invalid and valid attempt contend for the
-same ticket, InnoDB serializes access to the row; the invalid attempt rolls back without deletion
-and the valid attempt can subsequently verify and consume the grant.
-
-Integration tests exercise these behaviors against real MySQL/InnoDB, including deterministic
-row-lock contention rather than relying on scheduler timing.
-
-## Redemption cancellation and failure semantics
-
-Caller cancellation is honored while redemption can still be safely abandoned.
-
-Cancellation while waiting for the ticket row lock aborts the attempt without consuming the ticket.
-
-After successful verification, deletion still occurs inside the transaction. If cancellation is
-observed before entering the commit phase, the transaction is rolled back and the ticket remains
-available.
-
-Once redemption enters the commit phase, commit uses a non-cancelable token. This prevents caller
-cancellation from converting a known committed destructive redemption into an apparent canceled
-operation.
-
-A successful identity is returned only after commit succeeds.
-
-Database failures and ambiguous commit outcomes propagate. The redemption store does not
-automatically retry the destructive transaction because an unknown commit result may mean the ticket
-has already been consumed.
-
-A caller must therefore not blindly retry a redemption after an ambiguous persistence failure.
-
-## Expired-ticket cleanup
-
-`GameLoginTicketExpirationCleaner` owns bounded physical removal of expired game-login tickets.
-
-Cleanup does not participate in the logical authorization decision. Redemption remains authoritative
-for determining whether a presented ticket is expired. Physical deletion deliberately trails logical
-expiration by a cleanup grace interval so maintenance does not unnecessarily compete with the
-authorization boundary. The grace is not compensation for independent AccountServer or GameServer
-wall clocks; MySQL is authoritative for the durable ticket lifecycle.
-
-The default cleanup policy is:
-
-- five-minute expiration grace;
-- maximum 1,000 rows removed per invocation.
-
-A configured batch size must remain between 1 and 10,000 rows. Expiration grace must be greater than
-zero and no greater than one day.
-
-Each invocation uses the MySQL clock to compute:
+Invalid authentication key:
 
 ```text
-cleanup_cutoff_utc = UTC_TIMESTAMP(6) - expiration_grace
+no authorization
+ticket preserved
 ```
 
-The concrete deletion uses `TIMESTAMPADD` with `UTC_TIMESTAMP(6)` rather than accepting a
-process-generated wall-clock cutoff.
+Valid ticket:
 
-MySQL `DATETIME(6)` has microsecond precision. If the configured `TimeSpan` contains a
-sub-microsecond remainder, Infrastructure rounds the grace upward to the next whole microsecond.
-That can delay cleanup by less than one microsecond but cannot cause deletion earlier than policy
-permits.
+```text
+delete exact ticket
+commit
+return identity
+```
 
-The bounded server-side deletion is ordered by:
+Concurrent valid redemption attempts serialize on the ticket row. At most one can authorize.
+
+A fresh database-time condition is also applied during deletion to prevent authorization if
+expiration crosses between validation and consumption.
+
+## Expired-Ticket Cleanup
+
+`GameLoginTicketExpirationCleaner` performs bounded physical cleanup.
+
+Logical expiration remains owned by redemption.
+
+Default cleanup policy:
+
+| Property                    |   Default |
+| --------------------------- | --------: |
+| Expiration grace            | 5 minutes |
+| Maximum rows per invocation |     1,000 |
+| Maximum configurable batch  |    10,000 |
+| Maximum grace               |     1 day |
+
+Eligibility:
+
+```text
+expires_at_utc <= UTC_TIMESTAMP(6) - expiration_grace
+```
+
+Deletion order:
 
 ```text
 expires_at_utc
 session_uid
 ```
 
-Tickets are eligible for physical removal when:
+Cleanup performs one bounded database batch per invocation.
+
+Scheduling belongs to future host composition.
+
+## Cancellation and Durable Failure
+
+Grant, mutation, and redemption operations follow the same durable rule:
 
 ```text
-expires_at_utc <= cleanup_cutoff_utc
+before commit phase
+    -> cancellation may rollback
+
+commit phase entered
+    -> commit uses non-cancelable token
+
+success
+    -> returned only after commit succeeds
 ```
 
-Ordering by expiration followed by `SessionUid` gives deterministic oldest-first selection when the
-eligible backlog exceeds the batch limit, including when multiple tickets share the same expiration
-timestamp.
+Ambiguous durable commit failures propagate.
 
-The cleaner performs exactly one database batch per invocation. It does not internally loop until
-the backlog is empty. Scheduling, invocation frequency, and any decision to run another batch belong
-to future host composition so one maintenance call cannot become unbounded database work.
+Grant, security mutation, and destructive redemption are not blindly retried after an unknown commit
+result.
 
-Cleanup uses one autocommit `DELETE` statement rather than loading ticket entities or opening an
-explicit application transaction. This maintenance operation is idempotent: if the caller cannot
-determine whether a deletion completed, a later cleanup pass can safely continue from the remaining
-rows.
+Expiration cleanup is different: it is idempotent maintenance and can safely continue in a later
+invocation.
 
-Cancellation is propagated to the database operation. Real MySQL/InnoDB integration tests verify
-that cancellation while waiting on a ticket row lock does not delete that ticket.
+## Persistence Composition
 
-Because the cleanup cutoff belongs to the `DELETE` statement itself, a row-lock wait can make that
-cutoff conservative by the time the row becomes available. This can delay physical cleanup until a
-later invocation but cannot extend logical authorization: redemption independently performs fresh
-database-time expiration checks.
-
-Cleanup and redemption rely on normal InnoDB row locking when they contend for the same durable
-ticket. Because cleanup targets tickets that have already exceeded both logical expiration and the
-additional grace period, either ordering preserves authorization semantics: redemption cannot
-produce an identity for the expired ticket, and cleanup eventually removes it.
-
-The existing expiration index on `game_login_tickets.expires_at_utc` supports bounded cleanup, so no
-schema migration is required for this boundary.
-
-The cleanup primitive is implemented in Infrastructure but is not operationally scheduled until
-AccountServer/GameServer host composition is implemented.
-
-## Persistence composition
-
-EF Core account persistence and the explicit-transaction MySqlConnector stores share one canonical
-account connection-string policy:
-
-- `UseAffectedRows=false`;
-- `GuidFormat=Binary16`;
-- `DateTimeKind=Utc`.
-
-Raw explicit-transaction stores additionally use `AutoEnlist=false`.
-
-The raw `MySqlDataSource` is registered as a keyed singleton so Pomelo cannot accidentally discover
-and substitute it as EF Core's relational data source. `IAccountMutationStore` resolves from that
-shared raw source.
-
-`AccountMutationService` itself is not registered by account persistence. Password hashing and
-security-policy composition belong above the persistence boundary and will be wired by the
-appropriate host/security composition slice.
-
-## Schema and migration behavior
-
-The current account schema stores protected game-login ticket verifiers rather than raw
-authentication keys.
-
-Migration:
+Account persistence uses one canonical MySQL connection policy:
 
 ```text
-20260907004603_ProtectGameLoginTicketAuthenticationKey
+UseAffectedRows=false
+GuidFormat=Binary16
+DateTimeKind=Utc
 ```
 
-upgrades the original ticket schema by:
+Explicit MySqlConnector transaction stores additionally use:
 
-- deleting outstanding legacy tickets;
-- removing the raw `authentication_key` column;
-- adding the fixed-size verifier;
-- adding the verifier key ID;
-- adding nonzero ticket/key-ID checks;
-- updating account schema-compatibility metadata.
+```text
+AutoEnlist=false
+```
 
-MySQL DDL can implicitly commit. The migration therefore uses resumable conditional structural
-operations and validates the resulting physical schema before advancing compatibility metadata.
+EF Core and explicit transaction stores share the same account database while retaining separate
+transaction ownership.
 
-Tests exercise:
+## Current Boundary
 
-- populated v1 → v2 upgrade;
-- interrupted structural upgrade recovery;
-- populated v2 → canonical v1 downgrade;
-- interrupted structural downgrade recovery.
+Implemented:
 
-Outstanding login tickets are intentionally discarded when moving between incompatible credential
-storage representations.
+- account credential validation;
+- bounded authentication protection;
+- current PBKDF2 password storage;
+- verified Identity V3 migration;
+- authentication-state revisions;
+- durable five-minute GameServer tickets;
+- MySQL-authoritative ticket time;
+- protected ticket credential persistence;
+- AccountServer `1055` durable handoff;
+- transactional account security mutations;
+- transactional ticket revocation;
+- single-use ticket redemption;
+- bounded redemption protection;
+- bounded expired-ticket cleanup.
 
-No schema migration is required for account mutation ticket revocation. The existing account,
-password-credential, audit, and game-login-ticket schema already provides the required revision,
-actor, audit, and account-ticket indexing contracts.
+Not yet implemented:
 
-## Current game-login boundary
+- production AccountServer host composition;
+- authenticated self-service password change;
+- staff/admin mutation authorization;
+- production least-privilege database identities;
+- verification-key deployment/rotation orchestration;
+- GameServer handshake;
+- GameServer `1052` login proof;
+- GameServer host composition.
 
-Durable ticket issuance, transactional authentication-state mutation with outstanding-ticket
-revocation, atomic single-use redemption persistence, production redemption attempt limiting, and
-bounded expired-ticket cleanup are implemented.
+## Compatibility Boundary
 
-The mutation persistence boundary currently supports trusted `System` and `Migration` actors.
-Authenticated self-service password changes and staff-account mutation authorization are not
-implemented and must not be inferred from the persistence primitive.
-
-The following boundaries are not yet implemented and must not be assumed to exist:
-
-- authenticated self-service password-change reauthentication and orchestration;
-- staff/admin account-mutation authorization policy;
-- production AccountServer/GameServer least-privilege database identities;
-- verification-key deployment and operational rotation orchestration;
-- AccountServer/GameServer host composition;
-- native 1055 AccountServer handoff packet integration;
-- native 1052 GameServer login proof integration.
-
-Hosts must remain unexposed until the required security and operational boundaries for their
-respective login paths are complete.
-
-## Native compatibility boundary
-
-The native 5517 game-login protocol ultimately authenticates the GameServer connection using:
+Native 5517 GameServer login ultimately uses:
 
 ```text
 SessionUid
 AuthenticationKey
 ```
 
-The rewrite preserves those externally observable credential widths and semantics while replacing
-legacy internal weaknesses.
+Those externally visible credentials are preserved.
 
-Internal rewrite behavior is intentionally free to differ where native architecture is not
-externally observable. In particular:
+Internal rewrite behavior does not need to preserve legacy implementation weaknesses such as:
 
-- a redundant internal ticket identifier is not required when it duplicates `SessionUid`;
-- raw bearer-key persistence is not required for protocol compatibility;
-- modern transaction ownership, least privilege, key management, bounded work, and failure semantics
-  replace legacy implementation choices.
+- raw bearer-key persistence;
+- legacy transaction ownership;
+- legacy socket/threading structure;
+- redundant internal identifiers.
 
-Compatibility work must continue to distinguish:
-
-```text
-externally observable native behavior
-```
-
-from:
-
-```text
-legacy internal implementation detail
-```
-
-The native 1055 and 1052 packet boundaries remain separate protocol work and are not claimed
-complete by the current persistence implementation.
+Native client-visible behavior remains the compatibility authority.
