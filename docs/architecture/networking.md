@@ -114,6 +114,19 @@ Input uses the AccountServer 524-byte complete-frame limit.
 
 Disposal terminates the owned connection resources and observes the transport pumps.
 
+## AccountServer Login Workers
+
+`LoginConnectionWorkerPool` consumes `TransportConnectionAdmissionQueue` with fixed concurrency.
+
+Each worker owns one admitted connection, transfers ownership to `LoginConnectionSession`, applies
+the whole-connection timeout, and disposes the session before consuming another connection.
+
+Client failures and connection timeouts are reported and isolated to that connection. Caller
+cancellation stops the pool. Reporter failures are pool-fatal.
+
+Connection admission remains owned by `OpenConquer.Transport`; AccountServer does not define a
+duplicate queue.
+
 ## Login Framing
 
 `LoginFrameReader`:
@@ -240,23 +253,22 @@ These reports are telemetry, not authorization.
 Failure, timeout, or absence of post-authentication telemetry does not revoke the already-issued
 GameServer ticket.
 
-## Handshake Timeouts
+## Login Timeouts
 
-Read deadlines are owned by the AccountServer handshake layer.
+Two independent timeout scopes apply:
 
-Independent timeout budgets currently apply to:
+| Scope            | Boundary                                                          |
+| ---------------- | ----------------------------------------------------------------- |
+| Whole connection | Session open through complete `LoginHandshakeProcessor` execution |
+| Handshake phase  | Individual `1060`, `1100`, and `1052` reads                       |
 
-```text
-1060 credential request
-1100 MAC report
-1052 resource report
-```
+Phase deadlines are fresh per expected frame. Authentication and durable ticket persistence are not
+bounded by a phase deadline but remain inside the whole-connection deadline.
 
-Caller cancellation remains distinct from an internal phase timeout and propagates normally.
+Caller cancellation remains distinct from timeout expiration.
 
-Database authentication and durable ticket commit are not wrapped in the read-phase timeout.
-
-This avoids treating an ambiguous durable operation as a harmless handshake timeout.
+Both timeout configurations reject values beyond the finite delay supported by
+`CancellationTokenSource.CancelAfter`.
 
 ## Authentication Protection
 
@@ -357,12 +369,15 @@ Implemented network-facing AccountServer components:
 - authentication orchestration;
 - durable `1055` handoff;
 - post-authentication telemetry handling;
-- per-read handshake deadlines.
+- per-read handshake deadlines;
+- fixed login connection workers;
+- whole-connection timeout and failure isolation.
 
 Still not implemented:
 
 - runnable AccountServer composition root;
-- AccountServer listener/worker lifecycle composition;
+- AccountServer listener/worker host composition;
+- production worker observability wiring;
 - GameServer connection/session boundary;
 - GameServer DH/CAST5 handshake;
 - GameServer `1052` login proof;
