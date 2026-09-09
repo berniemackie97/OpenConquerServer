@@ -10,6 +10,12 @@ internal static class AccountDbContextOptionsConfiguration
     public static void Configure(DbContextOptionsBuilder options, string connectionString)
     {
         ArgumentNullException.ThrowIfNull(options);
+
+        options.UseMySql(CreateConnectionString(connectionString), s_serverVersion, mysql => mysql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null));
+    }
+
+    public static string CreateConnectionString(string connectionString)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         MySqlConnectionStringBuilder connection = new(connectionString)
@@ -19,6 +25,6 @@ internal static class AccountDbContextOptionsConfiguration
             DateTimeKind = MySqlDateTimeKind.Utc,
         };
 
-        options.UseMySql(connection.ConnectionString, s_serverVersion, mysql => mysql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null));
+        return connection.ConnectionString;
     }
 }

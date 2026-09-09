@@ -170,6 +170,10 @@ A successful password migration increments the password credential revision. The
 authentication result carries the effective revision representing the state that was actually
 authenticated and persisted.
 
+Transparent password migration changes only the stored representation of the already-authenticated
+secret. It does not represent a user-visible password change and therefore does not revoke
+outstanding game-login tickets.
+
 ## Password formats
 
 New hashes use:
@@ -262,7 +266,7 @@ The persistence predicate checks:
 A password rehash replaces the stored hash and increments the password credential revision because
 the persisted credential representation changed. It preserves `password_changed_at_utc`: transparent
 hash migration does not change the user's password secret and therefore must not rewrite password-
-change history.
+change history or revoke already-issued game-login tickets.
 
 This compare-and-swap boundary prevents stale authentication results from silently recording or
 migrating credentials after relevant account state changes.
@@ -408,6 +412,249 @@ after an unknown commit result could create misleading session state.
 Session-UID primary-key collision is the one expected persistence conflict translated into an
 allocation-retry result.
 
+## Account security mutations
+
+`AccountMutationService` owns application-level validation and password hashing for trusted account
+security mutations. `IAccountMutationStore` owns their durable transactional persistence boundary.
+
+The currently implemented mutation surface is deliberately operational rather than user-facing. A
+mutation context may represent:
+
+- `System`;
+- `Migration`.
+
+Authenticated-account self-service mutation is not exposed by this boundary. In particular, a future
+self-service password-change flow must re-verify the current password or otherwise perform
+equivalent reauthentication before invoking the durable reset operation.
+
+Staff-account mutation authorization is also separate future work. The legacy authority-role values
+are compatibility data, not an implicit numeric privilege hierarchy, so authorization must not infer
+that a numerically larger role may mutate a smaller one.
+
+The durable mutation operations are:
+
+- access-status change;
+- authority-role change;
+- soft deletion;
+- restoration;
+- explicit password reset.
+
+Mutations return explicit outcomes:
+
+- `Applied`;
+- `AccountNotFound`;
+- `StateConflict`;
+- `InvalidState`;
+- `NoChange`.
+
+Expected revisions are concurrency contracts rather than best-effort hints. A stale account-state or
+password-credential revision prevents the mutation from silently applying to state different from
+the caller's authenticated or administrative snapshot.
+
+Deleted accounts are immutable through normal status, role, and password-reset operations.
+Restoration is the explicit operation that clears deletion state.
+
+A same-status access mutation is a `NoChange`. It does not increment revision state, append an audit
+record, or revoke tickets.
+
+## Mutation revision semantics
+
+Account `StateRevision` advances when account authorization or lifecycle state changes:
+
+- access-status change;
+- authority-role change;
+- deletion;
+- restoration.
+
+An explicit password reset does not advance `StateRevision`. It advances the password credential
+`Revision` because credential state changed independently of account authorization state.
+
+Transparent successful-login password rehash also advances the password credential `Revision`,
+because the persisted credential representation changed, but it does not represent a changed secret.
+
+The distinction is intentional:
+
+```text
+explicit password reset
+    -> credential revision advances
+    -> outstanding tickets revoked
+
+transparent password rehash
+    -> credential revision advances
+    -> outstanding tickets preserved
+```
+
+This prevents credential-representation maintenance from being confused with an
+authentication-invalidating security event.
+
+## Transactional ticket revocation
+
+Outstanding game-login tickets are bearer authorization credentials. An authentication-invalidating
+account mutation must therefore not commit while allowing an already-issued ticket for the previous
+security state to remain usable.
+
+The implemented invariant is:
+
+> An already-issued bearer credential must not survive a newly committed authentication-invalidating
+> account mutation.
+
+Revocation follows the semantics of the committed mutation event, not merely the destination account
+status.
+
+The current matrix is:
+
+| Mutation                       | Revoke outstanding tickets |
+| ------------------------------ | -------------------------- |
+| Explicit password reset/change | Yes                        |
+| Active → Suspended             | Yes                        |
+| Active → Banned                | Yes                        |
+| Suspended → Banned             | Yes                        |
+| Soft delete                    | Yes                        |
+| Suspended → Active             | No                         |
+| Banned → Active                | No                         |
+| Banned → Suspended             | No                         |
+| Restore                        | No                         |
+| Authority-role change          | No                         |
+| Transparent password rehash    | No                         |
+
+`Banned → Suspended` is an unban transition. It therefore does not revoke outstanding tickets even
+though the destination status is `Suspended`. This is why revocation is derived from mutation event
+semantics rather than from a simple destination-status check.
+
+The persisted access-transition events are:
+
+```text
+Active -> Suspended       AccountSuspended
+Suspended -> Active       AccountReactivated
+
+Active -> Banned          AccountBanned
+Suspended -> Banned       AccountBanned
+
+Banned -> Active          AccountUnbanned
+Banned -> Suspended       AccountUnbanned
+```
+
+## Atomic mutation persistence
+
+`AccountMutationStore` implements durable mutation and ticket revocation with MySqlConnector and
+explicit `READ COMMITTED` transactions.
+
+The lock order is:
+
+```text
+accounts
+    ↓
+account_password_credentials   only when the mutation requires credential state
+    ↓
+game_login_tickets             only when the mutation revokes outstanding tickets
+    ↓
+account_audit_events INSERT
+```
+
+The target account row is always the serialization point.
+
+An explicit password reset additionally locks the password credential row before tickets. Mutations
+that invalidate outstanding bearer credentials lock the account's ticket rows before deleting them.
+
+This ordering matches the game-login grant boundary:
+
+```text
+accounts
+    ↓
+account_password_credentials
+    ↓
+game_login_tickets
+```
+
+A grant and an authentication-invalidating mutation therefore serialize through the account row
+rather than racing an unlocked ticket insertion against revocation.
+
+If grant owns the account row first, it may complete its credential validation and insert the
+ticket; the waiting mutation then obtains the account lock and revokes that newly issued ticket
+before the mutation can commit.
+
+If mutation owns the account row first, a concurrent grant waits. After the mutation commits, the
+grant observes changed account or credential revision/state and cannot authorize the stale
+authentication snapshot.
+
+Real MySQL/InnoDB integration tests deterministically exercise both orderings for account-state and
+password-reset races.
+
+## Mutation time and audit authority
+
+After all required mutation locks have been acquired, persistence reads:
+
+```text
+UTC_TIMESTAMP(6)
+```
+
+from MySQL.
+
+That database timestamp is shared by the durable state mutation and its audit record. Account
+state-change, deletion, password-change, and audit timestamps therefore do not depend on the host
+process wall clock after an arbitrary lock wait.
+
+The audit record is inserted in the same transaction as the mutation and any required ticket
+deletion. Audit insertion failure therefore rolls back both the account mutation and ticket
+revocation.
+
+Mutation audit records preserve:
+
+- target account;
+- event kind;
+- database-authoritative occurrence time;
+- actor kind and actor account when applicable;
+- optional validated reason code;
+- correlation ID;
+- previous/new access status when applicable;
+- previous/new authority role when applicable.
+
+The current operational mutation context permits only `System` and `Migration` actors. Support for
+account actors requires a separate authorization boundary and, if cross-account mutation is
+introduced, deterministic multi-account lock ordering.
+
+## Mutation cancellation and failure semantics
+
+Caller cancellation is honored while a mutation can still be safely abandoned.
+
+Cancellation while waiting for the account, password-credential, or ticket lock aborts the operation
+and rolls back the transaction. Integration tests verify cancellation while waiting on both account
+and ticket locks without account changes, audit insertion, or ticket loss.
+
+Cancellation observed after the required locks but before commit likewise causes rollback.
+
+Once the mutation enters the commit phase, commit uses a non-cancelable token. This prevents caller
+cancellation from converting a known committed security mutation into an apparent canceled result.
+
+`Applied` is returned only after commit succeeds.
+
+Database failures and ambiguous commit outcomes propagate. The mutation store does not blindly retry
+an ambiguous transaction because the first commit attempt may already have changed account security
+state and revoked bearer credentials.
+
+## Mutation and redemption concurrency
+
+Ticket redemption deliberately locks only the ticket row and does not acquire the account row.
+Account security mutation owns account state and revocation; redemption owns consumption of an
+already-issued grant.
+
+The two operations therefore linearize through the ticket row when they overlap:
+
+```text
+redemption wins
+    -> redemption locks and consumes ticket
+    -> mutation commits afterward
+
+mutation wins
+    -> mutation locks and deletes ticket
+    -> redemption cannot authorize afterward
+```
+
+There is no reverse ticket-to-account lock acquisition in redemption, so this interaction does not
+introduce an account/ticket lock-order inversion.
+
+Real MySQL/InnoDB integration tests exercise both orderings.
+
 ## Game-login ticket redemption
 
 `GameLoginTicketRedeemer` owns the application-level redemption use case.
@@ -504,9 +751,9 @@ return authorized identity
 The ticket row is the durable authorization grant. Redemption therefore does not re-query the
 account or password credential tables.
 
-Authorization-invalidating account mutations must instead revoke outstanding tickets in the same
-transaction as the mutation. This keeps account mutation and ticket redemption ownership separate
-and avoids introducing a second account-authorization decision into the GameServer login path.
+Authorization-invalidating account mutations revoke outstanding tickets in the same transaction as
+the mutation. This keeps account mutation and ticket redemption ownership separate and avoids
+introducing a second account-authorization decision into the GameServer login path.
 
 A missing ticket returns no identity.
 
@@ -678,6 +925,25 @@ schema migration is required for this boundary.
 The cleanup primitive is implemented in Infrastructure but is not operationally scheduled until
 AccountServer/GameServer host composition is implemented.
 
+## Persistence composition
+
+EF Core account persistence and the explicit-transaction MySqlConnector stores share one canonical
+account connection-string policy:
+
+- `UseAffectedRows=false`;
+- `GuidFormat=Binary16`;
+- `DateTimeKind=Utc`.
+
+Raw explicit-transaction stores additionally use `AutoEnlist=false`.
+
+The raw `MySqlDataSource` is registered as a keyed singleton so Pomelo cannot accidentally discover
+and substitute it as EF Core's relational data source. `IAccountMutationStore` resolves from that
+shared raw source.
+
+`AccountMutationService` itself is not registered by account persistence. Password hashing and
+security-policy composition belong above the persistence boundary and will be wired by the
+appropriate host/security composition slice.
+
 ## Schema and migration behavior
 
 The current account schema stores protected game-login ticket verifiers rather than raw
@@ -711,14 +977,24 @@ Tests exercise:
 Outstanding login tickets are intentionally discarded when moving between incompatible credential
 storage representations.
 
+No schema migration is required for account mutation ticket revocation. The existing account,
+password-credential, audit, and game-login-ticket schema already provides the required revision,
+actor, audit, and account-ticket indexing contracts.
+
 ## Current game-login boundary
 
-Durable ticket issuance, atomic single-use redemption persistence, production redemption attempt
-limiting, and bounded expired-ticket cleanup are implemented.
+Durable ticket issuance, transactional authentication-state mutation with outstanding-ticket
+revocation, atomic single-use redemption persistence, production redemption attempt limiting, and
+bounded expired-ticket cleanup are implemented.
+
+The mutation persistence boundary currently supports trusted `System` and `Migration` actors.
+Authenticated self-service password changes and staff-account mutation authorization are not
+implemented and must not be inferred from the persistence primitive.
 
 The following boundaries are not yet implemented and must not be assumed to exist:
 
-- transactional ticket revocation from password/account-state mutation paths;
+- authenticated self-service password-change reauthentication and orchestration;
+- staff/admin account-mutation authorization policy;
 - production AccountServer/GameServer least-privilege database identities;
 - verification-key deployment and operational rotation orchestration;
 - AccountServer/GameServer host composition;
@@ -727,9 +1003,6 @@ The following boundaries are not yet implemented and must not be assumed to exis
 
 Hosts must remain unexposed until the required security and operational boundaries for their
 respective login paths are complete.
-
-Future password reset, suspension, ban, deletion, and other authentication-invalidating mutations
-must coordinate with ticket revocation using the persistence lock ordering required by ticket grant.
 
 ## Native compatibility boundary
 

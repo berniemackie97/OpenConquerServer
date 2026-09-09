@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MySqlConnector;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Domain.Accounts;
 using OpenConquer.Infrastructure.Persistence;
@@ -16,6 +17,7 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
     private const string ReplacementPasswordHash = "$openconquer$replacement$HashValue";
 
     private static readonly DateTime s_createdAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static int s_nextSessionUid = 3_000_000;
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
@@ -325,6 +327,31 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
         Assert.Equal(originalPasswordChangedAtUtc, saved.PasswordCredential.PasswordChangedAtUtc);
 
         Assert.Equal(account.PasswordCredential.Revision + 1, saved.PasswordCredential.Revision);
+    }
+
+    [Fact]
+    public async Task TryRecordSuccessfulLoginAsync_TransparentPasswordRehashDoesNotRevokeGameLoginTicket()
+    {
+        AccountRecord account = await InsertAccountAsync();
+        uint sessionUid = NextSessionUid();
+
+        await InsertTicketAsync(account, sessionUid);
+
+        AccountAuthenticationSnapshot snapshot = Assert.IsType<AccountAuthenticationSnapshot>(
+            await Repository.FindByNameAsync(account.Username, CancellationToken));
+
+        Assert.True(await Repository.TryRecordSuccessfulLoginAsync(
+            snapshot,
+            ReplacementPasswordHash,
+            CreateSuccessfulLoginInstant(),
+            CancellationToken));
+
+        AccountRecord saved = await ReadAccountAsync(account.AccountId);
+
+        Assert.Equal(account.StateRevision, saved.StateRevision);
+        Assert.Equal(ReplacementPasswordHash, saved.PasswordCredential.PasswordHash);
+        Assert.Equal(account.PasswordCredential.Revision + 1, saved.PasswordCredential.Revision);
+        Assert.True(await TicketExistsAsync(sessionUid));
     }
 
     [Fact]
@@ -666,6 +693,59 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
         account.DeletedByAccountId = null;
 
         await db.SaveChangesAsync(CancellationToken);
+    }
+
+    private async Task InsertTicketAsync(AccountRecord account, uint sessionUid)
+    {
+        await using MySqlConnection connection = new(database.RuntimeConnectionString);
+        await connection.OpenAsync(CancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO `game_login_tickets`
+                (`session_uid`,
+                 `account_id`,
+                 `username`,
+                 `issued_at_utc`,
+                 `expires_at_utc`,
+                 `authentication_key_verifier`,
+                 `authentication_key_verifier_key_id`)
+            VALUES
+                (@session_uid,
+                 @account_id,
+                 @username,
+                 UTC_TIMESTAMP(6),
+                 TIMESTAMPADD(MINUTE, 5, UTC_TIMESTAMP(6)),
+                 @authentication_key_verifier,
+                 @authentication_key_verifier_key_id);
+            """;
+
+        command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
+        command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = account.AccountId;
+        command.Parameters.Add("@username", MySqlDbType.VarChar, AccountCredentialPolicy.MaximumUsernameLength).Value = account.Username;
+        command.Parameters.Add("@authentication_key_verifier", MySqlDbType.Binary, 32).Value = new byte[32];
+        command.Parameters.Add("@authentication_key_verifier_key_id", MySqlDbType.UInt16).Value = (ushort)1;
+
+        Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
+    }
+
+    private async Task<bool> TicketExistsAsync(uint sessionUid)
+    {
+        await using MySqlConnection connection = new(database.RuntimeConnectionString);
+        await connection.OpenAsync(CancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+
+        command.CommandText = "SELECT COUNT(*) FROM `game_login_tickets` WHERE `session_uid` = @session_uid;";
+        command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
+
+        long count = Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), System.Globalization.CultureInfo.InvariantCulture);
+        return count == 1;
+    }
+
+    private static uint NextSessionUid()
+    {
+        uint value = unchecked((uint)Interlocked.Increment(ref s_nextSessionUid));
+        return value == 0 ? unchecked((uint)Interlocked.Increment(ref s_nextSessionUid)) : value;
     }
 
     private static DateTimeOffset CreateSuccessfulLoginInstant()

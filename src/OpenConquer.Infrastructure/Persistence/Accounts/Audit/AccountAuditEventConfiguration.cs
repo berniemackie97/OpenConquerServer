@@ -1,12 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.Audit;
 
 internal sealed class AccountAuditEventConfiguration : IEntityTypeConfiguration<AccountAuditEventRecord>
 {
-    internal const int MaximumReasonCodeLength = 64;
-
     public void Configure(EntityTypeBuilder<AccountAuditEventRecord> builder)
     {
         builder.ToTable("account_audit_events", table =>
@@ -80,7 +79,7 @@ internal sealed class AccountAuditEventConfiguration : IEntityTypeConfiguration<
         builder.Property(auditEvent => auditEvent.ActorKind).HasColumnName("actor_kind").HasColumnType("tinyint unsigned").HasConversion<byte>().IsRequired();
         builder.Property(auditEvent => auditEvent.ActorAccountId).HasColumnName("actor_account_id").HasColumnType("int unsigned");
         builder.Property(auditEvent => auditEvent.CorrelationId).HasColumnName("correlation_id").HasColumnType("binary(16)").IsRequired();
-        builder.Property(auditEvent => auditEvent.ReasonCode).HasColumnName("reason_code").HasMaxLength(MaximumReasonCodeLength).HasCharSet("ascii").UseCollation("ascii_bin");
+        builder.Property(auditEvent => auditEvent.ReasonCode).HasColumnName("reason_code").HasMaxLength(AccountAuditPolicy.MaximumReasonCodeLength).HasCharSet("ascii").UseCollation("ascii_bin");
         builder.Property(auditEvent => auditEvent.PreviousAccessStatus).HasColumnName("previous_access_status").HasColumnType("tinyint unsigned").HasConversion<byte>();
         builder.Property(auditEvent => auditEvent.NewAccessStatus).HasColumnName("new_access_status").HasColumnType("tinyint unsigned").HasConversion<byte>();
         builder.Property(auditEvent => auditEvent.PreviousAuthorityRole).HasColumnName("previous_authority_role").HasColumnType("tinyint unsigned").HasConversion<byte>();
