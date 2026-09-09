@@ -6,6 +6,11 @@ internal static class GameLoginTicketAuthenticationKeyRingFactory
 {
     private const int EncodedVerificationKeySize = 44;
 
+    internal static void ValidateConfiguration(ushort activeKeyId, IEnumerable<KeyValuePair<ushort, string>> encodedVerificationKeys)
+    {
+        using GameLoginTicketAuthenticationKeyRing validationRing = Create(activeKeyId, encodedVerificationKeys);
+    }
+
     public static GameLoginTicketAuthenticationKeyRing Create(ushort activeKeyId, IEnumerable<KeyValuePair<ushort, string>> encodedVerificationKeys)
     {
         if (activeKeyId == 0)
