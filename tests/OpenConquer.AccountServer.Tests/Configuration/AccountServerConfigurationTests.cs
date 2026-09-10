@@ -6,9 +6,6 @@ namespace OpenConquer.AccountServer.Tests.Configuration;
 
 public sealed class AccountServerConfigurationTests
 {
-    private const string VerificationKeyOne = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
-    private const string VerificationKeyTwo = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
-
     [Fact]
     public void Load_RejectsMissingConfiguration()
     {
@@ -18,7 +15,7 @@ public sealed class AccountServerConfigurationTests
     [Fact]
     public void Load_RejectsMissingAccountConnectionString()
     {
-        IConfiguration configuration = CreateConfiguration(values => values.Remove("ConnectionStrings:Accounts"));
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values.Remove("ConnectionStrings:Accounts"));
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
 
@@ -41,7 +38,7 @@ public sealed class AccountServerConfigurationTests
     [Fact]
     public void Load_RejectsUnknownAccountServerSetting()
     {
-        IConfiguration configuration = CreateConfiguration(values => values["AccountServer:Network:DeprecatedPort"] = "1234");
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:Network:DeprecatedPort"] = "1234");
 
         Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
     }
@@ -51,7 +48,7 @@ public sealed class AccountServerConfigurationTests
     [InlineData("AccountServer:Network:GameServerAddress")]
     public void Load_RejectsIpv6Endpoints(string configurationKey)
     {
-        IConfiguration configuration = CreateConfiguration(values => values[configurationKey] = "::1");
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values[configurationKey] = "::1");
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
 
@@ -61,7 +58,7 @@ public sealed class AccountServerConfigurationTests
     [Fact]
     public void Load_RejectsInvalidRuntimeConfiguration()
     {
-        IConfiguration configuration = CreateConfiguration(values => values["AccountServer:Workers:Count"] = "0");
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:Workers:Count"] = "0");
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
 
@@ -71,7 +68,7 @@ public sealed class AccountServerConfigurationTests
     [Fact]
     public void Load_RejectsMissingVerificationKeys()
     {
-        IConfiguration configuration = CreateConfiguration(values =>
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values =>
         {
             values.Remove("AccountServer:GameLoginTickets:VerificationKeys:0:Id");
             values.Remove("AccountServer:GameLoginTickets:VerificationKeys:0:EncodedKey");
@@ -87,7 +84,7 @@ public sealed class AccountServerConfigurationTests
     [Fact]
     public void Load_PreservesVerificationKeyEntriesForKeyRingValidation()
     {
-        IConfiguration configuration = CreateConfiguration(values => values["AccountServer:GameLoginTickets:VerificationKeys:1:Id"] = "7");
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:GameLoginTickets:VerificationKeys:1:Id"] = "7");
 
         AccountServerConfiguration result = AccountServerConfiguration.Load(configuration);
 
@@ -100,7 +97,7 @@ public sealed class AccountServerConfigurationTests
     [Fact]
     public void Load_ProjectsDeploymentConfigurationIntoValidatedRuntimeConfiguration()
     {
-        IConfiguration configuration = CreateConfiguration();
+        IConfiguration configuration = AccountServerTestConfiguration.Create();
 
         AccountServerConfiguration result = AccountServerConfiguration.Load(configuration);
 
@@ -135,59 +132,15 @@ public sealed class AccountServerConfigurationTests
             key =>
             {
                 Assert.Equal((ushort)7, key.Key);
-                Assert.Equal(VerificationKeyOne, key.Value);
+                Assert.Equal(AccountServerTestConfiguration.VerificationKeyOne, key.Value);
             },
             key =>
             {
                 Assert.Equal((ushort)9, key.Key);
-                Assert.Equal(VerificationKeyTwo, key.Value);
+                Assert.Equal(AccountServerTestConfiguration.VerificationKeyTwo, key.Value);
             });
 
         Assert.Equal(TimeSpan.FromMinutes(1), result.TicketCleanup.Interval);
         Assert.Equal(10, result.TicketCleanup.MaximumBatchesPerRun);
-    }
-
-    private static IConfiguration CreateConfiguration(Action<Dictionary<string, string?>>? configure = null)
-    {
-        Dictionary<string, string?> values = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["ConnectionStrings:Accounts"] = "Server=localhost;Database=accounts",
-
-            ["AccountServer:Network:BindAddress"] = "127.0.0.1",
-            ["AccountServer:Network:LoginPort"] = "9958",
-            ["AccountServer:Network:ListenBacklog"] = "512",
-            ["AccountServer:Network:GameServerAddress"] = "127.0.0.1",
-            ["AccountServer:Network:GameServerPort"] = "5816",
-
-            ["AccountServer:Admission:Capacity"] = "1024",
-
-            ["AccountServer:Workers:Count"] = "8",
-            ["AccountServer:Workers:ConnectionTimeout"] = "00:00:15",
-
-            ["AccountServer:Handshake:PhaseTimeout"] = "00:00:05",
-
-            ["AccountServer:AuthenticationProtection:RequestLimitPerSource"] = "60",
-            ["AccountServer:AuthenticationProtection:RequestWindow"] = "00:02:00",
-            ["AccountServer:AuthenticationProtection:MaximumConcurrentRequestsPerSource"] = "6",
-            ["AccountServer:AuthenticationProtection:MaximumConcurrentRequests"] = "64",
-            ["AccountServer:AuthenticationProtection:MaximumConcurrentAttemptsPerAccount"] = "3",
-            ["AccountServer:AuthenticationProtection:FailedAttemptLimitPerAccountSource"] = "10",
-            ["AccountServer:AuthenticationProtection:FailureWindow"] = "00:06:00",
-            ["AccountServer:AuthenticationProtection:FailureLockout"] = "00:07:00",
-            ["AccountServer:AuthenticationProtection:EntryRetention"] = "00:15:00",
-            ["AccountServer:AuthenticationProtection:MaximumTrackedEntries"] = "120000",
-
-            ["AccountServer:GameLoginTickets:ActiveVerificationKeyId"] = "7",
-            ["AccountServer:GameLoginTickets:VerificationKeys:0:Id"] = "7",
-            ["AccountServer:GameLoginTickets:VerificationKeys:0:EncodedKey"] = VerificationKeyOne,
-            ["AccountServer:GameLoginTickets:VerificationKeys:1:Id"] = "9",
-            ["AccountServer:GameLoginTickets:VerificationKeys:1:EncodedKey"] = VerificationKeyTwo,
-            ["AccountServer:GameLoginTickets:Cleanup:Interval"] = "00:01:00",
-            ["AccountServer:GameLoginTickets:Cleanup:MaximumBatchesPerRun"] = "10",
-        };
-
-        configure?.Invoke(values);
-
-        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 }
