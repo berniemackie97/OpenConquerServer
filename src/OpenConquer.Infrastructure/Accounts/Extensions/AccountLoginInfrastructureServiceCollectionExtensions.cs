@@ -19,26 +19,33 @@ public static class AccountLoginInfrastructureServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(authenticationProtectionOptions);
         ArgumentNullException.ThrowIfNull(encodedVerificationKeys);
 
-        KeyValuePair<ushort, string>[] verificationKeys = encodedVerificationKeys.ToArray();
+        GameLoginTicketAuthenticationKeyRing authenticationKeyRing = GameLoginTicketAuthenticationKeyRingFactory.Create(activeVerificationKeyId, encodedVerificationKeys);
 
-        GameLoginTicketAuthenticationKeyRingFactory.ValidateConfiguration(activeVerificationKeyId, verificationKeys);
+        try
+        {
+            services.AddAccountPersistence(connectionString);
+            services.TryAddSingleton<TimeProvider>(_ => TimeProvider.System);
 
-        services.AddAccountPersistence(connectionString);
-        services.TryAddSingleton<TimeProvider>(_ => TimeProvider.System);
+            services.AddSingleton(authenticationProtectionOptions);
+            services.AddSingleton<AccountAuthenticationProtection>();
+            services.AddSingleton<IAccountAuthenticationRequestLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
+            services.AddSingleton<IAccountAuthenticationAttemptLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
 
-        services.AddSingleton(authenticationProtectionOptions);
-        services.AddSingleton<AccountAuthenticationProtection>();
-        services.AddSingleton<IAccountAuthenticationRequestLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
-        services.AddSingleton<IAccountAuthenticationAttemptLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
+            services.AddSingleton<IAccountPasswordHasher, AccountPasswordHasher>();
+            services.AddSingleton<IAccountAuthenticator, AccountAuthenticator>();
 
-        services.AddSingleton<IAccountPasswordHasher, AccountPasswordHasher>();
-        services.AddSingleton<IAccountAuthenticator, AccountAuthenticator>();
+            services.AddSingleton<IGameLoginTicketGrantStore>(provider => new GameLoginTicketGrantStore(provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>()));
+            services.AddSingleton<IGameLoginTicketTokenGenerator, CryptographicGameLoginTicketTokenGenerator>();
+            services.AddSingleton<GameLoginTicketIssuer>();
 
-        services.AddSingleton(provider => GameLoginTicketAuthenticationKeyRingFactory.Create(activeVerificationKeyId, verificationKeys));
-        services.AddSingleton<IGameLoginTicketGrantStore>(provider => new GameLoginTicketGrantStore(provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>()));
-        services.AddSingleton<IGameLoginTicketTokenGenerator, CryptographicGameLoginTicketTokenGenerator>();
-        services.AddSingleton<GameLoginTicketIssuer>();
+            services.AddSingleton<GameLoginTicketAuthenticationKeyRing>(_ => authenticationKeyRing);
 
-        return services;
+            return services;
+        }
+        catch
+        {
+            authenticationKeyRing.Dispose();
+            throw;
+        }
     }
 }
