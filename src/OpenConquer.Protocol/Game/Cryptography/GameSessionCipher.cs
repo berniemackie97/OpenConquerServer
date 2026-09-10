@@ -28,7 +28,7 @@ public sealed class GameSessionCipher : IDisposable
         }
     }
 
-    public void DecryptInbound(ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+    internal void DecryptInbound(ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
     {
         lock (_inboundGate)
         {
@@ -37,7 +37,7 @@ public sealed class GameSessionCipher : IDisposable
         }
     }
 
-    public void EncryptOutbound(ReadOnlySpan<byte> plaintext, Span<byte> ciphertext)
+    internal void EncryptOutbound(ReadOnlySpan<byte> plaintext, Span<byte> ciphertext)
     {
         lock (_outboundGate)
         {
