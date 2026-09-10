@@ -37,16 +37,16 @@ flowchart TD
 
 ## Projects
 
-| Project                      | Responsibility                                                                                                       |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                                  |
-| `OpenConquer.Application`    | Use cases, orchestration, commands, scheduling contracts, persistence contracts, and authoritative runtime behavior. |
-| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings/migrations, password storage, security infrastructure, and external adapters.    |
-| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.              |
-| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                     |
-| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                        |
-| `OpenConquer.AccountServer`  | Account-login protocol integration and standard 5517 authentication-handshake orchestration.                         |
-| `OpenConquer.GameServer`     | GameServer composition boundary. Runtime game sessions are not yet implemented.                                      |
+| Project                      | Responsibility                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                     |
+| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                     |
+| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.  |
+| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility. |
+| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.        |
+| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                           |
+| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                            |
+| `OpenConquer.GameServer`     | GameServer composition boundary. Runtime game sessions are not yet implemented.                         |
 
 ## Dependency Rules
 
@@ -71,7 +71,7 @@ Application
     does not depend on Infrastructure
 
 Protocol
-    does not depend on Transport, Application, Domain gameplay, persistence, or hosts
+    does not depend on Transport, Application, gameplay, persistence, or hosts
 
 Transport
     does not depend on Protocol, Application, gameplay, or persistence
@@ -85,11 +85,7 @@ Assets
 
 A new assembly requires a real dependency, ownership, deployment, provider, or reuse boundary.
 
-Subsystem size alone is not sufficient reason to create another project.
-
 ## Protocol and Transport
-
-The boundary is explicit:
 
 ```text
 Protocol
@@ -121,12 +117,9 @@ Transport must not know packet semantics.
 
 Protocol must not own sockets, connection lifetime, transport queues, or backpressure.
 
-See:
+See [Networking Architecture](networking.md).
 
-- [Networking Architecture](networking.md)
-- [Protocol Reference](../protocol/README.md)
-
-## AccountServer Login Boundary
+## AccountServer
 
 The standard 5517 AccountServer transaction is implemented:
 
@@ -150,20 +143,67 @@ durable GameLoginTicket grant
 1052 res.dat report
 ```
 
-`OpenConquer.AccountServer` owns orchestration of this transaction.
+Ownership is split by boundary:
 
-Application owns authentication and ticket issuance rules.
+| Boundary                         | Owner                            |
+| -------------------------------- | -------------------------------- |
+| TCP and connection admission     | Transport                        |
+| 5517 wire behavior               | Protocol / AccountServer adapter |
+| Login orchestration              | AccountServer                    |
+| Authentication and ticket rules  | Application                      |
+| Persistence and abuse protection | Infrastructure                   |
 
-Infrastructure owns durable persistence and abuse-protection implementations.
+### Host Lifecycle
 
-Protocol owns packet and cryptographic wire behavior.
+The AccountServer is a runnable Generic Host.
 
-Transport owns connection and byte movement.
+Startup is ordered:
 
-The executable AccountServer composition root, listener, connection admission, and worker lifecycle
-are not yet wired.
+```text
+load and validate configuration
+    ↓
+compose services
+    ↓
+verify account database/schema readiness
+    ↓
+start expired-ticket maintenance
+    ↓
+create TCP listener
+    ↓
+start bounded login runtime
+```
 
-See [Authentication](authentication.md).
+The TCP listener is created only after database readiness succeeds.
+
+Login ingress is bounded by:
+
+```text
+kernel backlog
+    ↓
+TCP accept
+    ↓
+bounded admission queue
+    ↓
+fixed worker pool
+    ↓
+bounded authentication protection
+    ↓
+database
+```
+
+Capacity exhaustion rejects connections instead of growing unbounded work.
+
+Fatal listener or worker failure faults the supervised login runtime and triggers host shutdown.
+
+Shutdown stops login ingress before maintenance and disposes queued connections through explicit
+ownership.
+
+Expired-ticket cleanup is bounded maintenance. It does not determine ticket authorization.
+
+See:
+
+- [Networking Architecture](networking.md)
+- [Authentication](authentication.md)
 
 ## Authoritative World
 
@@ -191,9 +231,8 @@ flowchart LR
 
 A world partition has one mutation owner at a time.
 
-Different partitions may execute concurrently.
-
-The same partition may not execute concurrent mutation turns.
+Different partitions may execute concurrently. The same partition may not execute concurrent
+mutation turns.
 
 See [World Execution](world-execution.md).
 
@@ -217,19 +256,20 @@ Persistence latency must not hold authoritative world execution open.
 
 ## Resource Ownership
 
-Resources require explicit owners.
-
-| Resource                | Owner                            |
-| ----------------------- | -------------------------------- |
-| TCP socket              | Transport connection             |
-| Transport buffers       | Transport                        |
-| Login session           | AccountServer connection scope   |
-| Protocol frame memory   | Owning caller/session boundary   |
-| `DbContext`             | Bounded infrastructure operation |
-| Durable transaction     | Infrastructure operation         |
-| Mutable world partition | Partition executor               |
+| Resource                | Owner                                                             |
+| ----------------------- | ----------------------------------------------------------------- |
+| TCP listener            | Host runtime                                                      |
+| Accepted connection     | Transport / admission / login session according to transfer state |
+| Transport buffers       | Transport                                                         |
+| Login session           | AccountServer connection scope                                    |
+| Protocol frame memory   | Owning caller/session boundary                                    |
+| `DbContext`             | Bounded infrastructure operation                                  |
+| Durable transaction     | Infrastructure operation                                          |
+| Mutable world partition | Partition executor                                                |
 
 Borrowed memory must not outlive its owner.
+
+Ownership transfers must be explicit, including failure paths.
 
 ## Bounded Work
 
@@ -240,6 +280,7 @@ Examples:
 - accepted connections;
 - authentication work;
 - transport I/O;
+- maintenance batches;
 - world partition commands;
 - scheduled world work;
 - persistence work;
@@ -260,9 +301,9 @@ Unbounded accumulation is not an acceptable default.
 
 ## Failure Boundaries
 
-Operations should not expose misleading partial state.
+Failures must not expose misleading partial state.
 
-Current examples include:
+Current examples:
 
 ```text
 PacketReader failure
@@ -278,33 +319,44 @@ game-login ticket grant
     -> success returned only after durable commit
 
 account security mutation
-    -> ticket revocation committed transactionally when required
+    -> required ticket revocation commits transactionally
+
+AccountServer database readiness failure
+    -> listener is never exposed
+
+AccountServer runtime failure
+    -> sibling runtime work is stopped and host shutdown is requested
 ```
 
 Ambiguous durable commit outcomes are not blindly retried.
 
 ## Time
 
-Use the correct time authority for each responsibility:
+Use the correct authority for each responsibility:
 
 ```text
 simulation duration / scheduling
     -> monotonic time
 
-durable ticket issue / expiration timestamps
+durable ticket issue / expiration
     -> MySQL wall clock
+
+maintenance cadence
+    -> injected process time
 
 calendar or persisted wall-clock events
     -> explicit wall-clock authority
 ```
 
-Do not use process wall-clock time where durable database ordering is authoritative.
+Process time does not decide durable game-login ticket validity.
 
 ## Scaling Model
 
 Initial deployment is a modular monolith.
 
-A GameServer process may host multiple independently owned world partitions:
+The AccountServer contains no irreplaceable live player state and is designed to remain restartable.
+
+Future GameServer processes may host multiple independently owned world partitions:
 
 ```text
 GameServer
@@ -314,43 +366,50 @@ GameServer
 └── Partition D
 ```
 
-Distributed world services or message brokers are not required by the architecture.
-
-They should be introduced only when measured capacity or deployment requirements justify them.
+Distributed services or message brokers should be introduced only when measured deployment or
+capacity requirements justify them.
 
 ## Current Runtime Status
 
 Implemented:
 
 - shared framing and serialization;
-- transport connection foundation;
-- AccountServer login session;
+- TCP transport foundation;
+- bounded connection admission;
+- AccountServer login session and stream cryptography;
 - standard 5517 AccountServer authentication transaction;
-- account authentication;
+- fixed login worker pool and whole-connection timeout;
 - bounded authentication abuse protection;
 - durable GameServer login-ticket grant/redemption;
-- transactional ticket revocation for authentication-invalidating account mutations;
+- transactional ticket revocation;
+- database-readiness startup gating;
+- delayed AccountServer listener creation;
+- supervised AccountServer runtime lifecycle;
+- login runtime metrics;
+- bounded expired-ticket maintenance;
+- runnable AccountServer composition root;
+- strict AccountServer deployment configuration;
 - MySQL account persistence.
 
 Not yet implemented:
 
-- production AccountServer composition and listener lifecycle;
 - account registration;
-- GameServer handshake/session;
+- GameServer transport/session lifecycle;
+- GameServer DH/CAST5 handshake;
 - GameServer login proof;
 - character bootstrap;
-- world simulation;
-- gameplay.
+- authoritative world simulation;
+- gameplay networking and simulation.
 
 ## Documentation
 
 - [Networking Architecture](networking.md)
-- [World Execution](world-execution.md)
 - [Authentication](authentication.md)
+- [World Execution](world-execution.md)
 - [Protocol Reference](../protocol/README.md)
 - [TQ Framing](../protocol/framing.md)
 - [TQ Text Encoding](../protocol/encoding.md)
 
-Architecture documents describe server ownership and dependency boundaries.
+Architecture documents describe ownership and runtime boundaries.
 
 Protocol documents describe client-visible 5517 wire behavior.

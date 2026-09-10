@@ -61,6 +61,72 @@ public sealed class TransportConnectionAcceptLoopTests
     }
 
     [Fact]
+    public async Task RunAsync_RejectsNullCapacityRejectionReporter()
+    {
+        await using SocketTransportListener listener = CreateListener();
+        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() => TransportConnectionAcceptLoop.RunAsync(listener, queue, null!, FailOnRejectionDisposalFailure, TestContext.Current.CancellationToken));
+
+        await queue.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RunAsync_ReportsCapacityRejectionAfterRejectedConnectionIsDisposed()
+    {
+        await using ControlledTransportConnectionListener listener = new();
+        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TrackingTransportConnection occupyingConnection = new();
+        TrackingTransportConnection rejectedConnection = new();
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(occupyingConnection));
+
+        TaskCompletionSource rejectionReported = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
+        Task acceptLoop = TransportConnectionAcceptLoop.RunAsync(listener, queue, () =>
+        {
+            Assert.Equal(1, rejectedConnection.DisposeCallCount);
+            rejectionReported.TrySetResult();
+        }, FailOnRejectionDisposalFailure, cancellation.Token);
+
+        listener.QueueConnection(rejectedConnection);
+
+        await rejectionReported.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => acceptLoop);
+        await queue.DisposeAsync();
+
+        Assert.Equal(1, rejectedConnection.DisposeCallCount);
+    }
+
+    [Fact]
+    public async Task RunAsync_PreservesCapacityRejectionReporterFailureAfterDisposal()
+    {
+        await using ControlledTransportConnectionListener listener = new();
+        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TrackingTransportConnection occupyingConnection = new();
+        TrackingTransportConnection rejectedConnection = new();
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(occupyingConnection));
+
+        IOException reportingFailure = new("capacity rejection reporting failed");
+
+        Task acceptLoop = TransportConnectionAcceptLoop.RunAsync(listener, queue, () => throw reportingFailure, FailOnRejectionDisposalFailure, TestContext.Current.CancellationToken);
+
+        listener.QueueConnection(rejectedConnection);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => acceptLoop);
+
+        Assert.Same(reportingFailure, exception.InnerException);
+        Assert.Equal(1, rejectedConnection.DisposeCallCount);
+
+        await queue.DisposeAsync();
+    }
+
+    [Fact]
     public async Task RunAsync_TransfersAcceptedConnectionToAdmissionQueue()
     {
         await using SocketTransportListener listener = CreateListener();

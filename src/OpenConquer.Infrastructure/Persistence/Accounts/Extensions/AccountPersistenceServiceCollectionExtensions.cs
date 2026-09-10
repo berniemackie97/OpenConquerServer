@@ -4,6 +4,7 @@ using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Mutations;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
+using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Persistence.Accounts.Mutations;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 
@@ -31,9 +32,15 @@ public static class AccountPersistenceServiceCollectionExtensions
         });
 
         services.AddSingleton<IAccountAuthenticationRepository, AccountAuthenticationRepository>();
-        services.AddSingleton<IAccountMutationStore>(provider =>
-            new AccountMutationStore(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
+        services.AddSingleton<IAccountMutationStore>(provider => new AccountMutationStore(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<AccountDatabaseReadinessVerifier>();
+        services.AddSingleton<IAccountDatabaseReadinessVerifier>(provider => provider.GetRequiredService<AccountDatabaseReadinessVerifier>());
+
+        GameLoginTicketExpirationCleanerOptions expirationCleanerOptions = new();
+
+        services.AddSingleton(expirationCleanerOptions);
+        services.AddSingleton<GameLoginTicketExpirationCleaner>(provider => new GameLoginTicketExpirationCleaner(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketExpirationCleanerOptions>()));
+        services.AddSingleton<IGameLoginTicketExpirationCleaner>(provider => provider.GetRequiredService<GameLoginTicketExpirationCleaner>());
 
         return services;
     }

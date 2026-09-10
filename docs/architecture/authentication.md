@@ -94,7 +94,7 @@ password_changed_at_utc unchanged
 outstanding game-login tickets preserved
 ```
 
-Explicit password reset is different: it changes the secret and revokes outstanding tickets.
+Explicit password reset changes the secret and revokes outstanding tickets.
 
 ## Game-Login Ticket Grant
 
@@ -122,7 +122,7 @@ game_login_tickets
 ```
 
 Grant requires the authenticated account identity and both authentication revisions to still match
-the durable state.
+durable state.
 
 Therefore:
 
@@ -156,6 +156,15 @@ Verification uses fixed-time comparison.
 
 Verification keys are externally supplied server secrets. Historical keys may remain configured
 during rotation. Unknown key IDs fail closed.
+
+AccountServer configuration supplies the active verification-key ID and encoded verification-key set
+during startup.
+
+The encoded configuration is decoded when the authentication infrastructure is composed. The
+resulting key ring owns the decoded key bytes and clears them when the service provider is disposed.
+
+Cross-host secret deployment and key-rotation orchestration remain deployment responsibilities and
+are not yet implemented.
 
 ## Security Mutations
 
@@ -235,15 +244,27 @@ Protection uses monotonic time and bounded state.
 
 Cleanup is bounded maintenance; it does not determine authorization.
 
-| Property                    |   Default |
-| --------------------------- | --------: |
-| Expiration grace            | 5 minutes |
-| Maximum rows per invocation |     1,000 |
-| Maximum configurable batch  |    10,000 |
+Infrastructure owns expiration eligibility and bounded deletion:
+
+| Property                   |   Default |
+| -------------------------- | --------: |
+| Expiration grace           | 5 minutes |
+| Maximum rows per batch     |     1,000 |
+| Maximum configurable batch |    10,000 |
 
 Eligibility uses MySQL time.
 
-Cleanup scheduling belongs to host composition.
+AccountServer owns scheduling and the maximum number of batches processed per maintenance run.
+
+Cleanup runs immediately when its hosted service starts and then on the configured interval.
+
+A partial batch ends the current run early. The configured maximum batch count prevents an
+accumulated cleanup backlog from monopolizing the process.
+
+Transient cleanup failures are logged and retried on the next scheduled run.
+
+A violated cleaner invariant faults the maintenance background service so the host can terminate
+rather than continue in an unknown state.
 
 ## Durable Operation Rule
 
@@ -264,7 +285,7 @@ Ambiguous commit outcomes are not blindly retried.
 
 ## Production Login Composition
 
-`AddAccountLoginInfrastructure` composes the AccountServer production authentication graph:
+`AddAccountLoginInfrastructure` composes the AccountServer authentication graph:
 
 - account persistence;
 - authentication protection;
@@ -272,7 +293,8 @@ Ambiguous commit outcomes are not blindly retried.
 - `AccountAuthenticator`;
 - game-login ticket grant persistence;
 - cryptographic ticket token generation;
-- `GameLoginTicketIssuer`.
+- `GameLoginTicketIssuer`;
+- container-owned verification-key ring.
 
 The host supplies:
 
@@ -283,10 +305,7 @@ The host supplies:
 
 `TimeProvider.System` is used only when the host has not supplied another `TimeProvider`.
 
-The verification-key ring remains internal and container-owned so its owned key material is cleared
-when the service provider is disposed.
-
-This boundary does not own:
+This infrastructure boundary does not own:
 
 - database readiness execution;
 - expired-ticket cleanup scheduling;
@@ -294,24 +313,56 @@ This boundary does not own:
 - login workers;
 - host observability.
 
+Those responsibilities belong to `OpenConquer.AccountServer`.
+
+## AccountServer Host Security Boundary
+
+The runnable AccountServer host fails closed during startup.
+
+```text
+load strict deployment configuration
+    ↓
+construct authentication infrastructure
+    ↓
+verify database/schema readiness
+    ↓
+start bounded maintenance
+    ↓
+create login listener
+    ↓
+accept authentication traffic
+```
+
+Invalid configuration, invalid verification-key configuration, or failed database readiness prevents
+the login listener from being exposed.
+
+Login ingress remains bounded independently at transport admission, worker concurrency, and
+authentication-protection boundaries.
+
+Fatal listener or worker failure terminates the supervised login runtime and requests host shutdown.
+
 ## Current Status
 
 Implemented:
 
+- runnable AccountServer Generic Host composition;
+- readiness-gated AccountServer startup;
+- bounded admission and fixed login-worker lifecycle;
+- AccountServer runtime observability;
 - AccountServer authentication transaction through durable `1055`;
 - authentication protection and password migration;
 - durable ticket grant and revocation;
 - single-use ticket redemption;
-- bounded redemption protection and expired-ticket cleanup;
+- bounded redemption protection;
+- scheduled bounded expired-ticket cleanup;
 - production AccountServer authentication/game-login dependency composition.
 
 Not yet implemented:
 
-- runnable AccountServer host composition;
-- production listener/worker observability;
 - verification-key deployment and rotation orchestration;
 - least-privilege production database identities;
 - authenticated self-service password changes;
 - staff/admin mutation authorization;
+- GameServer network/session integration;
 - GameServer handshake and `1052` proof;
 - GameServer host composition.

@@ -2,10 +2,12 @@ using MySqlConnector;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
-internal sealed class GameLoginTicketExpirationCleaner(MySqlDataSource dataSource, GameLoginTicketExpirationCleanerOptions options)
+internal sealed class GameLoginTicketExpirationCleaner(MySqlDataSource dataSource, GameLoginTicketExpirationCleanerOptions options) : IGameLoginTicketExpirationCleaner
 {
     private readonly MySqlDataSource _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
     private readonly GameLoginTicketExpirationCleanerOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+
+    public int MaximumBatchSize => _options.MaximumBatchSize;
 
     public async ValueTask<int> DeleteExpiredBatchAsync(CancellationToken cancellationToken = default)
     {

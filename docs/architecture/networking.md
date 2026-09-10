@@ -1,13 +1,13 @@
 # Networking Architecture
 
-OpenConquer separates network transport from Conquer protocol and server behavior.
+OpenConquer separates transport, protocol, server-session behavior, and application rules.
 
 ```text
 Transport
-    moves bytes
+    moves bytes and owns network resources
 
 Protocol
-    interprets bytes
+    interprets Conquer wire data
 
 Server adapter
     owns connection/session behavior
@@ -26,12 +26,10 @@ Application
 - input/output buffering;
 - bounded admission;
 - backpressure;
-- transport cancellation;
+- cancellation;
 - transport resource limits.
 
 Transport does not interpret Conquer packet identifiers or gameplay semantics.
-
-See [Protocol Reference](../protocol/README.md).
 
 ## Runtime Flow
 
@@ -87,15 +85,112 @@ TCP
 
 Independent writers must not race on one connection.
 
-This preserves:
+This preserves packet ordering, stream-cipher state, partial-write handling, shutdown semantics, and
+backpressure.
 
-- packet ordering;
-- stream-cipher state;
-- partial-write handling;
-- deterministic shutdown;
-- backpressure.
+## AccountServer Admission
 
-## AccountServer Login Session
+AccountServer ingress is explicitly bounded:
+
+```text
+kernel backlog
+    ↓
+TCP accept
+    ↓
+bounded admission queue
+    ↓
+fixed worker pool
+    ↓
+bounded authentication protection
+    ↓
+database
+```
+
+`TransportConnectionAdmissionQueue` owns accepted connections until a worker receives them.
+
+When admission capacity is exhausted:
+
+- the new connection is rejected;
+- the rejected connection is disposed before rejection reporting;
+- capacity rejection is recorded as a metric;
+- no per-rejection warning or error log is emitted.
+
+This prevents reconnect storms from becoming unbounded queued work or attacker-controlled log
+amplification.
+
+## AccountServer Host Lifecycle
+
+The AccountServer runs as a Generic Host with sequential hosted-service startup.
+
+Startup order:
+
+```text
+load and validate configuration
+    ↓
+compose dependencies
+    ↓
+verify account database/schema readiness
+    ↓
+start expired-ticket maintenance
+    ↓
+construct TCP listener
+    ↓
+start accept loop and fixed workers
+```
+
+The TCP listener is not constructed until database readiness succeeds.
+
+A failed readiness check therefore fails startup without exposing the public login socket.
+
+Hosted-service shutdown occurs in reverse order, so the login runtime stops before maintenance.
+
+Host startup and shutdown are bounded by explicit timeouts.
+
+Unexpected background-service failure requests host shutdown.
+
+## Login Runtime Supervision
+
+`LoginRuntimeHostedService` owns:
+
+- the login listener;
+- the login runtime cancellation boundary;
+- accept-loop lifetime;
+- worker-pool lifetime;
+- admission completion during shutdown/failure.
+
+The accept loop and worker pool form one failure domain.
+
+```text
+accept loop fails
+    ↓
+complete admission
+    ↓
+cancel worker pool
+    ↓
+observe sibling task
+    ↓
+dispose listener
+    ↓
+fault runtime
+
+worker pool fails
+    ↓
+complete admission
+    ↓
+cancel accept loop
+    ↓
+observe sibling task
+    ↓
+dispose listener
+    ↓
+fault runtime
+```
+
+A child task that terminates unexpectedly is fatal even if it returns successfully.
+
+Fatal runtime failure does not leave the TCP listener bound while the host is shutting down.
+
+## Login Session
 
 `LoginConnectionSession` owns one opened AccountServer login connection.
 
@@ -112,20 +207,34 @@ Opening the session sends encrypted packet `1059`.
 
 Input uses the AccountServer 524-byte complete-frame limit.
 
-Disposal terminates the owned connection resources and observes the transport pumps.
+Disposal terminates owned connection resources and observes transport pumps.
 
-## AccountServer Login Workers
+## Login Workers
 
 `LoginConnectionWorkerPool` consumes `TransportConnectionAdmissionQueue` with fixed concurrency.
 
-Each worker owns one admitted connection, transfers ownership to `LoginConnectionSession`, applies
-the whole-connection timeout, and disposes the session before consuming another connection.
+Each worker:
 
-Client failures and connection timeouts are reported and isolated to that connection. Caller
-cancellation stops the pool. Reporter failures are pool-fatal.
+```text
+receive admitted connection
+    ↓
+open LoginConnectionSession
+    ↓
+run LoginHandshakeProcessor
+    ↓
+dispose session
+    ↓
+receive next connection
+```
 
-Connection admission remains owned by `OpenConquer.Transport`; AccountServer does not define a
-duplicate queue.
+A whole-connection timeout bounds each admitted login.
+
+Client processing failures and timeouts are isolated to that connection.
+
+Reporter failures are worker-pool fatal.
+
+There is no task-per-connection worker model and no duplicate AccountServer-specific admission
+queue.
 
 ## Login Framing
 
@@ -145,11 +254,9 @@ duplicate queue.
 - preserves ordered writes;
 - becomes unusable after a potentially partial failed write.
 
-Inbound and outbound login cipher positions are independent.
+Inbound and outbound cipher positions are independent.
 
-## Standard AccountServer Transaction
-
-The standard 5517 AccountServer transaction is implemented:
+## Standard 5517 AccountServer Transaction
 
 ```text
 connection opened
@@ -177,7 +284,7 @@ A successful `1055` is not written until durable ticket persistence succeeds.
 
 `LoginAccountRequestReader` accepts standard packet `1060`.
 
-Outcomes are classified as:
+Outcomes:
 
 ```text
 Success
@@ -194,8 +301,6 @@ Known protected/mobile variants are recognized but fail closed rather than enter
 decoding.
 
 ## Authentication Failure Mapping
-
-Current AccountServer mappings:
 
 | Condition                                        | Native failure |
 | ------------------------------------------------ | -------------: |
@@ -225,7 +330,7 @@ AuthenticationKey as AdditionalSessionField
 GameServer IPv4 address
 ```
 
-Ticket issuance revalidates the authenticated account and credential revisions transactionally.
+Ticket issuance transactionally revalidates the authenticated account and credential revisions.
 
 A stale authentication snapshot cannot receive a successful handoff.
 
@@ -239,42 +344,36 @@ After successful `1055`, the native client sends:
 1052 res.dat report
 ```
 
-`LoginPostAuthenticationReportReader` enforces:
-
-- packet ordering;
-- expected session UID;
-- MAC format;
-- exact `res.dat` resource name.
+`LoginPostAuthenticationReportReader` enforces packet ordering, expected session UID, MAC format,
+and the exact `res.dat` resource name.
 
 Each report receives its own bounded read timeout.
 
 These reports are telemetry, not authorization.
 
-Failure, timeout, or absence of post-authentication telemetry does not revoke the already-issued
-GameServer ticket.
+Failure, timeout, or absence of this telemetry does not revoke the already-issued GameServer ticket.
 
 ## Login Timeouts
 
-Two independent timeout scopes apply:
+Two timeout scopes apply:
 
-| Scope            | Boundary                                                          |
-| ---------------- | ----------------------------------------------------------------- |
-| Whole connection | Session open through complete `LoginHandshakeProcessor` execution |
-| Handshake phase  | Individual `1060`, `1100`, and `1052` reads                       |
+| Scope            | Boundary                                           |
+| ---------------- | -------------------------------------------------- |
+| Whole connection | Session open through complete handshake processing |
+| Handshake phase  | Individual `1060`, `1100`, and `1052` reads        |
 
-Phase deadlines are fresh per expected frame. Authentication and durable ticket persistence are not
-bounded by a phase deadline but remain inside the whole-connection deadline.
+Phase deadlines are fresh per expected frame.
+
+Authentication and durable ticket persistence remain inside the whole-connection deadline but are
+not limited by a phase deadline.
 
 Caller cancellation remains distinct from timeout expiration.
-
-Both timeout configurations reject values beyond the finite delay supported by
-`CancellationTokenSource.CancelAfter`.
 
 ## Authentication Protection
 
 Authentication work is bounded independently of transport admission.
 
-Implemented controls include:
+Implemented controls:
 
 - global authentication concurrency;
 - per-source request rate;
@@ -288,24 +387,44 @@ Transport admission does not replace authentication abuse protection.
 
 See [Authentication](authentication.md).
 
+## Runtime Observability
+
+`LoginRuntimeMetrics` records low-cardinality counters for:
+
+- admission-capacity rejection;
+- overload-rejection disposal failure;
+- whole-connection timeout;
+- connection processing failure.
+
+No account, player, session, endpoint, or IP value is used as a metric dimension.
+
+Logging policy:
+
+| Event                                | Level       |
+| ------------------------------------ | ----------- |
+| Database readiness succeeded         | Information |
+| Login runtime started/stopped        | Information |
+| Connection timeout                   | Debug       |
+| Connection processing failure        | Error       |
+| Rejected-connection disposal failure | Error       |
+| Admission capacity rejection         | Metric only |
+
 ## Game-Login Redemption
 
 Durable GameServer login tickets support atomic single-use redemption.
 
-The persistence boundary:
-
 ```text
-locks ticket
+lock ticket
     ↓
-checks database-authoritative expiration
+check database-authoritative expiration
     ↓
-verifies AuthenticationKey
+verify AuthenticationKey
     ↓
-deletes exact ticket
+delete exact ticket
     ↓
-commits
+commit
     ↓
-returns authorized identity
+return authorized identity
 ```
 
 Concurrent successful redemption of the same ticket is impossible.
@@ -314,7 +433,7 @@ The GameServer network session that invokes this boundary is not yet implemented
 
 ## Redemption Protection
 
-Game-login redemption has its own bounded attempt protection:
+Game-login redemption has independent bounded attempt protection:
 
 - global concurrency;
 - per-source rate and concurrency;
@@ -327,9 +446,9 @@ This boundary exists in Infrastructure but is not yet wired into a runnable Game
 ## Ticket Revocation
 
 Authentication-invalidating account mutations revoke outstanding GameServer login tickets in the
-same durable transaction as the security mutation.
+same transaction as the security mutation.
 
-Examples that revoke:
+Examples:
 
 ```text
 password reset
@@ -341,52 +460,51 @@ soft delete
 Grant and mutation persistence share compatible lock ordering so a stale authentication result
 cannot race past a committed invalidating mutation.
 
-See [Authentication](authentication.md).
-
 ## Expired-Ticket Cleanup
 
-Bounded expired-ticket cleanup is implemented.
+Expired-ticket cleanup runs as bounded AccountServer maintenance.
 
-Cleanup:
+Each maintenance run:
 
-- uses MySQL time;
-- removes a bounded number of rows per invocation;
-- applies an expiration grace period;
-- does not determine authorization.
+- uses database-authoritative expiration;
+- deletes bounded batches;
+- has a bounded maximum number of batches;
+- stops early when a partial batch is returned.
 
-Scheduling the cleaner belongs to future host composition.
+Transient cleanup failures are logged and retried on the next scheduled run.
 
-## Current Host Status
+An impossible cleaner result is treated as an invariant failure and faults the background service.
 
-Implemented network-facing AccountServer components:
+Cleanup does not participate in authorization correctness.
 
-- TCP transport foundation;
+## Current Status
+
+Implemented AccountServer network/runtime components:
+
+- TCP transport;
 - bounded connection admission;
-- input/output pumps;
-- login connection session;
+- login pipelines and connection session;
 - login framing and stream cryptography;
 - standard credential decoding;
 - authentication orchestration;
 - durable `1055` handoff;
-- post-authentication telemetry handling;
-- per-read handshake deadlines;
-- fixed login connection workers;
-- whole-connection timeout and failure isolation.
+- post-authentication telemetry;
+- handshake and whole-connection timeouts;
+- fixed login worker pool;
+- database-readiness startup gate;
+- delayed listener construction;
+- runtime supervision;
+- bounded expired-ticket maintenance;
+- low-cardinality runtime metrics;
+- runnable AccountServer Generic Host composition.
 
-Still not implemented:
+Not yet implemented:
 
-- runnable AccountServer composition root;
-- AccountServer listener/worker host composition;
-- production worker observability wiring;
-- GameServer connection/session boundary;
+- GameServer connection/session lifecycle;
 - GameServer DH/CAST5 handshake;
 - GameServer `1052` login proof;
 - game packet signatures;
-- gameplay networking;
-- production database identity and verification-key deployment orchestration.
-
-The executable entry points must remain non-public until the required host lifecycle and operational
-configuration are complete.
+- gameplay networking and authoritative simulation.
 
 ## Related Documentation
 
