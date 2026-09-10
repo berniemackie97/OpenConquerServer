@@ -221,7 +221,21 @@ Concurrent valid redemption attempts serialize on the ticket row. At most one su
 The authorized identity contains account ID, canonical username, and `SessionUid`; the raw
 authentication key is not retained.
 
-GameServer network integration is not yet implemented.
+## GameServer Authentication
+
+The GameServer secure connection handoff validates the first secured frame as the native `1052`
+login proof before ticket redemption.
+
+`GameConnectionAuthenticator` supplies the login proof's `SessionUid`, `AuthenticationKey`, and the
+connection's remote IP address to `GameLoginTicketRedeemer`.
+
+A missing, expired, incorrect, or already-consumed ticket is an authorization rejection. Malformed
+protocol data, infrastructure failure, and cancellation remain distinct failures.
+
+Successful redemption transfers the authenticated identity and live secured session into
+`AuthenticatedGameConnection`. The raw `AuthenticationKey` is not retained.
+
+See [Networking](networking.md) for connection ownership and secure handoff behavior.
 
 ## Redemption Protection
 
@@ -315,6 +329,24 @@ This infrastructure boundary does not own:
 
 Those responsibilities belong to `OpenConquer.AccountServer`.
 
+## Production Redemption Composition
+
+`AddGameLoginTicketRedemptionInfrastructure` composes the GameServer ticket-redemption graph:
+
+- account persistence;
+- redemption attempt protection;
+- container-owned verification-key ring;
+- game-login ticket redemption persistence;
+- `GameLoginTicketRedeemer`.
+
+Verification-key configuration is validated before service registration. The caller-provided encoded
+key sequence is snapshotted before validation and later singleton construction.
+
+`TimeProvider.System` is used only when the host has not supplied another `TimeProvider`.
+
+This infrastructure boundary does not own GameServer listener, admission, worker,
+connection-session, or gameplay lifecycle.
+
 ## AccountServer Host Security Boundary
 
 The runnable AccountServer host fails closed during startup.
@@ -354,6 +386,9 @@ Implemented:
 - durable ticket grant and revocation;
 - single-use ticket redemption;
 - bounded redemption protection;
+- GameServer `1052` login-proof authentication;
+- GameServer ticket-redemption infrastructure composition;
+- GameServer authenticated connection handoff;
 - scheduled bounded expired-ticket cleanup;
 - production AccountServer authentication/game-login dependency composition.
 
@@ -363,6 +398,6 @@ Not yet implemented:
 - least-privilege production database identities;
 - authenticated self-service password changes;
 - staff/admin mutation authorization;
-- GameServer network/session integration;
-- GameServer handshake and `1052` proof;
-- GameServer host composition.
+- runnable GameServer host composition;
+- GameServer listener, admission, and worker lifecycle;
+- character bootstrap and gameplay authorization.

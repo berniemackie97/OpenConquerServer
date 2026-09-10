@@ -1,6 +1,6 @@
 namespace OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
-internal sealed class GameLoginTicketRedemptionAttemptLimiterOptions
+public sealed class GameLoginTicketRedemptionAttemptLimiterOptions
 {
     public const int DefaultRequestLimitPerSource = 30;
     public const int DefaultMaximumConcurrentAttemptsPerSource = 4;

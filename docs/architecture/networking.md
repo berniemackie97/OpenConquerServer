@@ -314,7 +314,7 @@ decoding.
 Transport, database, and application exceptions are not converted into fake authentication
 responses.
 
-## GameServer Handoff
+## AccountServer Game Handoff
 
 Successful authentication is followed by durable ticket issuance.
 
@@ -409,6 +409,43 @@ Logging policy:
 | Rejected-connection disposal failure | Error       |
 | Admission capacity rejection         | Metric only |
 
+## GameServer Connection Handoff
+
+`GameConnectionHandoffProcessor` owns the transition from an accepted transport connection to an
+authenticated secured GameServer connection.
+
+```text
+accepted transport
+    ↓
+GameConnectionSession
+    ↓
+Diffie-Hellman handshake
+    ↓
+secured framing
+    ↓
+1052 login proof
+    ↓
+single-use ticket redemption
+    ↓
+AuthenticatedGameConnection
+```
+
+`GameConnectionSession` owns the transferred connection, transport pumps, pipelines, handshake
+transition, secured framing, and connection-scope lifetime.
+
+The same input pipeline is preserved across the handshake transition. Fragmented key exchange is
+reassembled, while secured bytes coalesced with the key-exchange response remain available for the
+first secured frame.
+
+Successful authentication transfers the live secured session to `AuthenticatedGameConnection`.
+Expected rejection and failed handoff paths dispose the owned session.
+
+The raw `AuthenticationKey` is used for ticket redemption and is not retained by the authenticated
+connection.
+
+A runnable GameServer listener, admission/worker runtime, gameplay routing, and authoritative world
+integration remain future boundaries.
+
 ## Game-Login Redemption
 
 Durable GameServer login tickets support atomic single-use redemption.
@@ -429,7 +466,8 @@ return authorized identity
 
 Concurrent successful redemption of the same ticket is impossible.
 
-The GameServer network session that invokes this boundary is not yet implemented.
+GameServer authentication invokes this boundary after validating the first secured `1052` login
+proof and supplies the remote IP address for redemption protection.
 
 ## Redemption Protection
 
@@ -441,7 +479,8 @@ Game-login redemption has independent bounded attempt protection:
 - per-session failure tracking and lockout;
 - bounded tracked state.
 
-This boundary exists in Infrastructure but is not yet wired into a runnable GameServer host.
+The GameServer connection handoff uses this protection boundary. Runnable GameServer ingress and
+worker composition are not yet implemented.
 
 ## Ticket Revocation
 
@@ -498,13 +537,24 @@ Implemented AccountServer network/runtime components:
 - low-cardinality runtime metrics;
 - runnable AccountServer Generic Host composition.
 
+Implemented GameServer connection-handoff components:
+
+- accepted-connection session ownership;
+- native Diffie-Hellman handshake;
+- secured CAST5 framing;
+- fragmented and coalesced stream handling;
+- first secured `1052` login-proof validation;
+- protected single-use ticket redemption;
+- authenticated live-session handoff;
+- coordinated cancellation and disposal.
+
 Not yet implemented:
 
-- GameServer connection/session lifecycle;
-- GameServer DH/CAST5 handshake;
-- GameServer `1052` login proof;
-- game packet signatures;
-- gameplay networking and authoritative simulation.
+- runnable GameServer Generic Host;
+- GameServer listener, admission queue, and worker runtime;
+- character bootstrap;
+- gameplay packet routing;
+- authoritative world simulation and replication.
 
 ## Related Documentation
 
