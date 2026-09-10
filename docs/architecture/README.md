@@ -46,7 +46,7 @@ flowchart TD
 | `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.        |
 | `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                           |
 | `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                            |
-| `OpenConquer.GameServer`     | GameServer composition boundary. Runtime game sessions are not yet implemented.                         |
+| `OpenConquer.GameServer`     | GameServer connection handoff, secure-session orchestration, and future gameplay hosting boundary.      |
 
 ## Dependency Rules
 
@@ -205,6 +205,43 @@ See:
 - [Networking Architecture](networking.md)
 - [Authentication](authentication.md)
 
+## GameServer Connection Handoff
+
+The GameServer connection handoff is implemented through authenticated secured-session ownership.
+
+```text
+accepted transport
+    ↓
+GameConnectionSession
+    ↓
+Diffie-Hellman handshake
+    ↓
+secured framing
+    ↓
+1052 login proof
+    ↓
+GameLoginTicketRedeemer
+    ↓
+AuthenticatedGameConnection
+```
+
+The connection session owns transport pumps, pipelines, handshake state, secured framing, cipher
+state, cancellation, and disposal.
+
+The transport byte stream remains continuous across the handshake-to-secured transition so
+fragmented and coalesced input is handled without discarding already-buffered data.
+
+Authentication consumes the durable single-use login ticket and transfers the live secured session
+only after authorization succeeds.
+
+The runnable GameServer host, connection admission runtime, gameplay routing, and authoritative
+world integration remain future boundaries.
+
+See:
+
+- [Networking Architecture](networking.md)
+- [Authentication](authentication.md)
+
 ## Authoritative World
 
 Clients submit requests; they do not directly mutate gameplay state.
@@ -256,16 +293,17 @@ Persistence latency must not hold authoritative world execution open.
 
 ## Resource Ownership
 
-| Resource                | Owner                                                             |
-| ----------------------- | ----------------------------------------------------------------- |
-| TCP listener            | Host runtime                                                      |
-| Accepted connection     | Transport / admission / login session according to transfer state |
-| Transport buffers       | Transport                                                         |
-| Login session           | AccountServer connection scope                                    |
-| Protocol frame memory   | Owning caller/session boundary                                    |
-| `DbContext`             | Bounded infrastructure operation                                  |
-| Durable transaction     | Infrastructure operation                                          |
-| Mutable world partition | Partition executor                                                |
+| Resource                | Owner                                                                  |
+| ----------------------- | ---------------------------------------------------------------------- |
+| TCP listener            | Host runtime                                                           |
+| Accepted connection     | Transport / admission / connection session according to transfer state |
+| Transport buffers       | Transport                                                              |
+| Login session           | AccountServer connection scope                                         |
+| Game connection session | GameServer connection scope                                            |
+| Protocol frame memory   | Owning caller/session boundary                                         |
+| `DbContext`             | Bounded infrastructure operation                                       |
+| Durable transaction     | Infrastructure operation                                               |
+| Mutable world partition | Partition executor                                                     |
 
 Borrowed memory must not outlive its owner.
 
@@ -318,6 +356,9 @@ WireFrameEncoder failure
 game-login ticket grant
     -> success returned only after durable commit
 
+game-login ticket redemption
+    -> authorization succeeds only after durable single-use consumption
+
 account security mutation
     -> required ticket revocation commits transactionally
 
@@ -326,6 +367,9 @@ AccountServer database readiness failure
 
 AccountServer runtime failure
     -> sibling runtime work is stopped and host shutdown is requested
+
+GameServer connection handoff failure
+    -> owned session is closed instead of exposing partial authentication state
 ```
 
 Ambiguous durable commit outcomes are not blindly retried.
@@ -389,14 +433,18 @@ Implemented:
 - bounded expired-ticket maintenance;
 - runnable AccountServer composition root;
 - strict AccountServer deployment configuration;
+- GameServer connection/session ownership;
+- GameServer Diffie-Hellman and CAST5 secure handshake;
+- GameServer secured framing;
+- GameServer `1052` login-proof authentication;
+- authenticated GameServer connection handoff;
 - MySQL account persistence.
 
 Not yet implemented:
 
 - account registration;
-- GameServer transport/session lifecycle;
-- GameServer DH/CAST5 handshake;
-- GameServer login proof;
+- runnable GameServer Generic Host;
+- GameServer listener, admission queue, and worker runtime;
 - character bootstrap;
 - authoritative world simulation;
 - gameplay networking and simulation.
