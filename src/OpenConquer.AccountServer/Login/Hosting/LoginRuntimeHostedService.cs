@@ -99,10 +99,18 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
             await SuperviseRuntimeAsync(acceptTask, workerTask, runtimeCancellation, stoppingToken).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (Exception runtimeException)
         {
-            _runtimeStarted.TrySetException(exception);
-            throw;
+            _runtimeStarted.TrySetException(runtimeException);
+
+            Exception? listenerDisposalFailure = await DisposeListenerAsync().ConfigureAwait(false);
+
+            if (listenerDisposalFailure is not null)
+            {
+                throw new AggregateException("The account login runtime failed and disposing its listener also failed.", runtimeException, listenerDisposalFailure);
+            }
+
+            ExceptionDispatchInfo.Capture(runtimeException).Throw();
         }
     }
 
@@ -148,8 +156,6 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
     private async Task<Exception?> StopRuntimeAsync(CancellationToken cancellationToken, bool logStopped)
     {
-        _admissionQueue.Complete();
-
         Exception? stopFailure = null;
         Exception? listenerDisposalFailure = null;
 
@@ -165,19 +171,9 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
             }
         }
 
-        ITransportConnectionListener? listener = Interlocked.Exchange(ref _listener, null);
+        _admissionQueue.Complete();
 
-        if (listener is not null)
-        {
-            try
-            {
-                await listener.DisposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                listenerDisposalFailure = exception;
-            }
-        }
+        listenerDisposalFailure = await DisposeListenerAsync().ConfigureAwait(false);
 
         if (stopFailure is not null && listenerDisposalFailure is not null)
         {
@@ -186,7 +182,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
         Exception? failure = stopFailure ?? listenerDisposalFailure;
 
-        if (failure is null && logStopped && _runtimeStarted.Task.IsCompletedSuccessfully)
+        if (failure is null && logStopped && ExecuteTask is { IsCompletedSuccessfully: true })
         {
             LogRuntimeStopped(_logger);
         }
@@ -259,6 +255,26 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
         }
 
         ExceptionDispatchInfo.Capture(acceptFailure ?? workerFailure!).Throw();
+    }
+
+    private async Task<Exception?> DisposeListenerAsync()
+    {
+        ITransportConnectionListener? listener = Interlocked.Exchange(ref _listener, null);
+
+        if (listener is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            await listener.DisposeAsync().ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
     }
 
     private void ReportConnectionTimeout(LoginConnectionProcessingTimeout timeout)

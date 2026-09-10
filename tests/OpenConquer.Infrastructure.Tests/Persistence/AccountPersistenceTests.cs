@@ -5,6 +5,7 @@ using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Mutations;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 using OpenConquer.Infrastructure.Persistence.Accounts.Extensions;
+using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
@@ -45,27 +46,25 @@ public sealed class AccountPersistenceTests
         MySqlDataSource rawDataSource = services.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey);
         MySqlConnectionStringBuilder rawConnection = new(rawDataSource.ConnectionString);
 
-        Assert.Same(
-            rawDataSource,
-            services.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey));
+        Assert.Same(rawDataSource, services.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey));
 
         Assert.False(rawConnection.UseAffectedRows);
         Assert.False(rawConnection.AutoEnlist);
         Assert.Equal(MySqlGuidFormat.Binary16, rawConnection.GuidFormat);
         Assert.Equal(MySqlDateTimeKind.Utc, rawConnection.DateTimeKind);
 
-        Assert.Same(
-            services.GetRequiredService<IAccountAuthenticationRepository>(),
-            services.GetRequiredService<IAccountAuthenticationRepository>());
-
-        Assert.Same(
-            services.GetRequiredService<IAccountMutationStore>(),
-            services.GetRequiredService<IAccountMutationStore>());
+        Assert.Same(services.GetRequiredService<IAccountAuthenticationRepository>(), services.GetRequiredService<IAccountAuthenticationRepository>());
+        Assert.Same(services.GetRequiredService<IAccountMutationStore>(), services.GetRequiredService<IAccountMutationStore>());
 
         AccountDatabaseReadinessVerifier readinessVerifier = services.GetRequiredService<AccountDatabaseReadinessVerifier>();
 
         Assert.Same(readinessVerifier, services.GetRequiredService<AccountDatabaseReadinessVerifier>());
         Assert.Same(readinessVerifier, services.GetRequiredService<IAccountDatabaseReadinessVerifier>());
+
+        IGameLoginTicketExpirationCleaner expirationCleaner = services.GetRequiredService<IGameLoginTicketExpirationCleaner>();
+
+        Assert.Same(expirationCleaner, services.GetRequiredService<IGameLoginTicketExpirationCleaner>());
+        Assert.Equal(GameLoginTicketExpirationCleanerOptions.DefaultMaximumBatchSize, expirationCleaner.MaximumBatchSize);
 
         Assert.Empty(first.ChangeTracker.Entries());
         Assert.Empty(second.ChangeTracker.Entries());

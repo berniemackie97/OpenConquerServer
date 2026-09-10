@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Hosting;
@@ -17,7 +18,8 @@ public sealed class LoginRuntimeHostedServiceTests
     public async Task StartAsync_CreatesListenerOnlyDuringStartupAndStopDisposesIt()
     {
         await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
-        using LoginRuntimeMetrics metrics = new();
+        using ServiceProvider services = CreateMetricServices();
+        LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
         int factoryCalls = 0;
 
@@ -37,6 +39,7 @@ public sealed class LoginRuntimeHostedServiceTests
 
         await service.StopAsync(TestContext.Current.CancellationToken);
 
+        Assert.True(service.ExecuteTask!.IsCompletedSuccessfully);
         Assert.Equal(1, listener.DisposeCallCount);
 
         await using IAsyncEnumerator<ITransportConnection> enumerator = queue.ReadAllAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
@@ -48,7 +51,8 @@ public sealed class LoginRuntimeHostedServiceTests
     public async Task StartAsync_RejectsMissingListenerFromFactory()
     {
         await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
-        using LoginRuntimeMetrics metrics = new();
+        using ServiceProvider services = CreateMetricServices();
+        LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         using LoginRuntimeHostedService service = CreateService(static () => null!, queue, metrics);
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.StartAsync(TestContext.Current.CancellationToken));
@@ -57,10 +61,11 @@ public sealed class LoginRuntimeHostedServiceTests
     }
 
     [Fact]
-    public async Task ExecuteTask_PropagatesAcceptLoopFailureAndDisposesListenerOnStop()
+    public async Task ExecuteTask_PropagatesAcceptLoopFailureAndImmediatelyDisposesListener()
     {
         await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
-        using LoginRuntimeMetrics metrics = new();
+        using ServiceProvider services = CreateMetricServices();
+        LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
         using LoginRuntimeHostedService service = CreateService(() => listener, queue, metrics);
 
@@ -73,6 +78,7 @@ public sealed class LoginRuntimeHostedServiceTests
         IOException actual = await Assert.ThrowsAsync<IOException>(() => service.ExecuteTask!);
 
         Assert.Same(expected, actual);
+        Assert.Equal(1, listener.DisposeCallCount);
 
         await service.StopAsync(TestContext.Current.CancellationToken);
 
@@ -83,7 +89,8 @@ public sealed class LoginRuntimeHostedServiceTests
     public async Task ExecuteTask_TreatsUnexpectedAdmissionCompletionAsRuntimeFailure()
     {
         await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
-        using LoginRuntimeMetrics metrics = new();
+        using ServiceProvider services = CreateMetricServices();
+        LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
         using LoginRuntimeHostedService service = CreateService(() => listener, queue, metrics);
 
@@ -104,7 +111,8 @@ public sealed class LoginRuntimeHostedServiceTests
     public async Task StopAsync_IsIdempotentForListenerOwnership()
     {
         await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
-        using LoginRuntimeMetrics metrics = new();
+        using ServiceProvider services = CreateMetricServices();
+        LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
         using LoginRuntimeHostedService service = CreateService(() => listener, queue, metrics);
 
@@ -114,6 +122,17 @@ public sealed class LoginRuntimeHostedServiceTests
         await service.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(1, listener.DisposeCallCount);
+    }
+
+    [Fact]
+    public void LoginRuntimeMetrics_RejectsMissingMeterFactory()
+    {
+        Assert.Throws<ArgumentNullException>(() => new LoginRuntimeMetrics(null!));
+    }
+
+    private static ServiceProvider CreateMetricServices()
+    {
+        return new ServiceCollection().AddMetrics().AddSingleton<LoginRuntimeMetrics>().BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
     private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue queue, LoginRuntimeMetrics metrics)
