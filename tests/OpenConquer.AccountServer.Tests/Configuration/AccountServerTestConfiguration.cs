@@ -20,6 +20,7 @@ internal static class AccountServerTestConfiguration
             ["AccountServer:Network:GameServerPort"] = "5816",
 
             ["AccountServer:Admission:Capacity"] = "1024",
+            ["AccountServer:Admission:MaximumConcurrentConnectionsPerSource"] = "6",
 
             ["AccountServer:Workers:Count"] = "8",
             ["AccountServer:Workers:ConnectionTimeout"] = "00:00:15",

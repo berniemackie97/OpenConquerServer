@@ -17,29 +17,35 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
     [Fact]
     public void AddAccountLoginInfrastructure_RejectsMissingConfiguration()
     {
-        AccountAuthenticationProtectionOptions protection = new();
+        AccountLoginConnectionProtectionOptions connectionProtection = new();
+        AccountAuthenticationProtectionOptions authenticationProtection = new();
         KeyValuePair<ushort, string>[] verificationKeys = CreateVerificationKeys();
 
-        Assert.Throws<ArgumentNullException>(() => AccountLoginInfrastructureServiceCollectionExtensions.AddAccountLoginInfrastructure(null!, "Server=localhost", protection, ActiveVerificationKeyId, verificationKeys));
-        Assert.Throws<ArgumentException>(() => new ServiceCollection().AddAccountLoginInfrastructure(" ", protection, ActiveVerificationKeyId, verificationKeys));
-        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddAccountLoginInfrastructure("Server=localhost", null!, ActiveVerificationKeyId, verificationKeys));
-        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddAccountLoginInfrastructure("Server=localhost", protection, ActiveVerificationKeyId, null!));
+        Assert.Throws<ArgumentNullException>(() => AccountLoginInfrastructureServiceCollectionExtensions.AddAccountLoginInfrastructure(null!, "Server=localhost", connectionProtection, authenticationProtection, ActiveVerificationKeyId, verificationKeys));
+        Assert.Throws<ArgumentException>(() => new ServiceCollection().AddAccountLoginInfrastructure(" ", connectionProtection, authenticationProtection, ActiveVerificationKeyId, verificationKeys));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddAccountLoginInfrastructure("Server=localhost", null!, authenticationProtection, ActiveVerificationKeyId, verificationKeys));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddAccountLoginInfrastructure("Server=localhost", connectionProtection, null!, ActiveVerificationKeyId, verificationKeys));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddAccountLoginInfrastructure("Server=localhost", connectionProtection, authenticationProtection, ActiveVerificationKeyId, null!));
     }
 
     [Fact]
     public async Task AddAccountLoginInfrastructure_ComposesProductionLoginGraph()
     {
-        AccountAuthenticationProtectionOptions protection = new();
+        AccountLoginConnectionProtectionOptions connectionProtectionOptions = new();
+        AccountAuthenticationProtectionOptions authenticationProtectionOptions = new();
 
         await using ServiceProvider provider = new ServiceCollection()
-            .AddAccountLoginInfrastructure("Server=localhost;Database=authentication", protection, ActiveVerificationKeyId, CreateVerificationKeys())
+            .AddAccountLoginInfrastructure("Server=localhost;Database=authentication", connectionProtectionOptions, authenticationProtectionOptions, ActiveVerificationKeyId, CreateVerificationKeys())
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
-        Assert.Same(protection, provider.GetRequiredService<AccountAuthenticationProtectionOptions>());
+        Assert.Same(connectionProtectionOptions, provider.GetRequiredService<AccountLoginConnectionProtectionOptions>());
+        Assert.Same(authenticationProtectionOptions, provider.GetRequiredService<AccountAuthenticationProtectionOptions>());
         Assert.Same(TimeProvider.System, provider.GetRequiredService<TimeProvider>());
 
-        AccountAuthenticationProtection authenticationProtection = provider.GetRequiredService<AccountAuthenticationProtection>();
+        AccountLoginConnectionProtection connectionProtection = provider.GetRequiredService<AccountLoginConnectionProtection>();
+        Assert.Same(connectionProtection, provider.GetRequiredService<IAccountLoginConnectionLimiter>());
 
+        AccountAuthenticationProtection authenticationProtection = provider.GetRequiredService<AccountAuthenticationProtection>();
         Assert.Same(authenticationProtection, provider.GetRequiredService<IAccountAuthenticationRequestLimiter>());
         Assert.Same(authenticationProtection, provider.GetRequiredService<IAccountAuthenticationAttemptLimiter>());
 
@@ -48,13 +54,13 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
         Assert.IsType<GameLoginTicketGrantStore>(provider.GetRequiredService<IGameLoginTicketGrantStore>());
         Assert.IsType<CryptographicGameLoginTicketTokenGenerator>(provider.GetRequiredService<IGameLoginTicketTokenGenerator>());
 
+        Assert.Same(provider.GetRequiredService<IAccountLoginConnectionLimiter>(), provider.GetRequiredService<IAccountLoginConnectionLimiter>());
         Assert.Same(provider.GetRequiredService<IAccountAuthenticator>(), provider.GetRequiredService<IAccountAuthenticator>());
         Assert.Same(provider.GetRequiredService<IGameLoginTicketGrantStore>(), provider.GetRequiredService<IGameLoginTicketGrantStore>());
         Assert.Same(provider.GetRequiredService<IGameLoginTicketTokenGenerator>(), provider.GetRequiredService<IGameLoginTicketTokenGenerator>());
         Assert.Same(provider.GetRequiredService<GameLoginTicketIssuer>(), provider.GetRequiredService<GameLoginTicketIssuer>());
 
         MySqlDataSource rawDataSource = provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey);
-
         Assert.Same(rawDataSource, provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey));
     }
 
@@ -65,7 +71,7 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
         ServiceCollection services = new();
 
         services.AddSingleton<TimeProvider>(timeProvider);
-        services.AddAccountLoginInfrastructure("Server=localhost;Database=authentication", new AccountAuthenticationProtectionOptions(), ActiveVerificationKeyId, CreateVerificationKeys());
+        services.AddAccountLoginInfrastructure("Server=localhost;Database=authentication", new AccountLoginConnectionProtectionOptions(), new AccountAuthenticationProtectionOptions(), ActiveVerificationKeyId, CreateVerificationKeys());
 
         await using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
@@ -77,11 +83,10 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
     public async Task AddAccountLoginInfrastructure_KeyRingIsContainerOwned()
     {
         ServiceProvider provider = new ServiceCollection()
-            .AddAccountLoginInfrastructure("Server=localhost;Database=authentication", new AccountAuthenticationProtectionOptions(), ActiveVerificationKeyId, CreateVerificationKeys())
+            .AddAccountLoginInfrastructure("Server=localhost;Database=authentication", new AccountLoginConnectionProtectionOptions(), new AccountAuthenticationProtectionOptions(), ActiveVerificationKeyId, CreateVerificationKeys())
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         GameLoginTicketAuthenticationKeyRing keyRing = provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>();
-
         byte[] verifier = keyRing.CreateVerifier(123, 456);
 
         Assert.Equal(GameLoginTicketAuthenticationKeyVerifier.VerifierSize, verifier.Length);
@@ -98,6 +103,7 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
 
         Assert.Throws<ArgumentException>(() => services.AddAccountLoginInfrastructure(
             "Server=localhost;Database=authentication",
+            new AccountLoginConnectionProtectionOptions(),
             new AccountAuthenticationProtectionOptions(),
             ActiveVerificationKeyId,
             [new KeyValuePair<ushort, string>(ActiveVerificationKeyId, "invalid")]));
@@ -112,6 +118,7 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
 
         Assert.Throws<ArgumentException>(() => services.AddAccountLoginInfrastructure(
             "Server=localhost;Database=authentication",
+            new AccountLoginConnectionProtectionOptions(),
             new AccountAuthenticationProtectionOptions(),
             ActiveVerificationKeyId,
             CreateVerificationKeys(8)));
@@ -126,6 +133,7 @@ public sealed class AccountLoginInfrastructureServiceCollectionExtensionsTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => services.AddAccountLoginInfrastructure(
             "Server=localhost;Database=authentication",
+            new AccountLoginConnectionProtectionOptions(),
             new AccountAuthenticationProtectionOptions(),
             0,
             CreateVerificationKeys()));

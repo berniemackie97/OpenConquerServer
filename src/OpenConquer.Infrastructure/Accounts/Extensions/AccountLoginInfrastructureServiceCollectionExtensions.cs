@@ -12,10 +12,11 @@ namespace OpenConquer.Infrastructure.Accounts.Extensions;
 
 public static class AccountLoginInfrastructureServiceCollectionExtensions
 {
-    public static IServiceCollection AddAccountLoginInfrastructure(this IServiceCollection services, string connectionString, AccountAuthenticationProtectionOptions authenticationProtectionOptions, ushort activeVerificationKeyId, IEnumerable<KeyValuePair<ushort, string>> encodedVerificationKeys)
+    public static IServiceCollection AddAccountLoginInfrastructure(this IServiceCollection services, string connectionString, AccountLoginConnectionProtectionOptions loginConnectionProtectionOptions, AccountAuthenticationProtectionOptions authenticationProtectionOptions, ushort activeVerificationKeyId, IEnumerable<KeyValuePair<ushort, string>> encodedVerificationKeys)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ArgumentNullException.ThrowIfNull(loginConnectionProtectionOptions);
         ArgumentNullException.ThrowIfNull(authenticationProtectionOptions);
         ArgumentNullException.ThrowIfNull(encodedVerificationKeys);
 
@@ -25,6 +26,10 @@ public static class AccountLoginInfrastructureServiceCollectionExtensions
         {
             services.AddAccountPersistence(connectionString);
             services.TryAddSingleton<TimeProvider>(_ => TimeProvider.System);
+
+            services.AddSingleton(loginConnectionProtectionOptions);
+            services.AddSingleton<AccountLoginConnectionProtection>();
+            services.AddSingleton<IAccountLoginConnectionLimiter>(provider => provider.GetRequiredService<AccountLoginConnectionProtection>());
 
             services.AddSingleton(authenticationProtectionOptions);
             services.AddSingleton<AccountAuthenticationProtection>();

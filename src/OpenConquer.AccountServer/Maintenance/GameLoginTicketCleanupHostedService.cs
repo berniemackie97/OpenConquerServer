@@ -1,31 +1,31 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenConquer.AccountServer.Hosting;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
 namespace OpenConquer.AccountServer.Maintenance;
 
-internal sealed partial class GameLoginTicketCleanupHostedService(IGameLoginTicketExpirationCleaner cleaner, GameLoginTicketCleanupConfiguration configuration, TimeProvider timeProvider, ILogger<GameLoginTicketCleanupHostedService> logger) : BackgroundService
+internal sealed partial class GameLoginTicketCleanupHostedService(IGameLoginTicketExpirationCleaner cleaner, GameLoginTicketCleanupConfiguration configuration, TimeProvider timeProvider, FatalBackgroundServiceFailureState fatalFailureState, ILogger<GameLoginTicketCleanupHostedService> logger) : BackgroundService
 {
     private readonly IGameLoginTicketExpirationCleaner _cleaner = cleaner ?? throw new ArgumentNullException(nameof(cleaner));
     private readonly GameLoginTicketCleanupConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+    private readonly FatalBackgroundServiceFailureState _fatalFailureState = fatalFailureState ?? throw new ArgumentNullException(nameof(fatalFailureState));
     private readonly ILogger<GameLoginTicketCleanupHostedService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await TryDeleteExpiredTicketsAsync(stoppingToken).ConfigureAwait(false);
-
-        using PeriodicTimer timer = new(_configuration.Interval, _timeProvider);
-
         try
         {
-            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
-            {
-                await TryDeleteExpiredTicketsAsync(stoppingToken).ConfigureAwait(false);
-            }
+            await RunAsync(stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+        }
+        catch (Exception exception)
+        {
+            _fatalFailureState.Record(exception);
+            throw;
         }
     }
 
@@ -53,6 +53,18 @@ internal sealed partial class GameLoginTicketCleanupHostedService(IGameLoginTick
         }
 
         return totalDeleted;
+    }
+
+    private async Task RunAsync(CancellationToken stoppingToken)
+    {
+        await TryDeleteExpiredTicketsAsync(stoppingToken).ConfigureAwait(false);
+
+        using PeriodicTimer timer = new(_configuration.Interval, _timeProvider);
+
+        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+        {
+            await TryDeleteExpiredTicketsAsync(stoppingToken).ConfigureAwait(false);
+        }
     }
 
     private async Task TryDeleteExpiredTicketsAsync(CancellationToken cancellationToken)
@@ -85,10 +97,8 @@ internal sealed partial class GameLoginTicketCleanupHostedService(IGameLoginTick
 
     [LoggerMessage(EventId = 1200, Level = LogLevel.Information, Message = "Deleted {DeletedCount} expired game-login tickets.")]
     private static partial void LogCleanupCompleted(ILogger logger, int deletedCount);
-
     [LoggerMessage(EventId = 1201, Level = LogLevel.Debug, Message = "Game-login ticket cleanup completed with no expired tickets.")]
     private static partial void LogCleanupCompletedWithoutDeletes(ILogger logger);
-
     [LoggerMessage(EventId = 1202, Level = LogLevel.Error, Message = "Game-login ticket cleanup failed; the next scheduled run will retry.")]
     private static partial void LogCleanupFailed(ILogger logger, Exception exception);
 }

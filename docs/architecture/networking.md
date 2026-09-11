@@ -85,19 +85,28 @@ TCP
 
 Independent writers must not race on one connection.
 
-This preserves packet ordering, stream-cipher state, partial-write handling, shutdown semantics, and
-backpressure.
+Secured GameServer output permits exactly one active frame write per connection. An overlapping
+write is rejected immediately rather than queued, so the connection layer cannot accumulate an
+unbounded set of waiting writers.
+
+Higher-level gameplay output scheduling, including any bounded mailbox, priority, coalescing, or
+drop policy, belongs to the future gameplay runtime rather than the secured frame writer.
+
+This preserves packet ordering, stream-cipher state, partial-write handling, shutdown semantics,
+backpressure, and bounded connection-level resource usage.
 
 ## AccountServer Admission
 
-AccountServer ingress is explicitly bounded:
+AccountServer ingress is explicitly bounded before authentication begins:
 
 ```text
 kernel backlog
     ↓
 TCP accept
     ↓
-bounded admission queue
+per-source connection admission
+    ↓
+bounded global admission queue
     ↓
 fixed worker pool
     ↓
@@ -106,17 +115,42 @@ bounded authentication protection
 database
 ```
 
-`TransportConnectionAdmissionQueue` owns accepted connections until a worker receives them.
+Per-source connection admission executes immediately after TCP accept and before the connection can
+consume global admission-queue or worker capacity.
 
-When admission capacity is exhausted:
+Source identity is normalized consistently across connection admission and authentication
+protection:
+
+- IPv4 addresses are tracked individually;
+- IPv4-mapped IPv6 addresses share the corresponding IPv4 source;
+- native IPv6 addresses are grouped by `/64`.
+
+An admitted connection carries its per-source admission lease through the global queue and login
+worker. The lease is released when the connection is disposed, so queued and actively processed
+connections both count toward the source concurrency limit.
+
+When the per-source connection limit is exhausted:
+
+- the new connection is rejected before entering the global admission queue;
+- the rejected connection is disposed before the listener accepts another connection;
+- source rejection is recorded as a metric;
+- no source address or endpoint is attached as a metric dimension.
+
+`TransportConnectionAdmissionQueue` owns globally admitted connections until a worker receives them.
+
+When global admission capacity is exhausted:
 
 - the new connection is rejected;
 - the rejected connection is disposed before rejection reporting;
-- capacity rejection is recorded as a metric;
+- capacity rejection is recorded independently from source rejection;
 - no per-rejection warning or error log is emitted.
 
-This prevents reconnect storms from becoming unbounded queued work or attacker-controlled log
-amplification.
+Connection-level admission protects pre-authentication runtime capacity. It does not replace the
+separate authentication request, concurrency, failure, and lockout controls applied once a login
+request arrives.
+
+This prevents slow pre-authentication peers and reconnect storms from becoming unbounded queued
+work, worker exhaustion, or attacker-controlled log amplification.
 
 ## AccountServer Host Lifecycle
 
@@ -146,7 +180,13 @@ Hosted-service shutdown occurs in reverse order, so the login runtime stops befo
 
 Host startup and shutdown are bounded by explicit timeouts.
 
-Unexpected background-service failure requests host shutdown.
+Unexpected background-service failure requests graceful host shutdown.
+
+Fatal background-service failures are recorded before they escape their service. After the host
+finishes shutting down, the AccountServer returns a nonzero process exit code when such a failure
+was recorded. Normal host shutdown returns success.
+
+Startup or shutdown failures that escape the host lifecycle continue to propagate normally.
 
 ## Login Runtime Supervision
 
@@ -157,6 +197,10 @@ Unexpected background-service failure requests host shutdown.
 - accept-loop lifetime;
 - worker-pool lifetime;
 - admission completion during shutdown/failure.
+
+The AccountServer-specific admission listener decorates the raw TCP listener before the generic
+transport accept loop begins. The generic accept loop therefore receives only connections that have
+already passed per-source admission.
 
 The accept loop and worker pool form one failure domain.
 
@@ -371,7 +415,7 @@ Caller cancellation remains distinct from timeout expiration.
 
 ## Authentication Protection
 
-Authentication work is bounded independently of transport admission.
+Authentication work is bounded independently of connection admission.
 
 Implemented controls:
 
@@ -383,7 +427,8 @@ Implemented controls:
 - lockout;
 - bounded protection state.
 
-Transport admission does not replace authentication abuse protection.
+Pre-authentication connection admission and authentication protection defend different resource
+boundaries. Neither replaces the other.
 
 See [Authentication](authentication.md).
 
@@ -391,10 +436,14 @@ See [Authentication](authentication.md).
 
 `LoginRuntimeMetrics` records low-cardinality counters for:
 
-- admission-capacity rejection;
-- overload-rejection disposal failure;
+- per-source connection admission rejection;
+- global admission-capacity rejection;
+- rejected-connection disposal failure;
 - whole-connection timeout;
 - connection processing failure.
+
+Source rejection and global capacity rejection remain distinct so pre-authentication source pressure
+can be distinguished from exhaustion of total AccountServer admission capacity.
 
 No account, player, session, endpoint, or IP value is used as a metric dimension.
 
@@ -407,7 +456,8 @@ Logging policy:
 | Connection timeout                   | Debug       |
 | Connection processing failure        | Error       |
 | Rejected-connection disposal failure | Error       |
-| Admission capacity rejection         | Metric only |
+| Per-source admission rejection       | Metric only |
+| Global admission capacity rejection  | Metric only |
 
 ## GameServer Connection Handoff
 
@@ -521,7 +571,9 @@ Cleanup does not participate in authorization correctness.
 Implemented AccountServer network/runtime components:
 
 - TCP transport;
-- bounded connection admission;
+- per-source pre-authentication connection admission;
+- bounded global connection admission;
+- lease-coupled admission lifetime;
 - login pipelines and connection session;
 - login framing and stream cryptography;
 - standard credential decoding;
@@ -533,6 +585,7 @@ Implemented AccountServer network/runtime components:
 - database-readiness startup gate;
 - delayed listener construction;
 - runtime supervision;
+- fatal background-service failure exit propagation;
 - bounded expired-ticket maintenance;
 - low-cardinality runtime metrics;
 - runnable AccountServer Generic Host composition.
@@ -542,6 +595,8 @@ Implemented GameServer connection-handoff components:
 - accepted-connection session ownership;
 - native Diffie-Hellman handshake;
 - secured CAST5 framing;
+- single-owner secured outbound frame writes;
+- immediate rejection of overlapping secured writes;
 - fragmented and coalesced stream handling;
 - first secured `1052` login-proof validation;
 - protected single-use ticket redemption;
@@ -552,6 +607,7 @@ Not yet implemented:
 
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
+- gameplay outbound scheduling and bounded mailbox policy;
 - character bootstrap;
 - gameplay packet routing;
 - authoritative world simulation and replication.

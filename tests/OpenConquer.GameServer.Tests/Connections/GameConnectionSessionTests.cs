@@ -200,42 +200,64 @@ public sealed class GameConnectionSessionTests
     }
 
     [Fact]
-    public async Task WriteAsync_ConcurrentWritersPreserveCompleteSerializedFrames()
+    public async Task WriteAsync_SequentialWritesPreserveOrder()
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
         using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
 
         int securedOffset = connection.SentBytes.Length;
-        TestPacket[] packets = Enumerable.Range(0, 16)
-            .Select(index => new TestPacket((ushort)(1200 + index), [(byte)index, 0xA5, 0x5A]))
-            .ToArray();
+        TestPacket firstPacket = new(1201, [0x11, 0x22, 0x33]);
+        TestPacket secondPacket = new(1202, [0x44, 0x55, 0x66]);
 
-        Task[] writes = packets
-            .Select(packet => session.WriteAsync(packet, TestContext.Current.CancellationToken).AsTask())
-            .ToArray();
-
-        await Task.WhenAll(writes);
+        await session.WriteAsync(firstPacket, TestContext.Current.CancellationToken);
+        await session.WriteAsync(secondPacket, TestContext.Current.CancellationToken);
 
         byte[] plaintext = client.DecryptServerBytes(connection.SentBytes[securedOffset..]);
         List<byte[]> frames = ParseServerFrames(plaintext);
-        Dictionary<ushort, byte[]> expected = packets.ToDictionary(packet => packet.PacketId, packet => BuildPacket(packet.PacketId, packet.Payload));
-        HashSet<ushort> observed = [];
 
-        Assert.Equal(packets.Length, frames.Count);
-
-        foreach (byte[] frame in frames)
-        {
-            Assert.True(WireFrameHeader.TryRead(frame, out WireFrameHeader header));
-            Assert.True(observed.Add(header.PacketId));
-            Assert.Equal(expected[header.PacketId], frame);
-        }
-
-        Assert.Equal(expected.Count, observed.Count);
+        Assert.Equal(2, frames.Count);
+        Assert.Equal(BuildPacket(firstPacket.PacketId, firstPacket.Payload), frames[0]);
+        Assert.Equal(BuildPacket(secondPacket.PacketId, secondPacket.Payload), frames[1]);
     }
 
     [Fact]
-    public async Task DisposeAsync_CancelsPublishedWriteAndPreventsQueuedWritePublication()
+    public async Task WriteAsync_ConcurrentWriterIsRejectedWithoutPublication()
+    {
+        FakeGameTransportConnection connection = new();
+        await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
+        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+
+        int securedOffset = connection.SentBytes.Length;
+        TestPacket firstPacket = new(1201, [0x11, 0x22, 0x33]);
+        TestPacket secondPacket = new(1202, [0x44, 0x55, 0x66]);
+
+        connection.BlockSends();
+
+        Task firstWrite = session.WriteAsync(firstPacket, TestContext.Current.CancellationToken).AsTask();
+
+        await connection.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
+
+        InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            session.WriteAsync(secondPacket, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal("Concurrent secured GameServer frame writes are not supported.", failure.Message);
+        Assert.False(firstWrite.IsCompleted);
+        Assert.Equal(securedOffset, connection.SentBytes.Length);
+
+        connection.ReleaseSends();
+
+        await firstWrite;
+
+        byte[] plaintext = client.DecryptServerBytes(connection.SentBytes[securedOffset..]);
+        List<byte[]> frames = ParseServerFrames(plaintext);
+
+        byte[] frame = Assert.Single(frames);
+        Assert.Equal(BuildPacket(firstPacket.PacketId, firstPacket.Payload), frame);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_CancelsActiveWriteWithoutPublication()
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
@@ -245,26 +267,19 @@ public sealed class GameConnectionSessionTests
 
         connection.BlockSends();
 
-        Task firstWrite = session.WriteAsync(
+        Task writeTask = session.WriteAsync(
             new TestPacket(1201, [0x11, 0x22, 0x33]),
             TestContext.Current.CancellationToken).AsTask();
 
         await connection.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
 
-        Task secondWrite = session.WriteAsync(
-            new TestPacket(1202, [0x44, 0x55, 0x66]),
-            TestContext.Current.CancellationToken).AsTask();
-
-        Assert.False(firstWrite.IsCompleted);
-        Assert.False(secondWrite.IsCompleted);
+        Assert.False(writeTask.IsCompleted);
 
         await session.DisposeAsync();
 
-        Exception? firstFailure = await Record.ExceptionAsync(() => firstWrite);
-        Exception? secondFailure = await Record.ExceptionAsync(() => secondWrite);
+        Exception? writeFailure = await Record.ExceptionAsync(() => writeTask);
 
-        Assert.NotNull(firstFailure);
-        Assert.NotNull(secondFailure);
+        Assert.NotNull(writeFailure);
         Assert.Equal(securedOffset, connection.SentBytes.Length);
         Assert.Equal(1, connection.DisposeCount);
     }

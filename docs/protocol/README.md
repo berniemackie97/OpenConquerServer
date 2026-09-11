@@ -18,9 +18,10 @@ Internal server architecture belongs under [`docs/architecture`](../architecture
 | AccountServer post-authentication reports | Implemented             |
 | Standard AccountServer login transaction  | Implemented             |
 | Protected/mobile login variants           | Recognized, unsupported |
-| GameServer handshake                      | Not implemented         |
-| GameServer login proof                    | Not implemented         |
-| Game packet signatures                    | Not implemented         |
+| GameServer Diffie-Hellman handshake       | Implemented             |
+| GameServer CAST5 compatibility encryption | Implemented             |
+| GameServer packet signatures              | Implemented             |
+| GameServer login proof                    | Implemented             |
 | Gameplay packets                          | Not implemented         |
 
 Detailed shared contracts:
@@ -61,11 +62,10 @@ Protocol-specific paths may impose lower limits.
 | AccountServer login     |               524 bytes |
 | 5517 GameServer traffic |    `0x400` / 1024 bytes |
 
-The `0x400` GameServer limit is verified native behavior but is **not yet active**, because the
-GameServer session boundary is not implemented.
+The GameServer session boundary enforces the verified native `0x400` complete-frame limit.
 
-The later game protocol also uses a separate eight-byte signature trailer. That trailer is outside
-the header-declared `0x400` TQ frame:
+GameServer traffic also uses a separate eight-byte signature trailer. That trailer is outside the
+header-declared `0x400` TQ frame:
 
 ```text
 0x400 TQ frame
@@ -115,8 +115,8 @@ AccountServer transaction complete
 
 A successful `1055` is never sent before the GameServer login ticket has been durably granted.
 
-The AccountServer transaction is implemented, but the executable listener, admission queue, worker
-pool, and production composition root are not yet wired.
+The AccountServer transaction is wired into the runnable AccountServer host with bounded
+pre-authentication admission, fixed workers, and bounded authentication protection.
 
 ## Login Seed and Stream Cipher
 
@@ -350,6 +350,25 @@ This includes:
 Authentication authorization was already established by the durable ticket grant before these
 reports are consumed.
 
+## GameServer Compatibility Channel
+
+The standard 5517 GameServer connection performs the native Diffie-Hellman exchange and then uses
+CAST5-CFB64 encrypted framing on the same TCP stream.
+
+The compatibility channel preserves stock client behavior. It is not modern authenticated transport:
+the handshake does not authenticate server endpoint identity and the legacy trailers are not
+message-authentication codes.
+
+GameServer frames use the verified `0x400` complete-frame limit plus the separate eight-byte
+signature trailer.
+
+The first protected login packet is `1052`. The connection handoff validates that proof and
+atomically redeems the single-use GameServer login ticket before exposing an authenticated live
+connection.
+
+Secured outbound framing permits one active writer. Overlapping writes are rejected immediately
+rather than queued.
+
 ## Text Encoding
 
 Implemented protocol text modes are:
@@ -447,12 +466,5 @@ The current protocol surface does not include:
 
 - AccountServer registration variants;
 - protected/mobile credential decoding;
-- GameServer Diffie-Hellman handshake;
-- CAST5 game-channel encryption;
-- game packet signatures;
-- GameServer `1052` login proof;
 - character/session bootstrap;
 - gameplay packets.
-
-These boundaries should be documented when their implementation or native evidence is sufficiently
-complete.

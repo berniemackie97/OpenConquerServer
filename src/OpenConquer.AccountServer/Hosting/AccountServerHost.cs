@@ -5,7 +5,6 @@ using OpenConquer.AccountServer.Configuration;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Hosting;
 using OpenConquer.AccountServer.Login.Observability;
-using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.Infrastructure.Accounts.Extensions;
 using OpenConquer.Transport.Admission;
@@ -39,7 +38,7 @@ internal static class AccountServerHost
         int listenBacklog = configuration.ListenBacklog;
         int admissionCapacity = configuration.AdmissionCapacity;
 
-        services.AddAccountLoginInfrastructure(configuration.AccountConnectionString, configuration.AuthenticationProtection, configuration.ActiveVerificationKeyId, configuration.EncodedVerificationKeys);
+        services.AddAccountLoginInfrastructure(configuration.AccountConnectionString, configuration.LoginConnectionProtection, configuration.AuthenticationProtection, configuration.ActiveVerificationKeyId, configuration.EncodedVerificationKeys);
 
         services.Configure<HostOptions>(options =>
         {
@@ -52,6 +51,7 @@ internal static class AccountServerHost
 
         services.AddMetrics();
 
+        services.AddSingleton<FatalBackgroundServiceFailureState>();
         services.AddSingleton(configuration.WorkerPool);
         services.AddSingleton(configuration.Handshake);
         services.AddSingleton(configuration.TicketCleanup);

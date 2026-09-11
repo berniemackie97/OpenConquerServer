@@ -2,9 +2,12 @@ using System.Net;
 using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenConquer.AccountServer.Hosting;
+using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Observability;
 using OpenConquer.AccountServer.Login.Workers;
+using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
@@ -12,14 +15,16 @@ namespace OpenConquer.AccountServer.Login.Hosting;
 
 internal delegate ITransportConnectionListener LoginTransportListenerFactory();
 
-internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, ILogger<LoginRuntimeHostedService> logger) : BackgroundService
+internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue, IAccountLoginConnectionLimiter connectionLimiter, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, FatalBackgroundServiceFailureState fatalFailureState, ILogger<LoginRuntimeHostedService> logger) : BackgroundService
 {
     private readonly LoginTransportListenerFactory _listenerFactory = listenerFactory ?? throw new ArgumentNullException(nameof(listenerFactory));
     private readonly TransportConnectionAdmissionQueue _admissionQueue = admissionQueue ?? throw new ArgumentNullException(nameof(admissionQueue));
+    private readonly IAccountLoginConnectionLimiter _connectionLimiter = connectionLimiter ?? throw new ArgumentNullException(nameof(connectionLimiter));
     private readonly ILoginSeedGenerator _seedGenerator = seedGenerator ?? throw new ArgumentNullException(nameof(seedGenerator));
     private readonly LoginHandshakeProcessor _handshakeProcessor = handshakeProcessor ?? throw new ArgumentNullException(nameof(handshakeProcessor));
     private readonly LoginConnectionWorkerPoolConfiguration _workerConfiguration = workerConfiguration ?? throw new ArgumentNullException(nameof(workerConfiguration));
     private readonly LoginRuntimeMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+    private readonly FatalBackgroundServiceFailureState _fatalFailureState = fatalFailureState ?? throw new ArgumentNullException(nameof(fatalFailureState));
     private readonly ILogger<LoginRuntimeHostedService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly TaskCompletionSource _runtimeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -37,7 +42,8 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
         try
         {
-            _listener = _listenerFactory() ?? throw new InvalidOperationException("The account login listener factory returned no listener.");
+            ITransportConnectionListener listener = _listenerFactory() ?? throw new InvalidOperationException("The account login listener factory returned no listener.");
+            _listener = new LoginAdmissionTransportListener(listener, _connectionLimiter, _metrics.RecordSourceRejection, ReportRejectionDisposalFailure);
 
             await base.StartAsync(cancellationToken).ConfigureAwait(false);
 
@@ -86,10 +92,10 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        ITransportConnectionListener listener = _listener ?? throw new InvalidOperationException("The account login listener was not created before runtime execution.");
-
         try
         {
+            ITransportConnectionListener listener = _listener ?? throw new InvalidOperationException("The account login listener was not created before runtime execution.");
+
             using CancellationTokenSource runtimeCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
 
             Task workerTask = LoginConnectionWorkerPool.RunAsync(_admissionQueue, _seedGenerator, _handshakeProcessor, _workerConfiguration, ReportConnectionTimeout, ReportConnectionFailure, runtimeCancellation.Token);
@@ -104,13 +110,16 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
             _runtimeStarted.TrySetException(runtimeException);
 
             Exception? listenerDisposalFailure = await DisposeListenerAsync().ConfigureAwait(false);
+            Exception failure = listenerDisposalFailure is null
+                ? runtimeException
+                : new AggregateException("The account login runtime failed and disposing its listener also failed.", runtimeException, listenerDisposalFailure);
 
-            if (listenerDisposalFailure is not null)
+            if (runtimeException is not OperationCanceledException || !stoppingToken.IsCancellationRequested || listenerDisposalFailure is not null)
             {
-                throw new AggregateException("The account login runtime failed and disposing its listener also failed.", runtimeException, listenerDisposalFailure);
+                _fatalFailureState.Record(failure);
             }
 
-            ExceptionDispatchInfo.Capture(runtimeException).Throw();
+            ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 
@@ -303,6 +312,6 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
     private static partial void LogConnectionTimeout(ILogger logger, int workerIndex, TimeSpan connectionTimeout, EndPoint localEndPoint, EndPoint remoteEndPoint);
     [LoggerMessage(EventId = 1103, Level = LogLevel.Error, Message = "Login connection processing failed on worker {WorkerIndex}. Local endpoint: {LocalEndPoint}; remote endpoint: {RemoteEndPoint}.")]
     private static partial void LogConnectionFailure(ILogger logger, int workerIndex, EndPoint localEndPoint, EndPoint remoteEndPoint, Exception exception);
-    [LoggerMessage(EventId = 1104, Level = LogLevel.Error, Message = "Disposing an overload-rejected login connection failed. Local endpoint: {LocalEndPoint}; remote endpoint: {RemoteEndPoint}.")]
+    [LoggerMessage(EventId = 1104, Level = LogLevel.Error, Message = "Disposing a rejected login connection failed. Local endpoint: {LocalEndPoint}; remote endpoint: {RemoteEndPoint}.")]
     private static partial void LogRejectionDisposalFailure(ILogger logger, EndPoint localEndPoint, EndPoint remoteEndPoint, Exception exception);
 }

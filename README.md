@@ -2,11 +2,18 @@
 
 [![CI](https://github.com/berniemackie97/OpenConquerServer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/berniemackie97/OpenConquerServer/actions/workflows/ci.yml)
 
-OpenConquer Server is an open-source **Conquer Online 5517** server emulator rebuilt in C# on **.NET 10**.
+OpenConquer Server is an open-source **Conquer Online 5517** server emulator rebuilt in C# on **.NET
+10**.
 
-The project targets accurate 5517 client compatibility while using maintainable, production-grade server architecture.
+The project targets accurate 5517 client compatibility while using maintainable, production-grade
+server architecture.
 
-> **Status:** Early development. Transport, the runnable AccountServer host, the standard 5517 AccountServer login transaction, account authentication, abuse protection, password persistence and migration, account security mutations, durable GameServer login tickets, ticket revocation/redemption, and bounded expired-ticket maintenance are implemented. Account registration, GameServer sessions, and gameplay are not yet implemented.
+> **Status:** Early development. Transport, the runnable AccountServer host, the standard 5517
+> AccountServer login transaction, account authentication, abuse protection, password persistence
+> and migration, account security mutations, durable GameServer login tickets, ticket
+> revocation/redemption, bounded expired-ticket maintenance, and the GameServer authenticated
+> connection handoff are implemented. Account registration, the runnable GameServer host, character
+> bootstrap, and gameplay are not yet implemented.
 
 ## Architecture
 
@@ -43,16 +50,16 @@ flowchart TD
 
 ### Projects
 
-| Project | Responsibility |
-| --- | --- |
-| **OpenConquer.Domain** | Account rules, state, and invariants. |
-| **OpenConquer.Application** | Authentication, account security mutations, and GameServer login-ticket orchestration. |
-| **OpenConquer.Infrastructure** | MySQL persistence, password hashing/migration, authentication protection, account mutations, and durable login-ticket persistence. |
-| **OpenConquer.Protocol** | 5517 framing, serialization, text encoding, login cryptography, credentials, and packets. |
-| **OpenConquer.Transport** | TCP connections, bounded admission, I/O pumps, buffering, and connection lifetime. |
-| **OpenConquer.AccountServer** | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer** | Host boundary only; game-session and gameplay runtime are not yet implemented. |
-| **OpenConquer.Assets** | Asset boundary only; loaders are not yet implemented. |
+| Project                        | Responsibility                                                                                                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OpenConquer.Domain**         | Account rules, state, and invariants.                                                                                                                                |
+| **OpenConquer.Application**    | Authentication, account security mutations, and GameServer login-ticket orchestration.                                                                               |
+| **OpenConquer.Infrastructure** | MySQL persistence, password hashing/migration, authentication protection, account mutations, and durable login-ticket persistence.                                   |
+| **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and packets.                                                                            |
+| **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, and connection lifetime.                                                                                   |
+| **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
+| **OpenConquer.GameServer**     | Native GameServer connection handoff, encrypted compatibility framing, login-proof authentication, and future gameplay hosting boundary.                             |
+| **OpenConquer.Assets**         | Asset boundary only; loaders are not yet implemented.                                                                                                                |
 
 ## Current AccountServer Login Flow
 
@@ -63,7 +70,9 @@ database/schema readiness
     ↓
 TCP listener
     ↓
-bounded admission
+per-source connection admission
+    ↓
+bounded global admission
     ↓
 fixed login workers
     ↓
@@ -86,9 +95,12 @@ durable GameLoginTicket grant
 
 A successful `1055` is not sent until the GameServer login ticket has been durably granted.
 
-The AccountServer supports the standard 5517 `1060` credential path. Protected/mobile login variants are recognized as unsupported and fail closed.
+The AccountServer supports the standard 5517 `1060` credential path. Protected/mobile login variants
+are recognized as unsupported and fail closed.
 
-The login listener is not exposed until account database readiness succeeds. Admission and authentication work are bounded, and fatal accept/worker failures terminate the supervised login runtime and request host shutdown.
+The login listener is not exposed until account database readiness succeeds. Pre-authentication
+connection admission and authentication work are bounded independently. Fatal background-service
+failures trigger graceful host shutdown and result in a nonzero process exit code.
 
 ## Documentation
 
@@ -120,6 +132,7 @@ src/
 tests/
 ├── OpenConquer.AccountServer.Tests/
 ├── OpenConquer.Application.Tests/
+├── OpenConquer.GameServer.Tests/
 ├── OpenConquer.Infrastructure.Tests/
 ├── OpenConquer.Protocol.Tests/
 └── OpenConquer.Transport.Tests/
@@ -132,7 +145,8 @@ docs/
 
 Database schema changes are versioned through EF Core migrations in `OpenConquer.Infrastructure`.
 
-Integration tests provision temporary MySQL 8.4 databases with Testcontainers and apply the repository migrations before exercising persistence code.
+Integration tests provision temporary MySQL 8.4 databases with Testcontainers and apply the
+repository migrations before exercising persistence code.
 
 ## Requirements
 
@@ -191,6 +205,7 @@ Dependabot monitors NuGet packages, the pinned .NET SDK, and GitHub Actions depe
 
 ## Disclaimer
 
-OpenConquer Server is an independent open-source project and is not affiliated with or endorsed by the original game publisher or developers.
+OpenConquer Server is an independent open-source project and is not affiliated with or endorsed by
+the original game publisher or developers.
 
 Conquer Online and related names and assets belong to their respective owners.
