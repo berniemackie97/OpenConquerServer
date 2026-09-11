@@ -13,8 +13,8 @@ internal sealed class GameSecuredFrameWriter
 {
     private readonly PipeWriter _writer;
     private readonly GameSessionCipher _sessionCipher;
-    private readonly SemaphoreSlim _writeGate = new(initialCount: 1, maxCount: 1);
 
+    private int _writeInProgress;
     private int _terminalState;
 
     public GameSecuredFrameWriter(PipeWriter writer, GameSessionCipher sessionCipher)
@@ -31,7 +31,11 @@ internal sealed class GameSecuredFrameWriter
         ArgumentNullException.ThrowIfNull(packet);
 
         cancellationToken.ThrowIfCancellationRequested();
-        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        if (Interlocked.CompareExchange(ref _writeInProgress, 1, 0) != 0)
+        {
+            throw new InvalidOperationException("Concurrent secured GameServer frame writes are not supported.");
+        }
 
         bool streamStateMayHaveAdvanced = false;
 
@@ -91,7 +95,7 @@ internal sealed class GameSecuredFrameWriter
         }
         finally
         {
-            _writeGate.Release();
+            Volatile.Write(ref _writeInProgress, 0);
         }
     }
 }

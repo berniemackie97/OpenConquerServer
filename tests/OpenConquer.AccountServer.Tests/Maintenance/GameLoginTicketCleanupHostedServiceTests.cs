@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenConquer.AccountServer.Hosting;
 using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
@@ -11,11 +12,13 @@ public sealed class GameLoginTicketCleanupHostedServiceTests
     {
         TrackingExpirationCleaner cleaner = new(maximumBatchSize: 1_000);
         GameLoginTicketCleanupConfiguration configuration = new(TimeSpan.FromMinutes(1), maximumBatchesPerRun: 10);
+        FatalBackgroundServiceFailureState fatalFailureState = new();
 
-        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(null!, configuration, TimeProvider.System, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
-        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, null!, TimeProvider.System, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
-        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, configuration, null!, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
-        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, configuration, TimeProvider.System, null!));
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(null!, configuration, TimeProvider.System, fatalFailureState, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, null!, TimeProvider.System, fatalFailureState, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, configuration, null!, fatalFailureState, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, configuration, TimeProvider.System, null!, NullLogger<GameLoginTicketCleanupHostedService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new GameLoginTicketCleanupHostedService(cleaner, configuration, TimeProvider.System, fatalFailureState, null!));
     }
 
     [Fact]
@@ -56,33 +59,53 @@ public sealed class GameLoginTicketCleanupHostedServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_CleanupFailureDoesNotTerminateService()
+    public async Task ExecuteAsync_CleanupFailureDoesNotTerminateServiceOrRecordFatalFailure()
     {
         FailingExpirationCleaner cleaner = new();
-        using GameLoginTicketCleanupHostedService service = CreateService(cleaner, maximumBatchesPerRun: 1);
+        using GameLoginTicketCleanupHostedService service = CreateService(cleaner, maximumBatchesPerRun: 1, out FatalBackgroundServiceFailureState fatalFailureState);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
         await cleaner.Called.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(service.ExecuteTask);
         Assert.False(service.ExecuteTask!.IsCompleted);
+        Assert.Null(fatalFailureState.Failure);
 
         await service.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.True(service.ExecuteTask.IsCompletedSuccessfully);
+        Assert.Null(fatalFailureState.Failure);
     }
 
     [Fact]
-    public async Task ExecuteAsync_ContractViolationTerminatesService()
+    public async Task ExecuteAsync_ContractViolationRecordsFatalFailureAndTerminatesService()
     {
         ContractViolatingExpirationCleaner cleaner = new();
-        using GameLoginTicketCleanupHostedService service = CreateService(cleaner, maximumBatchesPerRun: 1);
+        using GameLoginTicketCleanupHostedService service = CreateService(cleaner, maximumBatchesPerRun: 1, out FatalBackgroundServiceFailureState fatalFailureState);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecuteTask!);
 
         Assert.Contains("reported", exception.Message, StringComparison.Ordinal);
+        Assert.Same(exception, fatalFailureState.Failure);
+    }
+
+    private static GameLoginTicketCleanupHostedService CreateService(IGameLoginTicketExpirationCleaner cleaner, int maximumBatchesPerRun)
+    {
+        return CreateService(cleaner, maximumBatchesPerRun, out _);
+    }
+
+    private static GameLoginTicketCleanupHostedService CreateService(IGameLoginTicketExpirationCleaner cleaner, int maximumBatchesPerRun, out FatalBackgroundServiceFailureState fatalFailureState)
+    {
+        fatalFailureState = new FatalBackgroundServiceFailureState();
+
+        return new GameLoginTicketCleanupHostedService(
+            cleaner,
+            new GameLoginTicketCleanupConfiguration(TimeSpan.FromDays(1), maximumBatchesPerRun),
+            TimeProvider.System,
+            fatalFailureState,
+            NullLogger<GameLoginTicketCleanupHostedService>.Instance);
     }
 
     private sealed class ContractViolatingExpirationCleaner : IGameLoginTicketExpirationCleaner
@@ -94,11 +117,6 @@ public sealed class GameLoginTicketCleanupHostedServiceTests
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(1_001);
         }
-    }
-
-    private static GameLoginTicketCleanupHostedService CreateService(IGameLoginTicketExpirationCleaner cleaner, int maximumBatchesPerRun)
-    {
-        return new GameLoginTicketCleanupHostedService(cleaner, new GameLoginTicketCleanupConfiguration(TimeSpan.FromDays(1), maximumBatchesPerRun), TimeProvider.System, NullLogger<GameLoginTicketCleanupHostedService>.Instance);
     }
 
     private sealed class TrackingExpirationCleaner(int maximumBatchSize, params int[] results) : IGameLoginTicketExpirationCleaner

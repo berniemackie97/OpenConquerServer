@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.Configuration;
 using OpenConquer.AccountServer.Configuration;
+using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
 namespace OpenConquer.AccountServer.Tests.Configuration;
 
@@ -65,6 +66,28 @@ public sealed class AccountServerConfigurationTests
         Assert.IsType<ArgumentOutOfRangeException>(exception.InnerException);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1025")]
+    public void Load_RejectsInvalidPerSourceConnectionAdmissionLimit(string value)
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:Admission:MaximumConcurrentConnectionsPerSource"] = value);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+
+        Assert.IsType<ArgumentOutOfRangeException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void Load_UsesDefaultPerSourceConnectionAdmissionLimitWhenOmitted()
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values.Remove("AccountServer:Admission:MaximumConcurrentConnectionsPerSource"));
+
+        AccountServerConfiguration result = AccountServerConfiguration.Load(configuration);
+
+        Assert.Equal(AccountLoginConnectionProtectionOptions.DefaultMaximumConcurrentConnectionsPerSource, result.LoginConnectionProtection.MaximumConcurrentConnectionsPerSource);
+    }
+
     [Fact]
     public void Load_RejectsMissingVerificationKeys()
     {
@@ -107,6 +130,7 @@ public sealed class AccountServerConfigurationTests
         Assert.Equal(9958, result.LoginEndPoint.Port);
         Assert.Equal(512, result.ListenBacklog);
         Assert.Equal(1_024, result.AdmissionCapacity);
+        Assert.Equal(6, result.LoginConnectionProtection.MaximumConcurrentConnectionsPerSource);
 
         Assert.Equal(8, result.WorkerPool.WorkerCount);
         Assert.Equal(TimeSpan.FromSeconds(15), result.WorkerPool.ConnectionTimeout);

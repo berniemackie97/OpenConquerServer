@@ -12,12 +12,13 @@ internal sealed class AccountServerConfiguration
 {
     public const string SectionName = "AccountServer";
 
-    private AccountServerConfiguration(string accountConnectionString, IPEndPoint loginEndPoint, int listenBacklog, int admissionCapacity, LoginConnectionWorkerPoolConfiguration workerPool, LoginHandshakeConfiguration handshake, AccountAuthenticationProtectionOptions authenticationProtection, ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] encodedVerificationKeys, GameLoginTicketCleanupConfiguration ticketCleanup)
+    private AccountServerConfiguration(string accountConnectionString, IPEndPoint loginEndPoint, int listenBacklog, int admissionCapacity, AccountLoginConnectionProtectionOptions loginConnectionProtection, LoginConnectionWorkerPoolConfiguration workerPool, LoginHandshakeConfiguration handshake, AccountAuthenticationProtectionOptions authenticationProtection, ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] encodedVerificationKeys, GameLoginTicketCleanupConfiguration ticketCleanup)
     {
         AccountConnectionString = accountConnectionString;
         LoginEndPoint = loginEndPoint;
         ListenBacklog = listenBacklog;
         AdmissionCapacity = admissionCapacity;
+        LoginConnectionProtection = loginConnectionProtection;
         WorkerPool = workerPool;
         Handshake = handshake;
         AuthenticationProtection = authenticationProtection;
@@ -30,6 +31,7 @@ internal sealed class AccountServerConfiguration
     public IPEndPoint LoginEndPoint { get; }
     public int ListenBacklog { get; }
     public int AdmissionCapacity { get; }
+    public AccountLoginConnectionProtectionOptions LoginConnectionProtection { get; }
     public LoginConnectionWorkerPoolConfiguration WorkerPool { get; }
     public LoginHandshakeConfiguration Handshake { get; }
     public AccountAuthenticationProtectionOptions AuthenticationProtection { get; }
@@ -61,6 +63,7 @@ internal sealed class AccountServerConfiguration
             int listenBacklog = ValidatePositive(settings.Network.ListenBacklog, $"{SectionName}:Network:ListenBacklog");
             int admissionCapacity = ValidatePositive(settings.Admission.Capacity, $"{SectionName}:Admission:Capacity");
 
+            AccountLoginConnectionProtectionOptions loginConnectionProtection = new(settings.Admission.MaximumConcurrentConnectionsPerSource);
             LoginConnectionWorkerPoolConfiguration workerPool = new(settings.Workers.Count, settings.Workers.ConnectionTimeout);
             LoginHandshakeConfiguration handshake = new(gameServerAddress, settings.Network.GameServerPort, settings.Handshake.PhaseTimeout);
 
@@ -77,10 +80,9 @@ internal sealed class AccountServerConfiguration
                 settings.AuthenticationProtection.MaximumTrackedEntries);
 
             KeyValuePair<ushort, string>[] encodedVerificationKeys = CreateVerificationKeys(settings.GameLoginTickets.VerificationKeys);
-
             GameLoginTicketCleanupConfiguration ticketCleanup = new(settings.GameLoginTickets.Cleanup.Interval, settings.GameLoginTickets.Cleanup.MaximumBatchesPerRun);
 
-            return new AccountServerConfiguration(accountConnectionString, new IPEndPoint(bindAddress, loginPort), listenBacklog, admissionCapacity, workerPool, handshake, authenticationProtection, settings.GameLoginTickets.ActiveVerificationKeyId, encodedVerificationKeys, ticketCleanup);
+            return new AccountServerConfiguration(accountConnectionString, new IPEndPoint(bindAddress, loginPort), listenBacklog, admissionCapacity, loginConnectionProtection, workerPool, handshake, authenticationProtection, settings.GameLoginTickets.ActiveVerificationKeyId, encodedVerificationKeys, ticketCleanup);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException)
         {
@@ -163,6 +165,7 @@ internal sealed class AccountServerConfiguration
     private sealed class AdmissionSettings
     {
         public int Capacity { get; set; }
+        public int MaximumConcurrentConnectionsPerSource { get; set; } = AccountLoginConnectionProtectionOptions.DefaultMaximumConcurrentConnectionsPerSource;
     }
 
     private sealed class WorkerSettings

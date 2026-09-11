@@ -37,16 +37,16 @@ flowchart TD
 
 ## Projects
 
-| Project                      | Responsibility                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                     |
-| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                     |
-| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.  |
-| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility. |
-| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.        |
-| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                           |
-| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                            |
-| `OpenConquer.GameServer`     | GameServer connection handoff, secure-session orchestration, and future gameplay hosting boundary.      |
+| Project                      | Responsibility                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                              |
+| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                              |
+| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.           |
+| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.          |
+| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                 |
+| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                    |
+| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                     |
+| `OpenConquer.GameServer`     | GameServer connection handoff, native compatibility-channel orchestration, and future gameplay hosting boundary. |
 
 ## Dependency Rules
 
@@ -126,6 +126,10 @@ The standard 5517 AccountServer transaction is implemented:
 ```text
 TCP connection
     ↓
+per-source connection admission
+    ↓
+bounded global admission
+    ↓
 LoginConnectionSession
     ↓
 1059 seed
@@ -147,9 +151,10 @@ Ownership is split by boundary:
 
 | Boundary                         | Owner                            |
 | -------------------------------- | -------------------------------- |
-| TCP and connection admission     | Transport                        |
+| TCP and generic admission        | Transport                        |
+| Per-source admission policy      | Infrastructure                   |
+| Login runtime orchestration      | AccountServer                    |
 | 5517 wire behavior               | Protocol / AccountServer adapter |
-| Login orchestration              | AccountServer                    |
 | Authentication and ticket rules  | Application                      |
 | Persistence and abuse protection | Infrastructure                   |
 
@@ -182,7 +187,9 @@ kernel backlog
     ↓
 TCP accept
     ↓
-bounded admission queue
+per-source connection admission
+    ↓
+bounded global admission queue
     ↓
 fixed worker pool
     ↓
@@ -193,7 +200,8 @@ database
 
 Capacity exhaustion rejects connections instead of growing unbounded work.
 
-Fatal listener or worker failure faults the supervised login runtime and triggers host shutdown.
+Fatal listener or worker failure faults the supervised login runtime and triggers graceful host
+shutdown. Fatal background-service failure results in a nonzero process exit code.
 
 Shutdown stops login ingress before maintenance and disposes queued connections through explicit
 ownership.
@@ -207,16 +215,17 @@ See:
 
 ## GameServer Connection Handoff
 
-The GameServer connection handoff is implemented through authenticated secured-session ownership.
+The GameServer connection handoff is implemented through authenticated application-session ownership
+over the native 5517 encrypted compatibility channel.
 
 ```text
 accepted transport
     ↓
 GameConnectionSession
     ↓
-Diffie-Hellman handshake
+native Diffie-Hellman exchange
     ↓
-secured framing
+CAST5 encrypted framing
     ↓
 1052 login proof
     ↓
@@ -225,14 +234,20 @@ GameLoginTicketRedeemer
 AuthenticatedGameConnection
 ```
 
-The connection session owns transport pumps, pipelines, handshake state, secured framing, cipher
+The connection session owns transport pumps, pipelines, handshake state, encrypted framing, cipher
 state, cancellation, and disposal.
 
-The transport byte stream remains continuous across the handshake-to-secured transition so
+The transport byte stream remains continuous across the handshake-to-encrypted transition so
 fragmented and coalesced input is handled without discarding already-buffered data.
 
-Authentication consumes the durable single-use login ticket and transfers the live secured session
-only after authorization succeeds.
+The native GameServer channel preserves stock 5517 compatibility. It is not modern authenticated
+transport and does not authenticate server endpoint identity.
+
+Application identity is established separately through successful single-use ticket redemption. The
+live session transfers to `AuthenticatedGameConnection` only after authorization succeeds.
+
+Secured GameServer output permits one active frame writer per connection. Overlapping writes are
+rejected immediately rather than queued.
 
 The runnable GameServer host, connection admission runtime, gameplay routing, and authoritative
 world integration remain future boundaries.
@@ -319,6 +334,7 @@ Examples:
 - authentication work;
 - transport I/O;
 - maintenance batches;
+- gameplay outbound work;
 - world partition commands;
 - scheduled world work;
 - persistence work;
@@ -368,8 +384,14 @@ AccountServer database readiness failure
 AccountServer runtime failure
     -> sibling runtime work is stopped and host shutdown is requested
 
+AccountServer fatal background-service failure
+    -> host shuts down and returns a nonzero process exit code
+
 GameServer connection handoff failure
     -> owned session is closed instead of exposing partial authentication state
+
+GameServer overlapping secured write
+    -> rejected immediately instead of queued
 ```
 
 Ambiguous durable commit outcomes are not blindly retried.
@@ -419,7 +441,8 @@ Implemented:
 
 - shared framing and serialization;
 - TCP transport foundation;
-- bounded connection admission;
+- bounded global connection admission;
+- per-source AccountServer pre-authentication admission;
 - AccountServer login session and stream cryptography;
 - standard 5517 AccountServer authentication transaction;
 - fixed login worker pool and whole-connection timeout;
@@ -429,13 +452,15 @@ Implemented:
 - database-readiness startup gating;
 - delayed AccountServer listener creation;
 - supervised AccountServer runtime lifecycle;
+- fatal AccountServer background-service exit propagation;
 - login runtime metrics;
 - bounded expired-ticket maintenance;
 - runnable AccountServer composition root;
 - strict AccountServer deployment configuration;
 - GameServer connection/session ownership;
-- GameServer Diffie-Hellman and CAST5 secure handshake;
-- GameServer secured framing;
+- native GameServer Diffie-Hellman exchange and CAST5 compatibility encryption;
+- GameServer encrypted framing;
+- single-owner GameServer secured outbound writes;
 - GameServer `1052` login-proof authentication;
 - authenticated GameServer connection handoff;
 - MySQL account persistence.
@@ -445,6 +470,7 @@ Not yet implemented:
 - account registration;
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
+- gameplay outbound scheduling and bounded mailbox policy;
 - character bootstrap;
 - authoritative world simulation;
 - gameplay networking and simulation.

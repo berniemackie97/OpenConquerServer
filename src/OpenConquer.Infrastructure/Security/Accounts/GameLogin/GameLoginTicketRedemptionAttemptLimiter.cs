@@ -1,8 +1,7 @@
-using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using System.Net.Sockets;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Infrastructure.Security;
 
 namespace OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
@@ -14,9 +13,9 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
     private readonly GameLoginTicketRedemptionAttemptLimiterOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     private readonly Lock _gate = new();
-    private readonly Dictionary<SourceKey, SourceState> _sources = [];
+    private readonly Dictionary<RemoteAddressSourceKey, SourceState> _sources = [];
     private readonly Dictionary<uint, SessionState> _sessions = [];
-    private readonly LinkedList<SourceKey> _sourceRetention = [];
+    private readonly LinkedList<RemoteAddressSourceKey> _sourceRetention = [];
     private readonly LinkedList<uint> _sessionRetention = [];
     private int _inFlightAttempts;
 
@@ -29,7 +28,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
             throw new ArgumentOutOfRangeException(nameof(sessionUid), "A game-login ticket redemption requires a nonzero session UID.");
         }
 
-        SourceKey sourceKey = CreateSourceKey(remoteAddress);
+        RemoteAddressSourceKey sourceKey = RemoteAddressSourceKey.Create(remoteAddress);
         long timestamp = _timeProvider.GetTimestamp();
 
         lock (_gate)
@@ -261,11 +260,11 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
 
     private bool TryRemoveExpiredSourceState(long timestamp, SourceState? protectedState)
     {
-        LinkedListNode<SourceKey>? node = _sourceRetention.First;
+        LinkedListNode<RemoteAddressSourceKey>? node = _sourceRetention.First;
 
         while (node is not null)
         {
-            LinkedListNode<SourceKey>? next = node.Next;
+            LinkedListNode<RemoteAddressSourceKey>? next = node.Next;
             SourceState sourceState = _sources[node.Value];
 
             if (!RetentionExpired(sourceState.LastActivityTimestamp, timestamp))
@@ -376,48 +375,14 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
         }
     }
 
-    private static SourceKey CreateSourceKey(IPAddress remoteAddress)
+    private sealed class SourceState(RemoteAddressSourceKey key, int availableTokens, long timestamp)
     {
-        Span<byte> bytes = stackalloc byte[16];
-
-        if (!remoteAddress.TryWriteBytes(bytes, out int bytesWritten))
-        {
-            throw new InvalidOperationException("The remote IP address could not be represented as bytes.");
-        }
-
-        if (remoteAddress.AddressFamily == AddressFamily.InterNetwork)
-        {
-            if (bytesWritten != 4)
-            {
-                throw new InvalidOperationException("An IPv4 address produced an unexpected byte length.");
-            }
-
-            return new SourceKey(IsIpv6: false, BinaryPrimitives.ReadUInt32BigEndian(bytes));
-        }
-
-        if (remoteAddress.AddressFamily != AddressFamily.InterNetworkV6 || bytesWritten != 16)
-        {
-            throw new ArgumentException("Only IPv4 and IPv6 remote addresses are supported.", nameof(remoteAddress));
-        }
-
-        if (remoteAddress.IsIPv4MappedToIPv6)
-        {
-            return new SourceKey(IsIpv6: false, BinaryPrimitives.ReadUInt32BigEndian(bytes[12..]));
-        }
-
-        return new SourceKey(IsIpv6: true, BinaryPrimitives.ReadUInt64BigEndian(bytes));
-    }
-
-    private readonly record struct SourceKey(bool IsIpv6, ulong Network);
-
-    private sealed class SourceState(SourceKey key, int availableTokens, long timestamp)
-    {
-        public SourceKey Key { get; } = key;
+        public RemoteAddressSourceKey Key { get; } = key;
         public double AvailableTokens { get; set; } = availableTokens;
         public int InFlightAttempts { get; set; }
         public long LastRefillTimestamp { get; set; } = timestamp;
         public long LastActivityTimestamp { get; set; } = timestamp;
-        public LinkedListNode<SourceKey> RetentionNode { get; } = new(key);
+        public LinkedListNode<RemoteAddressSourceKey> RetentionNode { get; } = new(key);
     }
 
     private sealed class SessionState(uint sessionUid, long timestamp)
