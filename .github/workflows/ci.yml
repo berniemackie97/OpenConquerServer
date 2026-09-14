@@ -60,6 +60,16 @@ jobs:
           --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj
           --context AccountDbContext
 
+      - name: Verify game schema model
+        run: >
+          dotnet tool run dotnet-ef --
+          migrations has-pending-model-changes
+          --configuration Release
+          --no-build
+          --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj
+          --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj
+          --context GameDbContext
+
       - name: Test
         run: dotnet test OpenConquer.Server.slnx --configuration Release --no-build --no-restore
 
