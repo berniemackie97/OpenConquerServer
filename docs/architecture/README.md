@@ -37,16 +37,16 @@ flowchart TD
 
 ## Projects
 
-| Project                      | Responsibility                                                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                              |
-| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                              |
-| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.           |
-| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.          |
-| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                 |
-| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                    |
-| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                     |
-| `OpenConquer.GameServer`     | GameServer connection handoff, native compatibility-channel orchestration, and future gameplay hosting boundary. |
+| Project                      | Responsibility                                                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                                              |
+| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                                              |
+| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.                           |
+| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.                          |
+| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                                 |
+| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                                    |
+| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                                     |
+| `OpenConquer.GameServer`     | GameServer connection handoff, character-login routing, native compatibility-channel orchestration, and future gameplay hosting. |
 
 ## Dependency Rules
 
@@ -232,6 +232,10 @@ CAST5 encrypted framing
 GameLoginTicketRedeemer
     ↓
 AuthenticatedGameConnection
+    ↓
+CharacterLoginHandoffProcessor
+    ↓
+CharacterCreation | ExistingCharacter
 ```
 
 The connection session owns transport pumps, pipelines, handshake state, encrypted framing, cipher
@@ -246,11 +250,22 @@ transport and does not authenticate server endpoint identity.
 Application identity is established separately through successful single-use ticket redemption. The
 live session transfers to `AuthenticatedGameConnection` only after authorization succeeds.
 
+After authentication, `CharacterLoginHandoffProcessor` resolves the canonical account ID through the
+application character-login boundary. An account without a persisted character routes to character
+creation. An account with a persisted character receives the validated login profile required by the
+future existing-character bootstrap path.
+
+The same authenticated connection remains continuously owned through character-login resolution.
+Successful resolution transfers that exact connection with its resolved route. Resolution failure,
+cancellation, or invalid persisted identity closes the owned connection instead of exposing a
+partially resolved session.
+
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
-The runnable GameServer host, connection admission runtime, gameplay routing, and authoritative
-world integration remain future boundaries.
+The runnable GameServer host, connection admission runtime, character creation transaction,
+existing-character bootstrap, gameplay routing, and authoritative world integration remain future
+boundaries.
 
 See:
 
@@ -301,6 +316,29 @@ Application
     ↕
 authoritative runtime
 ```
+
+Accounts and Game persistence are separate durable boundaries.
+
+Accounts persistence owns account identity, credentials, security state, and game-login tickets.
+
+Game persistence owns character-login state. The initial Game schema provides:
+
+- one persisted character per account;
+- unique character names;
+- player entity IDs beginning at `1,000,000`;
+- appearance and hair state;
+- level, experience, profession, and rebirth state;
+- attributes, current life, and current mana;
+- silver, Conquer Points, and bound Conquer Points;
+- PK points, title, and enlightenment points;
+- persisted map ID and position.
+
+The Game database does not establish a cross-database foreign key to Accounts. Successful single-use
+ticket redemption establishes the trusted authenticated account identity used for character
+resolution.
+
+Game character-login reads use bounded `DbContext` operations and produce validated application
+models rather than exposing persistence records to the GameServer boundary.
 
 Long-running `DbContext` instances do not own active world state.
 
@@ -390,6 +428,9 @@ AccountServer fatal background-service failure
 GameServer connection handoff failure
     -> owned session is closed instead of exposing partial authentication state
 
+GameServer character-login resolution failure
+    -> owned authenticated connection is closed instead of exposing partial character state
+
 GameServer overlapping secured write
     -> rejected immediately instead of queued
 ```
@@ -463,7 +504,12 @@ Implemented:
 - single-owner GameServer secured outbound writes;
 - GameServer `1052` login-proof authentication;
 - authenticated GameServer connection handoff;
-- MySQL account persistence.
+- Game character persistence and schema-readiness verification;
+- persisted character-login profile resolution;
+- authenticated account routing to character creation or existing-character login;
+- ownership-safe post-authentication character-login handoff;
+- MySQL account persistence;
+- MySQL Game character-login persistence.
 
 Not yet implemented:
 
@@ -471,7 +517,8 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - gameplay outbound scheduling and bounded mailbox policy;
-- character bootstrap;
+- existing-character bootstrap packet sequence and map entry;
+- character creation request processing and durable creation;
 - authoritative world simulation;
 - gameplay networking and simulation.
 
