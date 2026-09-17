@@ -13,16 +13,15 @@ public sealed class GameTalkPacket1004 : IPacket
     public const int MaximumNameEncodedLength = 15;
     public const int MaximumMessageEncodedLength = byte.MaxValue;
 
-    private const int FixedPayloadSize =
-        sizeof(uint) + sizeof(ushort) + sizeof(ushort) + sizeof(uint) + sizeof(uint) + sizeof(uint) + sizeof(byte);
-    private const int StringCount = 4;
+    private const int FixedPayloadSize = sizeof(uint) + sizeof(ushort) + sizeof(ushort) + sizeof(uint) + sizeof(uint) + sizeof(uint) + sizeof(byte);
+    private const byte StringCount = 4;
 
     public GameTalkPacket1004(uint color, ushort channel, ushort style, uint identity, string sender, string recipient, string suffix, string message)
     {
-        ValidateString(sender, MaximumNameEncodedLength, nameof(sender));
-        ValidateString(recipient, MaximumNameEncodedLength, nameof(recipient));
-        ValidateString(suffix, MaximumNameEncodedLength, nameof(suffix));
-        ValidateString(message, MaximumMessageEncodedLength, nameof(message));
+        int senderLength = GetValidatedEncodedLength(sender, MaximumNameEncodedLength, nameof(sender));
+        int recipientLength = GetValidatedEncodedLength(recipient, MaximumNameEncodedLength, nameof(recipient));
+        int suffixLength = GetValidatedEncodedLength(suffix, MaximumNameEncodedLength, nameof(suffix));
+        int messageLength = GetValidatedEncodedLength(message, MaximumMessageEncodedLength, nameof(message));
 
         Color = color;
         Channel = channel;
@@ -32,8 +31,7 @@ public sealed class GameTalkPacket1004 : IPacket
         Recipient = recipient;
         Suffix = suffix;
         Message = message;
-        PayloadLength = FixedPayloadSize + StringCount + TqEncoding.Ansi.GetByteCount(Sender) + TqEncoding.Ansi.GetByteCount(Recipient) +
-            TqEncoding.Ansi.GetByteCount(Suffix) + TqEncoding.Ansi.GetByteCount(Message);
+        PayloadLength = FixedPayloadSize + StringCount + senderLength + recipientLength + suffixLength + messageLength;
     }
 
     public ushort PacketId => PacketIdentifier;
@@ -62,13 +60,17 @@ public sealed class GameTalkPacket1004 : IPacket
         writer.WriteByteString(Message);
     }
 
-    private static void ValidateString(string value, int maximumEncodedLength, string parameterName)
+    private static int GetValidatedEncodedLength(string value, int maximumEncodedLength, string parameterName)
     {
         ArgumentNullException.ThrowIfNull(value, parameterName);
 
-        if (TqEncoding.Ansi.GetByteCount(value) > maximumEncodedLength)
+        int encodedLength = TqEncoding.Resolve(TqTextEncoding.Ansi).GetByteCount(value);
+
+        if (encodedLength > maximumEncodedLength)
         {
             throw new ArgumentOutOfRangeException(parameterName, $"MsgTalk field must not exceed {maximumEncodedLength} encoded bytes.");
         }
+
+        return encodedLength;
     }
 }
