@@ -119,6 +119,29 @@ public ref struct PacketWriter(Span<byte> buffer)
         _written += fieldLength;
     }
 
+    public void WriteNullTerminatedString(string value, TqTextEncoding encoding = TqTextEncoding.Ansi)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (value.Contains('\0'))
+        {
+            throw new ArgumentException("Null-terminated TQ strings must not contain embedded null characters.", nameof(value));
+        }
+
+        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        int byteCount = selectedEncoding.GetByteCount(value);
+        int fieldLength = checked(byteCount + sizeof(byte));
+        Span<byte> destination = GetWritableSpan(fieldLength);
+
+        if (byteCount != 0)
+        {
+            selectedEncoding.GetBytes(value, destination[..byteCount]);
+        }
+
+        destination[byteCount] = 0;
+        _written += fieldLength;
+    }
+
     private Span<byte> GetWritableSpan(int count)
     {
         if (count > Remaining)
