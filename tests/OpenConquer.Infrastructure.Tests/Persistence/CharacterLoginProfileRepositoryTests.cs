@@ -20,12 +20,9 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
 
         uint characterId = await InsertCharacterAsync(accountId, name);
 
-        ICharacterLoginProfileRepository repository =
-            database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
+        ICharacterLoginProfileRepository repository = database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
 
-        CharacterLoginProfile profile = Assert.IsType<CharacterLoginProfile>(
-            await repository.FindByAccountIdAsync(accountId, CancellationToken)
-        );
+        CharacterLoginProfile profile = Assert.IsType<CharacterLoginProfile>(await repository.FindByAccountIdAsync(accountId, CancellationToken));
 
         Assert.Equal(characterId, profile.Identity.CharacterId);
         Assert.Equal(accountId, profile.Identity.AccountId);
@@ -40,6 +37,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
         Assert.Equal((byte)10, profile.Progression.FirstProfession);
         Assert.Equal((byte)20, profile.Progression.PreviousProfession);
         Assert.Equal((byte)2, profile.Progression.RebirthCount);
+        Assert.Equal((byte)130, profile.Progression.PreRebirthLevel);
 
         Assert.Equal((ushort)101, profile.Attributes.Strength);
         Assert.Equal((ushort)102, profile.Attributes.Agility);
@@ -54,7 +52,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
         Assert.Equal(2_345_678_901u, profile.Economy.ConquerPoints);
         Assert.Equal(3_456_789_012u, profile.Economy.BoundConquerPoints);
 
-        Assert.Equal((ushort)321, profile.PkPoints);
+        Assert.Equal((short)-321, profile.PkPoints);
         Assert.Equal((ushort)654, profile.TitleId);
         Assert.Equal((ushort)987, profile.EnlightenmentPoints);
 
@@ -66,13 +64,9 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
     [Fact]
     public async Task FindByAccountIdAsync_UnknownAccount_ReturnsNull()
     {
-        ICharacterLoginProfileRepository repository =
-            database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
+        ICharacterLoginProfileRepository repository = database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
 
-        CharacterLoginProfile? profile = await repository.FindByAccountIdAsync(
-            CreateAccountId(),
-            CancellationToken
-        );
+        CharacterLoginProfile? profile = await repository.FindByAccountIdAsync(CreateAccountId(), CancellationToken);
 
         Assert.Null(profile);
     }
@@ -80,25 +74,19 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
     [Fact]
     public async Task FindByAccountIdAsync_ZeroAccountId_IsRejected()
     {
-        ICharacterLoginProfileRepository repository =
-            database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
+        ICharacterLoginProfileRepository repository = database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await repository.FindByAccountIdAsync(0, CancellationToken)
-        );
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await repository.FindByAccountIdAsync(0, CancellationToken));
     }
 
     [Fact]
     public async Task FindByAccountIdAsync_PreCanceledOperation_IsObserved()
     {
-        ICharacterLoginProfileRepository repository =
-            database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
+        ICharacterLoginProfileRepository repository = database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-            await repository.FindByAccountIdAsync(CreateAccountId(), cancellation.Token)
-        );
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await repository.FindByAccountIdAsync(CreateAccountId(), cancellation.Token));
     }
 
     [Fact]
@@ -113,8 +101,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
         {
             ICharacterLoginProfileRepository repository = database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
 
-            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-                await repository.FindByAccountIdAsync(accountId, CancellationToken));
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await repository.FindByAccountIdAsync(accountId, CancellationToken));
         }
         finally
         {
@@ -129,8 +116,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
 
         await InsertCharacterAsync(accountId, CreateCharacterName());
 
-        ICharacterLoginProfileRepository repository =
-            database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
+        ICharacterLoginProfileRepository repository = database.Services.GetRequiredService<ICharacterLoginProfileRepository>();
 
         Assert.NotNull(await repository.FindByAccountIdAsync(accountId, CancellationToken));
 
@@ -141,9 +127,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
         command.CommandText = "DELETE FROM `characters` WHERE `account_id` = @account_id";
         command.Parameters.AddWithValue("@account_id", accountId);
 
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            command.ExecuteNonQueryAsync(CancellationToken)
-        );
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => command.ExecuteNonQueryAsync(CancellationToken));
 
         Assert.Equal(1142, exception.Number);
     }
@@ -188,6 +172,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
                      `first_profession`,
                      `previous_profession`,
                      `rebirth_count`,
+                     `pre_rebirth_level`,
                      `silver`,
                      `conquer_points`,
                      `bound_conquer_points`,
@@ -215,10 +200,11 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
                      10,
                      20,
                      2,
+                     130,
                      1234567890,
                      2345678901,
                      3456789012,
-                     321,
+                     -321,
                      654,
                      987,
                      1002,
@@ -245,6 +231,7 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
                      `first_profession`,
                      `previous_profession`,
                      `rebirth_count`,
+                     `pre_rebirth_level`,
                      `silver`,
                      `conquer_points`,
                      `bound_conquer_points`,
@@ -273,10 +260,11 @@ public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture dat
                      10,
                      20,
                      2,
+                     130,
                      1234567890,
                      2345678901,
                      3456789012,
-                     321,
+                     -321,
                      654,
                      987,
                      1002,

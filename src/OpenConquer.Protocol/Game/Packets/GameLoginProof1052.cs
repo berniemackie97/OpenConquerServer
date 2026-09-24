@@ -16,13 +16,7 @@ public enum GameLoginProofParseError
 /// Native 28-byte login proof sent by the standard 5517 client after the
 /// GameServer Diffie-Hellman handshake completes.
 /// </summary>
-public readonly record struct GameLoginProof1052(
-    uint SessionUid,
-    uint AuthenticationKey,
-    ushort Mode,
-    ushort LocaleTag,
-    ulong HardwareAddress,
-    int ResourceVersion)
+public readonly record struct GameLoginProof1052(uint SessionUid, uint AuthenticationKey, ushort Mode, ushort LocaleTag, ulong HardwareAddress, int ResourceVersion)
 {
     public const int PacketLength = 28;
     public const ushort PacketId = 1052;
@@ -78,12 +72,9 @@ public readonly record struct GameLoginProof1052(
             hardwareAddress |= (ulong)packet[HardwareAddressOffset + index] << (index * 8);
         }
 
-        proof = new GameLoginProof1052(
-            BinaryPrimitives.ReadUInt32LittleEndian(packet[SessionUidOffset..]),
-            BinaryPrimitives.ReadUInt32LittleEndian(packet[AuthenticationKeyOffset..]),
-            mode,
-            BinaryPrimitives.ReadUInt16LittleEndian(packet[LocaleTagOffset..]),
-            hardwareAddress,
+        proof = new GameLoginProof1052(BinaryPrimitives.ReadUInt32LittleEndian(packet[SessionUidOffset..]),
+            BinaryPrimitives.ReadUInt32LittleEndian(packet[AuthenticationKeyOffset..]), mode,
+            BinaryPrimitives.ReadUInt16LittleEndian(packet[LocaleTagOffset..]), hardwareAddress,
             BinaryPrimitives.ReadInt32LittleEndian(packet[ResourceVersionOffset..]));
 
         return true;

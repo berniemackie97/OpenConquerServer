@@ -43,8 +43,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
             {
                 RefillSourceState(sourceState, timestamp);
 
-                if (sourceState.AvailableTokens < 1d ||
-                    sourceState.InFlightRequests >= _options.MaximumConcurrentRequestsPerSource)
+                if (sourceState.AvailableTokens < 1d || sourceState.InFlightRequests >= _options.MaximumConcurrentRequestsPerSource)
                 {
                     request = null;
                     return false;
@@ -96,8 +95,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
 
             _accounts.TryGetValue(accountId, out AccountState? accountState);
 
-            if (accountState is not null &&
-                accountState.InFlightAttempts >= _options.MaximumConcurrentAttemptsPerAccount)
+            if (accountState is not null && accountState.InFlightAttempts >= _options.MaximumConcurrentAttemptsPerAccount)
             {
                 attempt = null;
                 return false;

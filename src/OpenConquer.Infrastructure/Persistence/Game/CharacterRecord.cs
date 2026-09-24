@@ -20,10 +20,11 @@ internal sealed class CharacterRecord
     public byte FirstProfession { get; set; }
     public byte PreviousProfession { get; set; }
     public byte RebirthCount { get; set; }
+    public byte PreRebirthLevel { get; set; }
     public uint Silver { get; set; }
     public uint ConquerPoints { get; set; }
     public uint BoundConquerPoints { get; set; }
-    public ushort PkPoints { get; set; }
+    public short PkPoints { get; set; }
     public ushort TitleId { get; set; }
     public ushort EnlightenmentPoints { get; set; }
     public uint MapId { get; set; }

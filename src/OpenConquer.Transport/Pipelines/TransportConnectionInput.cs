@@ -1,6 +1,7 @@
 using System.IO.Pipelines;
+using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.Transport.Connections;
+namespace OpenConquer.Transport.Pipelines;
 
 public static class TransportConnectionInput
 {

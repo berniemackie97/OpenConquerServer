@@ -5,6 +5,7 @@ using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Domain.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts;
+using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;

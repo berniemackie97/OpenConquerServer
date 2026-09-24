@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenConquer.Domain.Accounts;
-using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
-namespace OpenConquer.Infrastructure.Persistence.Accounts;
+namespace OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
 internal sealed class GameLoginTicketConfiguration : IEntityTypeConfiguration<GameLoginTicketRecord>
 {

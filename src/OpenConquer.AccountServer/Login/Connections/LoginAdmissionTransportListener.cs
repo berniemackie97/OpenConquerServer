@@ -6,8 +6,8 @@ using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.AccountServer.Login.Connections;
 
-internal sealed class LoginAdmissionTransportListener(ITransportConnectionListener listener, IAccountLoginConnectionLimiter connectionLimiter, Action reportSourceRejection, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure)
-    : ITransportConnectionListener
+internal sealed class LoginAdmissionTransportListener(ITransportConnectionListener listener, IAccountLoginConnectionLimiter connectionLimiter,
+    Action reportSourceRejection, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure) : ITransportConnectionListener
 {
     private readonly ITransportConnectionListener _listener = listener ?? throw new ArgumentNullException(nameof(listener));
     private readonly IAccountLoginConnectionLimiter _connectionLimiter = connectionLimiter ?? throw new ArgumentNullException(nameof(connectionLimiter));

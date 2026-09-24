@@ -10,25 +10,69 @@ public sealed class CharacterLoginProfileTests
     {
         CharacterLoginIdentity identity = new(CharacterIdentityPolicy.FirstPlayerEntityId, accountId: 42, "Bernie");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
-        CharacterProgression progression = new(level: 120, experience: 123_456_789, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 1);
+        CharacterProgression progression = new(level: 120, experience: 123_456_789, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 1, preRebirthLevel: 130);
         CharacterAttributes attributes = new(120, 65, 80, 20, 7);
         CharacterVitals vitals = new(2_500, 600);
         CharacterEconomy economy = new(500_000, 12_345, 678);
         CharacterLocation location = new(mapId: 1002, x: 430, y: 378);
 
-        CharacterLoginProfile profile = new(identity, appearance, progression, attributes, vitals, economy,
-            pkPoints: 25, titleId: 7, enlightenmentPoints: 250, location);
+        CharacterLoginProfile profile = new(identity, appearance, progression, attributes, vitals, economy, pkPoints: -25, titleId: 7, enlightenmentPoints: 250, location);
 
         Assert.Same(identity, profile.Identity);
         Assert.Same(appearance, profile.Appearance);
         Assert.Same(progression, profile.Progression);
+        Assert.Equal((byte)130, profile.Progression.PreRebirthLevel);
         Assert.Equal(attributes, profile.Attributes);
         Assert.Equal(vitals, profile.Vitals);
         Assert.Equal(economy, profile.Economy);
-        Assert.Equal((ushort)25, profile.PkPoints);
+        Assert.Equal((short)-25, profile.PkPoints);
         Assert.Equal((ushort)7, profile.TitleId);
         Assert.Equal((ushort)250, profile.EnlightenmentPoints);
         Assert.Same(location, profile.Location);
+    }
+
+    [Fact]
+    public void CharacterProgression_NeverRebornCharacterAllowsZeroPreRebirthLevel()
+    {
+        CharacterProgression progression = new(level: 120, experience: 0, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 0, preRebirthLevel: 0);
+
+        Assert.Equal((byte)0, progression.PreRebirthLevel);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(CharacterProgressionPolicy.MaximumLevel)]
+    public void CharacterProgression_RebornCharacterPreservesValidPreRebirthLevel(byte preRebirthLevel)
+    {
+        CharacterProgression progression = new(level: 120, experience: 0, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 1, preRebirthLevel);
+
+        Assert.Equal(preRebirthLevel, progression.PreRebirthLevel);
+    }
+
+    [Fact]
+    public void CharacterProgression_PreRebirthLevelAboveMaximumIsRejected()
+    {
+        byte invalidLevel = checked((byte)(CharacterProgressionPolicy.MaximumLevel + 1));
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => new CharacterProgression(level: 120, experience: 0, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 1, preRebirthLevel: invalidLevel));
+
+        Assert.Equal("preRebirthLevel", exception.ParamName);
+    }
+
+    [Fact]
+    public void CharacterProgression_NeverRebornCharacterWithPreRebirthLevelIsRejected()
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new CharacterProgression(level: 120, experience: 0, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 0, preRebirthLevel: 130));
+
+        Assert.Equal("preRebirthLevel", exception.ParamName);
+    }
+
+    [Fact]
+    public void CharacterProgression_RebornCharacterWithoutPreRebirthLevelIsRejected()
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new CharacterProgression(level: 120, experience: 0, profession: 15, firstProfession: 10, previousProfession: 15, rebirthCount: 1, preRebirthLevel: 0));
+
+        Assert.Equal("preRebirthLevel", exception.ParamName);
     }
 
     [Fact]
@@ -36,7 +80,7 @@ public sealed class CharacterLoginProfileTests
     {
         CharacterLoginIdentity identity = new(CharacterIdentityPolicy.FirstPlayerEntityId, accountId: 42, "Bernie");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
-        CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0);
+        CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
         CharacterLocation location = new(mapId: 1002, x: 430, y: 378);
 
         Assert.Throws<ArgumentNullException>(() => new CharacterLoginProfile(null!, appearance, progression, default, default, default, 0, 0, 0, location));
@@ -64,16 +108,11 @@ public sealed class CharacterLoginProfileTests
 
     private static CharacterLoginProfile CreateProfile()
     {
-        return new CharacterLoginProfile(
-            new CharacterLoginIdentity(CharacterIdentityPolicy.FirstPlayerEntityId, accountId: 42, "Bernie"),
+        return new CharacterLoginProfile(new CharacterLoginIdentity(CharacterIdentityPolicy.FirstPlayerEntityId, accountId: 42, "Bernie"),
             new CharacterAppearance(composite: 1003, hair: 410),
-            new CharacterProgression(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0),
-            new CharacterAttributes(10, 10, 10, 10, 0),
-            new CharacterVitals(100, 0),
-            new CharacterEconomy(0, 0, 0),
-            pkPoints: 0,
-            titleId: 0,
-            enlightenmentPoints: 0,
-            new CharacterLocation(mapId: 1002, x: 430, y: 378));
+            new CharacterProgression(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0),
+            new CharacterAttributes(10, 10, 10, 10, 0), new CharacterVitals(100, 0),
+            new CharacterEconomy(0, 0, 0), pkPoints: 0, titleId: 0,
+            enlightenmentPoints: 0, new CharacterLocation(mapId: 1002, x: 430, y: 378));
     }
 }

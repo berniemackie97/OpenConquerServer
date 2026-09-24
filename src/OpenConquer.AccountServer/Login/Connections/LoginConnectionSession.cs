@@ -6,6 +6,7 @@ using OpenConquer.Protocol.Login.Cryptography;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Protocol.Packets;
 using OpenConquer.Transport.Connections;
+using OpenConquer.Transport.Pipelines;
 
 namespace OpenConquer.AccountServer.Login.Connections;
 

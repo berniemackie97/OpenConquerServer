@@ -15,7 +15,10 @@ namespace OpenConquer.AccountServer.Login.Hosting;
 
 internal delegate ITransportConnectionListener LoginTransportListenerFactory();
 
-internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue, IAccountLoginConnectionLimiter connectionLimiter, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, FatalBackgroundServiceFailureState fatalFailureState, ILogger<LoginRuntimeHostedService> logger) : BackgroundService
+internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue,
+    IAccountLoginConnectionLimiter connectionLimiter, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor,
+    LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, FatalBackgroundServiceFailureState fatalFailureState,
+    ILogger<LoginRuntimeHostedService> logger) : BackgroundService
 {
     private readonly LoginTransportListenerFactory _listenerFactory = listenerFactory ?? throw new ArgumentNullException(nameof(listenerFactory));
     private readonly TransportConnectionAdmissionQueue _admissionQueue = admissionQueue ?? throw new ArgumentNullException(nameof(admissionQueue));

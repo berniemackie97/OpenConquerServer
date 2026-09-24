@@ -31,6 +31,47 @@ public sealed class PacketWriterTests
     }
 
     [Fact]
+    public void WriteInt16_WritesSignedLittleEndian()
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(short)];
+        PacketWriter writer = new(buffer);
+
+        writer.WriteInt16(-321);
+
+        Assert.Equal([0xBF, 0xFE], writer.WrittenSpan.ToArray());
+        Assert.Equal(sizeof(short), writer.Written);
+        Assert.Equal(0, writer.Remaining);
+    }
+
+    [Fact]
+    public void WriteInt16_OverflowDoesNotModifyBuffer()
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+        writer.WriteByte(0xAA);
+
+        try
+        {
+            writer.WriteInt16(-1);
+
+            Assert.Fail("Expected the signed 16-bit write to exceed the remaining capacity.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.Equal(
+                "PacketWriter buffer overflow: requested 2 bytes with 1 remaining.",
+                exception.Message
+            );
+        }
+
+        Assert.Equal(1, writer.Written);
+        Assert.Equal(1, writer.Remaining);
+        Assert.Equal([0xAA, 0xCC], buffer.ToArray());
+    }
+
+    [Fact]
     public void WriteUInt16_WritesLittleEndian()
     {
         Span<byte> buffer = stackalloc byte[sizeof(ushort)];
@@ -649,6 +690,208 @@ public sealed class PacketWriterTests
         Assert.Equal(1, writer.Remaining);
 
         Assert.Equal([0xAA, 0xCC], buffer.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_WritesAnsiValueAndTerminator()
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        PacketWriter writer = new(buffer);
+
+        writer.WriteNullTerminatedString("€");
+
+        Assert.Equal([0x80, 0x00], writer.WrittenSpan.ToArray());
+        Assert.Equal(2, writer.Written);
+        Assert.Equal(0, writer.Remaining);
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_DefaultAnsiUsesRuntimeFallback()
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        PacketWriter writer = new(buffer);
+
+        writer.WriteNullTerminatedString("漢");
+
+        Assert.Equal([(byte)'?', 0x00], writer.WrittenSpan.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_UsesAscii()
+    {
+        Span<byte> buffer = stackalloc byte[3];
+        PacketWriter writer = new(buffer);
+
+        writer.WriteNullTerminatedString("AB", TqTextEncoding.Ascii);
+
+        Assert.Equal([(byte)'A', (byte)'B', 0x00], writer.WrittenSpan.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_UsesStrictAnsi()
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        PacketWriter writer = new(buffer);
+
+        writer.WriteNullTerminatedString("€", TqTextEncoding.StrictAnsi);
+
+        Assert.Equal([0x80, 0x00], writer.WrittenSpan.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_WritesOnlyTerminatorForEmptyValue()
+    {
+        Span<byte> buffer = stackalloc byte[1];
+        buffer[0] = 0xCC;
+
+        PacketWriter writer = new(buffer);
+
+        writer.WriteNullTerminatedString("");
+
+        Assert.Equal([0x00], writer.WrittenSpan.ToArray());
+        Assert.Equal(1, writer.Written);
+        Assert.Equal(0, writer.Remaining);
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_AdvancesOnlyThroughTerminator()
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+
+        writer.WriteNullTerminatedString("AB");
+        writer.WriteByte(0x7F);
+
+        Assert.Equal([(byte)'A', (byte)'B', 0x00, 0x7F], writer.WrittenSpan.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_ThrowsForNullValueWithoutModifyingWriter()
+    {
+        Span<byte> buffer = stackalloc byte[3];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+
+        try
+        {
+            writer.WriteNullTerminatedString(null!);
+
+            Assert.Fail("Expected a null value to be rejected.");
+        }
+        catch (ArgumentNullException exception)
+        {
+            Assert.Equal("value", exception.ParamName);
+        }
+
+        Assert.Equal(0, writer.Written);
+        Assert.Equal(3, writer.Remaining);
+        Assert.Equal([0xCC, 0xCC, 0xCC], buffer.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_RejectsEmbeddedNullWithoutModifyingWriter()
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+
+        try
+        {
+            writer.WriteNullTerminatedString("A\0B");
+
+            Assert.Fail("Expected an embedded null character to be rejected.");
+        }
+        catch (ArgumentException exception)
+        {
+            Assert.Equal("value", exception.ParamName);
+
+            Assert.StartsWith(
+                "Null-terminated TQ strings must not contain embedded null characters.",
+                exception.Message
+            );
+        }
+
+        Assert.Equal(0, writer.Written);
+        Assert.Equal(4, writer.Remaining);
+        Assert.Equal([0xCC, 0xCC, 0xCC, 0xCC], buffer.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_RejectsUnknownEncodingWithoutModifyingWriter()
+    {
+        Span<byte> buffer = stackalloc byte[3];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+
+        try
+        {
+            writer.WriteNullTerminatedString("A", (TqTextEncoding)int.MaxValue);
+
+            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            Assert.Equal("encoding", exception.ParamName);
+            Assert.StartsWith("Unknown TQ text encoding.", exception.Message);
+        }
+
+        Assert.Equal(0, writer.Written);
+        Assert.Equal(3, writer.Remaining);
+        Assert.Equal([0xCC, 0xCC, 0xCC], buffer.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_StrictEncodingFailureAfterEncodablePrefixDoesNotModifyWriter()
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+
+        try
+        {
+            writer.WriteNullTerminatedString("A漢", TqTextEncoding.StrictAnsi);
+
+            Assert.Fail("Expected the unsupported character to be rejected.");
+        }
+        catch (EncoderFallbackException) { }
+
+        Assert.Equal(0, writer.Written);
+        Assert.Equal(4, writer.Remaining);
+        Assert.Equal([0xCC, 0xCC, 0xCC, 0xCC], buffer.ToArray());
+    }
+
+    [Fact]
+    public void WriteNullTerminatedString_OverflowDoesNotModifyBuffer()
+    {
+        Span<byte> buffer = stackalloc byte[3];
+        buffer.Fill(0xCC);
+
+        PacketWriter writer = new(buffer);
+        writer.WriteByte(0xAA);
+
+        try
+        {
+            writer.WriteNullTerminatedString("AB");
+
+            Assert.Fail("Expected the null-terminated string to exceed the remaining capacity.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.Equal(
+                "PacketWriter buffer overflow: requested 3 bytes with 2 remaining.",
+                exception.Message
+            );
+        }
+
+        Assert.Equal(1, writer.Written);
+        Assert.Equal(2, writer.Remaining);
+        Assert.Equal([0xAA, 0xCC, 0xCC], buffer.ToArray());
     }
 
     [Fact]
