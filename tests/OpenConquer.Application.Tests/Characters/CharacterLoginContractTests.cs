@@ -17,7 +17,7 @@ public sealed class CharacterLoginContractTests
     [InlineData(140)]
     public void CharacterProgression_ValidBoundaryLevelsAreAccepted(byte level)
     {
-        CharacterProgression progression = new(level, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0);
+        CharacterProgression progression = new(level, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
 
         Assert.Equal(level, progression.Level);
     }
@@ -28,14 +28,14 @@ public sealed class CharacterLoginContractTests
     public void CharacterProgression_InvalidLevelIsRejected(byte level)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new CharacterProgression(level, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0));
+            new CharacterProgression(level, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0));
     }
 
     [Fact]
     public void CharacterProgression_ZeroProfessionIsRejected()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new CharacterProgression(level: 1, experience: 0, profession: 0, firstProfession: 0, previousProfession: 0, rebirthCount: 0));
+            new CharacterProgression(level: 1, experience: 0, profession: 0, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0));
     }
 
     [Fact]

@@ -115,8 +115,7 @@ public sealed class CharacterLoginHandoffProcessorTests
         StubResolver resolver = new(default, processingFailure);
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Same(processingFailure, exception);
         Assert.Equal(AccountId, resolver.LastAccountId);
@@ -151,8 +150,7 @@ public sealed class CharacterLoginHandoffProcessorTests
         StubResolver resolver = new(default, processingFailure);
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
-            processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.Same(processingFailure, exception.InnerExceptions[0]);
@@ -172,7 +170,7 @@ public sealed class CharacterLoginHandoffProcessorTests
     {
         CharacterLoginIdentity identity = new(CharacterIdentityPolicy.FirstPlayerEntityId, accountId, "Bernie");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
-        CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0);
+        CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
         CharacterAttributes attributes = new(10, 10, 10, 10, 0);
         CharacterVitals vitals = new(100, 0);
         CharacterEconomy economy = new(0, 0, 0);

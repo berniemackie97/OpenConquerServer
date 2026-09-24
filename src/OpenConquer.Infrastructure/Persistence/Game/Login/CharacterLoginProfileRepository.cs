@@ -30,7 +30,7 @@ public sealed class CharacterLoginProfileRepository(IDbContextFactory<GameDbCont
     {
         CharacterLoginIdentity identity = new(character.CharacterId, character.AccountId, character.Name);
         CharacterAppearance appearance = new(character.AppearanceComposite, character.HairComposite);
-        CharacterProgression progression = new(character.Level, character.Experience, character.Profession, character.FirstProfession, character.PreviousProfession, character.RebirthCount);
+        CharacterProgression progression = new(character.Level, character.Experience, character.Profession, character.FirstProfession, character.PreviousProfession, character.RebirthCount, character.PreRebirthLevel);
         CharacterAttributes attributes = new(character.Strength, character.Agility, character.Vitality, character.Spirit, character.UnspentAttributePoints);
         CharacterVitals vitals = new(character.CurrentLife, character.CurrentMana);
         CharacterEconomy economy = new(character.Silver, character.ConquerPoints, character.BoundConquerPoints);

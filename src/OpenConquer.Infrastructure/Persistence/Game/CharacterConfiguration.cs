@@ -18,6 +18,12 @@ internal sealed class CharacterConfiguration : IEntityTypeConfiguration<Characte
                 table.HasCheckConstraint(
                     "CK_characters_level",
                     $"`level` BETWEEN {CharacterProgressionPolicy.MinimumLevel} AND {CharacterProgressionPolicy.MaximumLevel}");
+                table.HasCheckConstraint(
+                    "CK_characters_pre_rebirth_level",
+                    $"`pre_rebirth_level` BETWEEN 0 AND {CharacterProgressionPolicy.MaximumLevel}");
+                table.HasCheckConstraint(
+                    "CK_characters_rebirth_state",
+                    "(`rebirth_count` = 0 AND `pre_rebirth_level` = 0) OR (`rebirth_count` > 0 AND `pre_rebirth_level` > 0)");
                 table.HasCheckConstraint("CK_characters_profession", "`profession` > 0");
                 table.HasCheckConstraint("CK_characters_map_id", "`map_id` > 0");
             });
@@ -43,10 +49,11 @@ internal sealed class CharacterConfiguration : IEntityTypeConfiguration<Characte
         builder.Property(character => character.FirstProfession).HasColumnName("first_profession").HasColumnType("tinyint unsigned").IsRequired();
         builder.Property(character => character.PreviousProfession).HasColumnName("previous_profession").HasColumnType("tinyint unsigned").IsRequired();
         builder.Property(character => character.RebirthCount).HasColumnName("rebirth_count").HasColumnType("tinyint unsigned").IsRequired();
+        builder.Property(character => character.PreRebirthLevel).HasColumnName("pre_rebirth_level").HasColumnType("tinyint unsigned").IsRequired();
         builder.Property(character => character.Silver).HasColumnName("silver").HasColumnType("int unsigned").IsRequired();
         builder.Property(character => character.ConquerPoints).HasColumnName("conquer_points").HasColumnType("int unsigned").IsRequired();
         builder.Property(character => character.BoundConquerPoints).HasColumnName("bound_conquer_points").HasColumnType("int unsigned").IsRequired();
-        builder.Property(character => character.PkPoints).HasColumnName("pk_points").HasColumnType("smallint unsigned").IsRequired();
+        builder.Property(character => character.PkPoints).HasColumnName("pk_points").HasColumnType("smallint").IsRequired();
         builder.Property(character => character.TitleId).HasColumnName("title_id").HasColumnType("smallint unsigned").IsRequired();
         builder.Property(character => character.EnlightenmentPoints).HasColumnName("enlightenment_points").HasColumnType("smallint unsigned").IsRequired();
         builder.Property(character => character.MapId).HasColumnName("map_id").HasColumnType("int unsigned").IsRequired();

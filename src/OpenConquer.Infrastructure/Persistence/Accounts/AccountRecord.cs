@@ -1,4 +1,5 @@
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts;
 

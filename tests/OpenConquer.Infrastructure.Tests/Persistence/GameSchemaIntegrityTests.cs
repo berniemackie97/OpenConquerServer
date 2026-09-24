@@ -13,7 +13,9 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_characters_level",
         "CK_characters_map_id",
         "CK_characters_name_length",
+        "CK_characters_pre_rebirth_level",
         "CK_characters_profession",
+        "CK_characters_rebirth_state",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",
@@ -47,6 +49,30 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
                 """
                     UPDATE `characters`
                     SET `level` = 0
+                    WHERE `character_id` = @character_id
+                    """
+            },
+            {
+                "CK_characters_pre_rebirth_level",
+                $"""
+                    UPDATE `characters`
+                    SET `pre_rebirth_level` = {CharacterProgressionPolicy.MaximumLevel + 1}
+                    WHERE `character_id` = @character_id
+                    """
+            },
+            {
+                "CK_characters_rebirth_state",
+                """
+                    UPDATE `characters`
+                    SET `pre_rebirth_level` = 130
+                    WHERE `character_id` = @character_id
+                    """
+            },
+            {
+                "CK_characters_rebirth_state",
+                """
+                    UPDATE `characters`
+                    SET `rebirth_count` = 1
                     WHERE `character_id` = @character_id
                     """
             },
@@ -128,10 +154,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
             actual.Add(reader.GetString(0));
         }
 
-        Assert.Equal(
-            s_expectedCheckConstraints.Order(StringComparer.Ordinal),
-            actual.Order(StringComparer.Ordinal)
-        );
+        Assert.Equal(s_expectedCheckConstraints.Order(StringComparer.Ordinal), actual.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -156,38 +179,21 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
             ORDER BY `COLUMN_NAME`
             """;
 
-        List<(
-            string Name,
-            string Type,
-            string Nullable,
-            string? CharacterSet,
-            string? Collation,
-            string Extra
-        )> actual = [];
+        List<(string Name, string Type, string Nullable, string? CharacterSet, string? Collation, string Extra)> actual = [];
         await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
 
         while (await reader.ReadAsync(CancellationToken))
         {
-            actual.Add(
-                (
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.IsDBNull(3) ? null : reader.GetString(3),
-                    reader.IsDBNull(4) ? null : reader.GetString(4),
-                    reader.GetString(5)
-                )
-            );
+            actual.Add((
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.GetString(5)));
         }
 
-        (
-            string Name,
-            string Type,
-            string Nullable,
-            string? CharacterSet,
-            string? Collation,
-            string Extra
-        )[] expected =
+        (string Name, string Type, string Nullable, string? CharacterSet, string? Collation, string Extra)[] expected =
         [
             ("account_id", "int unsigned", "NO", null, null, ""),
             ("character_id", "int unsigned", "NO", null, null, "auto_increment"),
@@ -195,6 +201,54 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         ];
 
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public async Task CharacterPkPointsColumn_UsesSignedSmallintStorageContract()
+    {
+        await using MySqlConnection connection = new(database.AdministrativeConnectionString);
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT `COLUMN_TYPE`, `IS_NULLABLE`
+            FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = 'characters'
+              AND `COLUMN_NAME` = 'pk_points'
+            """;
+
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
+
+        Assert.True(await reader.ReadAsync(CancellationToken));
+        Assert.Equal("smallint", reader.GetString(0));
+        Assert.Equal("NO", reader.GetString(1));
+        Assert.False(await reader.ReadAsync(CancellationToken));
+    }
+
+    [Fact]
+    public async Task CharacterPreRebirthLevelColumn_UsesExpectedStorageContract()
+    {
+        await using MySqlConnection connection = new(database.AdministrativeConnectionString);
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT `COLUMN_TYPE`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `EXTRA`
+            FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = 'characters'
+              AND `COLUMN_NAME` = 'pre_rebirth_level'
+            """;
+
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
+
+        Assert.True(await reader.ReadAsync(CancellationToken));
+        Assert.Equal("tinyint unsigned", reader.GetString(0));
+        Assert.Equal("NO", reader.GetString(1));
+        Assert.True(reader.IsDBNull(2));
+        Assert.Equal(string.Empty, reader.GetString(3));
+        Assert.False(await reader.ReadAsync(CancellationToken));
     }
 
     [Fact]
@@ -281,33 +335,23 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(1u, reader.GetUInt32(1));
-        Assert.Equal("20260914210346_InitialGameSchema", reader.GetString(2));
+        Assert.Equal(3u, reader.GetUInt32(1));
+        Assert.Equal("20260923223920_RetainPreRebirthLevel", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 
     [Theory]
     [MemberData(nameof(CharacterConstraintCases))]
-    public async Task Characters_CheckConstraintsRejectInvalidState(
-        string expectedConstraint,
-        string commandText
-    )
+    public async Task Characters_CheckConstraintsRejectInvalidState(string expectedConstraint, string commandText)
     {
         uint characterId = await InsertCharacterAsync(CreateAccountId(), CreateCharacterName());
 
-        await AssertCheckConstraintViolationAsync(
-            expectedConstraint,
-            commandText,
-            new MySqlParameter("@character_id", characterId)
-        );
+        await AssertCheckConstraintViolationAsync(expectedConstraint, commandText, new MySqlParameter("@character_id", characterId));
     }
 
     [Theory]
     [MemberData(nameof(SchemaCompatibilityConstraintCases))]
-    public async Task SchemaCompatibility_CheckConstraintsRejectInvalidState(
-        string expectedConstraint,
-        string commandText
-    )
+    public async Task SchemaCompatibility_CheckConstraintsRejectInvalidState(string expectedConstraint, string commandText)
     {
         await AssertCheckConstraintViolationAsync(expectedConstraint, commandText);
     }
@@ -319,9 +363,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         await InsertCharacterAsync(accountId, CreateCharacterName());
 
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            InsertCharacterAsync(accountId, CreateCharacterName())
-        );
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => InsertCharacterAsync(accountId, CreateCharacterName()));
 
         Assert.Equal(1062, exception.Number);
         Assert.Contains("UX_characters_account_id", exception.Message);
@@ -334,9 +376,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         await InsertCharacterAsync(CreateAccountId(), name);
 
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            InsertCharacterAsync(CreateAccountId(), name)
-        );
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => InsertCharacterAsync(CreateAccountId(), name));
 
         Assert.Equal(1062, exception.Number);
         Assert.Contains("UX_characters_name", exception.Message);
@@ -367,6 +407,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
                  `first_profession`,
                  `previous_profession`,
                  `rebirth_count`,
+                 `pre_rebirth_level`,
                  `silver`,
                  `conquer_points`,
                  `bound_conquer_points`,
@@ -400,6 +441,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
                  0,
                  0,
                  0,
+                 0,
                  1002,
                  430,
                  378)
@@ -415,11 +457,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         return checked((uint)command.LastInsertedId);
     }
 
-    private async Task AssertCheckConstraintViolationAsync(
-        string expectedConstraint,
-        string commandText,
-        params MySqlParameter[] parameters
-    )
+    private async Task AssertCheckConstraintViolationAsync(string expectedConstraint, string commandText, params MySqlParameter[] parameters)
     {
         await using MySqlConnection connection = new(database.AdministrativeConnectionString);
         await connection.OpenAsync(CancellationToken);
@@ -431,9 +469,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
             command.Parameters.AddRange(parameters);
         }
 
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            command.ExecuteNonQueryAsync(CancellationToken)
-        );
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => command.ExecuteNonQueryAsync(CancellationToken));
 
         Assert.Equal(3819, exception.Number);
         Assert.Contains(expectedConstraint, exception.Message);

@@ -85,7 +85,7 @@ public sealed class CharacterLoginResolverTests
         return new CharacterLoginProfile(
             new CharacterLoginIdentity(CharacterIdentityPolicy.FirstPlayerEntityId, accountId, "Bernie"),
             new CharacterAppearance(composite: 1003, hair: 410),
-            new CharacterProgression(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0),
+            new CharacterProgression(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0),
             new CharacterAttributes(10, 10, 10, 10, 0),
             new CharacterVitals(100, 0),
             new CharacterEconomy(0, 0, 0),

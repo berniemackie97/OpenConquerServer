@@ -5,6 +5,7 @@ using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Packets;
 using OpenConquer.Transport.Connections;
+using OpenConquer.Transport.Pipelines;
 
 namespace OpenConquer.GameServer.Connections;
 
