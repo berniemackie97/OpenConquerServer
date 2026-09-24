@@ -10,13 +10,17 @@ internal sealed class CharacterLoginHandoffProcessor(ICharacterLoginResolver res
     private readonly ICharacterLoginResolver _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
 
     /// <summary>
-    /// Takes ownership of <paramref name="connection"/> and transfers it to the returned
-    /// handoff result only after character-login resolution succeeds.
+    /// Takes ownership of the authenticated connection held by <paramref name="authentication"/> and transfers it to the returned handoff result only after character-login resolution succeeds.
     /// </summary>
-    public async ValueTask<CharacterLoginHandoffResult> ProcessAsync(AuthenticatedGameConnection connection, CancellationToken cancellationToken = default)
+    public ValueTask<CharacterLoginHandoffResult> ProcessAsync(GameConnectionAuthenticationResult authentication, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(authentication);
 
+        return ProcessOwnedConnectionAsync(authentication.TakeConnection(), cancellationToken);
+    }
+
+    private async ValueTask<CharacterLoginHandoffResult> ProcessOwnedConnectionAsync(AuthenticatedGameConnection connection, CancellationToken cancellationToken)
+    {
         try
         {
             cancellationToken.ThrowIfCancellationRequested();

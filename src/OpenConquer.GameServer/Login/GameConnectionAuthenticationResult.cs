@@ -7,16 +7,38 @@ internal enum GameConnectionAuthenticationStatus
     Authenticated,
 }
 
-internal readonly record struct GameConnectionAuthenticationResult
+internal sealed class GameConnectionAuthenticationResult : IAsyncDisposable
 {
+    private AuthenticatedGameConnection? _connection;
+
     private GameConnectionAuthenticationResult(GameConnectionAuthenticationStatus status, AuthenticatedGameConnection? connection)
     {
         Status = status;
-        Connection = connection;
+        _connection = connection;
     }
 
     public GameConnectionAuthenticationStatus Status { get; }
-    public AuthenticatedGameConnection? Connection { get; }
+
+    public AuthenticatedGameConnection TakeConnection()
+    {
+        if (Status != GameConnectionAuthenticationStatus.Authenticated)
+        {
+            throw new InvalidOperationException("Only an authenticated GameServer result owns a live connection.");
+        }
+
+        return Interlocked.Exchange(ref _connection, null)
+               ?? throw new InvalidOperationException("The authenticated GameServer connection has already been transferred or disposed.");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AuthenticatedGameConnection? connection = Interlocked.Exchange(ref _connection, null);
+
+        if (connection is not null)
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 
     public static GameConnectionAuthenticationResult PeerClosed() => new(GameConnectionAuthenticationStatus.PeerClosed, null);
     public static GameConnectionAuthenticationResult AuthorizationRejected() => new(GameConnectionAuthenticationStatus.AuthorizationRejected, null);

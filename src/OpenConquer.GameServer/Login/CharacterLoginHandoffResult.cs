@@ -3,11 +3,13 @@ using OpenConquer.Application.Characters.Login;
 namespace OpenConquer.GameServer.Login;
 
 /// <summary>
-/// Carries an authenticated GameServer connection together with the persisted
+/// Owns an authenticated GameServer connection together with the persisted
 /// character-login route resolved for its canonical account identity.
 /// </summary>
-internal sealed class CharacterLoginHandoffResult
+internal sealed class CharacterLoginHandoffResult : IAsyncDisposable
 {
+    private AuthenticatedGameConnection? _connection;
+
     public CharacterLoginHandoffResult(AuthenticatedGameConnection connection, CharacterLoginResolution resolution)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -32,10 +34,25 @@ internal sealed class CharacterLoginHandoffResult
             throw new ArgumentOutOfRangeException(nameof(resolution), resolution.Route, "The character-login route is unsupported.");
         }
 
-        Connection = connection;
+        _connection = connection;
         Resolution = resolution;
     }
 
-    public AuthenticatedGameConnection Connection { get; }
     public CharacterLoginResolution Resolution { get; }
+
+    public AuthenticatedGameConnection TakeConnection()
+    {
+        return Interlocked.Exchange(ref _connection, null)
+               ?? throw new InvalidOperationException("The character-login handoff connection has already been transferred or disposed.");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AuthenticatedGameConnection? connection = Interlocked.Exchange(ref _connection, null);
+
+        if (connection is not null)
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 }

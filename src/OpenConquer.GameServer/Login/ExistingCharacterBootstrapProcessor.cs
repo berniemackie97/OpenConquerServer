@@ -15,7 +15,7 @@ internal sealed class ExistingCharacterBootstrapProcessor
     {
         ArgumentNullException.ThrowIfNull(handoff);
 
-        AuthenticatedGameConnection connection = handoff.Connection;
+        AuthenticatedGameConnection connection = handoff.TakeConnection();
 
         try
         {
@@ -30,14 +30,13 @@ internal sealed class ExistingCharacterBootstrapProcessor
                                             ?? throw new ArgumentException("Existing-character bootstrap requires a resolved character profile.", nameof(handoff));
 
             GameUserInfoPacket1006 userInfo = ExistingCharacterBootstrapPacketFactory.CreateUserInfo(profile);
-            AwaitingEnterMapConnection awaitingEnterMap = new(connection, profile);
 
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.Accepted, cancellationToken).ConfigureAwait(false);
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.LoginHistory, cancellationToken).ConfigureAwait(false);
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.ServerState, cancellationToken).ConfigureAwait(false);
             await connection.WriteAsync(userInfo, cancellationToken).ConfigureAwait(false);
 
-            return awaitingEnterMap;
+            return new AwaitingEnterMapConnection(connection, profile);
         }
         catch (Exception processingException)
         {

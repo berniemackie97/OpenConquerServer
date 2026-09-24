@@ -43,20 +43,20 @@ public sealed class GameConnectionHandoffProcessorTests
         try
         {
             GameConnectionAuthenticationResult result = await processing;
-            authenticatedConnection = result.Connection;
 
             Assert.Equal(GameConnectionAuthenticationStatus.Authenticated, result.Status);
 
-            AuthenticatedGameConnection connection = Assert.IsType<AuthenticatedGameConnection>(authenticatedConnection);
+            authenticatedConnection = result.TakeConnection();
 
-            Assert.Equal(AccountId, connection.AccountId);
-            Assert.Equal(Username, connection.Username);
-            Assert.Equal(SessionUid, connection.SessionUid);
-            Assert.Equal(LocaleTag, connection.LocaleTag);
-            Assert.Equal(HardwareAddress, connection.HardwareAddress);
-            Assert.Equal(ResourceVersion, connection.ResourceVersion);
-            Assert.Equal(transport.LocalEndPoint, connection.LocalEndPoint);
-            Assert.Equal(transport.RemoteEndPoint, connection.RemoteEndPoint);
+            Assert.Equal(AccountId, authenticatedConnection.AccountId);
+            Assert.Equal(Username, authenticatedConnection.Username);
+            Assert.Equal(SessionUid, authenticatedConnection.SessionUid);
+            Assert.Equal(LocaleTag, authenticatedConnection.LocaleTag);
+            Assert.Equal(HardwareAddress, authenticatedConnection.HardwareAddress);
+            Assert.Equal(ResourceVersion, authenticatedConnection.ResourceVersion);
+            Assert.Equal(transport.LocalEndPoint, authenticatedConnection.LocalEndPoint);
+            Assert.Equal(transport.RemoteEndPoint, authenticatedConnection.RemoteEndPoint);
+            Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
 
             Assert.Equal(1, store.RedemptionCount);
             Assert.Equal(SessionUid, store.LastSessionUid);
@@ -109,7 +109,7 @@ public sealed class GameConnectionHandoffProcessorTests
         GameConnectionAuthenticationResult result = await processor.ProcessAsync(transport, TestContext.Current.CancellationToken);
 
         Assert.Equal(GameConnectionAuthenticationStatus.PeerClosed, result.Status);
-        Assert.Null(result.Connection);
+        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
         Assert.NotEmpty(transport.SentBytes);
         Assert.Equal(1, transport.DisposeCount);
         Assert.Equal(0, store.RedemptionCount);
@@ -139,7 +139,7 @@ public sealed class GameConnectionHandoffProcessorTests
         GameConnectionAuthenticationResult result = await processing;
 
         Assert.Equal(GameConnectionAuthenticationStatus.AuthorizationRejected, result.Status);
-        Assert.Null(result.Connection);
+        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
         Assert.Equal(1, store.RedemptionCount);
         Assert.Equal(SessionUid, store.LastSessionUid);
         Assert.Equal(AuthenticationKey, store.LastAuthenticationKey);
@@ -234,7 +234,6 @@ public sealed class GameConnectionHandoffProcessorTests
         public ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             RedemptionCount++;
             LastSessionUid = sessionUid;
             LastAuthenticationKey = authenticationKey;

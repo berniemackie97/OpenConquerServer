@@ -22,57 +22,125 @@ public sealed class CharacterLoginHandoffProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_CharacterCreation_TransfersSameLiveConnection()
+    public async Task ProcessAsync_CharacterCreation_TransfersSameLiveConnectionExactlyOnce()
     {
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         StubResolver resolver = new(CharacterLoginResolution.CharacterCreation());
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        try
         {
-            CharacterLoginHandoffResult result = await processor.ProcessAsync(connection, TestContext.Current.CancellationToken);
+            await using CharacterLoginHandoffResult result = await processor.ProcessAsync(authentication, TestContext.Current.CancellationToken);
+            await using AuthenticatedGameConnection transferredConnection = result.TakeConnection();
 
-            Assert.Same(connection, result.Connection);
+            Assert.Same(connection, transferredConnection);
             Assert.Equal(CharacterLoginRoute.CharacterCreation, result.Resolution.Route);
             Assert.Null(result.Resolution.Profile);
             Assert.Equal(AccountId, resolver.LastAccountId);
             Assert.Equal(1, resolver.ResolveCallCount);
             Assert.Equal(0, transport.DisposeCount);
-        }
-        finally
-        {
-            await connection.DisposeAsync();
+            Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
         }
 
         Assert.Equal(1, transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_ExistingCharacter_TransfersSameLiveConnectionAndProfile()
+    public async Task ProcessAsync_ExistingCharacter_TransfersSameLiveConnectionAndProfileExactlyOnce()
     {
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         CharacterLoginProfile profile = CreateProfile(AccountId);
         StubResolver resolver = new(CharacterLoginResolution.ExistingCharacter(profile));
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        try
         {
-            CharacterLoginHandoffResult result = await processor.ProcessAsync(connection, TestContext.Current.CancellationToken);
+            await using CharacterLoginHandoffResult result = await processor.ProcessAsync(authentication, TestContext.Current.CancellationToken);
+            await using AuthenticatedGameConnection transferredConnection = result.TakeConnection();
 
-            Assert.Same(connection, result.Connection);
+            Assert.Same(connection, transferredConnection);
             Assert.Equal(CharacterLoginRoute.ExistingCharacter, result.Resolution.Route);
             Assert.Same(profile, result.Resolution.Profile);
             Assert.Equal(AccountId, resolver.LastAccountId);
             Assert.Equal(1, resolver.ResolveCallCount);
             Assert.Equal(0, transport.DisposeCount);
-        }
-        finally
-        {
-            await connection.DisposeAsync();
+            Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
         }
 
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_SequentialReuseOfAuthenticationResultIsRejectedBeforeSecondResolution()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
+        StubResolver resolver = new(CharacterLoginResolution.CharacterCreation());
+        CharacterLoginHandoffProcessor processor = new(resolver);
+
+        {
+            await using CharacterLoginHandoffResult result = await processor.ProcessAsync(authentication, TestContext.Current.CancellationToken);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
+
+            Assert.Equal(1, resolver.ResolveCallCount);
+            Assert.Equal(0, transport.DisposeCount);
+        }
+
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_OverlappingReuseOfAuthenticationResultAllowsExactlyOneOwner()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
+        BlockingResolver resolver = new(CharacterLoginResolution.CharacterCreation());
+        CharacterLoginHandoffProcessor processor = new(resolver);
+
+        Task<CharacterLoginHandoffResult> first = processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask();
+
+        await resolver.Entered.WaitAsync(TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(1, resolver.ResolveCallCount);
+        Assert.Equal(0, transport.DisposeCount);
+
+        resolver.Release();
+
+        {
+            await using CharacterLoginHandoffResult result = await first;
+
+            Assert.Equal(CharacterLoginRoute.CharacterCreation, result.Resolution.Route);
+            Assert.Equal(0, transport.DisposeCount);
+        }
+
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_DisposedAuthenticationResultIsRejectedWithoutInvokingResolver()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
+        StubResolver resolver = new(CharacterLoginResolution.CharacterCreation());
+        CharacterLoginHandoffProcessor processor = new(resolver);
+
+        await authentication.DisposeAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(0, resolver.ResolveCallCount);
+        Assert.Null(resolver.LastAccountId);
         Assert.Equal(1, transport.DisposeCount);
     }
 
@@ -81,14 +149,17 @@ public sealed class CharacterLoginHandoffProcessorTests
     {
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         StubResolver resolver = new(default);
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(AccountId, resolver.LastAccountId);
         Assert.Equal(1, resolver.ResolveCallCount);
         Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
     }
 
     [Fact]
@@ -96,14 +167,17 @@ public sealed class CharacterLoginHandoffProcessorTests
     {
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         StubResolver resolver = new(CharacterLoginResolution.ExistingCharacter(CreateProfile(accountId: 99)));
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(AccountId, resolver.LastAccountId);
         Assert.Equal(1, resolver.ResolveCallCount);
         Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
     }
 
     [Fact]
@@ -112,32 +186,38 @@ public sealed class CharacterLoginHandoffProcessorTests
         InvalidOperationException processingFailure = new("character resolution failed");
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         StubResolver resolver = new(default, processingFailure);
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Same(processingFailure, exception);
         Assert.Equal(AccountId, resolver.LastAccountId);
         Assert.Equal(1, resolver.ResolveCallCount);
         Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
     }
 
     [Fact]
-    public async Task ProcessAsync_PreCanceledOperationDisposesConnectionWithoutInvokingResolver()
+    public async Task ProcessAsync_PreCanceledOperationConsumesAndDisposesConnectionWithoutInvokingResolver()
     {
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         StubResolver resolver = new(CharacterLoginResolution.CharacterCreation());
         CharacterLoginHandoffProcessor processor = new(resolver);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(connection, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            processor.ProcessAsync(authentication, cancellation.Token).AsTask());
 
         Assert.Null(resolver.LastAccountId);
         Assert.Equal(0, resolver.ResolveCallCount);
         Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
     }
 
     [Fact]
@@ -147,10 +227,12 @@ public sealed class CharacterLoginHandoffProcessorTests
         IOException cleanupFailure = new("transport dispose failed");
         FakeGameTransportConnection transport = new(disposeFailure: cleanupFailure);
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        GameConnectionAuthenticationResult authentication = GameConnectionAuthenticationResult.Authenticated(connection);
         StubResolver resolver = new(default, processingFailure);
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(connection, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.Same(processingFailure, exception.InnerExceptions[0]);
@@ -158,6 +240,7 @@ public sealed class CharacterLoginHandoffProcessorTests
         Assert.Equal(AccountId, resolver.LastAccountId);
         Assert.Equal(1, resolver.ResolveCallCount);
         Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
     }
 
     private static async Task<AuthenticatedGameConnection> CreateConnectionAsync(FakeGameTransportConnection transport)
@@ -197,5 +280,26 @@ public sealed class CharacterLoginHandoffProcessorTests
 
             return ValueTask.FromResult(result);
         }
+    }
+
+    private sealed class BlockingResolver(CharacterLoginResolution result) : ICharacterLoginResolver
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Entered => _entered.Task;
+        public int ResolveCallCount { get; private set; }
+
+        public async ValueTask<CharacterLoginResolution> ResolveAsync(uint accountId, CancellationToken cancellationToken = default)
+        {
+            ResolveCallCount++;
+            _entered.TrySetResult();
+
+            await _release.Task.WaitAsync(cancellationToken);
+
+            return result;
+        }
+
+        public void Release() => _release.TrySetResult();
     }
 }
