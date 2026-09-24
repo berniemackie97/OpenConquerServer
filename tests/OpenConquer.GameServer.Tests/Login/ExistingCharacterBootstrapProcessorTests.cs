@@ -26,7 +26,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
 
     [Fact]
-    public async Task ProcessAsync_ExistingCharacter_WritesVerifiedBootstrapOrderAndTransfersAwaitingEnterMapConnection()
+    public async Task ProcessAsync_ExistingCharacter_WritesVerifiedBootstrapOrderAndTransfersAwaitingEnterMapConnectionExactlyOnce()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginProfile profile = CreateProfile(rebirthCount: 2, preRebirthLevel: 130);
@@ -35,11 +35,82 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
 
         AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+        AuthenticatedGameConnection transferredConnection = result.TakeConnection();
 
-        Assert.Same(fixture.Connection, result.Connection);
+        Assert.Same(fixture.Connection, transferredConnection);
         Assert.Same(profile, result.Profile);
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.Equal(receiveCallCountBeforeBootstrap, fixture.Transport.ReceiveCallCount);
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
+        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
+
+        byte[] encryptedBootstrap = fixture.Transport.SentBytes[fixture.AuthenticationBoundary..];
+        byte[] plaintextBootstrap = fixture.Client.DecryptServerBytes(encryptedBootstrap);
+
+        Assert.Equal(
+            [
+                GameTalkPacket1004.PacketIdentifier,
+                GameLoginHistoryPacket2078.PacketIdentifier,
+                GameServerStatePacket2079.PacketIdentifier,
+                GameUserInfoPacket1006.PacketIdentifier,
+            ],
+            ReadPacketIds(plaintextBootstrap));
+
+        await result.DisposeAsync();
+
+        Assert.Equal(0, fixture.Transport.DisposeCount);
+
+        await transferredConnection.DisposeAsync();
+
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_SequentialReuseOfHandoffIsRejectedBeforeSecondBootstrapWrite()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
+        ExistingCharacterBootstrapProcessor processor = new();
+
+        await using AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+
+        int sentLengthAfterFirstBootstrap = fixture.Transport.SentBytes.Length;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(sentLengthAfterFirstBootstrap, fixture.Transport.SentBytes.Length);
+        Assert.Equal(0, fixture.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_OverlappingReuseOfHandoffAllowsExactlyOneOwner()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
+        ExistingCharacterBootstrapProcessor processor = new();
+
+        fixture.Transport.BlockSends();
+
+        Task<AwaitingEnterMapConnection> first = processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask();
+
+        await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+
+            Assert.Equal(0, fixture.Transport.DisposeCount);
+        }
+        finally
+        {
+            fixture.Transport.ReleaseSends();
+        }
+
+        await using AwaitingEnterMapConnection result = await first;
+
+        Assert.Equal(0, fixture.Transport.DisposeCount);
 
         byte[] encryptedBootstrap = fixture.Transport.SentBytes[fixture.AuthenticationBoundary..];
         byte[] plaintextBootstrap = fixture.Client.DecryptServerBytes(encryptedBootstrap);
@@ -55,17 +126,52 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_DisposedHandoffIsRejectedWithoutWritingBootstrap()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
+        ExistingCharacterBootstrapProcessor processor = new();
+
+        await handoff.DisposeAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AwaitingEnterMapStateDisposalDisposesOwnedConnection()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
+        ExistingCharacterBootstrapProcessor processor = new();
+
+        AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, fixture.Transport.DisposeCount);
+
+        await result.DisposeAsync();
+
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
+    }
+
+    [Fact]
     public async Task ProcessAsync_CharacterCreationRouteIsRejectedWithoutWritingBootstrapAndConnectionIsDisposed()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
         ExistingCharacterBootstrapProcessor processor = new();
 
-        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal("handoff", exception.ParamName);
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
     }
 
     [Fact]
@@ -77,10 +183,12 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(handoff, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            processor.ProcessAsync(handoff, cancellation.Token).AsTask());
 
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
     }
 
     [Fact]
@@ -104,6 +212,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
     }
 
     [Fact]
@@ -114,13 +223,15 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
         ExistingCharacterBootstrapProcessor processor = new();
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<ArgumentException>(exception.InnerExceptions[0]);
         Assert.Same(cleanupFailure, exception.InnerExceptions[1]);
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
     }
 
     private static async Task<AuthenticatedFixture> AuthenticateAsync(Exception? disposeFailure = null)
@@ -141,11 +252,12 @@ public sealed class ExistingCharacterBootstrapProcessorTests
             transport.QueueReceive([.. client.EncryptedKeyExchangeResponse, .. client.EncryptClientFrame(BuildLoginProof())]);
 
             GameConnectionAuthenticationResult authentication = await processing;
-            AuthenticatedGameConnection connection = Assert.IsType<AuthenticatedGameConnection>(authentication.Connection);
+            AuthenticatedGameConnection connection = authentication.TakeConnection();
 
             Assert.Equal(GameConnectionAuthenticationStatus.Authenticated, authentication.Status);
             Assert.Equal(1, store.RedemptionCount);
             Assert.Equal(1, limiter.BeginCount);
+            Assert.Throws<InvalidOperationException>(() => authentication.TakeConnection());
 
             return new AuthenticatedFixture(transport, client, connection, authenticationBoundary);
         }

@@ -3,10 +3,12 @@ using OpenConquer.Application.Characters.Login;
 namespace OpenConquer.GameServer.Login;
 
 /// <summary>
-/// Represents an authenticated existing character connection after bootstrap completion and before the client enters the world.
+/// Owns an authenticated existing-character connection after bootstrap completion and before the client enters the world.
 /// </summary>
-internal sealed class AwaitingEnterMapConnection
+internal sealed class AwaitingEnterMapConnection : IAsyncDisposable
 {
+    private AuthenticatedGameConnection? _connection;
+
     public AwaitingEnterMapConnection(AuthenticatedGameConnection connection, CharacterLoginProfile profile)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -17,10 +19,25 @@ internal sealed class AwaitingEnterMapConnection
             throw new ArgumentException("The bootstrapped character profile belongs to a different authenticated account.", nameof(profile));
         }
 
-        Connection = connection;
+        _connection = connection;
         Profile = profile;
     }
 
-    public AuthenticatedGameConnection Connection { get; }
     public CharacterLoginProfile Profile { get; }
+
+    public AuthenticatedGameConnection TakeConnection()
+    {
+        return Interlocked.Exchange(ref _connection, null)
+               ?? throw new InvalidOperationException("The EnterMap connection has already been transferred or disposed.");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AuthenticatedGameConnection? connection = Interlocked.Exchange(ref _connection, null);
+
+        if (connection is not null)
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 }
