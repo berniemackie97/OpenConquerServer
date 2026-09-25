@@ -4,14 +4,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.AccountServer.Hosting;
 using OpenConquer.AccountServer.Login.Handshake;
-using OpenConquer.AccountServer.Login.Hosting;
 using OpenConquer.AccountServer.Login.Observability;
+using OpenConquer.AccountServer.Login.Runtime;
 using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
+using LoginRuntimeHostedService = OpenConquer.AccountServer.Login.Runtime.LoginRuntimeHostedService;
 
 namespace OpenConquer.AccountServer.Tests.Login.Hosting;
 

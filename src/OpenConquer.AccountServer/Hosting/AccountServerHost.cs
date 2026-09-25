@@ -3,12 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.AccountServer.Configuration;
 using OpenConquer.AccountServer.Login.Handshake;
-using OpenConquer.AccountServer.Login.Hosting;
 using OpenConquer.AccountServer.Login.Observability;
+using OpenConquer.AccountServer.Login.Runtime;
 using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.Infrastructure.Accounts.Extensions;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Sockets;
+using LoginRuntimeHostedService = OpenConquer.AccountServer.Login.Runtime.LoginRuntimeHostedService;
 
 namespace OpenConquer.AccountServer.Hosting;
 

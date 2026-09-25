@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.AccountServer.Hosting;
 using OpenConquer.AccountServer.Login.Admission;
-using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Observability;
 using OpenConquer.AccountServer.Login.Workers;
@@ -12,7 +11,7 @@ using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.AccountServer.Login.Hosting;
+namespace OpenConquer.AccountServer.Login.Runtime;
 
 internal delegate ITransportConnectionListener LoginTransportListenerFactory();
 

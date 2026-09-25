@@ -3,12 +3,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OpenConquer.AccountServer.Configuration;
 using OpenConquer.AccountServer.Hosting;
-using OpenConquer.AccountServer.Login.Hosting;
+using OpenConquer.AccountServer.Login.Runtime;
 using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.AccountServer.Tests.Configuration;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Transport.Connections;
+using LoginRuntimeHostedService = OpenConquer.AccountServer.Login.Runtime.LoginRuntimeHostedService;
 
 namespace OpenConquer.AccountServer.Tests.Hosting;
 
