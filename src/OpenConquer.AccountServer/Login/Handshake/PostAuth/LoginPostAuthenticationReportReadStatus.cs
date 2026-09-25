@@ -1,4 +1,4 @@
-namespace OpenConquer.AccountServer.Login.Handshake;
+namespace OpenConquer.AccountServer.Login.Handshake.PostAuth;
 
 internal enum LoginPostAuthenticationReportReadStatus
 {

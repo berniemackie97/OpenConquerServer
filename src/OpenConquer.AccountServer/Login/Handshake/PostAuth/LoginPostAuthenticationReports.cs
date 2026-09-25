@@ -1,4 +1,4 @@
-namespace OpenConquer.AccountServer.Login.Handshake;
+namespace OpenConquer.AccountServer.Login.Handshake.PostAuth;
 
 /// <summary>
 /// Contains the validated client-controlled telemetry reported after a

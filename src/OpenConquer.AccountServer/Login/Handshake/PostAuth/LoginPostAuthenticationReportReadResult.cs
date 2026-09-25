@@ -1,4 +1,4 @@
-namespace OpenConquer.AccountServer.Login.Handshake;
+namespace OpenConquer.AccountServer.Login.Handshake.PostAuth;
 
 /// <summary>
 /// Represents the result of consuming the native post-authentication
