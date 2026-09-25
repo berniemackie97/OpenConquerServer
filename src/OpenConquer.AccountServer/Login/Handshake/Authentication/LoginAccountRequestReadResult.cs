@@ -1,6 +1,6 @@
 using OpenConquer.Protocol.Login.Packets;
 
-namespace OpenConquer.AccountServer.Login.Handshake;
+namespace OpenConquer.AccountServer.Login.Handshake.Authentication;
 
 /// <summary>
 /// Represents the result of consuming the account credential request from a

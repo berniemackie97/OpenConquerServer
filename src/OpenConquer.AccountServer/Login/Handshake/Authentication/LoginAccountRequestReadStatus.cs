@@ -1,4 +1,4 @@
-namespace OpenConquer.AccountServer.Login.Handshake;
+namespace OpenConquer.AccountServer.Login.Handshake.Authentication;
 
 /// <summary>
 /// Describes the protocol-level outcome of reading the account credential

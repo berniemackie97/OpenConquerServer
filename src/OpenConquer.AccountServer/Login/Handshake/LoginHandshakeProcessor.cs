@@ -3,6 +3,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Handshake.Authentication;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Protocol.Login.Packets;
