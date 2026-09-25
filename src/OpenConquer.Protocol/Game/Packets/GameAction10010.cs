@@ -20,6 +20,7 @@ public readonly record struct GameAction10010(uint EntityId, uint ParameterPair,
     public const ushort PacketIdentifier = 10010;
     public const int FixedPacketLength = 38;
     public const ushort EnterMapAction = 0x4A;
+    public const ushort ClientStateAppliedAction = 0x198;
 
     private const int EntityIdOffset = 4;
     private const int ParameterPairOffset = 8;
@@ -54,8 +55,7 @@ public readonly record struct GameAction10010(uint EntityId, uint ParameterPair,
 
         ReadOnlySpan<byte> packet = frame.Packet.Span;
 
-        action = new GameAction10010(
-            BinaryPrimitives.ReadUInt32LittleEndian(packet[EntityIdOffset..]),
+        action = new GameAction10010(BinaryPrimitives.ReadUInt32LittleEndian(packet[EntityIdOffset..]),
             BinaryPrimitives.ReadUInt32LittleEndian(packet[ParameterPairOffset..]),
             BinaryPrimitives.ReadUInt32LittleEndian(packet[ActionParameterOffset..]),
             BinaryPrimitives.ReadUInt32LittleEndian(packet[TimestampOffset..]),
@@ -65,8 +65,7 @@ public readonly record struct GameAction10010(uint EntityId, uint ParameterPair,
             BinaryPrimitives.ReadUInt16LittleEndian(packet[PositionYOffset..]),
             BinaryPrimitives.ReadUInt32LittleEndian(packet[Data1Offset..]),
             BinaryPrimitives.ReadUInt32LittleEndian(packet[Data2Offset..]),
-            packet[FlagOffset],
-            packet[StringCountOffset]);
+            packet[FlagOffset], packet[StringCountOffset]);
 
         error = GameActionParseError.None;
         return true;

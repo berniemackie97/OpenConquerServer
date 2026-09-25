@@ -67,16 +67,11 @@ internal sealed class AccountServerConfiguration
             LoginConnectionWorkerPoolConfiguration workerPool = new(settings.Workers.Count, settings.Workers.ConnectionTimeout);
             LoginHandshakeConfiguration handshake = new(gameServerAddress, settings.Network.GameServerPort, settings.Handshake.PhaseTimeout);
 
-            AccountAuthenticationProtectionOptions authenticationProtection = new(
-                settings.AuthenticationProtection.RequestLimitPerSource,
-                settings.AuthenticationProtection.RequestWindow,
-                settings.AuthenticationProtection.MaximumConcurrentRequestsPerSource,
-                settings.AuthenticationProtection.MaximumConcurrentRequests,
-                settings.AuthenticationProtection.MaximumConcurrentAttemptsPerAccount,
-                settings.AuthenticationProtection.FailedAttemptLimitPerAccountSource,
-                settings.AuthenticationProtection.FailureWindow,
-                settings.AuthenticationProtection.FailureLockout,
-                settings.AuthenticationProtection.EntryRetention,
+            AccountAuthenticationProtectionOptions authenticationProtection = new(settings.AuthenticationProtection.RequestLimitPerSource,
+                settings.AuthenticationProtection.RequestWindow, settings.AuthenticationProtection.MaximumConcurrentRequestsPerSource,
+                settings.AuthenticationProtection.MaximumConcurrentRequests, settings.AuthenticationProtection.MaximumConcurrentAttemptsPerAccount,
+                settings.AuthenticationProtection.FailedAttemptLimitPerAccountSource, settings.AuthenticationProtection.FailureWindow,
+                settings.AuthenticationProtection.FailureLockout, settings.AuthenticationProtection.EntryRetention,
                 settings.AuthenticationProtection.MaximumTrackedEntries);
 
             KeyValuePair<ushort, string>[] encodedVerificationKeys = CreateVerificationKeys(settings.GameLoginTickets.VerificationKeys);
