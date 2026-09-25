@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Net;
+using OpenConquer.GameServer.Handshake;
 using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;

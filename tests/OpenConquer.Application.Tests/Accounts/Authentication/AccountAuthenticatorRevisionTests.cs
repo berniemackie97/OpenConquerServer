@@ -1,6 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
+using OpenConquer.Application.Accounts.Authentication.Protection;
+using OpenConquer.Application.Accounts.Authentication.State;
 
 namespace OpenConquer.Application.Tests.Accounts.Authentication;
 
@@ -194,12 +197,12 @@ public sealed class AccountAuthenticatorRevisionTests
     {
         public bool TryBeginAuthentication(
             IPAddress remoteAddress,
-            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request
+            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? requestLease
         )
         {
             ArgumentNullException.ThrowIfNull(remoteAddress);
 
-            request = new RequestLease();
+            requestLease = new RequestLease();
 
             return true;
         }

@@ -2,7 +2,10 @@ using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login;
@@ -486,9 +489,9 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
     private sealed class FakeAttemptLimiter : IGameLoginTicketRedemptionAttemptLimiter
     {
-        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt)
+        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
         {
-            attempt = new FakeAttemptLease();
+            attemptLease = new FakeAttemptLease();
             return true;
         }
     }

@@ -1,4 +1,5 @@
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
 
 namespace OpenConquer.GameServer.Login;
 

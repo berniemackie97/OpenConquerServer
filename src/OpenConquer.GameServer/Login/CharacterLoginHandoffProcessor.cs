@@ -1,4 +1,5 @@
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Resolution;
 
 namespace OpenConquer.GameServer.Login;
 

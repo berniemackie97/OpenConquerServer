@@ -1,4 +1,5 @@
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 

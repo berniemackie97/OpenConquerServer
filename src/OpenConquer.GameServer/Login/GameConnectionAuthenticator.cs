@@ -1,5 +1,6 @@
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 
 namespace OpenConquer.Infrastructure.Persistence.Game.Login;

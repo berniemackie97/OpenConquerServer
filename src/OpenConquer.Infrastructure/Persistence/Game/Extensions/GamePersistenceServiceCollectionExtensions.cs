@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 using OpenConquer.Infrastructure.Persistence.Game.Login;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 
 namespace OpenConquer.Application.Tests.Accounts.GameLogin;
 
@@ -249,7 +250,7 @@ public sealed class GameLoginTicketRedeemerTests
         public uint LastSessionUid { get; private set; }
         public FakeAttemptLease? LastAttempt { get; private set; }
 
-        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt)
+        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
         {
             ArgumentNullException.ThrowIfNull(remoteAddress);
 
@@ -261,14 +262,14 @@ public sealed class GameLoginTicketRedeemerTests
 
             if (!Admit)
             {
-                attempt = null;
+                attemptLease = null;
                 return false;
             }
 
             FakeAttemptLease concreteAttempt = new();
 
             LastAttempt = concreteAttempt;
-            attempt = concreteAttempt;
+            attemptLease = concreteAttempt;
 
             return true;
         }
