@@ -3,9 +3,9 @@ using System.Runtime.ExceptionServices;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.AccountServer.Login.Connections;
+namespace OpenConquer.AccountServer.Login.Admission;
 
-internal sealed class LoginAdmissionTransportConnection(ITransportConnection connection, IAccountLoginConnectionLease admissionLease)
+internal sealed class AdmissionLeaseTransportConnection(ITransportConnection connection, IAccountLoginConnectionLease admissionLease)
     : ITransportConnection
 {
     private readonly ITransportConnection _connection = connection ?? throw new ArgumentNullException(nameof(connection));

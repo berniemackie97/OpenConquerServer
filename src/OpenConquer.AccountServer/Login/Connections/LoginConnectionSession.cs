@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Net;
+using OpenConquer.AccountServer.Login.Connections.Framing;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Protocol.Login;
 using OpenConquer.Protocol.Login.Cryptography;

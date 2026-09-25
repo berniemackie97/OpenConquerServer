@@ -4,7 +4,7 @@ using OpenConquer.Protocol.Login;
 using OpenConquer.Protocol.Login.Cryptography;
 using OpenConquer.Protocol.Packets;
 
-namespace OpenConquer.AccountServer.Login.Connections;
+namespace OpenConquer.AccountServer.Login.Connections.Framing;
 
 /// <summary>
 /// Encodes and encrypts server-to-client account-login frames into the

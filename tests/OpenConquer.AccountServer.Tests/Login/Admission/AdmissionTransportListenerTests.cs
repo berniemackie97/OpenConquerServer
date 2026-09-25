@@ -1,13 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Admission;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.AccountServer.Tests.Login.Connections;
+namespace OpenConquer.AccountServer.Tests.Login.Admission;
 
-public sealed class LoginAdmissionTransportListenerTests
+public sealed class AdmissionTransportListenerTests
 {
     [Fact]
     public void Constructor_NullDependenciesThrow()
@@ -17,10 +17,10 @@ public sealed class LoginAdmissionTransportListenerTests
         Action reportSourceRejection = static () => { };
         Action<TransportConnectionRejectionDisposalFailure> reportDisposalFailure = static _ => { };
 
-        Assert.Throws<ArgumentNullException>(() => new LoginAdmissionTransportListener(null!, limiter, reportSourceRejection, reportDisposalFailure));
-        Assert.Throws<ArgumentNullException>(() => new LoginAdmissionTransportListener(listener, null!, reportSourceRejection, reportDisposalFailure));
-        Assert.Throws<ArgumentNullException>(() => new LoginAdmissionTransportListener(listener, limiter, null!, reportDisposalFailure));
-        Assert.Throws<ArgumentNullException>(() => new LoginAdmissionTransportListener(listener, limiter, reportSourceRejection, null!));
+        Assert.Throws<ArgumentNullException>(() => new AdmissionTransportListener(null!, limiter, reportSourceRejection, reportDisposalFailure));
+        Assert.Throws<ArgumentNullException>(() => new AdmissionTransportListener(listener, null!, reportSourceRejection, reportDisposalFailure));
+        Assert.Throws<ArgumentNullException>(() => new AdmissionTransportListener(listener, limiter, null!, reportDisposalFailure));
+        Assert.Throws<ArgumentNullException>(() => new AdmissionTransportListener(listener, limiter, reportSourceRejection, null!));
     }
 
     [Fact]
@@ -31,10 +31,10 @@ public sealed class LoginAdmissionTransportListenerTests
         TestConnectionLimiter limiter = new(true);
         int sourceRejections = 0;
 
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, static _ => throw new InvalidOperationException("Unexpected disposal failure."));
+        AdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, static _ => throw new InvalidOperationException("Unexpected disposal failure."));
         ITransportConnection admitted = await listener.AcceptAsync(TestContext.Current.CancellationToken);
 
-        Assert.IsType<LoginAdmissionTransportConnection>(admitted);
+        Assert.IsType<AdmissionLeaseTransportConnection>(admitted);
         Assert.Equal(1, innerListener.AcceptCount);
         Assert.Equal([IPAddress.Parse("192.0.2.10")], limiter.RemoteAddresses);
         Assert.Equal(0, sourceRejections);
@@ -59,7 +59,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestConnectionLimiter limiter = new(false, true);
         int sourceRejections = 0;
 
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () =>
+        AdmissionTransportListener listener = new(innerListener, limiter, () =>
         {
             Assert.Equal(1, rejected.DisposeCount);
             sourceRejections++;
@@ -93,7 +93,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TransportConnectionRejectionDisposalFailure? reportedFailure = null;
         int sourceRejections = 0;
 
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, failure => reportedFailure = failure);
+        AdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, failure => reportedFailure = failure);
         ITransportConnection admitted = await listener.AcceptAsync(TestContext.Current.CancellationToken);
 
         Assert.True(reportedFailure.HasValue);
@@ -115,7 +115,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnection rejected = new();
         TestTransportConnectionListener innerListener = new(rejected);
         TestConnectionLimiter limiter = new(false);
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () => throw reportingFailure, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, () => throw reportingFailure, static _ => { });
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -135,7 +135,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnectionListener innerListener = new(rejected);
         TestConnectionLimiter limiter = new(false);
         int sourceRejections = 0;
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, _ => throw reportingFailure);
+        AdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, _ => throw reportingFailure);
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -156,7 +156,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnectionListener innerListener = new(connection);
         ThrowingConnectionLimiter limiter = new(admissionFailure);
         int sourceRejections = 0;
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, static _ => { });
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -178,7 +178,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnectionListener innerListener = new(connection);
         ThrowingConnectionLimiter limiter = new(admissionFailure);
         int sourceRejections = 0;
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, () => sourceRejections++, static _ => { });
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -199,7 +199,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnection connection = new(remoteEndPoint: new DnsEndPoint("example.test", 50000));
         TestTransportConnectionListener innerListener = new(connection);
         TestConnectionLimiter limiter = new(true);
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -218,7 +218,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnection connection = new(remoteEndPoint: new DnsEndPoint("example.test", 50000), disposeFailure: disposalFailure);
         TestTransportConnectionListener innerListener = new(connection);
         TestConnectionLimiter limiter = new(true);
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -237,7 +237,7 @@ public sealed class LoginAdmissionTransportListenerTests
         TestTransportConnection connection = new();
         TestTransportConnectionListener innerListener = new(connection);
         TestConnectionLimiter limiter = new(true);
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
 
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cancellation.Cancel();
@@ -256,7 +256,7 @@ public sealed class LoginAdmissionTransportListenerTests
     {
         TestTransportConnectionListener innerListener = new();
         TestConnectionLimiter limiter = new(true);
-        LoginAdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
+        AdmissionTransportListener listener = new(innerListener, limiter, static () => { }, static _ => { });
 
         await listener.DisposeAsync();
 

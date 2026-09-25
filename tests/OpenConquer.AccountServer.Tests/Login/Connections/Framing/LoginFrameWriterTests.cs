@@ -1,6 +1,6 @@
 using System.Buffers;
 using System.IO.Pipelines;
-using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Connections.Framing;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login;
 using OpenConquer.Protocol.Login.Cryptography;
@@ -8,7 +8,7 @@ using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Protocol.Packets;
 using OpenConquer.Protocol.Serialization;
 
-namespace OpenConquer.AccountServer.Tests.Login.Connections;
+namespace OpenConquer.AccountServer.Tests.Login.Connections.Framing;
 
 public sealed class LoginFrameWriterTests
 {

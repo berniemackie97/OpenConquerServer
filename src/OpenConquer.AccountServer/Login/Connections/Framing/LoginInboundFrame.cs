@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using OpenConquer.Protocol.Framing;
 
-namespace OpenConquer.AccountServer.Login.Connections;
+namespace OpenConquer.AccountServer.Login.Connections.Framing;
 
 /// <summary>
 /// Owns one decrypted account-login frame.

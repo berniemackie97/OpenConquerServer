@@ -1,4 +1,5 @@
 using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Connections.Framing;
 using OpenConquer.Protocol.Login.Packets;
 
 namespace OpenConquer.AccountServer.Login.Handshake;

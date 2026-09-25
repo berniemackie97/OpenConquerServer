@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login;
 using OpenConquer.Protocol.Login.Cryptography;
 
-namespace OpenConquer.AccountServer.Login.Connections;
+namespace OpenConquer.AccountServer.Login.Connections.Framing;
 
 /// <summary>
 /// Reads, decrypts, and validates client-to-server account-login frames from

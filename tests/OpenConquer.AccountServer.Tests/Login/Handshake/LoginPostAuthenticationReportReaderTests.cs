@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Connections.Framing;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login.Packets;

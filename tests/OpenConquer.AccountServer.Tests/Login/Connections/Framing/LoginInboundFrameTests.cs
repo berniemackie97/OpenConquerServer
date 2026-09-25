@@ -1,7 +1,7 @@
-using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Connections.Framing;
 using OpenConquer.Protocol.Login.Packets;
 
-namespace OpenConquer.AccountServer.Tests.Login.Connections;
+namespace OpenConquer.AccountServer.Tests.Login.Connections.Framing;
 
 public sealed class LoginInboundFrameTests
 {

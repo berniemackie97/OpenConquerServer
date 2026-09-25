@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.AccountServer.Hosting;
+using OpenConquer.AccountServer.Login.Admission;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Observability;
@@ -46,7 +47,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
         try
         {
             ITransportConnectionListener listener = _listenerFactory() ?? throw new InvalidOperationException("The account login listener factory returned no listener.");
-            _listener = new LoginAdmissionTransportListener(listener, _connectionLimiter, _metrics.RecordSourceRejection, ReportRejectionDisposalFailure);
+            _listener = new AdmissionTransportListener(listener, _connectionLimiter, _metrics.RecordSourceRejection, ReportRejectionDisposalFailure);
 
             await base.StartAsync(cancellationToken).ConfigureAwait(false);
 

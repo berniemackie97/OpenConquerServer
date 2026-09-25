@@ -4,9 +4,9 @@ using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.AccountServer.Login.Connections;
+namespace OpenConquer.AccountServer.Login.Admission;
 
-internal sealed class LoginAdmissionTransportListener(ITransportConnectionListener listener, IAccountLoginConnectionLimiter connectionLimiter,
+internal sealed class AdmissionTransportListener(ITransportConnectionListener listener, IAccountLoginConnectionLimiter connectionLimiter,
     Action reportSourceRejection, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure) : ITransportConnectionListener
 {
     private readonly ITransportConnectionListener _listener = listener ?? throw new ArgumentNullException(nameof(listener));
@@ -32,7 +32,7 @@ internal sealed class LoginAdmissionTransportListener(ITransportConnectionListen
 
                 if (_connectionLimiter.TryBeginConnection(remoteEndPoint.Address, out admissionLease))
                 {
-                    LoginAdmissionTransportConnection admittedConnection = new(connection, admissionLease);
+                    AdmissionLeaseTransportConnection admittedConnection = new(connection, admissionLease);
                     admissionLease = null;
                     return admittedConnection;
                 }

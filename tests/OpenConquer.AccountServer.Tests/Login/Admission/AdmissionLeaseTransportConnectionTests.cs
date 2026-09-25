@@ -1,11 +1,11 @@
 using System.Net;
-using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Admission;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.AccountServer.Tests.Login.Connections;
+namespace OpenConquer.AccountServer.Tests.Login.Admission;
 
-public sealed class LoginAdmissionTransportConnectionTests
+public sealed class AdmissionLeaseTransportConnectionTests
 {
     [Fact]
     public void Constructor_NullDependenciesThrow()
@@ -13,8 +13,8 @@ public sealed class LoginAdmissionTransportConnectionTests
         TestTransportConnection connection = new();
         TestAdmissionLease lease = new();
 
-        Assert.Throws<ArgumentNullException>(() => new LoginAdmissionTransportConnection(null!, lease));
-        Assert.Throws<ArgumentNullException>(() => new LoginAdmissionTransportConnection(connection, null!));
+        Assert.Throws<ArgumentNullException>(() => new AdmissionLeaseTransportConnection(null!, lease));
+        Assert.Throws<ArgumentNullException>(() => new AdmissionLeaseTransportConnection(connection, null!));
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public sealed class LoginAdmissionTransportConnectionTests
     {
         TestTransportConnection inner = new(receiveBytes: [1, 2, 3]);
         TestAdmissionLease lease = new();
-        await using LoginAdmissionTransportConnection connection = new(inner, lease);
+        await using AdmissionLeaseTransportConnection connection = new(inner, lease);
 
         byte[] receiveBuffer = new byte[8];
         int received = await connection.ReceiveAsync(receiveBuffer, TestContext.Current.CancellationToken);
@@ -40,7 +40,7 @@ public sealed class LoginAdmissionTransportConnectionTests
     {
         TestTransportConnection inner = new();
         TestAdmissionLease lease = new();
-        LoginAdmissionTransportConnection connection = new(inner, lease);
+        AdmissionLeaseTransportConnection connection = new(inner, lease);
 
         await connection.DisposeAsync();
         await connection.DisposeAsync();
@@ -55,7 +55,7 @@ public sealed class LoginAdmissionTransportConnectionTests
         IOException failure = new("connection disposal failed");
         TestTransportConnection inner = new(disposeFailure: failure);
         TestAdmissionLease lease = new();
-        LoginAdmissionTransportConnection connection = new(inner, lease);
+        AdmissionLeaseTransportConnection connection = new(inner, lease);
 
         IOException exception = await Assert.ThrowsAsync<IOException>(() => connection.DisposeAsync().AsTask());
 
@@ -71,7 +71,7 @@ public sealed class LoginAdmissionTransportConnectionTests
         InvalidOperationException leaseFailure = new("lease disposal failed");
         TestTransportConnection inner = new(disposeFailure: connectionFailure);
         TestAdmissionLease lease = new(leaseFailure);
-        LoginAdmissionTransportConnection connection = new(inner, lease);
+        AdmissionLeaseTransportConnection connection = new(inner, lease);
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => connection.DisposeAsync().AsTask());
 
@@ -87,7 +87,7 @@ public sealed class LoginAdmissionTransportConnectionTests
     {
         TestTransportConnection inner = new();
         TestAdmissionLease lease = new();
-        LoginAdmissionTransportConnection connection = new(inner, lease);
+        AdmissionLeaseTransportConnection connection = new(inner, lease);
 
         Task[] disposals = Enumerable.Range(0, 16).Select(_ => connection.DisposeAsync().AsTask()).ToArray();
         await Task.WhenAll(disposals);
