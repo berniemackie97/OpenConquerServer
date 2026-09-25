@@ -115,95 +115,26 @@ internal sealed class AccountServerConfiguration
         return value;
     }
 
-    private static KeyValuePair<ushort, string>[] CreateVerificationKeys(IReadOnlyCollection<GameLoginVerificationKeySettings> settings)
+    private static KeyValuePair<ushort, string>[] CreateVerificationKeys(IReadOnlyCollection<AccountServerSettings.GameLoginVerificationKeySettings> verificationKeySettings)
     {
-        if (settings.Count == 0)
+        if (verificationKeySettings.Count == 0)
         {
-            throw new ArgumentException($"{SectionName}:GameLoginTickets:VerificationKeys must contain at least one verification key.", nameof(settings));
+            throw new ArgumentException($"{SectionName}:GameLoginTickets:VerificationKeys must contain at least one verification key.", nameof(verificationKeySettings));
         }
 
-        KeyValuePair<ushort, string>[] keys = new KeyValuePair<ushort, string>[settings.Count];
+        KeyValuePair<ushort, string>[] keys = new KeyValuePair<ushort, string>[verificationKeySettings.Count];
         int index = 0;
 
-        foreach (GameLoginVerificationKeySettings key in settings)
+        foreach (AccountServerSettings.GameLoginVerificationKeySettings key in verificationKeySettings)
         {
             if (string.IsNullOrWhiteSpace(key.EncodedKey))
             {
-                throw new ArgumentException($"{SectionName}:GameLoginTickets:VerificationKeys contains missing key material.", nameof(settings));
+                throw new ArgumentException($"{SectionName}:GameLoginTickets:VerificationKeys contains missing key material.", nameof(verificationKeySettings));
             }
 
             keys[index++] = new KeyValuePair<ushort, string>(key.Id, key.EncodedKey);
         }
 
         return keys;
-    }
-
-    private sealed class AccountServerSettings
-    {
-        public NetworkSettings Network { get; set; } = new();
-        public AdmissionSettings Admission { get; set; } = new();
-        public WorkerSettings Workers { get; set; } = new();
-        public HandshakeSettings Handshake { get; set; } = new();
-        public AuthenticationProtectionSettings AuthenticationProtection { get; set; } = new();
-        public GameLoginTicketSettings GameLoginTickets { get; set; } = new();
-    }
-
-    private sealed class NetworkSettings
-    {
-        public string? BindAddress { get; set; }
-        public int LoginPort { get; set; }
-        public int ListenBacklog { get; set; }
-        public string? GameServerAddress { get; set; }
-        public int GameServerPort { get; set; }
-    }
-
-    private sealed class AdmissionSettings
-    {
-        public int Capacity { get; set; }
-        public int MaximumConcurrentConnectionsPerSource { get; set; } = AccountLoginConnectionProtectionOptions.DefaultMaximumConcurrentConnectionsPerSource;
-    }
-
-    private sealed class WorkerSettings
-    {
-        public int Count { get; set; }
-        public TimeSpan ConnectionTimeout { get; set; }
-    }
-
-    private sealed class HandshakeSettings
-    {
-        public TimeSpan PhaseTimeout { get; set; }
-    }
-
-    private sealed class AuthenticationProtectionSettings
-    {
-        public int RequestLimitPerSource { get; set; }
-        public TimeSpan RequestWindow { get; set; }
-        public int MaximumConcurrentRequestsPerSource { get; set; }
-        public int MaximumConcurrentRequests { get; set; }
-        public int MaximumConcurrentAttemptsPerAccount { get; set; }
-        public int FailedAttemptLimitPerAccountSource { get; set; }
-        public TimeSpan FailureWindow { get; set; }
-        public TimeSpan FailureLockout { get; set; }
-        public TimeSpan EntryRetention { get; set; }
-        public int MaximumTrackedEntries { get; set; }
-    }
-
-    private sealed class GameLoginTicketSettings
-    {
-        public ushort ActiveVerificationKeyId { get; set; }
-        public List<GameLoginVerificationKeySettings> VerificationKeys { get; set; } = [];
-        public GameLoginTicketCleanupSettings Cleanup { get; set; } = new();
-    }
-
-    private sealed class GameLoginVerificationKeySettings
-    {
-        public ushort Id { get; set; }
-        public string? EncodedKey { get; set; }
-    }
-
-    private sealed class GameLoginTicketCleanupSettings
-    {
-        public TimeSpan Interval { get; set; }
-        public int MaximumBatchesPerRun { get; set; }
     }
 }
