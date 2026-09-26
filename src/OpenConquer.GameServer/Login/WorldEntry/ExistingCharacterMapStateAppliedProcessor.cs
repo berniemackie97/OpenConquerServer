@@ -1,9 +1,9 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.WorldEntry;
 
 internal sealed class ExistingCharacterMapStateAppliedProcessor
 {

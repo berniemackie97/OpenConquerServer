@@ -1,7 +1,7 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.GameServer.Login.Authentication;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Character.Resolution;
 
 /// <summary>
 /// Resolves an authenticated GameServer connection to its persisted character-login route.

@@ -2,7 +2,7 @@ using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Authentication;
 
 /// <summary>
 /// Takes ownership of an accepted transport connection and advances it through

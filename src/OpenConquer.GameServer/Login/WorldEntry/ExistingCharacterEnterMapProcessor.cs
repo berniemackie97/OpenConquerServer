@@ -1,9 +1,9 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
 /// Completes the verified native 5517 existing-character EnterMap exchange and transfers the live connection to the post-EnterMap stage.

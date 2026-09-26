@@ -1,4 +1,4 @@
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Authentication;
 
 internal enum GameConnectionAuthenticationStatus
 {

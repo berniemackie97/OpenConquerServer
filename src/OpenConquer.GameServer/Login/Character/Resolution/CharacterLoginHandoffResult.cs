@@ -1,8 +1,8 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.GameServer.Login.Authentication;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Character.Resolution;
 
 /// <summary>
 /// Owns an authenticated GameServer connection together with the persisted

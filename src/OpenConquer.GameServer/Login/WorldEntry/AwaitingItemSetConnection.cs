@@ -1,7 +1,7 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.GameServer.Login.Authentication;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
 /// Owns an authenticated existing character connection after the client applies map state and before item set hydration.

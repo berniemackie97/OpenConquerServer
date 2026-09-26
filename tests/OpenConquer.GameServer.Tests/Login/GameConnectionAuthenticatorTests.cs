@@ -5,6 +5,7 @@ using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login;
+using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game.Cryptography;

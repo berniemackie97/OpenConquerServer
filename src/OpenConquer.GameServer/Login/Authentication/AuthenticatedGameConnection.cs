@@ -3,7 +3,7 @@ using OpenConquer.GameServer.Connections;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Packets;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Authentication;
 
 /// <summary>
 /// Owns one authenticated GameServer connection and the canonical identity

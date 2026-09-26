@@ -1,9 +1,11 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character.Resolution;
+using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.Protocol.Game.Packets;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Character.Bootstrap;
 
 /// <summary>
 /// Sends the verified native 5517 existing character bootstrap sequence and transfers the live connection to the EnterMap stage.

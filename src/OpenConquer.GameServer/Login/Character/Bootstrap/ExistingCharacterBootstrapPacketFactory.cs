@@ -1,8 +1,7 @@
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Protocol.Game.Packets;
 
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.Character.Bootstrap;
 
 /// <summary>
 /// Maps resolved existing-character state onto the native 5517 login packet contracts and established compatibility policy.

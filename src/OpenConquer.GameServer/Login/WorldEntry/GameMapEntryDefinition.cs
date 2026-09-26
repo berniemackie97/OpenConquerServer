@@ -1,4 +1,4 @@
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
 /// Describes the verified client-facing metadata required to enter one GameServer map.

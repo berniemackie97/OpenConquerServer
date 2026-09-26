@@ -1,4 +1,4 @@
-namespace OpenConquer.GameServer.Login;
+namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
 /// Supplies the 32-bit millisecond tick used by native GameServer protocol timestamps.

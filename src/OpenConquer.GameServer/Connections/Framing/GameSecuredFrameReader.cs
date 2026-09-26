@@ -3,7 +3,7 @@ using System.IO.Pipelines;
 using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
 
-namespace OpenConquer.GameServer.Connections;
+namespace OpenConquer.GameServer.Connections.Framing;
 
 /// <summary>
 /// Reads secured client-to-server GameServer frames from a caller-owned input pipeline.

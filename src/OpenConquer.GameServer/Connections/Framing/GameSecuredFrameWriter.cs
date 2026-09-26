@@ -4,7 +4,7 @@ using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Packets;
 
-namespace OpenConquer.GameServer.Connections;
+namespace OpenConquer.GameServer.Connections.Framing;
 
 /// <summary>
 /// Serializes secured server-to-client GameServer frames into a caller-owned output pipeline.
