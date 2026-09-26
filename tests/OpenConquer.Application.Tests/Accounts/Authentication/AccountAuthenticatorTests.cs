@@ -1,6 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
+using OpenConquer.Application.Accounts.Authentication.Protection;
+using OpenConquer.Application.Accounts.Authentication.State;
 
 namespace OpenConquer.Application.Tests.Accounts.Authentication;
 
@@ -1362,7 +1365,7 @@ public sealed class AccountAuthenticatorTests
 
         public bool TryBeginAuthentication(
             IPAddress remoteAddress,
-            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request
+            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? requestLease
         )
         {
             BeginCount++;
@@ -1370,14 +1373,14 @@ public sealed class AccountAuthenticatorTests
 
             if (!Admit)
             {
-                request = null;
+                requestLease = null;
                 return false;
             }
 
             FakeRequestLease concreteRequest = new();
 
             LastRequest = concreteRequest;
-            request = concreteRequest;
+            requestLease = concreteRequest;
 
             return true;
         }

@@ -1,4 +1,5 @@
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.State;
 
 namespace OpenConquer.Application.Tests.Accounts.Authentication;
 

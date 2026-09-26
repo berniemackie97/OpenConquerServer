@@ -1,5 +1,6 @@
 using System.Net;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Protection;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Tests.Security;

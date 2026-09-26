@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
 using OpenConquer.Infrastructure.Security;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 

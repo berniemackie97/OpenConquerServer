@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.State;
 using OpenConquer.Domain.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Infrastructure.Security;
 
 namespace OpenConquer.Infrastructure.Security.Accounts.GameLogin;
@@ -19,7 +20,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
     private readonly LinkedList<uint> _sessionRetention = [];
     private int _inFlightAttempts;
 
-    public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt)
+    public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
     {
         ArgumentNullException.ThrowIfNull(remoteAddress);
 
@@ -37,7 +38,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
 
             if (_inFlightAttempts >= _options.MaximumConcurrentAttempts)
             {
-                attempt = null;
+                attemptLease = null;
                 return false;
             }
 
@@ -49,7 +50,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
 
                 if (sourceState.AvailableTokens < 1d || sourceState.InFlightAttempts >= _options.MaximumConcurrentAttemptsPerSource)
                 {
-                    attempt = null;
+                    attemptLease = null;
                     return false;
                 }
             }
@@ -63,7 +64,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
                 if (sessionState.AuthorizationAccepted || sessionState.IsLockedOut || sessionState.InFlightAttempts >= _options.MaximumConcurrentAttemptsPerSession
                     || sessionState.FailedAttempts + sessionState.InFlightAttempts >= _options.FailedAttemptLimitPerSession)
                 {
-                    attempt = null;
+                    attemptLease = null;
                     return false;
                 }
             }
@@ -72,7 +73,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
 
             if (!EnsureCapacity(requiredTrackedEntries, timestamp, sourceState, sessionState))
             {
-                attempt = null;
+                attemptLease = null;
                 return false;
             }
 
@@ -98,7 +99,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
             TouchSourceState(sourceState, timestamp);
             TouchSessionState(sessionState, timestamp);
 
-            attempt = new AttemptLease(this, sourceState, sessionState);
+            attemptLease = new AttemptLease(this, sourceState, sessionState);
             return true;
         }
     }
