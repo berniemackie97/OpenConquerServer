@@ -12,12 +12,15 @@ public sealed class ItemTypeDatRecord
     public const int SpeedPercentOffsetFieldIndex = 18;
     public const int LifeFieldIndex = 19;
     public const int ManaFieldIndex = 20;
+    public const int StaticLifetimeMinutesFieldIndex = 39;
+    public const int StackCapacityFieldIndex = 47;
     public const int TypeDescriptionFieldIndex = 53;
     public const int ItemDescriptionFieldIndex = 54;
 
     private readonly ReadOnlyCollection<string> _fieldTexts;
 
-    internal ItemTypeDatRecord(uint itemTypeId, string[] fieldTexts, byte requiredLevel, short speedPercentOffset, short life, short mana)
+    internal ItemTypeDatRecord(uint itemTypeId, string[] fieldTexts, byte requiredLevel, short speedPercentOffset,
+        short life, short mana, int staticLifetimeMinutes, int stackCapacity)
     {
         ArgumentNullException.ThrowIfNull(fieldTexts);
 
@@ -36,6 +39,8 @@ public sealed class ItemTypeDatRecord
         SpeedPercentOffset = speedPercentOffset;
         Life = life;
         Mana = mana;
+        StaticLifetimeMinutes = staticLifetimeMinutes;
+        StackCapacity = stackCapacity;
         _fieldTexts = Array.AsReadOnly((string[])fieldTexts.Clone());
     }
 
@@ -45,6 +50,8 @@ public sealed class ItemTypeDatRecord
     public short SpeedPercentOffset { get; }
     public short Life { get; }
     public short Mana { get; }
+    public int StaticLifetimeMinutes { get; }
+    public int StackCapacity { get; }
     public string TypeDescription => _fieldTexts[TypeDescriptionFieldIndex];
     public string ItemDescription => _fieldTexts[ItemDescriptionFieldIndex];
 

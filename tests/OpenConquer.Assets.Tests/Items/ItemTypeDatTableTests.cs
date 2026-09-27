@@ -13,7 +13,8 @@ public sealed class ItemTypeDatTableTests
     [Fact]
     public void Parse_PrimaryRetailRecord_NormalizesFieldsAndDecodesCp936()
     {
-        string[] fields = CreateFields(100001, "青虹剑", 15, 5, 120, 30, "Weapon", "测试物品");
+        string[] fields = CreateFields(100001, "青虹剑", 15, 5, 120, 30, "Weapon", "测试物品",
+            staticLifetimeMinutes: 10080, stackCapacity: 20);
         ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(CreateLine(fields)));
 
         Assert.Equal(1, table.RecordCount);
@@ -24,9 +25,13 @@ public sealed class ItemTypeDatTableTests
         Assert.Equal((short)5, record.SpeedPercentOffset);
         Assert.Equal((short)120, record.Life);
         Assert.Equal((short)30, record.Mana);
+        Assert.Equal(10080, record.StaticLifetimeMinutes);
+        Assert.Equal(20, record.StackCapacity);
         Assert.Equal("Weapon", record.TypeDescription);
         Assert.Equal("测试物品", record.ItemDescription);
         Assert.Equal(ItemTypeDatRecord.NativeParsedFieldCount, record.FieldCount);
+        Assert.Equal("10080", record.FieldTexts[ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex]);
+        Assert.Equal("20", record.FieldTexts[ItemTypeDatRecord.StackCapacityFieldIndex]);
         Assert.Equal("Weapon", record.FieldTexts[ItemTypeDatRecord.TypeDescriptionFieldIndex]);
         Assert.Equal("测试物品", record.FieldTexts[ItemTypeDatRecord.ItemDescriptionFieldIndex]);
     }
@@ -41,6 +46,17 @@ public sealed class ItemTypeDatTableTests
         Assert.Equal((short)-15, record.SpeedPercentOffset);
         Assert.Equal(short.MinValue, record.Life);
         Assert.Equal(short.MaxValue, record.Mana);
+    }
+
+    [Fact]
+    public void Parse_SignedInt32Fields_PreserveSignedRepresentation()
+    {
+        string[] fields = CreateFields(100001, "TestItem", staticLifetimeMinutes: int.MinValue, stackCapacity: int.MaxValue);
+        ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(CreateLine(fields)));
+
+        Assert.True(table.TryGetRecord(100001, out ItemTypeDatRecord record));
+        Assert.Equal(int.MinValue, record.StaticLifetimeMinutes);
+        Assert.Equal(int.MaxValue, record.StackCapacity);
     }
 
     [Fact]
@@ -70,21 +86,28 @@ public sealed class ItemTypeDatTableTests
     [Fact]
     public void Parse_SupplementalRecords_OverridePrimaryAndAddNewRecord()
     {
-        string primary = CreateLine(CreateFields(100000, "OriginalBlade", typeDescription: "Weapon", itemDescription: "Primary"));
+        string primary = CreateLine(CreateFields(100000, "OriginalBlade", typeDescription: "Weapon", itemDescription: "Primary",
+            staticLifetimeMinutes: 0, stackCapacity: 1));
         string supplemental = string.Join("\r\n",
-            CreateLine(CreateFields(100000, "OverrideBlade", typeDescription: "Weapon2", itemDescription: "Supplemental")),
-            CreateLine(CreateFields(100002, "SecondItem", typeDescription: "Other", itemDescription: "Second")));
+            CreateLine(CreateFields(100000, "OverrideBlade", typeDescription: "Weapon2", itemDescription: "Supplemental",
+                staticLifetimeMinutes: 43200, stackCapacity: 10)),
+            CreateLine(CreateFields(100002, "SecondItem", typeDescription: "Other", itemDescription: "Second",
+                staticLifetimeMinutes: 10080, stackCapacity: 20)));
 
         ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(primary), EncodeText(supplemental));
 
         Assert.Equal(2, table.RecordCount);
         Assert.True(table.TryGetRecord(100000, out ItemTypeDatRecord overridden));
         Assert.Equal("OverrideBlade", overridden.Name);
+        Assert.Equal(43200, overridden.StaticLifetimeMinutes);
+        Assert.Equal(10, overridden.StackCapacity);
         Assert.Equal("Weapon2", overridden.TypeDescription);
         Assert.Equal("Supplemental", overridden.ItemDescription);
 
         Assert.True(table.TryGetRecord(100002, out ItemTypeDatRecord added));
         Assert.Equal("SecondItem", added.Name);
+        Assert.Equal(10080, added.StaticLifetimeMinutes);
+        Assert.Equal(20, added.StackCapacity);
         Assert.Equal("Other", added.TypeDescription);
         Assert.Equal("Second", added.ItemDescription);
     }
@@ -93,14 +116,16 @@ public sealed class ItemTypeDatTableTests
     public void Parse_DuplicatePrimaryItemTypeId_LastRecordWins()
     {
         string decodedText = string.Join("\r\n",
-            CreateLine(CreateFields(100, "First")),
-            CreateLine(CreateFields(100, "Second")));
+            CreateLine(CreateFields(100, "First", staticLifetimeMinutes: 10, stackCapacity: 2)),
+            CreateLine(CreateFields(100, "Second", staticLifetimeMinutes: 20, stackCapacity: 3)));
 
         ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(decodedText));
 
         Assert.Equal(1, table.RecordCount);
         Assert.True(table.TryGetRecord(100, out ItemTypeDatRecord record));
         Assert.Equal("Second", record.Name);
+        Assert.Equal(20, record.StaticLifetimeMinutes);
+        Assert.Equal(3, record.StackCapacity);
     }
 
     [Fact]
@@ -161,6 +186,10 @@ public sealed class ItemTypeDatTableTests
     [InlineData(ItemTypeDatRecord.LifeFieldIndex, "-32769", "life")]
     [InlineData(ItemTypeDatRecord.ManaFieldIndex, "32768", "mana")]
     [InlineData(ItemTypeDatRecord.ManaFieldIndex, "-32769", "mana")]
+    [InlineData(ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex, "2147483648", "static lifetime minutes")]
+    [InlineData(ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex, "-2147483649", "static lifetime minutes")]
+    [InlineData(ItemTypeDatRecord.StackCapacityFieldIndex, "2147483648", "stack capacity")]
+    [InlineData(ItemTypeDatRecord.StackCapacityFieldIndex, "-2147483649", "stack capacity")]
     public void Parse_InvalidVerifiedNumericField_ThrowsWithFieldDiagnostics(int fieldIndex, string fieldValue, string fieldName)
     {
         string[] fields = CreateFields(100001, "TestItem");
@@ -218,7 +247,8 @@ public sealed class ItemTypeDatTableTests
         Assert.False(table.TryGetRecord(999999, out _));
     }
 
-    private static string[] CreateFields(uint itemTypeId, string name, byte requiredLevel = 0, short speedPercentOffset = 0, short life = 0, short mana = 0, string typeDescription = "", string itemDescription = "")
+    private static string[] CreateFields(uint itemTypeId, string name, byte requiredLevel = 0, short speedPercentOffset = 0, short life = 0,
+        short mana = 0, string typeDescription = "", string itemDescription = "", int staticLifetimeMinutes = 0, int stackCapacity = 0)
     {
         string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.NativeParsedFieldCount).ToArray();
         fields[ItemTypeDatRecord.ItemTypeIdFieldIndex] = itemTypeId.ToString(CultureInfo.InvariantCulture);
@@ -227,6 +257,8 @@ public sealed class ItemTypeDatTableTests
         fields[ItemTypeDatRecord.SpeedPercentOffsetFieldIndex] = speedPercentOffset.ToString(CultureInfo.InvariantCulture);
         fields[ItemTypeDatRecord.LifeFieldIndex] = life.ToString(CultureInfo.InvariantCulture);
         fields[ItemTypeDatRecord.ManaFieldIndex] = mana.ToString(CultureInfo.InvariantCulture);
+        fields[ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex] = staticLifetimeMinutes.ToString(CultureInfo.InvariantCulture);
+        fields[ItemTypeDatRecord.StackCapacityFieldIndex] = stackCapacity.ToString(CultureInfo.InvariantCulture);
         fields[ItemTypeDatRecord.TypeDescriptionFieldIndex] = typeDescription;
         fields[ItemTypeDatRecord.ItemDescriptionFieldIndex] = itemDescription;
         return fields;

@@ -102,8 +102,11 @@ public sealed class ItemTypeDatTable
             short speedPercentOffset = ParseInt16Field(fieldTexts, ItemTypeDatRecord.SpeedPercentOffsetFieldIndex, "speed percent offset", sourceName, lineNumber);
             short life = ParseInt16Field(fieldTexts, ItemTypeDatRecord.LifeFieldIndex, "life", sourceName, lineNumber);
             short mana = ParseInt16Field(fieldTexts, ItemTypeDatRecord.ManaFieldIndex, "mana", sourceName, lineNumber);
+            int staticLifetimeMinutes = ParseInt32Field(fieldTexts, ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex, "static lifetime minutes", sourceName, lineNumber);
+            int stackCapacity = ParseInt32Field(fieldTexts, ItemTypeDatRecord.StackCapacityFieldIndex, "stack capacity", sourceName, lineNumber);
 
-            recordsByItemTypeId[itemTypeId] = new ItemTypeDatRecord(itemTypeId, fieldTexts, requiredLevel, speedPercentOffset, life, mana);
+            recordsByItemTypeId[itemTypeId] = new ItemTypeDatRecord(itemTypeId, fieldTexts, requiredLevel, speedPercentOffset, life, mana,
+                staticLifetimeMinutes, stackCapacity);
             parsedRecordCount++;
         }
 
@@ -154,6 +157,17 @@ public sealed class ItemTypeDatTable
     {
         string fieldText = fieldTexts[fieldIndex];
         if (!short.TryParse(fieldText, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out short value))
+        {
+            throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
+        }
+
+        return value;
+    }
+
+    private static int ParseInt32Field(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)
+    {
+        string fieldText = fieldTexts[fieldIndex];
+        if (!int.TryParse(fieldText, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int value))
         {
             throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
         }
