@@ -16,6 +16,15 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_characters_pre_rebirth_level",
         "CK_characters_profession",
         "CK_characters_rebirth_state",
+        "CK_items_alternate_equipment_slot",
+        "CK_items_equipment_set",
+        "CK_items_equipment_slot",
+        "CK_items_equipment_unlock_schedule",
+        "CK_items_is_suspicious",
+        "CK_items_item_type_id",
+        "CK_items_location_kind",
+        "CK_items_location_payload",
+        "CK_items_stack_quantity",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",
@@ -326,17 +335,17 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = """
-            SELECT `component_name`, `schema_version`, `migration_id`
-            FROM `schema_compatibility`
-            WHERE `component_name` = 'game'
-            """;
+                              SELECT `component_name`, `schema_version`, `migration_id`
+                              FROM `schema_compatibility`
+                              WHERE `component_name` = 'game'
+                              """;
 
         await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(3u, reader.GetUInt32(1));
-        Assert.Equal("20260923223920_RetainPreRebirthLevel", reader.GetString(2));
+        Assert.Equal(4u, reader.GetUInt32(1));
+        Assert.Equal("20260927121811_AddItemPersistenceFoundation", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 
