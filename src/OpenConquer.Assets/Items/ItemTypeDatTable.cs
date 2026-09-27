@@ -100,8 +100,8 @@ public sealed class ItemTypeDatTable
 
             byte requiredLevel = ParseByteField(fieldTexts, ItemTypeDatRecord.RequiredLevelFieldIndex, "required level", sourceName, lineNumber);
             short speedPercentOffset = ParseInt16Field(fieldTexts, ItemTypeDatRecord.SpeedPercentOffsetFieldIndex, "speed percent offset", sourceName, lineNumber);
-            uint life = ParseUInt32Field(fieldTexts, ItemTypeDatRecord.LifeFieldIndex, "life", sourceName, lineNumber);
-            uint mana = ParseUInt32Field(fieldTexts, ItemTypeDatRecord.ManaFieldIndex, "mana", sourceName, lineNumber);
+            short life = ParseInt16Field(fieldTexts, ItemTypeDatRecord.LifeFieldIndex, "life", sourceName, lineNumber);
+            short mana = ParseInt16Field(fieldTexts, ItemTypeDatRecord.ManaFieldIndex, "mana", sourceName, lineNumber);
 
             recordsByItemTypeId[itemTypeId] = new ItemTypeDatRecord(itemTypeId, fieldTexts, requiredLevel, speedPercentOffset, life, mana);
             parsedRecordCount++;

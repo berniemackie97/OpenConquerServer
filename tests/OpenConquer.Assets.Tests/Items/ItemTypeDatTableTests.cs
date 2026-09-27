@@ -13,7 +13,7 @@ public sealed class ItemTypeDatTableTests
     [Fact]
     public void Parse_PrimaryRetailRecord_NormalizesFieldsAndDecodesCp936()
     {
-        string[] fields = CreateFields(100001, "青虹剑", 15, -5, 120, 30, "Weapon", "测试物品");
+        string[] fields = CreateFields(100001, "青虹剑", 15, 5, 120, 30, "Weapon", "测试物品");
         ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(CreateLine(fields)));
 
         Assert.Equal(1, table.RecordCount);
@@ -21,14 +21,38 @@ public sealed class ItemTypeDatTableTests
         Assert.Equal(100001u, record.ItemTypeId);
         Assert.Equal("青虹剑", record.Name);
         Assert.Equal((byte)15, record.RequiredLevel);
-        Assert.Equal((short)-5, record.SpeedPercentOffset);
-        Assert.Equal(120u, record.Life);
-        Assert.Equal(30u, record.Mana);
+        Assert.Equal((short)5, record.SpeedPercentOffset);
+        Assert.Equal((short)120, record.Life);
+        Assert.Equal((short)30, record.Mana);
         Assert.Equal("Weapon", record.TypeDescription);
         Assert.Equal("测试物品", record.ItemDescription);
         Assert.Equal(ItemTypeDatRecord.NativeParsedFieldCount, record.FieldCount);
         Assert.Equal("Weapon", record.FieldTexts[ItemTypeDatRecord.TypeDescriptionFieldIndex]);
         Assert.Equal("测试物品", record.FieldTexts[ItemTypeDatRecord.ItemDescriptionFieldIndex]);
+    }
+
+    [Fact]
+    public void Parse_SignedInt16Fields_PreserveSignedRepresentation()
+    {
+        string[] fields = CreateFields(100001, "TestItem", speedPercentOffset: -15, life: short.MinValue, mana: short.MaxValue);
+        ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(CreateLine(fields)));
+
+        Assert.True(table.TryGetRecord(100001, out ItemTypeDatRecord record));
+        Assert.Equal((short)-15, record.SpeedPercentOffset);
+        Assert.Equal(short.MinValue, record.Life);
+        Assert.Equal(short.MaxValue, record.Mana);
+    }
+
+    [Fact]
+    public void Parse_RetailTextTokens_RemainRawInAssetLayer()
+    {
+        string[] fields = CreateFields(100001, "Dragon~Ball", typeDescription: "Warrior`sHelmet", itemDescription: "Fixed.~It~cannot~be~upgraded.");
+        ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(CreateLine(fields)));
+
+        Assert.True(table.TryGetRecord(100001, out ItemTypeDatRecord record));
+        Assert.Equal("Dragon~Ball", record.Name);
+        Assert.Equal("Warrior`sHelmet", record.TypeDescription);
+        Assert.Equal("Fixed.~It~cannot~be~upgraded.", record.ItemDescription);
     }
 
     [Theory]
@@ -37,7 +61,6 @@ public sealed class ItemTypeDatTableTests
     public void Parse_RecordWithOrWithoutTerminalDelimiter_NormalizesToNativeFieldCount(bool terminalDelimiter)
     {
         string[] fields = CreateFields(100001, "TestItem");
-
         ItemTypeDatTable table = ItemTypeDatTable.Parse(EncodeText(CreateLine(fields, terminalDelimiter)));
 
         Assert.True(table.TryGetRecord(100001, out ItemTypeDatRecord record));
@@ -133,8 +156,11 @@ public sealed class ItemTypeDatTableTests
     [Theory]
     [InlineData(ItemTypeDatRecord.RequiredLevelFieldIndex, "256", "required level")]
     [InlineData(ItemTypeDatRecord.SpeedPercentOffsetFieldIndex, "32768", "speed percent offset")]
-    [InlineData(ItemTypeDatRecord.LifeFieldIndex, "-1", "life")]
-    [InlineData(ItemTypeDatRecord.ManaFieldIndex, "-1", "mana")]
+    [InlineData(ItemTypeDatRecord.SpeedPercentOffsetFieldIndex, "-32769", "speed percent offset")]
+    [InlineData(ItemTypeDatRecord.LifeFieldIndex, "32768", "life")]
+    [InlineData(ItemTypeDatRecord.LifeFieldIndex, "-32769", "life")]
+    [InlineData(ItemTypeDatRecord.ManaFieldIndex, "32768", "mana")]
+    [InlineData(ItemTypeDatRecord.ManaFieldIndex, "-32769", "mana")]
     public void Parse_InvalidVerifiedNumericField_ThrowsWithFieldDiagnostics(int fieldIndex, string fieldValue, string fieldName)
     {
         string[] fields = CreateFields(100001, "TestItem");
@@ -192,7 +218,7 @@ public sealed class ItemTypeDatTableTests
         Assert.False(table.TryGetRecord(999999, out _));
     }
 
-    private static string[] CreateFields(uint itemTypeId, string name, byte requiredLevel = 0, short speedPercentOffset = 0, uint life = 0, uint mana = 0, string typeDescription = "", string itemDescription = "")
+    private static string[] CreateFields(uint itemTypeId, string name, byte requiredLevel = 0, short speedPercentOffset = 0, short life = 0, short mana = 0, string typeDescription = "", string itemDescription = "")
     {
         string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.NativeParsedFieldCount).ToArray();
         fields[ItemTypeDatRecord.ItemTypeIdFieldIndex] = itemTypeId.ToString(CultureInfo.InvariantCulture);

@@ -17,13 +17,7 @@ public sealed class ItemTypeDatRecord
 
     private readonly ReadOnlyCollection<string> _fieldTexts;
 
-    internal ItemTypeDatRecord(
-        uint itemTypeId,
-        string[] fieldTexts,
-        byte requiredLevel,
-        short speedPercentOffset,
-        uint life,
-        uint mana)
+    internal ItemTypeDatRecord(uint itemTypeId, string[] fieldTexts, byte requiredLevel, short speedPercentOffset, short life, short mana)
     {
         ArgumentNullException.ThrowIfNull(fieldTexts);
 
@@ -49,8 +43,8 @@ public sealed class ItemTypeDatRecord
     public string Name => _fieldTexts[NameFieldIndex];
     public byte RequiredLevel { get; }
     public short SpeedPercentOffset { get; }
-    public uint Life { get; }
-    public uint Mana { get; }
+    public short Life { get; }
+    public short Mana { get; }
     public string TypeDescription => _fieldTexts[TypeDescriptionFieldIndex];
     public string ItemDescription => _fieldTexts[ItemDescriptionFieldIndex];
 
