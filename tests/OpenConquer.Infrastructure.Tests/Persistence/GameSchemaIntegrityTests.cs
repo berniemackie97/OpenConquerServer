@@ -345,7 +345,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
         Assert.Equal(4u, reader.GetUInt32(1));
-        Assert.Equal("20260927034324_AddItemPersistenceFoundation", reader.GetString(2));
+        Assert.Equal("20260927121811_AddItemPersistenceFoundation", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 
