@@ -32,4 +32,8 @@ internal sealed class ItemRecord
     public uint CompositionProgress { get; set; }
     public uint InscribedSyndicateId { get; set; }
     public ushort StackQuantity { get; set; } = 1;
+
+    public ItemLifetimeState LifetimeState { get; set; }
+    public int? LifetimeDurationSeconds { get; set; }
+    public DateTime? LifetimeExpiresAtUtc { get; set; }
 }

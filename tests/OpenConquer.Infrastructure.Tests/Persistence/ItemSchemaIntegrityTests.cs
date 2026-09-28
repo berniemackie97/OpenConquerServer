@@ -1,4 +1,5 @@
 using MySqlConnector;
+using OpenConquer.Domain.Items;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 
@@ -65,6 +66,9 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
             ("composition_progress", "int unsigned", "NO", ""),
             ("inscribed_syndicate_id", "int unsigned", "NO", ""),
             ("stack_quantity", "smallint unsigned", "NO", ""),
+            ("lifetime_state", "tinyint unsigned", "NO", ""),
+            ("lifetime_duration_seconds", "int", "YES", ""),
+            ("lifetime_expires_at_utc", "datetime(6)", "YES", ""),
         ];
 
         Assert.Equal(expected, actual);
@@ -110,6 +114,7 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
               (
                   'PRIMARY',
                   'IX_items_owner_character_id_location_kind',
+                  'IX_items_lifetime_state_expires_at_utc',
                   'UX_items_owner_equipment_position'
               )
             ORDER BY `INDEX_NAME`, `SEQ_IN_INDEX`
@@ -126,6 +131,8 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
 
         (string IndexName, string ColumnName, bool Unique, uint Sequence)[] expected =
         [
+            ("IX_items_lifetime_state_expires_at_utc", "lifetime_state", false, 1),
+            ("IX_items_lifetime_state_expires_at_utc", "lifetime_expires_at_utc", false, 2),
             ("IX_items_owner_character_id_location_kind", "owner_character_id", false, 1),
             ("IX_items_owner_character_id_location_kind", "location_kind", false, 2),
             ("PRIMARY", "item_id", true, 1),
@@ -184,6 +191,7 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
             "CK_items_equipment_unlock_schedule",
             "CK_items_is_suspicious",
             "CK_items_item_type_id",
+            "CK_items_lifetime",
             "CK_items_location_kind",
             "CK_items_location_payload",
             "CK_items_stack_quantity",
@@ -410,6 +418,158 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
     }
 
     [Fact]
+    public async Task Items_PermanentLifetimeIsAccepted()
+    {
+        uint characterId = await InsertCharacterAsync();
+
+        uint itemId = await InsertItemAsync(characterId, lifetimeState: (byte)ItemLifetimeState.Permanent);
+
+        Assert.NotEqual(0u, itemId);
+    }
+
+    [Fact]
+    public async Task Items_PendingLifetimeIsAccepted()
+    {
+        uint characterId = await InsertCharacterAsync();
+
+        uint itemId = await InsertItemAsync(characterId,
+            lifetimeState: (byte)ItemLifetimeState.PendingActivation,
+            lifetimeDurationSeconds: int.MaxValue);
+
+        Assert.NotEqual(0u, itemId);
+    }
+
+    [Fact]
+    public async Task Items_ActiveLifetimeIsAccepted()
+    {
+        uint characterId = await InsertCharacterAsync();
+        DateTime expiresAtUtc = new(2027, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
+        uint itemId = await InsertItemAsync(characterId,
+            lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: expiresAtUtc);
+
+        Assert.NotEqual(0u, itemId);
+    }
+
+    [Fact]
+    public async Task Items_ExpiredActiveLifetimeRemainsStructurallyValid()
+    {
+        uint characterId = await InsertCharacterAsync();
+        DateTime expiresAtUtc = new(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
+        uint itemId = await InsertItemAsync(characterId,
+            lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: expiresAtUtc);
+
+        Assert.NotEqual(0u, itemId);
+    }
+
+    [Fact]
+    public async Task Items_LifetimeStateMustBeCanonical()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            "`lifetime_state` = 0");
+    }
+
+    [Fact]
+    public async Task Items_PermanentLifetimeRejectsDuration()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            "`lifetime_duration_seconds` = 60");
+    }
+
+    [Fact]
+    public async Task Items_PermanentLifetimeRejectsExpiration()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            "`lifetime_expires_at_utc` = '2027-01-02 03:04:05'");
+    }
+
+    [Fact]
+    public async Task Items_PendingLifetimeRequiresDuration()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            $"`lifetime_state` = {(byte)ItemLifetimeState.PendingActivation}");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    public async Task Items_PendingLifetimeRequiresPositiveDuration(int durationSeconds)
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            $"`lifetime_state` = {(byte)ItemLifetimeState.PendingActivation}, `lifetime_duration_seconds` = @duration",
+            new MySqlParameter("@duration", MySqlDbType.Int32) { Value = durationSeconds });
+    }
+
+    [Fact]
+    public async Task Items_PendingLifetimeRejectsExpiration()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            $"`lifetime_state` = {(byte)ItemLifetimeState.PendingActivation}, "
+            + "`lifetime_duration_seconds` = 60, "
+            + "`lifetime_expires_at_utc` = '2027-01-02 03:04:05'");
+    }
+
+    [Fact]
+    public async Task Items_ActiveLifetimeRequiresExpiration()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            $"`lifetime_state` = {(byte)ItemLifetimeState.ActiveExpiry}");
+    }
+
+    [Fact]
+    public async Task Items_ActiveLifetimeRejectsPendingDuration()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId);
+
+        await AssertItemCheckConstraintViolationAsync(
+            itemId,
+            "CK_items_lifetime",
+            $"`lifetime_state` = {(byte)ItemLifetimeState.ActiveExpiry}, "
+            + "`lifetime_duration_seconds` = 60, "
+            + "`lifetime_expires_at_utc` = '2027-01-02 03:04:05'");
+    }
+
+    [Fact]
     public async Task Items_OwnershipCanTransferWithoutChangingIdentityOrLocation()
     {
         uint originalOwner = await InsertCharacterAsync();
@@ -525,7 +685,9 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
 
     private async Task<uint> InsertItemAsync(uint ownerCharacterId, byte locationKind = 1, byte? equipmentSet = null,
         byte? equipmentSlot = null, uint itemTypeId = 100000, ushort equipmentLockStateMask = 0,
-        DateTime? equipmentUnlockAtUtc = null, byte isSuspicious = 0, ushort stackQuantity = 1)
+        DateTime? equipmentUnlockAtUtc = null, byte isSuspicious = 0, ushort stackQuantity = 1,
+        byte lifetimeState = (byte)ItemLifetimeState.Permanent, int? lifetimeDurationSeconds = null,
+        DateTime? lifetimeExpiresAtUtc = null)
     {
         await using MySqlConnection connection = new(database.AdministrativeConnectionString);
         await connection.OpenAsync(CancellationToken);
@@ -557,7 +719,10 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
                  `equipment_color`,
                  `composition_progress`,
                  `inscribed_syndicate_id`,
-                 `stack_quantity`)
+                 `stack_quantity`,
+                 `lifetime_state`,
+                 `lifetime_duration_seconds`,
+                 `lifetime_expires_at_utc`)
             VALUES
                 (@owner_character_id,
                  @item_type_id,
@@ -583,7 +748,10 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
                  0,
                  0,
                  0,
-                 @stack_quantity)
+                 @stack_quantity,
+                 @lifetime_state,
+                 @lifetime_duration_seconds,
+                 @lifetime_expires_at_utc)
             """;
 
         command.Parameters.Add("@owner_character_id", MySqlDbType.UInt32).Value = ownerCharacterId;
@@ -595,6 +763,9 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
         command.Parameters.Add("@equipment_lock_state_mask", MySqlDbType.UInt16).Value = equipmentLockStateMask;
         command.Parameters.Add("@equipment_unlock_at_utc", MySqlDbType.DateTime).Value = equipmentUnlockAtUtc is null ? DBNull.Value : equipmentUnlockAtUtc.Value;
         command.Parameters.Add("@stack_quantity", MySqlDbType.UInt16).Value = stackQuantity;
+        command.Parameters.Add("@lifetime_state", MySqlDbType.UByte).Value = lifetimeState;
+        command.Parameters.Add("@lifetime_duration_seconds", MySqlDbType.Int32).Value = lifetimeDurationSeconds is null ? DBNull.Value : lifetimeDurationSeconds.Value;
+        command.Parameters.Add("@lifetime_expires_at_utc", MySqlDbType.DateTime).Value = lifetimeExpiresAtUtc is null ? DBNull.Value : lifetimeExpiresAtUtc.Value;
 
         int affected = await command.ExecuteNonQueryAsync(CancellationToken);
 
@@ -623,9 +794,10 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
         return Convert.ToInt64(result);
     }
 
-    private async Task AssertItemCheckConstraintViolationAsync(uint itemId, string expectedConstraint, string assignment)
+    private async Task AssertItemCheckConstraintViolationAsync(uint itemId, string expectedConstraint, string assignment,
+        params MySqlParameter[] parameters)
     {
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => ExecuteItemUpdateAsync(itemId, assignment));
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => ExecuteItemUpdateAsync(itemId, assignment, parameters));
 
         Assert.Equal(3819, exception.Number);
         Assert.Contains(expectedConstraint, exception.Message, StringComparison.Ordinal);
