@@ -9,6 +9,7 @@ public partial class AddItemLifetimePersistence : Migration
     private const string SchemaGuardTable = "openconquer_item_lifetime_schema_guard";
     private const string PreviousMigrationId = "20260927121811_AddItemPersistenceFoundation";
     private const string CurrentMigrationId = "20260927225127_AddItemLifetimePersistence";
+    private const string NormalizedLifetimeCheckClause = "lifetime_state=1andlifetime_duration_secondsisnullandlifetime_expires_at_utcisnullorlifetime_state=2andlifetime_duration_secondsisnotnullandlifetime_duration_seconds>0andlifetime_expires_at_utcisnullorlifetime_state=3andlifetime_duration_secondsisnullandlifetime_expires_at_utcisnotnull";
 
     protected override void Up(MigrationBuilder migrationBuilder)
     {
@@ -207,15 +208,18 @@ public partial class AddItemLifetimePersistence : Migration
                                 WHEN `COLUMN_NAME` = 'lifetime_state'
                                     AND `COLUMN_TYPE` = 'tinyint unsigned'
                                     AND `IS_NULLABLE` = 'NO'
-                                    AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                    AND `COLUMN_DEFAULT` IS NULL
+                                    AND `ORDINAL_POSITION` = 27 THEN 1
                                 WHEN `COLUMN_NAME` = 'lifetime_duration_seconds'
                                     AND `COLUMN_TYPE` = 'int'
                                     AND `IS_NULLABLE` = 'YES'
-                                    AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                    AND `COLUMN_DEFAULT` IS NULL
+                                    AND `ORDINAL_POSITION` = 28 THEN 1
                                 WHEN `COLUMN_NAME` = 'lifetime_expires_at_utc'
                                     AND `COLUMN_TYPE` = 'datetime(6)'
                                     AND `IS_NULLABLE` = 'YES'
-                                    AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                    AND `COLUMN_DEFAULT` IS NULL
+                                    AND `ORDINAL_POSITION` = 29 THEN 1
                                 ELSE 0
                             END
                         ),
@@ -360,6 +364,34 @@ public partial class AddItemLifetimePersistence : Migration
                   AND `CONSTRAINT_NAME` = 'CK_items_lifetime'
             );
 
+            SET @openconquer_lifetime_check_definition_valid =
+            (
+                SELECT IF(
+                    COUNT(*) = 1
+                    AND SUM(
+                        CASE
+                            WHEN REGEXP_REPLACE(
+                                LOWER(`cc`.`CHECK_CLAUSE`),
+                                '[[:space:]`()]+',
+                                ''
+                            ) = '{NormalizedLifetimeCheckClause}' THEN 1
+                            ELSE 0
+                        END
+                    ) = 1,
+                    1,
+                    0
+                )
+                FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS` AS `tc`
+                INNER JOIN `INFORMATION_SCHEMA`.`CHECK_CONSTRAINTS` AS `cc`
+                    ON `cc`.`CONSTRAINT_SCHEMA` = `tc`.`CONSTRAINT_SCHEMA`
+                    AND `cc`.`CONSTRAINT_NAME` = `tc`.`CONSTRAINT_NAME`
+                WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
+                  AND `tc`.`TABLE_NAME` = 'items'
+                  AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
+                  AND `tc`.`ENFORCED` = 'YES'
+                  AND `tc`.`CONSTRAINT_NAME` = 'CK_items_lifetime'
+            );
+
             DROP TEMPORARY TABLE IF EXISTS `{SchemaGuardTable}`;
 
             CREATE TEMPORARY TABLE `{SchemaGuardTable}`
@@ -378,7 +410,15 @@ public partial class AddItemLifetimePersistence : Migration
                     AND @openconquer_lifetime_index_valid = 1
                     AND @openconquer_items_foreign_key_valid = 1
                     AND @openconquer_items_base_checks_valid = 1
-                    AND @openconquer_lifetime_check_count IN (0, 1),
+                    AND
+                    (
+                        @openconquer_lifetime_check_count = 0
+                        OR
+                        (
+                            @openconquer_lifetime_check_count = 1
+                            AND @openconquer_lifetime_check_definition_valid = 1
+                        )
+                    ),
                     1,
                     0
                 )
@@ -544,15 +584,18 @@ public partial class AddItemLifetimePersistence : Migration
                             WHEN `COLUMN_NAME` = 'lifetime_state'
                                 AND `COLUMN_TYPE` = 'tinyint unsigned'
                                 AND `IS_NULLABLE` = 'NO'
-                                AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                AND `COLUMN_DEFAULT` IS NULL
+                                AND `ORDINAL_POSITION` = 27 THEN 1
                             WHEN `COLUMN_NAME` = 'lifetime_duration_seconds'
                                 AND `COLUMN_TYPE` = 'int'
                                 AND `IS_NULLABLE` = 'YES'
-                                AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                AND `COLUMN_DEFAULT` IS NULL
+                                AND `ORDINAL_POSITION` = 28 THEN 1
                             WHEN `COLUMN_NAME` = 'lifetime_expires_at_utc'
                                 AND `COLUMN_TYPE` = 'datetime(6)'
                                 AND `IS_NULLABLE` = 'YES'
-                                AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                AND `COLUMN_DEFAULT` IS NULL
+                                AND `ORDINAL_POSITION` = 29 THEN 1
                             ELSE 0
                         END
                     ) = 3,
@@ -614,6 +657,34 @@ public partial class AddItemLifetimePersistence : Migration
                   AND `CONSTRAINT_NAME` = 'CK_items_lifetime'
             );
 
+            SET @openconquer_lifetime_check_definition_valid =
+            (
+                SELECT IF(
+                    COUNT(*) = 1
+                    AND SUM(
+                        CASE
+                            WHEN REGEXP_REPLACE(
+                                LOWER(`cc`.`CHECK_CLAUSE`),
+                                '[[:space:]`()]+',
+                                ''
+                            ) = '{NormalizedLifetimeCheckClause}' THEN 1
+                            ELSE 0
+                        END
+                    ) = 1,
+                    1,
+                    0
+                )
+                FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS` AS `tc`
+                INNER JOIN `INFORMATION_SCHEMA`.`CHECK_CONSTRAINTS` AS `cc`
+                    ON `cc`.`CONSTRAINT_SCHEMA` = `tc`.`CONSTRAINT_SCHEMA`
+                    AND `cc`.`CONSTRAINT_NAME` = `tc`.`CONSTRAINT_NAME`
+                WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
+                  AND `tc`.`TABLE_NAME` = 'items'
+                  AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
+                  AND `tc`.`ENFORCED` = 'YES'
+                  AND `tc`.`CONSTRAINT_NAME` = 'CK_items_lifetime'
+            );
+
             DROP TEMPORARY TABLE IF EXISTS `{SchemaGuardTable}`;
 
             CREATE TEMPORARY TABLE `{SchemaGuardTable}`
@@ -634,7 +705,8 @@ public partial class AddItemLifetimePersistence : Migration
                     AND @openconquer_lifetime_index_valid = 1
                     AND @openconquer_items_foreign_key_valid = 1
                     AND @openconquer_items_base_checks_valid = 1
-                    AND @openconquer_lifetime_check_count = 1,
+                    AND @openconquer_lifetime_check_count = 1
+                    AND @openconquer_lifetime_check_definition_valid = 1,
                     1,
                     0
                 )
@@ -711,6 +783,7 @@ public partial class AddItemLifetimePersistence : Migration
             SET @openconquer_items_foreign_key_valid = NULL;
             SET @openconquer_items_base_checks_valid = NULL;
             SET @openconquer_lifetime_check_count = NULL;
+            SET @openconquer_lifetime_check_definition_valid = NULL;
             SET @openconquer_items_row_count = NULL;
             """,
             suppressTransaction: true);
@@ -913,15 +986,18 @@ public partial class AddItemLifetimePersistence : Migration
                                 WHEN `COLUMN_NAME` = 'lifetime_state'
                                     AND `COLUMN_TYPE` = 'tinyint unsigned'
                                     AND `IS_NULLABLE` = 'NO'
-                                    AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                    AND `COLUMN_DEFAULT` IS NULL
+                                    AND `ORDINAL_POSITION` = 27 THEN 1
                                 WHEN `COLUMN_NAME` = 'lifetime_duration_seconds'
                                     AND `COLUMN_TYPE` = 'int'
                                     AND `IS_NULLABLE` = 'YES'
-                                    AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                    AND `COLUMN_DEFAULT` IS NULL
+                                    AND `ORDINAL_POSITION` = 28 THEN 1
                                 WHEN `COLUMN_NAME` = 'lifetime_expires_at_utc'
                                     AND `COLUMN_TYPE` = 'datetime(6)'
                                     AND `IS_NULLABLE` = 'YES'
-                                    AND `COLUMN_DEFAULT` IS NULL THEN 1
+                                    AND `COLUMN_DEFAULT` IS NULL
+                                    AND `ORDINAL_POSITION` = 29 THEN 1
                                 ELSE 0
                             END
                         ),
@@ -1066,6 +1142,34 @@ public partial class AddItemLifetimePersistence : Migration
                   AND `CONSTRAINT_NAME` = 'CK_items_lifetime'
             );
 
+            SET @openconquer_lifetime_check_definition_valid =
+            (
+                SELECT IF(
+                    COUNT(*) = 1
+                    AND SUM(
+                        CASE
+                            WHEN REGEXP_REPLACE(
+                                LOWER(`cc`.`CHECK_CLAUSE`),
+                                '[[:space:]`()]+',
+                                ''
+                            ) = '{NormalizedLifetimeCheckClause}' THEN 1
+                            ELSE 0
+                        END
+                    ) = 1,
+                    1,
+                    0
+                )
+                FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS` AS `tc`
+                INNER JOIN `INFORMATION_SCHEMA`.`CHECK_CONSTRAINTS` AS `cc`
+                    ON `cc`.`CONSTRAINT_SCHEMA` = `tc`.`CONSTRAINT_SCHEMA`
+                    AND `cc`.`CONSTRAINT_NAME` = `tc`.`CONSTRAINT_NAME`
+                WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
+                  AND `tc`.`TABLE_NAME` = 'items'
+                  AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
+                  AND `tc`.`ENFORCED` = 'YES'
+                  AND `tc`.`CONSTRAINT_NAME` = 'CK_items_lifetime'
+            );
+
             DROP TEMPORARY TABLE IF EXISTS `{SchemaGuardTable}`;
 
             CREATE TEMPORARY TABLE `{SchemaGuardTable}`
@@ -1084,7 +1188,15 @@ public partial class AddItemLifetimePersistence : Migration
                     AND @openconquer_lifetime_index_valid = 1
                     AND @openconquer_items_foreign_key_valid = 1
                     AND @openconquer_items_base_checks_valid = 1
-                    AND @openconquer_lifetime_check_count IN (0, 1),
+                    AND
+                    (
+                        @openconquer_lifetime_check_count = 0
+                        OR
+                        (
+                            @openconquer_lifetime_check_count = 1
+                            AND @openconquer_lifetime_check_definition_valid = 1
+                        )
+                    ),
                     1,
                     0
                 )
@@ -1562,6 +1674,7 @@ public partial class AddItemLifetimePersistence : Migration
             SET @openconquer_lifetime_columns_present = NULL;
             SET @openconquer_lifetime_index_rows = NULL;
             SET @openconquer_lifetime_check_count = NULL;
+            SET @openconquer_lifetime_check_definition_valid = NULL;
             """,
             suppressTransaction: true);
     }
