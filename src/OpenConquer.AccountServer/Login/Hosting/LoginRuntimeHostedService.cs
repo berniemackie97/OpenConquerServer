@@ -3,7 +3,7 @@ using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.AccountServer.Hosting;
-using OpenConquer.AccountServer.Login.Connections;
+using OpenConquer.AccountServer.Login.Admission;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Observability;
 using OpenConquer.AccountServer.Login.Workers;
@@ -13,9 +13,10 @@ using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.AccountServer.Login.Hosting;
 
-internal delegate ITransportConnectionListener LoginTransportListenerFactory();
-
-internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue, IAccountLoginConnectionLimiter connectionLimiter, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, FatalBackgroundServiceFailureState fatalFailureState, ILogger<LoginRuntimeHostedService> logger) : BackgroundService
+internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue,
+    IAccountLoginConnectionLimiter connectionLimiter, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor,
+    LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, FatalBackgroundServiceFailureState fatalFailureState,
+    ILogger<LoginRuntimeHostedService> logger) : BackgroundService
 {
     private readonly LoginTransportListenerFactory _listenerFactory = listenerFactory ?? throw new ArgumentNullException(nameof(listenerFactory));
     private readonly TransportConnectionAdmissionQueue _admissionQueue = admissionQueue ?? throw new ArgumentNullException(nameof(admissionQueue));
@@ -43,7 +44,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
         try
         {
             ITransportConnectionListener listener = _listenerFactory() ?? throw new InvalidOperationException("The account login listener factory returned no listener.");
-            _listener = new LoginAdmissionTransportListener(listener, _connectionLimiter, _metrics.RecordSourceRejection, ReportRejectionDisposalFailure);
+            _listener = new AdmissionTransportListener(listener, _connectionLimiter, _metrics.RecordSourceRejection, ReportRejectionDisposalFailure);
 
             await base.StartAsync(cancellationToken).ConfigureAwait(false);
 

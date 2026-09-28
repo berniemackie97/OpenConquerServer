@@ -37,16 +37,16 @@ flowchart TD
 
 ## Projects
 
-| Project                      | Responsibility                                                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                              |
-| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                              |
-| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.           |
-| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.          |
-| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                 |
-| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                    |
-| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                     |
-| `OpenConquer.GameServer`     | GameServer connection handoff, native compatibility-channel orchestration, and future gameplay hosting boundary. |
+| Project                      | Responsibility                                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OpenConquer.Domain`         | Domain rules, state, value objects, and invariants.                                                                                            |
+| `OpenConquer.Application`    | Use cases, orchestration, authorization, and persistence contracts.                                                                            |
+| `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.                                         |
+| `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.                                        |
+| `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                                               |
+| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                                                  |
+| `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                                                   |
+| `OpenConquer.GameServer`     | GameServer connection handoff, existing-character login/world-entry orchestration, native compatibility behavior, and future gameplay hosting. |
 
 ## Dependency Rules
 
@@ -213,7 +213,7 @@ See:
 - [Networking Architecture](networking.md)
 - [Authentication](authentication.md)
 
-## GameServer Connection Handoff
+## GameServer Connection and Existing-Character Handoff
 
 The GameServer connection handoff is implemented through authenticated application-session ownership
 over the native 5517 encrypted compatibility channel.
@@ -232,6 +232,10 @@ CAST5 encrypted framing
 GameLoginTicketRedeemer
     ↓
 AuthenticatedGameConnection
+    ↓
+CharacterLoginHandoffProcessor
+    ↓
+CharacterCreation | ExistingCharacter
 ```
 
 The connection session owns transport pumps, pipelines, handshake state, encrypted framing, cipher
@@ -246,11 +250,89 @@ transport and does not authenticate server endpoint identity.
 Application identity is established separately through successful single-use ticket redemption. The
 live session transfers to `AuthenticatedGameConnection` only after authorization succeeds.
 
+After authentication, `CharacterLoginHandoffProcessor` resolves the canonical account ID through the
+application character-login boundary. An account without a persisted character routes to character
+creation. An account with a persisted character receives a validated `CharacterLoginProfile` and
+continues through the ownership-safe existing-character bootstrap path.
+
+The implemented existing-character progression is:
+
+```text
+CharacterLoginHandoffResult
+    ↓
+ExistingCharacterBootstrapProcessor
+    ↓
+bootstrap packet sequence
+    ↓
+AwaitingEnterMapConnection
+    ↓
+client MsgAction 0x4A EnterMap
+    ↓
+ExistingCharacterEnterMapProcessor
+    ↓
+map metadata + weather + 0x4A acknowledgement
+    ↓
+EnteredMapConnection
+    ↓
+client MsgAction 0x198 client-state-applied
+    ↓
+ExistingCharacterMapStateAppliedProcessor
+    ↓
+AwaitingItemSetConnection
+    ↓
+client MsgAction 0x4B GetItemSet
+    ↓
+bounded CharacterItemSet hydration
+    ↓
+static itemtype validation + wire projection
+    ↓
+MsgItem 1008 snapshots
+    ↓
+optional MsgTick 1009 subtype-46 main-equipment snapshot
+    ↓
+MsgAction 0x4B acknowledgement
+    ↓
+AwaitingFriendListConnection
+```
+
+Every transition takes exclusive ownership of the prior state and transfers the same authenticated
+connection exactly once only after its protocol boundary succeeds.
+
+Invalid packets, identity mismatches, persistence failures, projection failures, cancellation, and
+write failures close the owned connection rather than exposing a partially advanced session.
+
+The `0x4B` request is authorized against the trusted character identity already carried in
+`CharacterLoginProfile`. Client-supplied identity never selects the persistence lookup key.
+
+The item-set response is fully hydrated and projected before the first response packet is written.
+The response order is deterministic:
+
+```text
+1008 item snapshots in ascending ItemId order
+    ↓
+optional 1009 subtype-46 active main-equipment snapshot
+    ↓
+0x4B acknowledgement
+```
+
+Item projection uses the immutable `ItemTypeDatTable` for native static-lifetime compatibility.
+Already-expired active-lifetime items are removed from the login runtime projection instead of being
+serialized with the native zero-lifetime sentinel. Pending-activation items remain pending and are
+not activated by login hydration.
+
+The resulting `AwaitingFriendListConnection` carries the validated runtime item set into the next
+native bootstrap rung. Friend/social bootstrap processing is not implemented by this boundary.
+
+The same authenticated connection remains continuously owned through character-login resolution,
+bootstrap, map entry, map-state application, and item-set hydration. Cancellation or failure closes
+the owned connection instead of exposing partial state.
+
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
-The runnable GameServer host, connection admission runtime, gameplay routing, and authoritative
-world integration remain future boundaries.
+The runnable GameServer host, connection admission runtime, character creation transaction,
+friend/social bootstrap, gameplay routing, and authoritative world integration remain future
+boundaries.
 
 See:
 
@@ -301,6 +383,40 @@ Application
     ↕
 authoritative runtime
 ```
+
+Accounts and Game persistence are separate durable boundaries.
+
+Accounts persistence owns account identity, credentials, security state, and game-login tickets.
+
+Game persistence currently owns durable character-login state and persisted character items. The
+current Game schema provides:
+
+- one persisted character per account;
+- unique character names;
+- player entity IDs beginning at `1,000,000`;
+- appearance and hair state;
+- level, experience, profession, and rebirth state;
+- attributes, current life, and current mana;
+- silver, Conquer Points, and bound Conquer Points;
+- PK points, title, and enlightenment points;
+- persisted map ID and position;
+- character-owned inventory and equipment items;
+- main and alternate equipment placement;
+- item durability and verified native compatibility fields;
+- item lock/unlock state;
+- stack quantity;
+- permanent, pending-activation, and active-expiry item lifetime state.
+
+The Game database does not establish a cross-database foreign key to Accounts. Successful single-use
+ticket redemption establishes the trusted authenticated account identity used for character
+resolution.
+
+Character-login and item-set reads use bounded, no-tracking `DbContext` operations and produce
+validated application models rather than exposing persistence records to the GameServer boundary.
+
+Character item-set hydration has an explicit operational maximum independent of gameplay inventory
+capacity. Persistence corruption and impossible aggregate state fail closed at the infrastructure
+boundary.
 
 Long-running `DbContext` instances do not own active world state.
 
@@ -390,6 +506,15 @@ AccountServer fatal background-service failure
 GameServer connection handoff failure
     -> owned session is closed instead of exposing partial authentication state
 
+GameServer character-login resolution failure
+    -> owned authenticated connection is closed instead of exposing partial character state
+
+GameServer existing-character world-entry failure
+    -> owned authenticated connection is closed instead of exposing a partially advanced bootstrap state
+
+GameServer item-set hydration/projection failure
+    -> no item response is written and the owned authenticated connection is closed
+
 GameServer overlapping secured write
     -> rejected immediately instead of queued
 ```
@@ -410,11 +535,17 @@ durable ticket issue / expiration
 maintenance cadence
     -> injected process time
 
+persisted item expiration / login wire projection
+    -> explicit UTC wall-clock authority
+
 calendar or persisted wall-clock events
     -> explicit wall-clock authority
 ```
 
 Process time does not decide durable game-login ticket validity.
+
+Item-set login projection captures one UTC instant for the complete projection so all active item
+lifetimes are evaluated against one coherent wall-clock value.
 
 ## Scaling Model
 
@@ -463,15 +594,30 @@ Implemented:
 - single-owner GameServer secured outbound writes;
 - GameServer `1052` login-proof authentication;
 - authenticated GameServer connection handoff;
-- MySQL account persistence.
+- Game character and item persistence with schema-readiness verification;
+- persisted character-login profile resolution;
+- authenticated account routing to character creation or existing-character login;
+- ownership-safe post-authentication character-login handoff;
+- existing-character bootstrap packet sequence;
+- native `0x4A` EnterMap processing;
+- native `0x198` client-state-applied transition;
+- bounded character item-set hydration;
+- native `0x4B` GetItemSet validation and response progression;
+- native 1008 local item snapshots;
+- native 1009 subtype-46 active main-equipment snapshot;
+- itemtype-backed lifetime wire projection;
+- ownership-safe handoff to the friend-list bootstrap stage;
+- MySQL account persistence;
+- MySQL Game character/item persistence.
 
 Not yet implemented:
 
 - account registration;
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
+- character creation request processing and durable creation;
+- remaining friend/social and later native login bootstrap rungs;
 - gameplay outbound scheduling and bounded mailbox policy;
-- character bootstrap;
 - authoritative world simulation;
 - gameplay networking and simulation.
 

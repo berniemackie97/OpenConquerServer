@@ -1,7 +1,8 @@
 using System.Buffers;
 using System.IO.Pipelines;
+using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.Transport.Connections;
+namespace OpenConquer.Transport.Pipelines;
 
 /// <summary>
 /// Transfers bytes from a caller owned pipeline to an established transport connection while preserving byte order and pipeline backpressure.

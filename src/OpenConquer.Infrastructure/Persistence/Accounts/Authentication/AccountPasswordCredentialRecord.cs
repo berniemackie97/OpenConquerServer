@@ -1,4 +1,4 @@
-namespace OpenConquer.Infrastructure.Persistence.Accounts;
+namespace OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 
 internal sealed class AccountPasswordCredentialRecord
 {

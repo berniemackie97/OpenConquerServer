@@ -85,12 +85,12 @@ TCP
 
 Independent writers must not race on one connection.
 
-Secured GameServer output permits exactly one active frame write per connection. An overlapping
+Protected GameServer output permits exactly one active frame write per connection. An overlapping
 write is rejected immediately rather than queued, so the connection layer cannot accumulate an
 unbounded set of waiting writers.
 
 Higher-level gameplay output scheduling, including any bounded mailbox, priority, coalescing, or
-drop policy, belongs to the future gameplay runtime rather than the secured frame writer.
+drop policy, belongs to the future gameplay runtime rather than the protected frame writer.
 
 This preserves packet ordering, stream-cipher state, partial-write handling, shutdown semantics,
 backpressure, and bounded connection-level resource usage.
@@ -462,7 +462,7 @@ Logging policy:
 ## GameServer Connection Handoff
 
 `GameConnectionHandoffProcessor` owns the transition from an accepted transport connection to an
-authenticated secured GameServer connection.
+authenticated GameServer connection over the native compatibility-protected channel.
 
 ```text
 accepted transport
@@ -471,7 +471,7 @@ GameConnectionSession
     ↓
 Diffie-Hellman handshake
     ↓
-secured framing
+protected CAST5 framing
     ↓
 1052 login proof
     ↓
@@ -481,20 +481,126 @@ AuthenticatedGameConnection
 ```
 
 `GameConnectionSession` owns the transferred connection, transport pumps, pipelines, handshake
-transition, secured framing, and connection-scope lifetime.
+transition, protected framing, and connection-scope lifetime.
 
 The same input pipeline is preserved across the handshake transition. Fragmented key exchange is
-reassembled, while secured bytes coalesced with the key-exchange response remain available for the
-first secured frame.
+reassembled, while protected bytes coalesced with the key-exchange response remain available for the
+first protected frame.
 
-Successful authentication transfers the live secured session to `AuthenticatedGameConnection`.
-Expected rejection and failed handoff paths dispose the owned session.
+The native GameServer channel is compatibility encryption, not modern authenticated transport and
+not server endpoint authentication.
+
+Successful ticket redemption establishes application identity and transfers the live session to
+`AuthenticatedGameConnection`. Expected rejection and failed handoff paths dispose the owned
+session.
 
 The raw `AuthenticationKey` is used for ticket redemption and is not retained by the authenticated
 connection.
 
-A runnable GameServer listener, admission/worker runtime, gameplay routing, and authoritative world
-integration remain future boundaries.
+## Post-Authentication Character Handoff
+
+Character resolution follows successful GameServer authentication on the same live connection.
+
+```text
+AuthenticatedGameConnection
+    ↓
+canonical AccountId
+    ↓
+CharacterLoginHandoffProcessor
+    ↓
+ICharacterLoginResolver
+    ↓
+Game character persistence
+    ↓
+CharacterCreation | ExistingCharacter
+```
+
+`CharacterLoginHandoffProcessor` owns the authenticated connection while character resolution is in
+progress.
+
+The authenticated account ID is the lookup key. Client-supplied character identity is not used to
+select the persisted character.
+
+Successful resolution transfers the exact same live `AuthenticatedGameConnection` together with the
+resolved character route.
+
+Failure behavior is explicit:
+
+```text
+pre-canceled operation
+    -> resolver is not invoked
+    -> authenticated connection is disposed
+
+resolution failure
+    -> authenticated connection is disposed
+
+invalid/default resolution
+    -> authenticated connection is disposed
+
+existing profile belongs to another account
+    -> authenticated connection is disposed
+
+resolution failure + disposal failure
+    -> both failures are preserved
+```
+
+No connection is parked or replaced between ticket redemption and character resolution.
+
+An account without a persisted character routes to `CharacterCreation`.
+
+An account with a persisted character routes to `ExistingCharacter` with a validated
+`CharacterLoginProfile`.
+
+The profile contains the durable state required by the next existing-character bootstrap slice,
+including identity, appearance, progression, attributes, vitals, economy, PK/title/enlightenment
+state, map ID, and position.
+
+This boundary does not yet:
+
+- process character creation requests;
+- perform character creation writes;
+- send the existing-character bootstrap packet sequence;
+- enter a map;
+- transfer ownership into a gameplay/world session.
+
+## Game Character Persistence Boundary
+
+Game character persistence is separate from Accounts persistence.
+
+```text
+Accounts database
+    -> account identity
+    -> credentials/security state
+    -> game-login tickets
+
+Game database
+    -> character identity
+    -> character-login profile
+    -> persisted login location
+```
+
+There is no cross-database foreign key from the Game database to the Accounts database.
+
+Successful single-use ticket redemption is the trust boundary that establishes the canonical account
+ID used for Game character lookup.
+
+The Game schema enforces one character per account and unique character names.
+
+Player entity IDs begin at `1,000,000`. The initial migration seeds the auto-increment sequence at
+that boundary, while application validation prevents a persisted non-player identity from crossing
+into the character-login profile.
+
+Character-login repository reads are no-tracking bounded persistence operations.
+
+The Game persistence runtime identity used by current integration coverage is read-only for the
+character-login slice. Character creation mutation is intentionally not introduced through this
+boundary yet.
+
+`GameDatabaseReadinessVerifier` validates the Game database character set, collation, schema
+version, and migration identity.
+
+The future runnable GameServer host must execute Game database readiness before exposing GameServer
+ingress, but that host lifecycle is not yet implemented.
 
 ## Game-Login Redemption
 
@@ -516,7 +622,7 @@ return authorized identity
 
 Concurrent successful redemption of the same ticket is impossible.
 
-GameServer authentication invokes this boundary after validating the first secured `1052` login
+GameServer authentication invokes this boundary after validating the first protected `1052` login
 proof and supplies the remote IP address for redemption protection.
 
 ## Redemption Protection
@@ -590,25 +696,31 @@ Implemented AccountServer network/runtime components:
 - low-cardinality runtime metrics;
 - runnable AccountServer Generic Host composition.
 
-Implemented GameServer connection-handoff components:
+Implemented GameServer connection and character-login components:
 
 - accepted-connection session ownership;
 - native Diffie-Hellman handshake;
-- secured CAST5 framing;
-- single-owner secured outbound frame writes;
-- immediate rejection of overlapping secured writes;
+- compatibility-protected CAST5 framing;
+- single-owner protected outbound frame writes;
+- immediate rejection of overlapping protected writes;
 - fragmented and coalesced stream handling;
-- first secured `1052` login-proof validation;
+- first protected `1052` login-proof validation;
 - protected single-use ticket redemption;
 - authenticated live-session handoff;
+- Game character persistence and schema-readiness verification;
+- persisted character-login profile lookup;
+- authenticated account routing to character creation or existing-character login;
+- ownership-safe post-authentication character handoff;
 - coordinated cancellation and disposal.
 
 Not yet implemented:
 
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
+- GameServer startup execution of Game database readiness;
 - gameplay outbound scheduling and bounded mailbox policy;
-- character bootstrap;
+- existing-character bootstrap packet sequence and map entry;
+- character creation request processing and durable creation;
 - gameplay packet routing;
 - authoritative world simulation and replication.
 

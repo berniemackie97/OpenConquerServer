@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.State;
 using OpenConquer.Domain.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 
@@ -17,19 +18,15 @@ public sealed class AccountAuthenticationRepository(IDbContextFactory<AccountDbC
         await using AccountDbContext db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
         AccountAuthenticationSnapshot? snapshot = await db.Accounts.AsNoTracking().Where(candidate => candidate.Username == accountName)
-            .Select(candidate => new AccountAuthenticationSnapshot(
-                candidate.AccountId,
-                candidate.Username,
-                candidate.PasswordCredential.PasswordHash,
-                candidate.DeletedAtUtc != null ? AccountLoginAccess.Denied
+            .Select(candidate => new AccountAuthenticationSnapshot(candidate.AccountId, candidate.Username,
+                candidate.PasswordCredential.PasswordHash, candidate.DeletedAtUtc != null
+                    ? AccountLoginAccess.Denied
                     : candidate.AccessStatus == AccountAccessStatus.Active
                         ? AccountLoginAccess.Allowed
-                    : candidate.AccessStatus == AccountAccessStatus.Banned
-                        ? AccountLoginAccess.Banned
-                    : AccountLoginAccess.Denied,
-                candidate.StateRevision,
-                candidate.PasswordCredential.Revision
-            )).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                        : candidate.AccessStatus == AccountAccessStatus.Banned
+                            ? AccountLoginAccess.Banned
+                            : AccountLoginAccess.Denied,
+            candidate.StateRevision, candidate.PasswordCredential.Revision)).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
         return snapshot;
     }

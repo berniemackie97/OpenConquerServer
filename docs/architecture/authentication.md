@@ -223,8 +223,8 @@ authentication key is not retained.
 
 ## GameServer Authentication
 
-The GameServer secure connection handoff validates the first secured frame as the native `1052`
-login proof before ticket redemption.
+The GameServer native compatibility-channel handoff validates the first protected frame as the
+native `1052` login proof before ticket redemption.
 
 `GameConnectionAuthenticator` supplies the login proof's `SessionUid`, `AuthenticationKey`, and the
 connection's remote IP address to `GameLoginTicketRedeemer`.
@@ -232,10 +232,149 @@ connection's remote IP address to `GameLoginTicketRedeemer`.
 A missing, expired, incorrect, or already-consumed ticket is an authorization rejection. Malformed
 protocol data, infrastructure failure, and cancellation remain distinct failures.
 
-Successful redemption transfers the authenticated identity and live secured session into
+Successful redemption transfers the authenticated identity and live protected session into
 `AuthenticatedGameConnection`. The raw `AuthenticationKey` is not retained.
 
-See [Networking](networking.md) for connection ownership and secure handoff behavior.
+The native compatibility channel provides stock 5517 encrypted transport compatibility. It is not
+modern authenticated transport and does not establish server endpoint identity.
+
+See [Networking](networking.md) for connection ownership and compatibility-channel handoff behavior.
+
+## Character Login Resolution
+
+Successful GameServer authentication establishes the canonical account identity used for character
+lookup.
+
+```text
+AuthenticatedGameConnection
+    ↓
+account ID
+    ↓
+ICharacterLoginResolver
+    ↓
+CharacterCreation | ExistingCharacter
+```
+
+`CharacterLoginResolver` queries the character-login persistence contract using the authenticated
+account ID.
+
+Resolution returns:
+
+| Durable character state | Route               |
+| ----------------------- | ------------------- |
+| No character            | `CharacterCreation` |
+| Existing character      | `ExistingCharacter` |
+
+An existing-character result includes a validated `CharacterLoginProfile` containing the persisted
+state required by the future bootstrap path.
+
+The returned profile must belong to the authenticated account. A mismatched persisted account
+identity is an invariant failure rather than a usable login result.
+
+`CharacterLoginHandoffProcessor` owns the authenticated connection while resolution is in progress.
+
+```text
+resolution succeeds
+    -> transfer the same authenticated connection with the resolved route
+
+resolution fails
+    -> dispose the owned authenticated connection
+
+caller already canceled
+    -> do not invoke character resolution; dispose the owned connection
+
+resolution fails and cleanup also fails
+    -> preserve both failures
+```
+
+The connection is not replaced, parked, or converted into a separate transport session between
+ticket redemption and character resolution.
+
+This boundary does not yet send existing-character bootstrap packets or process character creation
+requests.
+
+## Game Character Persistence
+
+Accounts and characters are separate persistence boundaries.
+
+The Accounts database owns:
+
+- account identity;
+- password credentials;
+- account security state;
+- durable game-login tickets.
+
+The Game database owns the persisted character-login profile.
+
+The Game database does not use a cross-database foreign key to the Accounts database. Successful
+single-use ticket redemption establishes the trusted account identity supplied to character
+resolution.
+
+The initial Game character schema enforces:
+
+- one character per account;
+- unique character names;
+- nonzero account IDs;
+- character-name structural length of 4–15 characters;
+- nonzero appearance;
+- level range 1–140;
+- nonzero profession;
+- nonzero map ID.
+
+Player entity IDs begin at `1,000,000`. The initial migration seeds the character identity sequence
+at that boundary. Runtime application validation rejects persisted identities outside the player
+entity range.
+
+Persisted character-login state includes:
+
+- character and account identity;
+- character name;
+- appearance and hair;
+- level and experience;
+- current, first, and previous profession;
+- rebirth count;
+- attributes and unspent attribute points;
+- current life and mana;
+- silver, Conquer Points, and bound Conquer Points;
+- PK points;
+- title and enlightenment points;
+- map ID and position.
+
+Character-login reads are no-tracking bounded persistence operations and map persistence records
+into validated application models.
+
+Character creation writes, gameplay mutation, checkpointing, and world-state durability semantics
+remain separate future boundaries.
+
+## Game Database Readiness
+
+Game persistence has an explicit schema compatibility contract.
+
+`GameDatabaseReadinessVerifier` validates:
+
+- database character set;
+- database collation;
+- schema compatibility marker;
+- expected schema version;
+- expected migration identity.
+
+A database query failure remains distinguishable from a schema compatibility failure.
+
+The initial character schema uses `utf8mb4` database defaults and binary collation for character
+names so uniqueness remains case-sensitive and preserves the intended legacy name-comparison
+behavior.
+
+The Game persistence registration exposes:
+
+- pooled `GameDbContext` creation;
+- `ICharacterLoginProfileRepository`;
+- `IGameDatabaseReadinessVerifier`.
+
+Game database readiness is implemented as an infrastructure capability. A runnable GameServer host
+does not yet exist to execute the readiness gate during process startup.
+
+CI independently verifies that both `AccountDbContext` and `GameDbContext` have no pending EF Core
+model changes relative to their committed migrations.
 
 ## Redemption Protection
 
@@ -297,6 +436,11 @@ success
 
 Ambiguous commit outcomes are not blindly retried.
 
+Character-login resolution is read-only and does not participate in this commit rule.
+
+Future character creation and consequential gameplay mutations must define their own durability and
+acknowledgement boundaries before writes are introduced.
+
 ## Production Login Composition
 
 `AddAccountLoginInfrastructure` composes the AccountServer authentication graph:
@@ -345,7 +489,22 @@ key sequence is snapshotted before validation and later singleton construction.
 `TimeProvider.System` is used only when the host has not supplied another `TimeProvider`.
 
 This infrastructure boundary does not own GameServer listener, admission, worker,
-connection-session, or gameplay lifecycle.
+connection-session, character-login, or gameplay lifecycle.
+
+## Game Persistence Composition
+
+`AddGamePersistence` composes the Game character persistence boundary:
+
+- pooled `GameDbContext` creation;
+- character-login profile persistence;
+- Game database readiness verification.
+
+The persistence registration does not own character-login orchestration, GameServer connection
+ownership, listener lifecycle, character creation processing, or gameplay runtime behavior.
+
+`CharacterLoginResolver` remains an application service over `ICharacterLoginProfileRepository`. The
+future runnable GameServer composition root must connect these boundaries only when it also has a
+legitimate runtime owner for the resolved authenticated connection.
 
 ## AccountServer Host Security Boundary
 
@@ -389,6 +548,11 @@ Implemented:
 - GameServer `1052` login-proof authentication;
 - GameServer ticket-redemption infrastructure composition;
 - GameServer authenticated connection handoff;
+- Game character persistence and schema-readiness verification;
+- persisted character-login profile resolution;
+- authenticated account routing to character creation or existing-character login;
+- ownership-safe post-authentication character-login handoff;
+- CI migration-drift verification for Accounts and Game persistence;
 - scheduled bounded expired-ticket cleanup;
 - production AccountServer authentication/game-login dependency composition.
 
@@ -400,4 +564,6 @@ Not yet implemented:
 - staff/admin mutation authorization;
 - runnable GameServer host composition;
 - GameServer listener, admission, and worker lifecycle;
-- character bootstrap and gameplay authorization.
+- existing-character bootstrap packet sequence and map entry;
+- character creation request processing and durable creation;
+- gameplay/world-session authorization and authoritative runtime integration.

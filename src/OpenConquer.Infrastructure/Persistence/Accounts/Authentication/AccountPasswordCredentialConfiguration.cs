@@ -10,11 +10,10 @@ internal sealed class AccountPasswordCredentialConfiguration : IEntityTypeConfig
     public void Configure(EntityTypeBuilder<AccountPasswordCredentialRecord> builder)
     {
         builder.ToTable("account_password_credentials", table =>
-            {
-                table.HasCheckConstraint("CK_account_password_credentials_password_hash", "CHAR_LENGTH(`password_hash`) > 0");
-                table.HasCheckConstraint("CK_account_password_credentials_revision", "`revision` > 0");
-            }
-        );
+        {
+            table.HasCheckConstraint("CK_account_password_credentials_password_hash", "CHAR_LENGTH(`password_hash`) > 0");
+            table.HasCheckConstraint("CK_account_password_credentials_revision", "`revision` > 0");
+        });
 
         builder.HasCharSet("utf8mb4").UseCollation("utf8mb4_0900_as_cs");
         builder.HasKey(credential => credential.AccountId).HasName("PK_account_password_credentials");

@@ -4,6 +4,9 @@ using System.Net;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
+using OpenConquer.Application.Accounts.Authentication.Protection;
+using OpenConquer.Application.Accounts.Authentication.State;
 using OpenConquer.Infrastructure.Security;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
@@ -300,12 +303,12 @@ public sealed class PasswordHashMigrationTests
     {
         public bool TryBeginAuthentication(
             IPAddress remoteAddress,
-            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request
+            [NotNullWhen(true)] out IAccountAuthenticationRequestLease? requestLease
         )
         {
             ArgumentNullException.ThrowIfNull(remoteAddress);
 
-            request = new RequestLease();
+            requestLease = new RequestLease();
 
             return true;
         }

@@ -1,4 +1,5 @@
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
 using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Application.Accounts.Mutations;

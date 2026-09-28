@@ -42,6 +42,14 @@ public ref struct PacketWriter(Span<byte> buffer)
         _written += value.Length;
     }
 
+    public void WriteInt16(short value)
+    {
+        Span<byte> destination = GetWritableSpan(count: sizeof(short));
+        BinaryPrimitives.WriteInt16LittleEndian(destination, value);
+
+        _written += sizeof(short);
+    }
+
     public void WriteUInt16(ushort value)
     {
         Span<byte> destination = GetWritableSpan(count: sizeof(ushort));
@@ -116,6 +124,29 @@ public ref struct PacketWriter(Span<byte> buffer)
             selectedEncoding.GetBytes(value, destination[sizeof(byte)..]);
         }
 
+        _written += fieldLength;
+    }
+
+    public void WriteNullTerminatedString(string value, TqTextEncoding encoding = TqTextEncoding.Ansi)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (value.Contains('\0'))
+        {
+            throw new ArgumentException("Null-terminated TQ strings must not contain embedded null characters.", nameof(value));
+        }
+
+        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        int byteCount = selectedEncoding.GetByteCount(value);
+        int fieldLength = checked(byteCount + sizeof(byte));
+        Span<byte> destination = GetWritableSpan(fieldLength);
+
+        if (byteCount != 0)
+        {
+            selectedEncoding.GetBytes(value, destination[..byteCount]);
+        }
+
+        destination[byteCount] = 0;
         _written += fieldLength;
     }
 

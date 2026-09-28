@@ -1,0 +1,652 @@
+# Game Schema Migration Operations
+
+This runbook covers deployment, verification, and recovery of the OpenConquer Game database schema.
+
+Game schema migrations are managed by EF Core through `GameDbContext`. The migration history in
+`__EFMigrationsHistory` and the application-level `schema_compatibility` record must agree before
+the Game schema is considered ready.
+
+The current schema chain is:
+
+| Version | Migration                                     |
+| ------- | --------------------------------------------- |
+| 1       | `20260914210346_InitialGameSchema`            |
+| 2       | `20260922025854_UseSignedCharacterPkPoints`   |
+| 3       | `20260923223920_RetainPreRebirthLevel`        |
+| 4       | `20260927121811_AddItemPersistenceFoundation` |
+| 5       | `20260927225127_AddItemLifetimePersistence`   |
+
+The current schema contract is version 5.
+
+## Safety rules
+
+Treat schema migration as an administrative operation.
+
+Before applying a migration:
+
+- stop all processes that can write to the Game database;
+- take a verified database backup or snapshot;
+- confirm the target database before running any command;
+- use an administrative database identity capable of schema changes;
+- do not manually edit `__EFMigrationsHistory`;
+- do not manually advance `schema_compatibility`;
+- do not bypass migration guards;
+- do not fabricate historical character or item state to make a migration pass.
+
+Writer quiescence is a deployment invariant. Migration guards validate the schema and persisted
+state they observe, but they are not a substitute for stopping concurrent Game database writers.
+
+A migration may intentionally fail when persisted data cannot be converted without losing semantic
+information. Repair the underlying data from an authoritative source and rerun the migration.
+
+MySQL DDL can commit independently of EF migration metadata. A failed migration can therefore leave
+structural work committed while `__EFMigrationsHistory` and `schema_compatibility` still describe
+the previous version. The Game migrations are written to recognize their supported partial states
+and resume safely.
+
+A partial state is supported only when its existing structure exactly matches a state the migration
+knows how to resume. Unknown or incompatible structures fail closed.
+
+## Applying migrations
+
+Restore the repository-local tools first:
+
+    dotnet tool restore
+
+Set the administrative Game database connection string for the target environment:
+
+    export GAME_DB_CONNECTION='<administrative connection string>'
+
+Apply all pending Game migrations:
+
+    dotnet tool run dotnet-ef -- database update \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+To apply or resume the current migration specifically:
+
+    dotnet tool run dotnet-ef -- database update 20260927225127_AddItemLifetimePersistence \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+Do not assume a failed command means that no schema changes committed. Inspect the database before
+attempting manual recovery.
+
+## Inspecting migration state
+
+Check EF migration history:
+
+    SELECT `MigrationId`
+    FROM `__EFMigrationsHistory`
+    ORDER BY `MigrationId`;
+
+Check the OpenConquer compatibility marker:
+
+    SELECT
+        `component_name`,
+        `schema_version`,
+        `migration_id`,
+        `applied_at_utc`
+    FROM `schema_compatibility`
+    WHERE `component_name` = 'game';
+
+For the current schema, the compatibility row must report:
+
+    schema_version = 5
+    migration_id = 20260927225127_AddItemLifetimePersistence
+
+Inspect the character columns involved in the resumable character migrations:
+
+    SELECT
+        `COLUMN_NAME`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`,
+        `EXTRA`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'characters'
+      AND `COLUMN_NAME` IN
+          ('pk_points', 'rebirth_count', 'pre_rebirth_level')
+    ORDER BY `COLUMN_NAME`;
+
+The current schema requires:
+
+- `pk_points`: `smallint`, not nullable;
+- `rebirth_count`: `tinyint unsigned`, not nullable;
+- `pre_rebirth_level`: `tinyint unsigned`, not nullable.
+
+Inspect the pre-rebirth constraints:
+
+    SELECT
+        `CONSTRAINT_NAME`,
+        `ENFORCED`
+    FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS`
+    WHERE `CONSTRAINT_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'characters'
+      AND `CONSTRAINT_TYPE` = 'CHECK'
+      AND `CONSTRAINT_NAME` IN
+          ('CK_characters_pre_rebirth_level',
+           'CK_characters_rebirth_state')
+    ORDER BY `CONSTRAINT_NAME`;
+
+Both constraints must exist and be enforced at schema version 3 or later.
+
+## Signed PK points migration
+
+Migration `20260922025854_UseSignedCharacterPkPoints` changes `characters.pk_points` from
+`SMALLINT UNSIGNED` to signed `SMALLINT`.
+
+The migration preserves values that are representable by the signed storage contract.
+
+Before migrating a populated version 1 database, inspect values that cannot be represented:
+
+    SELECT
+        `character_id`,
+        `account_id`,
+        `name`,
+        `pk_points`
+    FROM `characters`
+    WHERE `pk_points` > 32767
+    ORDER BY `character_id`;
+
+If this query returns rows, stop the migration procedure. Those values cannot be converted to signed
+`SMALLINT` without changing their meaning.
+
+Correct them only from authoritative character data. Do not clamp, wrap, reinterpret, or guess the
+intended value.
+
+### Partial signed-PK migration
+
+Because MySQL DDL is not transactionally coupled to EF migration metadata, the `pk_points` column
+may already be signed while migration history and `schema_compatibility` still report version 1.
+
+Inspect the column:
+
+    SELECT
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'characters'
+      AND `COLUMN_NAME` = 'pk_points';
+
+A partially committed upgrade can legitimately show:
+
+    COLUMN_TYPE = smallint
+    IS_NULLABLE = NO
+
+while the compatibility row still reports version 1.
+
+Do not manually mark the migration complete.
+
+Rerun:
+
+    dotnet tool run dotnet-ef -- database update 20260922025854_UseSignedCharacterPkPoints \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration recognizes the supported signed-column partial state, completes any remaining cleanup,
+and advances both EF history and `schema_compatibility`.
+
+After recovery, verify:
+
+    SELECT
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'characters'
+      AND `COLUMN_NAME` = 'pk_points';
+
+Expected:
+
+    smallint
+    NO
+
+Then verify schema version 2 or later and confirm the migration appears in `__EFMigrationsHistory`.
+
+## Pre-rebirth retained-level migration
+
+Migration `20260923223920_RetainPreRebirthLevel` adds the persisted `pre_rebirth_level` character
+value.
+
+The semantic invariant is:
+
+- `rebirth_count = 0` requires `pre_rebirth_level = 0`;
+- `rebirth_count > 0` requires `pre_rebirth_level > 0`;
+- retained pre-rebirth levels must be between `1` and `140`.
+
+For non-reborn characters, the migration can safely populate `pre_rebirth_level = 0`.
+
+For an already reborn character, the migration cannot derive the historical level from the current
+character row. The current level is not a substitute for the retained pre-rebirth level.
+
+The migration therefore fails closed rather than inventing history.
+
+### Expected failure state
+
+When version 2 contains reborn characters without authoritative retained-level data, the migration
+can commit creation of a nullable `pre_rebirth_level` column before failing validation.
+
+After the failure, this is an expected recoverable state:
+
+- `pre_rebirth_level` exists;
+- the column is `TINYINT UNSIGNED NULL`;
+- non-reborn rows have been populated with `0`;
+- reborn rows that need repair remain `NULL`;
+- `schema_compatibility` remains at version 2;
+- `20260923223920_RetainPreRebirthLevel` is absent from `__EFMigrationsHistory`;
+- the final pre-rebirth constraints have not been installed.
+
+A MySQL check-constraint violation such as error 3819 during this stage is evidence that the
+migration rejected semantically incomplete data. It is not a reason to advance migration metadata
+manually.
+
+Find rows requiring operator repair:
+
+    SELECT
+        `character_id`,
+        `account_id`,
+        `name`,
+        `level`,
+        `rebirth_count`,
+        `pre_rebirth_level`
+    FROM `characters`
+    WHERE `rebirth_count` > 0
+      AND
+      (
+          `pre_rebirth_level` IS NULL
+          OR `pre_rebirth_level` = 0
+          OR `pre_rebirth_level` > 140
+      )
+    ORDER BY `character_id`;
+
+For each returned character, obtain the actual retained pre-rebirth level from an authoritative
+source.
+
+Do not use the current character level as a fallback and do not assign an arbitrary nonzero value
+merely to satisfy the constraint.
+
+Repair only verified values:
+
+    UPDATE `characters`
+    SET `pre_rebirth_level` = @verified_retained_level
+    WHERE `character_id` = @character_id
+      AND `rebirth_count` > 0;
+
+Verify that no unresolved rows remain:
+
+    SELECT
+        `character_id`,
+        `account_id`,
+        `name`,
+        `rebirth_count`,
+        `pre_rebirth_level`
+    FROM `characters`
+    WHERE `pre_rebirth_level` IS NULL
+       OR `pre_rebirth_level` > 140
+       OR (`rebirth_count` = 0 AND `pre_rebirth_level` <> 0)
+       OR (`rebirth_count` > 0 AND `pre_rebirth_level` = 0)
+    ORDER BY `character_id`;
+
+This query must return zero rows before retrying the migration.
+
+Rerun:
+
+    dotnet tool run dotnet-ef -- database update 20260923223920_RetainPreRebirthLevel \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration recognizes the partially committed nullable-column state, validates the repaired
+values, makes the column required, installs the final constraints, updates `schema_compatibility`,
+and allows EF to record the migration as applied.
+
+## Item persistence foundation migration
+
+Migration `20260927121811_AddItemPersistenceFoundation` advances the Game schema from version 3 to
+version 4 and establishes the canonical `items` persistence table.
+
+The migration validates the existing Game schema before creating or accepting the item table. If an
+`items` table already exists because MySQL committed DDL during an interrupted attempt, the table
+must exactly satisfy the migration's supported structural contract before recovery can continue.
+
+An arbitrary table named `items` is not accepted as an already-applied migration.
+
+### Partial item-persistence migration
+
+A supported partial upgrade can have the complete canonical `items` table present while:
+
+    schema_version = 3
+    migration_id = 20260923223920_RetainPreRebirthLevel
+
+and while `20260927121811_AddItemPersistenceFoundation` is still absent from
+`__EFMigrationsHistory`.
+
+Do not manually insert the migration history row.
+
+Rerun:
+
+    dotnet tool run dotnet-ef -- database update 20260927121811_AddItemPersistenceFoundation \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration validates the existing table, advances `schema_compatibility` to version 4, and allows
+EF to record the migration.
+
+If the existing item table is incompatible with the expected table, columns, indexes, foreign key,
+or enforced checks, the migration fails closed. Do not rename, drop, or reshape an unknown
+production table solely to satisfy the migration without first establishing its provenance.
+
+At schema version 4, compatibility is:
+
+    schema_version = 4
+    migration_id = 20260927121811_AddItemPersistenceFoundation
+
+## Item lifetime persistence migration
+
+Migration `20260927225127_AddItemLifetimePersistence` advances the Game schema from version 4 to
+version 5.
+
+It adds the persisted lifetime contract to `items`:
+
+    lifetime_state              TINYINT UNSIGNED NOT NULL
+    lifetime_duration_seconds   INT NULL
+    lifetime_expires_at_utc     DATETIME(6) NULL
+
+The canonical column positions are:
+
+    lifetime_state              27
+    lifetime_duration_seconds   28
+    lifetime_expires_at_utc     29
+
+It also creates:
+
+    IX_items_lifetime_state_expires_at_utc
+        (lifetime_state, lifetime_expires_at_utc)
+
+and the enforced check:
+
+    CK_items_lifetime
+
+The lifetime states persisted by this schema are:
+
+    1 = permanent
+    2 = pending activation
+    3 = active expiry
+
+The database invariant is equivalent to:
+
+    permanent:
+        lifetime_state = 1
+        lifetime_duration_seconds IS NULL
+        lifetime_expires_at_utc IS NULL
+
+    pending activation:
+        lifetime_state = 2
+        lifetime_duration_seconds IS NOT NULL
+        lifetime_duration_seconds > 0
+        lifetime_expires_at_utc IS NULL
+
+    active expiry:
+        lifetime_state = 3
+        lifetime_duration_seconds IS NULL
+        lifetime_expires_at_utc IS NOT NULL
+
+### Existing version 4 items
+
+Version 4 item rows contain no lifetime state.
+
+There is no authoritative value the migration can infer for whether an existing item is permanent,
+pending activation, or already using an absolute expiry.
+
+The migration therefore refuses to invent lifetime semantics.
+
+Before migrating a version 4 database, check:
+
+    SELECT COUNT(*) AS `item_count`
+    FROM `items`;
+
+The result must be:
+
+    0
+
+If version 4 contains item rows, migration to version 5 fails closed. The existing item rows remain
+unchanged, `schema_compatibility` remains at version 4, and the lifetime migration is not recorded
+in `__EFMigrationsHistory`.
+
+Do not assign all existing items an arbitrary lifetime state simply to make the migration pass.
+Resolve the item lifetime values only if an authoritative source exists. This migration does not
+contain a conversion path for populated version 4 item data.
+
+### Partial lifetime migration
+
+MySQL can commit some lifetime DDL before EF records the migration.
+
+The migration supports recovery from known partial states, including:
+
+- one or more canonical lifetime columns already present;
+- the canonical lifetime index already present;
+- the canonical lifetime check already present;
+- the complete version 5 structure and compatibility marker present while EF history still lacks the
+  migration.
+
+Existing lifetime columns must match the expected data type, nullability, default, and canonical
+ordinal position.
+
+An existing `IX_items_lifetime_state_expires_at_utc` must have the expected two-column index shape.
+
+An existing `CK_items_lifetime` is not trusted merely because its name matches. Its enforced
+`CHECK_CLAUSE` must express the expected lifetime invariant. A weaker, different, or otherwise
+incompatible same-name check causes the migration to fail closed.
+
+Inspect lifetime columns:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'items'
+      AND `COLUMN_NAME` IN
+          ('lifetime_state',
+           'lifetime_duration_seconds',
+           'lifetime_expires_at_utc')
+    ORDER BY `ORDINAL_POSITION`;
+
+Inspect the lifetime index:
+
+    SELECT
+        `INDEX_NAME`,
+        `SEQ_IN_INDEX`,
+        `COLUMN_NAME`,
+        `NON_UNIQUE`
+    FROM `INFORMATION_SCHEMA`.`STATISTICS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'items'
+      AND `INDEX_NAME` = 'IX_items_lifetime_state_expires_at_utc'
+    ORDER BY `SEQ_IN_INDEX`;
+
+Inspect the actual lifetime check definition:
+
+    SELECT
+        `tc`.`CONSTRAINT_NAME`,
+        `tc`.`ENFORCED`,
+        `cc`.`CHECK_CLAUSE`
+    FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS` AS `tc`
+    INNER JOIN `INFORMATION_SCHEMA`.`CHECK_CONSTRAINTS` AS `cc`
+        ON `cc`.`CONSTRAINT_SCHEMA` = `tc`.`CONSTRAINT_SCHEMA`
+        AND `cc`.`CONSTRAINT_NAME` = `tc`.`CONSTRAINT_NAME`
+    WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
+      AND `tc`.`TABLE_NAME` = 'items'
+      AND `tc`.`CONSTRAINT_NAME` = 'CK_items_lifetime';
+
+Do not manually replace a conflicting same-name check or rearrange columns until the unexpected
+state has been investigated.
+
+For a known supported partial state with zero item rows, rerun:
+
+    dotnet tool run dotnet-ef -- database update 20260927225127_AddItemLifetimePersistence \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration validates the existing partial structure, creates only the missing canonical
+structures, verifies the complete version 5 contract, advances `schema_compatibility`, and allows EF
+to record the migration.
+
+At schema version 5, compatibility is:
+
+    schema_version = 5
+    migration_id = 20260927225127_AddItemLifetimePersistence
+
+## Verifying current schema after recovery
+
+After any recovery, verify that no pending model changes exist in the repository:
+
+    dotnet tool run dotnet-ef -- migrations has-pending-model-changes \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext
+
+Expected:
+
+    No changes have been made to the model since the last migration.
+
+Verify migration history:
+
+    SELECT `MigrationId`
+    FROM `__EFMigrationsHistory`
+    ORDER BY `MigrationId`;
+
+For the current schema, the Game migration chain must contain:
+
+    20260914210346_InitialGameSchema
+    20260922025854_UseSignedCharacterPkPoints
+    20260923223920_RetainPreRebirthLevel
+    20260927121811_AddItemPersistenceFoundation
+    20260927225127_AddItemLifetimePersistence
+
+Verify compatibility:
+
+    SELECT
+        `schema_version`,
+        `migration_id`
+    FROM `schema_compatibility`
+    WHERE `component_name` = 'game';
+
+Expected:
+
+    5
+    20260927225127_AddItemLifetimePersistence
+
+Verify the lifetime columns:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'items'
+      AND `COLUMN_NAME` IN
+          ('lifetime_state',
+           'lifetime_duration_seconds',
+           'lifetime_expires_at_utc')
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    lifetime_state              27   tinyint unsigned   NO    NULL
+    lifetime_duration_seconds   28   int                YES   NULL
+    lifetime_expires_at_utc     29   datetime(6)        YES   NULL
+
+Verify the lifetime index:
+
+    SELECT
+        `SEQ_IN_INDEX`,
+        `COLUMN_NAME`,
+        `NON_UNIQUE`
+    FROM `INFORMATION_SCHEMA`.`STATISTICS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'items'
+      AND `INDEX_NAME` = 'IX_items_lifetime_state_expires_at_utc'
+    ORDER BY `SEQ_IN_INDEX`;
+
+Expected:
+
+    1   lifetime_state            1
+    2   lifetime_expires_at_utc   1
+
+Verify the lifetime check exists and is enforced:
+
+    SELECT
+        `tc`.`CONSTRAINT_NAME`,
+        `tc`.`ENFORCED`,
+        `cc`.`CHECK_CLAUSE`
+    FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS` AS `tc`
+    INNER JOIN `INFORMATION_SCHEMA`.`CHECK_CONSTRAINTS` AS `cc`
+        ON `cc`.`CONSTRAINT_SCHEMA` = `tc`.`CONSTRAINT_SCHEMA`
+        AND `cc`.`CONSTRAINT_NAME` = `tc`.`CONSTRAINT_NAME`
+    WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
+      AND `tc`.`TABLE_NAME` = 'items'
+      AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
+      AND `tc`.`CONSTRAINT_NAME` = 'CK_items_lifetime';
+
+Exactly one enforced `CK_items_lifetime` must exist and its clause must represent the canonical
+lifetime invariant described above.
+
+The Infrastructure layer implements `GameDatabaseReadinessVerifier` for validating the schema
+compatibility contract. The current `OpenConquer.GameServer` host is not yet wired as a runnable
+server and does not currently invoke that verifier. Any future runnable GameServer composition must
+complete Game database readiness verification before accepting connections.
+
+## Downgrades
+
+Treat Game schema downgrades as destructive operations unless the specific migration has been
+reviewed for the current data.
+
+Downgrading version 5 to version 4 removes the persisted lifetime columns, lifetime index, and
+lifetime check. Because doing so would discard lifetime semantics, the migration requires the
+`items` table to contain zero rows before performing the destructive downgrade. If item rows exist,
+the downgrade fails closed and leaves version 5 intact.
+
+A partially committed version 5 downgrade can be resumed when the expected lifetime structures have
+already been removed but migration metadata still reports version 5. Keep all Game database writers
+stopped and rerun the downgrade through EF rather than manually editing metadata.
+
+Downgrading version 4 to version 3 removes the `items` table. This destroys all persisted item data.
+
+Downgrading version 3 removes `pre_rebirth_level`. That discards retained pre-rebirth history from
+the Game database.
+
+Downgrading the signed PK migration requires all `pk_points` values to be nonnegative before
+conversion back to `SMALLINT UNSIGNED`.
+
+Before any downgrade, take a verified backup, inspect the migration's `Down` implementation, verify
+all downgrade preconditions against production data, understand which semantic information will be
+lost, and do not bypass migration guards or manually rewrite migration history to force the
+downgrade.

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
 
 namespace OpenConquer.Infrastructure.Security.Accounts.Authentication;
 

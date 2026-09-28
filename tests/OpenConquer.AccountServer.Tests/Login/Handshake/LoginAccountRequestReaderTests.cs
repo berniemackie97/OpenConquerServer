@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
+using OpenConquer.AccountServer.Login.Handshake.Authentication;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Transport.Connections;
 

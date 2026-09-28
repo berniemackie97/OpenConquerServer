@@ -2,8 +2,10 @@ using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login;
+using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game.Cryptography;
@@ -42,20 +44,20 @@ public sealed class GameConnectionAuthenticatorTests
             transport.QueueReceive([.. client.EncryptClientFrame(loginProof), .. client.EncryptClientFrame(nextPacket)]);
 
             GameConnectionAuthenticationResult result = await authenticator.AuthenticateAsync(session, TestContext.Current.CancellationToken);
-            authenticatedConnection = result.Connection;
 
             Assert.Equal(GameConnectionAuthenticationStatus.Authenticated, result.Status);
 
-            AuthenticatedGameConnection connection = Assert.IsType<AuthenticatedGameConnection>(authenticatedConnection);
+            authenticatedConnection = result.TakeConnection();
 
-            Assert.Equal(AccountId, connection.AccountId);
-            Assert.Equal(Username, connection.Username);
-            Assert.Equal(SessionUid, connection.SessionUid);
-            Assert.Equal(LocaleTag, connection.LocaleTag);
-            Assert.Equal(HardwareAddress, connection.HardwareAddress);
-            Assert.Equal(ResourceVersion, connection.ResourceVersion);
-            Assert.Equal(transport.LocalEndPoint, connection.LocalEndPoint);
-            Assert.Equal(transport.RemoteEndPoint, connection.RemoteEndPoint);
+            Assert.Equal(AccountId, authenticatedConnection.AccountId);
+            Assert.Equal(Username, authenticatedConnection.Username);
+            Assert.Equal(SessionUid, authenticatedConnection.SessionUid);
+            Assert.Equal(LocaleTag, authenticatedConnection.LocaleTag);
+            Assert.Equal(HardwareAddress, authenticatedConnection.HardwareAddress);
+            Assert.Equal(ResourceVersion, authenticatedConnection.ResourceVersion);
+            Assert.Equal(transport.LocalEndPoint, authenticatedConnection.LocalEndPoint);
+            Assert.Equal(transport.RemoteEndPoint, authenticatedConnection.RemoteEndPoint);
+            Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
 
             Assert.Equal(1, store.RedemptionCount);
             Assert.Equal(SessionUid, store.LastSessionUid);
@@ -64,7 +66,7 @@ public sealed class GameConnectionAuthenticatorTests
             Assert.Equal(SessionUid, limiter.LastSessionUid);
             Assert.Equal(0, transport.DisposeCount);
 
-            using GameInboundFrame nextFrame = Assert.IsType<GameInboundFrame>(await connection.ReadAsync(TestContext.Current.CancellationToken));
+            using GameInboundFrame nextFrame = Assert.IsType<GameInboundFrame>(await authenticatedConnection.ReadAsync(TestContext.Current.CancellationToken));
 
             Assert.Equal(nextPacket, nextFrame.Packet.ToArray());
         }
@@ -98,7 +100,6 @@ public sealed class GameConnectionAuthenticatorTests
             GameConnectionAuthenticationResult result = await authenticator.AuthenticateAsync(session, TestContext.Current.CancellationToken);
 
             Assert.Equal(GameConnectionAuthenticationStatus.AuthorizationRejected, result.Status);
-            Assert.Null(result.Connection);
             Assert.Equal(1, store.RedemptionCount);
             Assert.Equal(SessionUid, store.LastSessionUid);
             Assert.Equal(wrongAuthenticationKey, store.LastAuthenticationKey);
@@ -127,7 +128,6 @@ public sealed class GameConnectionAuthenticatorTests
             GameConnectionAuthenticationResult result = await authenticator.AuthenticateAsync(session, TestContext.Current.CancellationToken);
 
             Assert.Equal(GameConnectionAuthenticationStatus.PeerClosed, result.Status);
-            Assert.Null(result.Connection);
             Assert.Equal(0, store.RedemptionCount);
             Assert.Equal(0, limiter.BeginCount);
             Assert.Equal(1, transport.DisposeCount);
@@ -364,12 +364,12 @@ public sealed class GameConnectionAuthenticatorTests
         public IPAddress? LastRemoteAddress { get; private set; }
         public uint LastSessionUid { get; private set; }
 
-        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt)
+        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
         {
             BeginCount++;
             LastRemoteAddress = remoteAddress;
             LastSessionUid = sessionUid;
-            attempt = new FakeAttemptLease();
+            attemptLease = new FakeAttemptLease();
             return true;
         }
     }
