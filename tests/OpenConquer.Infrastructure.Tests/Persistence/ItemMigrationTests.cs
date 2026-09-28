@@ -335,6 +335,60 @@ public sealed class ItemMigrationTests
     }
 
     [Fact]
+    public async Task AddItemLifetimePersistence_WhenLifetimeColumnHasWrongOrdinal_FailsClosed()
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+        await database.StartAsync(CancellationToken);
+
+        string connectionString = database.GetConnectionString();
+
+        await ConfigureDatabaseAsync(connectionString);
+        await MigrateAsync(connectionString, ItemPersistenceMigrationId);
+        await AddMisorderedLifetimeStateColumnAsync(connectionString);
+
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
+            MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId));
+
+        Assert.Equal(3819, exception.Number);
+
+        await AssertItemColumnCountAsync(connectionString, expectedCount: 27);
+        await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 4, ItemPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(
+            connectionString,
+            InitialMigrationId,
+            SignedPkPointsMigrationId,
+            PreRebirthLevelMigrationId,
+            ItemPersistenceMigrationId);
+    }
+
+    [Fact]
+    public async Task AddItemLifetimePersistence_WhenExistingLifetimeCheckIsIncompatible_FailsClosed()
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+        await database.StartAsync(CancellationToken);
+
+        string connectionString = database.GetConnectionString();
+
+        await ConfigureDatabaseAsync(connectionString);
+        await MigrateAsync(connectionString, ItemPersistenceMigrationId);
+        await CreateIncompatibleLifetimePersistenceStructureAsync(connectionString);
+
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
+            MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId));
+
+        Assert.Equal(3819, exception.Number);
+
+        await AssertItemColumnCountAsync(connectionString, expectedCount: 29);
+        await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 4, ItemPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(
+            connectionString,
+            InitialMigrationId,
+            SignedPkPointsMigrationId,
+            PreRebirthLevelMigrationId,
+            ItemPersistenceMigrationId);
+    }
+
+    [Fact]
     public async Task AddItemLifetimePersistence_WhenV4ItemsExist_FailsClosedWithoutInventingLifetimeState()
     {
         await using MySqlContainer database = CreateDatabaseContainer();
@@ -645,6 +699,20 @@ public sealed class ItemMigrationTests
         await command.ExecuteNonQueryAsync(CancellationToken);
     }
 
+    private static async Task AddMisorderedLifetimeStateColumnAsync(string connectionString)
+    {
+        await using MySqlConnection connection = new(connectionString);
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            ALTER TABLE `items`
+            ADD COLUMN `lifetime_state` TINYINT UNSIGNED NOT NULL AFTER `item_id`
+            """;
+
+        await command.ExecuteNonQueryAsync(CancellationToken);
+    }
+
     private static async Task CreateLifetimePersistenceStructureAsync(string connectionString)
     {
         await using MySqlConnection connection = new(connectionString);
@@ -676,6 +744,29 @@ public sealed class ItemMigrationTests
                         AND `lifetime_duration_seconds` IS NULL
                         AND `lifetime_expires_at_utc` IS NOT NULL)
                 )
+            """;
+
+        await command.ExecuteNonQueryAsync(CancellationToken);
+    }
+
+    private static async Task CreateIncompatibleLifetimePersistenceStructureAsync(string connectionString)
+    {
+        await using MySqlConnection connection = new(connectionString);
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            ALTER TABLE `items`
+                ADD COLUMN `lifetime_state` TINYINT UNSIGNED NOT NULL AFTER `stack_quantity`,
+                ADD COLUMN `lifetime_duration_seconds` INT NULL AFTER `lifetime_state`,
+                ADD COLUMN `lifetime_expires_at_utc` DATETIME(6) NULL AFTER `lifetime_duration_seconds`;
+
+            CREATE INDEX `IX_items_lifetime_state_expires_at_utc`
+                ON `items` (`lifetime_state`, `lifetime_expires_at_utc`);
+
+            ALTER TABLE `items`
+                ADD CONSTRAINT `CK_items_lifetime`
+                CHECK (`lifetime_state` IN (1, 2, 3))
             """;
 
         await command.ExecuteNonQueryAsync(CancellationToken);
