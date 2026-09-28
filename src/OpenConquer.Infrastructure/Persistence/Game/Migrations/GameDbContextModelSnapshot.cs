@@ -248,6 +248,18 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                         .HasColumnType("int unsigned")
                         .HasColumnName("item_type_id");
 
+                    b.Property<int?>("LifetimeDurationSeconds")
+                        .HasColumnType("int")
+                        .HasColumnName("lifetime_duration_seconds");
+
+                    b.Property<DateTime?>("LifetimeExpiresAtUtc")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("lifetime_expires_at_utc");
+
+                    b.Property<byte>("LifetimeState")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("lifetime_state");
+
                     b.Property<byte>("LocationKind")
                         .HasColumnType("tinyint unsigned")
                         .HasColumnName("location_kind");
@@ -291,6 +303,9 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                     b.HasKey("ItemId")
                         .HasName("PK_items");
 
+                    b.HasIndex("LifetimeState", "LifetimeExpiresAtUtc")
+                        .HasDatabaseName("IX_items_lifetime_state_expires_at_utc");
+
                     b.HasIndex("OwnerCharacterId", "LocationKind")
                         .HasDatabaseName("IX_items_owner_character_id_location_kind");
 
@@ -311,6 +326,8 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                             t.HasCheckConstraint("CK_items_is_suspicious", "`is_suspicious` IN (0, 1)");
 
                             t.HasCheckConstraint("CK_items_item_type_id", "`item_type_id` > 0");
+
+                            t.HasCheckConstraint("CK_items_lifetime", "(`lifetime_state` = 1 AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NULL) OR (`lifetime_state` = 2 AND `lifetime_duration_seconds` IS NOT NULL AND `lifetime_duration_seconds` > 0 AND `lifetime_expires_at_utc` IS NULL) OR (`lifetime_state` = 3 AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_items_location_kind", "`location_kind` IN (1, 2)");
 

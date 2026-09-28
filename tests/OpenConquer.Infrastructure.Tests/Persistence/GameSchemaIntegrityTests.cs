@@ -22,6 +22,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_items_equipment_unlock_schedule",
         "CK_items_is_suspicious",
         "CK_items_item_type_id",
+        "CK_items_lifetime",
         "CK_items_location_kind",
         "CK_items_location_payload",
         "CK_items_stack_quantity",
@@ -344,8 +345,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(4u, reader.GetUInt32(1));
-        Assert.Equal("20260927121811_AddItemPersistenceFoundation", reader.GetString(2));
+        Assert.Equal(5u, reader.GetUInt32(1));
+        Assert.Equal("20260927225127_AddItemLifetimePersistence", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

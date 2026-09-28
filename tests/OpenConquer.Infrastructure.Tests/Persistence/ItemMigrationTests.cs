@@ -776,7 +776,7 @@ public sealed class ItemMigrationTests
                  430,
                  378)
             """;
-        command.Parameters.Add("@name", MySqlDbType.VarChar).Value = "Migration" + Guid.NewGuid().ToString("N")[..7];
+        command.Parameters.Add("@name", MySqlDbType.VarChar).Value = "Migration" + Guid.NewGuid().ToString("N")[..6];
 
         int affected = await command.ExecuteNonQueryAsync(CancellationToken);
 
