@@ -18,7 +18,7 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .UseCollation("utf8mb4_0900_as_cs")
-                .HasAnnotation("ProductVersion", "9.0.18")
+                .HasAnnotation("ProductVersion", "9.0.20")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
@@ -179,6 +179,164 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                     MySqlEntityTypeBuilderExtensions.UseCollation(b, "utf8mb4_0900_as_cs");
                 });
 
+            modelBuilder.Entity("OpenConquer.Infrastructure.Persistence.Game.Items.ItemRecord", b =>
+                {
+                    b.Property<uint>("ItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("item_id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<uint>("ItemId"));
+
+                    b.Property<byte>("AdditionLevel")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("addition_level");
+
+                    b.Property<uint>("CompositionProgress")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("composition_progress");
+
+                    b.Property<byte>("DamageReductionPercentOrSteedCompositionRed")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("damage_reduction_percent_or_steed_composition_red");
+
+                    b.Property<ushort>("Durability")
+                        .HasColumnType("smallint unsigned")
+                        .HasColumnName("durability");
+
+                    b.Property<byte>("EnchantmentLifeBonusOrSteedCompositionGreen")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("enchantment_life_bonus_or_steed_composition_green");
+
+                    b.Property<ushort>("EquipmentColor")
+                        .HasColumnType("smallint unsigned")
+                        .HasColumnName("equipment_color");
+
+                    b.Property<ushort>("EquipmentLockStateMask")
+                        .HasColumnType("smallint unsigned")
+                        .HasColumnName("equipment_lock_state_mask");
+
+                    b.Property<byte?>("EquipmentSet")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("equipment_set");
+
+                    b.Property<byte?>("EquipmentSlot")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("equipment_slot");
+
+                    b.Property<DateTime?>("EquipmentUnlockAtUtc")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("equipment_unlock_at_utc");
+
+                    b.Property<uint>("HiddenAttackEffect")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("hidden_attack_effect");
+
+                    b.Property<uint>("InscribedSyndicateId")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("inscribed_syndicate_id");
+
+                    b.Property<bool>("IsSuspicious")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_suspicious");
+
+                    b.Property<byte>("ItemBindingCode")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("item_binding_code");
+
+                    b.Property<uint>("ItemTypeId")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("item_type_id");
+
+                    b.Property<int?>("LifetimeDurationSeconds")
+                        .HasColumnType("int")
+                        .HasColumnName("lifetime_duration_seconds");
+
+                    b.Property<DateTime?>("LifetimeExpiresAtUtc")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("lifetime_expires_at_utc");
+
+                    b.Property<byte>("LifetimeState")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("lifetime_state");
+
+                    b.Property<byte>("LocationKind")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("location_kind");
+
+                    b.Property<ushort>("MaximumDurability")
+                        .HasColumnType("smallint unsigned")
+                        .HasColumnName("maximum_durability");
+
+                    b.Property<uint>("MonsterRestraintIdOrSteedCompositionBlue")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("monster_restraint_id_or_steed_composition_blue");
+
+                    b.Property<uint>("OwnerCharacterId")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("owner_character_id");
+
+                    b.Property<byte>("RetailCompatibilityByteA")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("retail_compatibility_byte_a");
+
+                    b.Property<byte>("RetailCompatibilityByteB")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("retail_compatibility_byte_b");
+
+                    b.Property<byte>("Socket1Code")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("socket1_code");
+
+                    b.Property<byte>("Socket2Code")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("socket2_code");
+
+                    b.Property<ushort>("StackQuantity")
+                        .HasColumnType("smallint unsigned")
+                        .HasColumnName("stack_quantity");
+
+                    b.Property<uint>("TalismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("socket_progress_or_steed_color_or_monster_counter_baseline");
+
+                    b.HasKey("ItemId")
+                        .HasName("PK_items");
+
+                    b.HasIndex("LifetimeState", "LifetimeExpiresAtUtc")
+                        .HasDatabaseName("IX_items_lifetime_state_expires_at_utc");
+
+                    b.HasIndex("OwnerCharacterId", "LocationKind")
+                        .HasDatabaseName("IX_items_owner_character_id_location_kind");
+
+                    b.HasIndex("OwnerCharacterId", "EquipmentSet", "EquipmentSlot")
+                        .IsUnique()
+                        .HasDatabaseName("UX_items_owner_equipment_position");
+
+                    b.ToTable("items", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_items_alternate_equipment_slot", "`equipment_set` IS NULL OR `equipment_set` <> 2 OR `equipment_slot` BETWEEN 1 AND 9");
+
+                            t.HasCheckConstraint("CK_items_equipment_set", "`equipment_set` IS NULL OR `equipment_set` IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_items_equipment_slot", "`equipment_slot` IS NULL OR `equipment_slot` BETWEEN 1 AND 16");
+
+                            t.HasCheckConstraint("CK_items_equipment_unlock_schedule", "((`equipment_lock_state_mask` & 2) = 0 AND `equipment_unlock_at_utc` IS NULL) OR ((`equipment_lock_state_mask` & 2) = 2 AND `equipment_unlock_at_utc` IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_items_is_suspicious", "`is_suspicious` IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_items_item_type_id", "`item_type_id` > 0");
+
+                            t.HasCheckConstraint("CK_items_lifetime", "(`lifetime_state` = 1 AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NULL) OR (`lifetime_state` = 2 AND `lifetime_duration_seconds` IS NOT NULL AND `lifetime_duration_seconds` > 0 AND `lifetime_expires_at_utc` IS NULL) OR (`lifetime_state` = 3 AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_items_location_kind", "`location_kind` IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_items_location_payload", "(`location_kind` = 1 AND `equipment_set` IS NULL AND `equipment_slot` IS NULL) OR (`location_kind` = 2 AND `equipment_set` IS NOT NULL AND `equipment_slot` IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_items_stack_quantity", "`stack_quantity` >= 1");
+                        });
+                });
+
             modelBuilder.Entity("OpenConquer.Infrastructure.Persistence.Schema.SchemaCompatibilityRecord", b =>
                 {
                     b.Property<string>("ComponentName")
@@ -220,6 +378,16 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
 
                     MySqlEntityTypeBuilderExtensions.HasCharSet(b, "ascii");
                     MySqlEntityTypeBuilderExtensions.UseCollation(b, "ascii_bin");
+                });
+
+            modelBuilder.Entity("OpenConquer.Infrastructure.Persistence.Game.Items.ItemRecord", b =>
+                {
+                    b.HasOne("OpenConquer.Infrastructure.Persistence.Game.CharacterRecord", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerCharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_items_characters_owner_character_id");
                 });
 #pragma warning restore 612, 618
         }

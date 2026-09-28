@@ -2,8 +2,10 @@ using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login;
+using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game.Cryptography;
@@ -362,12 +364,12 @@ public sealed class GameConnectionAuthenticatorTests
         public IPAddress? LastRemoteAddress { get; private set; }
         public uint LastSessionUid { get; private set; }
 
-        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attempt)
+        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
         {
             BeginCount++;
             LastRemoteAddress = remoteAddress;
             LastSessionUid = sessionUid;
-            attempt = new FakeAttemptLease();
+            attemptLease = new FakeAttemptLease();
             return true;
         }
     }

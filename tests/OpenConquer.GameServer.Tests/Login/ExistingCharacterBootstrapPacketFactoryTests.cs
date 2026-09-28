@@ -1,6 +1,8 @@
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Login;
+using OpenConquer.GameServer.Login.Character.Bootstrap;
 
 namespace OpenConquer.GameServer.Tests.Login;
 

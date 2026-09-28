@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Issuance;
 
 namespace OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 

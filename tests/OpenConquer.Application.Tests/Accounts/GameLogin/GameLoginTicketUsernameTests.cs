@@ -1,4 +1,6 @@
 using OpenConquer.Application.Accounts.GameLogin;
+using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Application.Tests.Accounts.GameLogin;

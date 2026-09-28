@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Characters.Login;
+using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Domain.Characters;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;

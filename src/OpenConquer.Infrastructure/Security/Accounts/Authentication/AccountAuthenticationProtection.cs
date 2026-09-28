@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Protection;
 using OpenConquer.Infrastructure.Security;
 
 namespace OpenConquer.Infrastructure.Security.Accounts.Authentication;
@@ -20,7 +21,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
     private readonly LinkedList<AccountSourceKey> _accountSourceRetention = [];
     private int _inFlightRequests;
 
-    public bool TryBeginAuthentication(IPAddress remoteAddress, [NotNullWhen(true)] out IAccountAuthenticationRequestLease? request)
+    public bool TryBeginAuthentication(IPAddress remoteAddress, [NotNullWhen(true)] out IAccountAuthenticationRequestLease? requestLease)
     {
         ArgumentNullException.ThrowIfNull(remoteAddress);
 
@@ -33,7 +34,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
 
             if (_inFlightRequests >= _options.MaximumConcurrentRequests)
             {
-                request = null;
+                requestLease = null;
                 return false;
             }
 
@@ -45,7 +46,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
 
                 if (sourceState.AvailableTokens < 1d || sourceState.InFlightRequests >= _options.MaximumConcurrentRequestsPerSource)
                 {
-                    request = null;
+                    requestLease = null;
                     return false;
                 }
             }
@@ -54,7 +55,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
 
             if (!EnsureCapacity(requiredTrackedEntries, timestamp, sourceState, null))
             {
-                request = null;
+                requestLease = null;
                 return false;
             }
 
@@ -71,7 +72,7 @@ internal sealed class AccountAuthenticationProtection(AccountAuthenticationProte
 
             TouchSourceState(sourceState, timestamp);
 
-            request = new RequestLease(this, sourceState);
+            requestLease = new RequestLease(this, sourceState);
             return true;
         }
     }

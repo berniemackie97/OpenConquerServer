@@ -13,18 +13,13 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
     private const string RuntimeUserName = "openconquer_game_runtime_tests";
     private static readonly string s_administrativePassword = Guid.NewGuid().ToString("N");
 
-    private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.4.11")
-        .WithDatabase(DatabaseName)
-        .WithUsername("root")
-        .WithPassword(s_administrativePassword)
-        .Build();
+    private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.4.11").WithDatabase(DatabaseName).WithUsername("root").WithPassword(s_administrativePassword).Build();
 
     private ServiceProvider? _services;
     private string? _runtimeConnectionString;
 
     public ServiceProvider Services => _services ?? throw new InvalidOperationException("The game test database is not initialized.");
     public IDbContextFactory<GameDbContext> ContextFactory => Services.GetRequiredService<IDbContextFactory<GameDbContext>>();
-
     public string AdministrativeConnectionString => _container.GetConnectionString();
     public string RuntimeConnectionString => _runtimeConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
     public ulong InitialCharacterAutoIncrement { get; private set; }
@@ -42,14 +37,12 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             InitialCharacterAutoIncrement = await ReadCharacterAutoIncrementAsync(administrativeConnectionString);
             _runtimeConnectionString = await CreateRuntimeIdentityAsync(administrativeConnectionString);
 
-            _services = new ServiceCollection()
-                .AddGamePersistence(_runtimeConnectionString)
+            _services = new ServiceCollection().AddGamePersistence(_runtimeConnectionString)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         }
         catch
         {
             await DisposeAsync();
-
             throw;
         }
     }
@@ -75,8 +68,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 
     private static async Task ProvisionSchemaAsync(string administrativeConnectionString)
     {
-        await using ServiceProvider migrationServices = new ServiceCollection()
-            .AddGamePersistence(administrativeConnectionString)
+        await using ServiceProvider migrationServices = new ServiceCollection().AddGamePersistence(administrativeConnectionString)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 
         IDbContextFactory<GameDbContext> factory = migrationServices.GetRequiredService<IDbContextFactory<GameDbContext>>();
@@ -119,7 +111,6 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
         string password = Guid.NewGuid().ToString("N");
 
         await using MySqlConnection connection = new(administrativeConnectionString);
-
         await connection.OpenAsync();
 
         await using (MySqlCommand createUser = connection.CreateCommand())
@@ -134,33 +125,19 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 
         string[] grants =
         [
-            $"""
-                GRANT SELECT
-                ON `{DatabaseName}`.`characters`
-                TO '{RuntimeUserName}'@'%'
-                """,
-            $"""
-                GRANT SELECT
-                ON `{DatabaseName}`.`schema_compatibility`
-                TO '{RuntimeUserName}'@'%'
-                """,
+            $"GRANT SELECT ON `{DatabaseName}`.`characters` TO '{RuntimeUserName}'@'%'",
+            $"GRANT SELECT ON `{DatabaseName}`.`items` TO '{RuntimeUserName}'@'%'",
+            $"GRANT SELECT ON `{DatabaseName}`.`schema_compatibility` TO '{RuntimeUserName}'@'%'",
         ];
 
         foreach (string grant in grants)
         {
             await using MySqlCommand command = connection.CreateCommand();
-
             command.CommandText = grant;
-
             await command.ExecuteNonQueryAsync();
         }
 
-        MySqlConnectionStringBuilder runtimeConnection = new(administrativeConnectionString)
-        {
-            UserID = RuntimeUserName,
-            Password = password,
-        };
-
+        MySqlConnectionStringBuilder runtimeConnection = new(administrativeConnectionString) { UserID = RuntimeUserName, Password = password };
         return runtimeConnection.ConnectionString;
     }
 }

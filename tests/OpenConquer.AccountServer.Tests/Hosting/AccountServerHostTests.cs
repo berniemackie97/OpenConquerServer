@@ -9,6 +9,7 @@ using OpenConquer.AccountServer.Tests.Configuration;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Transport.Connections;
+using LoginRuntimeHostedService = OpenConquer.AccountServer.Login.Hosting.LoginRuntimeHostedService;
 
 namespace OpenConquer.AccountServer.Tests.Hosting;
 
