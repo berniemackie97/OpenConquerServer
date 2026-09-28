@@ -1,6 +1,7 @@
 using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login;
@@ -370,6 +371,88 @@ public sealed class GameConnectionOwnershipTests
         Assert.Equal(1, transport.DisposeCount);
     }
 
+    [Fact]
+    public async Task AwaitingFriendList_DisposeWithoutTransferDisposesOwnedConnection()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        AwaitingFriendListConnection owner = new(connection, CreateProfile(), CreateMap(), CreateItemSet());
+
+        await owner.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => owner.TakeConnection());
+    }
+
+    [Fact]
+    public async Task AwaitingFriendList_ConcurrentTakeAllowsExactlyOneWinner()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        AwaitingFriendListConnection owner = new(connection, CreateProfile(), CreateMap(), CreateItemSet());
+
+        AuthenticatedGameConnection? first = null;
+        AuthenticatedGameConnection? second = null;
+        Exception? firstFailure = null;
+        Exception? secondFailure = null;
+
+        await Task.WhenAll(
+            Task.Run(() => TryTake(owner, out first, out firstFailure), TestContext.Current.CancellationToken),
+            Task.Run(() => TryTake(owner, out second, out secondFailure), TestContext.Current.CancellationToken));
+
+        AssertOneTakeSucceeded(connection, first, firstFailure, second, secondFailure);
+        Assert.Equal(0, transport.DisposeCount);
+
+        await (first ?? second)!.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task AwaitingFriendList_TakeAndDisposeRaceAllowsExactlyOneOwner()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        AwaitingFriendListConnection owner = new(connection, CreateProfile(), CreateMap(), CreateItemSet());
+
+        AuthenticatedGameConnection? transferred = null;
+        Exception? takeFailure = null;
+
+        await Task.WhenAll(
+            Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
+            Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
+
+        Assert.True(
+            transferred is not null ^ takeFailure is InvalidOperationException,
+            $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
+
+        if (transferred is not null)
+        {
+            Assert.Same(connection, transferred);
+            Assert.Equal(0, transport.DisposeCount);
+
+            await transferred.DisposeAsync();
+        }
+        else
+        {
+            Assert.Equal(1, transport.DisposeCount);
+        }
+
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task AwaitingFriendList_ItemSetBelongsToDifferentCharacter_IsRejected()
+    {
+        FakeGameTransportConnection transport = new();
+        await using AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new AwaitingFriendListConnection(connection, CreateProfile(), CreateMap(), CreateItemSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1)));
+
+        Assert.Equal("itemSet", exception.ParamName);
+    }
+
     private static void TryTake(GameConnectionAuthenticationResult owner, out AuthenticatedGameConnection? connection, out Exception? failure)
     {
         TryTake(owner.TakeConnection, out connection, out failure);
@@ -391,6 +474,11 @@ public sealed class GameConnectionOwnershipTests
     }
 
     private static void TryTake(AwaitingItemSetConnection owner, out AuthenticatedGameConnection? connection, out Exception? failure)
+    {
+        TryTake(owner.TakeConnection, out connection, out failure);
+    }
+
+    private static void TryTake(AwaitingFriendListConnection owner, out AuthenticatedGameConnection? connection, out Exception? failure)
     {
         TryTake(owner.TakeConnection, out connection, out failure);
     }
@@ -447,6 +535,11 @@ public sealed class GameConnectionOwnershipTests
         CharacterLocation location = new(mapId: 1002, x: 430, y: 378);
 
         return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: 0, titleId: 0, enlightenmentPoints: 0, location);
+    }
+
+    private static CharacterItemSet CreateItemSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId)
+    {
+        return new CharacterItemSet(characterId, []);
     }
 
     private static GameMapEntryDefinition CreateMap() => new(mapId: 1002, mapDataId: 1015, flags: 0);
