@@ -28,7 +28,7 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<ItemRecord>
             table.HasCheckConstraint("CK_items_stack_quantity", "`stack_quantity` >= 1");
             table.HasCheckConstraint("CK_items_lifetime",
                 $"(`lifetime_state` = {(byte)ItemLifetimeState.Permanent} AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NULL) OR "
-                + $"(`lifetime_state` = {(byte)ItemLifetimeState.PendingActivation} AND `lifetime_duration_seconds` > 0 AND `lifetime_expires_at_utc` IS NULL) OR "
+                + $"(`lifetime_state` = {(byte)ItemLifetimeState.PendingActivation} AND `lifetime_duration_seconds` IS NOT NULL AND `lifetime_duration_seconds` > 0 AND `lifetime_expires_at_utc` IS NULL) OR "
                 + $"(`lifetime_state` = {(byte)ItemLifetimeState.ActiveExpiry} AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NOT NULL)");
         });
 
