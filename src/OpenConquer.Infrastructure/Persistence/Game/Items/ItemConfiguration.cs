@@ -26,6 +26,10 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<ItemRecord>
                 "((`equipment_lock_state_mask` & 2) = 0 AND `equipment_unlock_at_utc` IS NULL) OR "
                 + "((`equipment_lock_state_mask` & 2) = 2 AND `equipment_unlock_at_utc` IS NOT NULL)");
             table.HasCheckConstraint("CK_items_stack_quantity", "`stack_quantity` >= 1");
+            table.HasCheckConstraint("CK_items_lifetime",
+                $"(`lifetime_state` = {(byte)ItemLifetimeState.Permanent} AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NULL) OR "
+                + $"(`lifetime_state` = {(byte)ItemLifetimeState.PendingActivation} AND `lifetime_duration_seconds` > 0 AND `lifetime_expires_at_utc` IS NULL) OR "
+                + $"(`lifetime_state` = {(byte)ItemLifetimeState.ActiveExpiry} AND `lifetime_duration_seconds` IS NULL AND `lifetime_expires_at_utc` IS NOT NULL)");
         });
 
         builder.HasKey(item => item.ItemId).HasName("PK_items");
@@ -59,10 +63,15 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<ItemRecord>
         builder.Property(item => item.InscribedSyndicateId).HasColumnName("inscribed_syndicate_id").HasColumnType("int unsigned").IsRequired();
         builder.Property(item => item.StackQuantity).HasColumnName("stack_quantity").HasColumnType("smallint unsigned").IsRequired();
 
+        builder.Property(item => item.LifetimeState).HasColumnName("lifetime_state").HasColumnType("tinyint unsigned").IsRequired();
+        builder.Property(item => item.LifetimeDurationSeconds).HasColumnName("lifetime_duration_seconds").HasColumnType("int");
+        builder.Property(item => item.LifetimeExpiresAtUtc).HasColumnName("lifetime_expires_at_utc").HasColumnType("datetime(6)");
+
         builder.HasOne<CharacterRecord>().WithMany().HasForeignKey(item => item.OwnerCharacterId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_items_characters_owner_character_id");
 
         builder.HasIndex(item => new { item.OwnerCharacterId, item.LocationKind }).HasDatabaseName("IX_items_owner_character_id_location_kind");
         builder.HasIndex(item => new { item.OwnerCharacterId, item.EquipmentSet, item.EquipmentSlot }).IsUnique().HasDatabaseName("UX_items_owner_equipment_position");
+        builder.HasIndex(item => new { item.LifetimeState, item.LifetimeExpiresAtUtc }).HasDatabaseName("IX_items_lifetime_state_expires_at_utc");
     }
 }
