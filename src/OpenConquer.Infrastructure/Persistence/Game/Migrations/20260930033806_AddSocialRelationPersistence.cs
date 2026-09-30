@@ -201,11 +201,6 @@ public partial class AddSocialRelationPersistence : Migration
                 FROM `INFORMATION_SCHEMA`.`STATISTICS`
                 WHERE `TABLE_SCHEMA` = DATABASE()
                   AND `TABLE_NAME` = 'social_relations'
-                  AND `INDEX_NAME` IN
-                  (
-                      'PRIMARY',
-                      'IX_social_relations_counterpart_kind_owner'
-                  )
             );
 
             SET @openconquer_social_foreign_keys_valid =
@@ -238,11 +233,7 @@ public partial class AddSocialRelationPersistence : Migration
                     AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
                 WHERE `kcu`.`CONSTRAINT_SCHEMA` = DATABASE()
                   AND `kcu`.`TABLE_NAME` = 'social_relations'
-                  AND `kcu`.`CONSTRAINT_NAME` IN
-                  (
-                      'FK_social_relations_characters_owner_character_id',
-                      'FK_social_relations_characters_counterpart_character_id'
-                  )
+                  AND `kcu`.`REFERENCED_TABLE_NAME` IS NOT NULL
             );
 
             SET @openconquer_social_checks_valid =
@@ -252,16 +243,20 @@ public partial class AddSocialRelationPersistence : Migration
                     AND SUM(
                         CASE
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_owner_character_id'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') = '{NormalizedOwnerCheckClause}' THEN 1
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_counterpart_character_id'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') = '{NormalizedCounterpartCheckClause}' THEN 1
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_distinct_characters'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') IN
                                 (
                                     '{NormalizedDistinctCharactersCheckClause}',
                                     'owner_character_id!=counterpart_character_id'
                                 ) THEN 1
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_kind'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') = '{NormalizedKindCheckClause}' THEN 1
                             ELSE 0
                         END
@@ -276,14 +271,6 @@ public partial class AddSocialRelationPersistence : Migration
                 WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
                   AND `tc`.`TABLE_NAME` = 'social_relations'
                   AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
-                  AND `tc`.`ENFORCED` = 'YES'
-                  AND `tc`.`CONSTRAINT_NAME` IN
-                  (
-                      'CK_social_relations_owner_character_id',
-                      'CK_social_relations_counterpart_character_id',
-                      'CK_social_relations_distinct_characters',
-                      'CK_social_relations_kind'
-                  )
             );
 
             DROP TEMPORARY TABLE IF EXISTS `{SchemaGuardTable}`;
@@ -522,11 +509,6 @@ public partial class AddSocialRelationPersistence : Migration
                 FROM `INFORMATION_SCHEMA`.`STATISTICS`
                 WHERE `TABLE_SCHEMA` = DATABASE()
                   AND `TABLE_NAME` = 'social_relations'
-                  AND `INDEX_NAME` IN
-                  (
-                      'PRIMARY',
-                      'IX_social_relations_counterpart_kind_owner'
-                  )
             );
 
             SET @openconquer_social_foreign_keys_valid =
@@ -559,11 +541,7 @@ public partial class AddSocialRelationPersistence : Migration
                     AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
                 WHERE `kcu`.`CONSTRAINT_SCHEMA` = DATABASE()
                   AND `kcu`.`TABLE_NAME` = 'social_relations'
-                  AND `kcu`.`CONSTRAINT_NAME` IN
-                  (
-                      'FK_social_relations_characters_owner_character_id',
-                      'FK_social_relations_characters_counterpart_character_id'
-                  )
+                  AND `kcu`.`REFERENCED_TABLE_NAME` IS NOT NULL
             );
 
             SET @openconquer_social_checks_valid =
@@ -573,16 +551,20 @@ public partial class AddSocialRelationPersistence : Migration
                     AND SUM(
                         CASE
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_owner_character_id'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') = '{NormalizedOwnerCheckClause}' THEN 1
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_counterpart_character_id'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') = '{NormalizedCounterpartCheckClause}' THEN 1
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_distinct_characters'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') IN
                                 (
                                     '{NormalizedDistinctCharactersCheckClause}',
                                     'owner_character_id!=counterpart_character_id'
                                 ) THEN 1
                             WHEN `tc`.`CONSTRAINT_NAME` = 'CK_social_relations_kind'
+                                AND `tc`.`ENFORCED` = 'YES'
                                 AND REGEXP_REPLACE(LOWER(`cc`.`CHECK_CLAUSE`), '[[:space:]`()]+', '') = '{NormalizedKindCheckClause}' THEN 1
                             ELSE 0
                         END
@@ -597,14 +579,6 @@ public partial class AddSocialRelationPersistence : Migration
                 WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
                   AND `tc`.`TABLE_NAME` = 'social_relations'
                   AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
-                  AND `tc`.`ENFORCED` = 'YES'
-                  AND `tc`.`CONSTRAINT_NAME` IN
-                  (
-                      'CK_social_relations_owner_character_id',
-                      'CK_social_relations_counterpart_character_id',
-                      'CK_social_relations_distinct_characters',
-                      'CK_social_relations_kind'
-                  )
             );
 
             SET @openconquer_social_row_count = 0;

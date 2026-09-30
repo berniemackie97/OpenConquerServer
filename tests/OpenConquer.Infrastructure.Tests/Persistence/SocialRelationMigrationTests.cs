@@ -20,6 +20,38 @@ public sealed class SocialRelationMigrationTests
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
+    public static TheoryData<string, string> UnexpectedCanonicalStructureCases =>
+        new()
+        {
+            {
+                "extra unique index",
+                """
+                ALTER TABLE `social_relations`
+                ADD CONSTRAINT `UX_social_relations_owner_counterpart`
+                    UNIQUE (`owner_character_id`, `counterpart_character_id`)
+                """
+            },
+            {
+                "extra foreign key",
+                """
+                ALTER TABLE `social_relations`
+                ADD CONSTRAINT `FK_social_relations_extra_owner`
+                    FOREIGN KEY (`owner_character_id`)
+                    REFERENCES `characters` (`character_id`)
+                    ON DELETE RESTRICT
+                    ON UPDATE RESTRICT
+                """
+            },
+            {
+                "extra check",
+                """
+                ALTER TABLE `social_relations`
+                ADD CONSTRAINT `CK_social_relations_friend_only`
+                    CHECK (`kind` = 1)
+                """
+            },
+        };
+
     [Fact]
     public async Task AddSocialRelationPersistence_MigratesV5SchemaAndAdvancesContract()
     {
@@ -38,14 +70,7 @@ public sealed class SocialRelationMigrationTests
 
         await AssertSocialRelationsStructurePresentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 6, SocialRelationPersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId,
-            SocialRelationPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId, SocialRelationPersistenceMigrationId);
     }
 
     [Fact]
@@ -62,26 +87,13 @@ public sealed class SocialRelationMigrationTests
 
         await AssertSocialRelationsStructurePresentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 5, ItemLifetimePersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId);
 
         await MigrateAsync(connectionString, SocialRelationPersistenceMigrationId);
 
         await AssertSocialRelationsStructurePresentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 6, SocialRelationPersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId,
-            SocialRelationPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId, SocialRelationPersistenceMigrationId);
     }
 
     [Fact]
@@ -99,26 +111,13 @@ public sealed class SocialRelationMigrationTests
 
         await AssertSocialRelationsStructurePresentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 6, SocialRelationPersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId);
 
         await MigrateAsync(connectionString, SocialRelationPersistenceMigrationId);
 
         await AssertSocialRelationsStructurePresentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 6, SocialRelationPersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId,
-            SocialRelationPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId, SocialRelationPersistenceMigrationId);
     }
 
     [Fact]
@@ -133,20 +132,36 @@ public sealed class SocialRelationMigrationTests
         await MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId);
         await CreateIncompatibleSocialRelationsTableAsync(connectionString);
 
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            MigrateAsync(connectionString, SocialRelationPersistenceMigrationId));
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => MigrateAsync(connectionString, SocialRelationPersistenceMigrationId));
 
         Assert.Equal(3819, exception.Number);
 
         await AssertSocialRelationColumnCountAsync(connectionString, expectedCount: 1);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 5, ItemLifetimePersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnexpectedCanonicalStructureCases))]
+    public async Task AddSocialRelationPersistence_WhenCanonicalTableContainsUnexpectedStructure_FailsClosed(string _, string structureSql)
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+        await database.StartAsync(CancellationToken);
+
+        string connectionString = database.GetConnectionString();
+
+        await ConfigureDatabaseAsync(connectionString);
+        await MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId);
+        await CreateSocialRelationsTableAsync(connectionString);
+        await ExecuteSqlAsync(connectionString, structureSql);
+
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => MigrateAsync(connectionString, SocialRelationPersistenceMigrationId));
+
+        Assert.Equal(3819, exception.Number);
+
+        await AssertSocialRelationColumnCountAsync(connectionString, expectedCount: 3);
+        await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 5, ItemLifetimePersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId);
     }
 
     [Fact]
@@ -167,13 +182,7 @@ public sealed class SocialRelationMigrationTests
 
         await AssertSocialRelationsTableAbsentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 5, ItemLifetimePersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId);
     }
 
     [Fact]
@@ -192,22 +201,14 @@ public sealed class SocialRelationMigrationTests
 
         await InsertRelationAsync(connectionString, ownerCharacterId, counterpartCharacterId, SocialRelationKind.Friend);
 
-        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId));
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId));
 
         Assert.Equal(3819, exception.Number);
 
         await AssertSocialRelationsStructurePresentAsync(connectionString);
         await AssertSocialRelationRowCountAsync(connectionString, expectedCount: 1);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 6, SocialRelationPersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId,
-            SocialRelationPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId, SocialRelationPersistenceMigrationId);
     }
 
     [Fact]
@@ -224,26 +225,13 @@ public sealed class SocialRelationMigrationTests
 
         await AssertSocialRelationsTableAbsentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 6, SocialRelationPersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId,
-            SocialRelationPersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId, SocialRelationPersistenceMigrationId);
 
         await MigrateAsync(connectionString, ItemLifetimePersistenceMigrationId);
 
         await AssertSocialRelationsTableAbsentAsync(connectionString);
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 5, ItemLifetimePersistenceMigrationId);
-        await AssertMigrationHistoryAsync(
-            connectionString,
-            InitialMigrationId,
-            SignedPkPointsMigrationId,
-            PreRebirthLevelMigrationId,
-            ItemPersistenceMigrationId,
-            ItemLifetimePersistenceMigrationId);
+        await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId, ItemPersistenceMigrationId, ItemLifetimePersistenceMigrationId);
     }
 
     private static MySqlContainer CreateDatabaseContainer()
@@ -350,6 +338,17 @@ public sealed class SocialRelationMigrationTests
             CHARACTER SET utf8mb4
             COLLATE utf8mb4_0900_as_cs
             """;
+
+        await command.ExecuteNonQueryAsync(CancellationToken);
+    }
+
+    private static async Task ExecuteSqlAsync(string connectionString, string sql)
+    {
+        await using MySqlConnection connection = new(connectionString);
+        await connection.OpenAsync(CancellationToken);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = sql;
 
         await command.ExecuteNonQueryAsync(CancellationToken);
     }
