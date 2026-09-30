@@ -29,6 +29,10 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",
+        "CK_social_relations_counterpart_character_id",
+        "CK_social_relations_distinct_characters",
+        "CK_social_relations_kind",
+        "CK_social_relations_owner_character_id",
     ];
 
     private static int s_nextAccountId = 1_000;
@@ -336,17 +340,17 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = """
-                              SELECT `component_name`, `schema_version`, `migration_id`
-                              FROM `schema_compatibility`
-                              WHERE `component_name` = 'game'
-                              """;
+            SELECT `component_name`, `schema_version`, `migration_id`
+            FROM `schema_compatibility`
+            WHERE `component_name` = 'game'
+            """;
 
         await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(5u, reader.GetUInt32(1));
-        Assert.Equal("20260927225127_AddItemLifetimePersistence", reader.GetString(2));
+        Assert.Equal(6u, reader.GetUInt32(1));
+        Assert.Equal("20260930033806_AddSocialRelationPersistence", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenConquer.Infrastructure.Persistence.Game.Items;
+using OpenConquer.Infrastructure.Persistence.Game.Social;
 using OpenConquer.Infrastructure.Persistence.Schema;
 
 namespace OpenConquer.Infrastructure.Persistence.Game.Context;
@@ -8,6 +9,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
 {
     internal DbSet<CharacterRecord> Characters => Set<CharacterRecord>();
     internal DbSet<ItemRecord> Items => Set<ItemRecord>();
+    internal DbSet<SocialRelationRecord> SocialRelations => Set<SocialRelationRecord>();
     internal DbSet<SchemaCompatibilityRecord> SchemaCompatibility => Set<SchemaCompatibilityRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -16,6 +18,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
 
         modelBuilder.ApplyConfiguration(new CharacterConfiguration());
         modelBuilder.ApplyConfiguration(new ItemConfiguration());
+        modelBuilder.ApplyConfiguration(new SocialRelationConfiguration());
         modelBuilder.ApplyConfiguration(new SchemaCompatibilityConfiguration());
     }
 }

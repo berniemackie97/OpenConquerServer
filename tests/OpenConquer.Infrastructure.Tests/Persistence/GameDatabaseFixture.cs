@@ -127,6 +127,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
         [
             $"GRANT SELECT ON `{DatabaseName}`.`characters` TO '{RuntimeUserName}'@'%'",
             $"GRANT SELECT ON `{DatabaseName}`.`items` TO '{RuntimeUserName}'@'%'",
+            $"GRANT SELECT ON `{DatabaseName}`.`social_relations` TO '{RuntimeUserName}'@'%'",
             $"GRANT SELECT ON `{DatabaseName}`.`schema_compatibility` TO '{RuntimeUserName}'@'%'",
         ];
 
