@@ -10,6 +10,15 @@ namespace OpenConquer.Protocol.Tests.Game.Packets;
 public sealed class GameAction10010Tests
 {
     [Fact]
+    public void ActionConstants_MatchVerifiedNativeLoginBootstrapSequence()
+    {
+        Assert.Equal((ushort)0x4A, GameAction10010.EnterMapAction);
+        Assert.Equal((ushort)0x4B, GameAction10010.GetItemSetAction);
+        Assert.Equal((ushort)0x4C, GameAction10010.GetGoodFriendAction);
+        Assert.Equal((ushort)0x198, GameAction10010.ClientStateAppliedAction);
+    }
+
+    [Fact]
     public void TryParse_ParsesVerifiedFixedNativeLayout()
     {
         byte[] packet = BuildPacket();

@@ -21,6 +21,7 @@ public readonly record struct GameAction10010(uint EntityId, uint ParameterPair,
     public const int FixedPacketLength = 38;
     public const ushort EnterMapAction = 0x4A;
     public const ushort GetItemSetAction = 0x4B;
+    public const ushort GetGoodFriendAction = 0x4C;
     public const ushort ClientStateAppliedAction = 0x198;
 
     private const int EntityIdOffset = 4;
