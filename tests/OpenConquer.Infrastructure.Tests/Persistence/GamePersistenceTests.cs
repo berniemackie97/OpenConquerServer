@@ -4,9 +4,12 @@ using MySqlConnector;
 using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 using OpenConquer.Infrastructure.Persistence.Game.Extensions;
+using OpenConquer.Infrastructure.Persistence.Game.Items;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
+using OpenConquer.Infrastructure.Persistence.Game.Social;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 
@@ -17,13 +20,18 @@ public sealed class GamePersistenceTests
     {
         Assert.Throws<ArgumentNullException>(() => GamePersistenceServiceCollectionExtensions.AddGamePersistence(null!, "Server=localhost"));
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddGamePersistence(" "));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence("Server=localhost", null!));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence("Server=localhost", new CharacterItemHydrationOptions(), null!));
     }
 
     [Fact]
     public async Task AddGamePersistence_UsesConfiguredProviderSemantics()
     {
+        CharacterItemHydrationOptions itemOptions = new(maximumItemsPerCharacter: 512);
+        CharacterSocialRelationHydrationOptions socialOptions = new(maximumRelationsPerCharacter: 256);
+
         await using ServiceProvider services = new ServiceCollection()
-            .AddGamePersistence("Server=localhost;Database=game;UseAffectedRows=true;AutoEnlist=true")
+            .AddGamePersistence("Server=localhost;Database=game;UseAffectedRows=true;AutoEnlist=true", itemOptions, socialOptions)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         IDbContextFactory<GameDbContext> factory = services.GetRequiredService<IDbContextFactory<GameDbContext>>();
@@ -42,11 +50,17 @@ public sealed class GamePersistenceTests
         Assert.Equal(MySqlDateTimeKind.Utc, connection.DateTimeKind);
         Assert.Null(services.GetService<MySqlDataSource>());
 
+        Assert.Same(itemOptions, services.GetRequiredService<CharacterItemHydrationOptions>());
+        Assert.Same(socialOptions, services.GetRequiredService<CharacterSocialRelationHydrationOptions>());
+
         ICharacterLoginProfileRepository characterRepository = services.GetRequiredService<ICharacterLoginProfileRepository>();
         Assert.Same(characterRepository, services.GetRequiredService<ICharacterLoginProfileRepository>());
 
         ICharacterItemSetRepository itemRepository = services.GetRequiredService<ICharacterItemSetRepository>();
         Assert.Same(itemRepository, services.GetRequiredService<ICharacterItemSetRepository>());
+
+        ICharacterSocialRelationSetRepository socialRepository = services.GetRequiredService<ICharacterSocialRelationSetRepository>();
+        Assert.Same(socialRepository, services.GetRequiredService<ICharacterSocialRelationSetRepository>());
 
         GameDatabaseReadinessVerifier readinessVerifier = services.GetRequiredService<GameDatabaseReadinessVerifier>();
         Assert.Same(readinessVerifier, services.GetRequiredService<GameDatabaseReadinessVerifier>());

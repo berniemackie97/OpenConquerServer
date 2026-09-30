@@ -15,8 +15,9 @@ The current schema chain is:
 | 3       | `20260923223920_RetainPreRebirthLevel`        |
 | 4       | `20260927121811_AddItemPersistenceFoundation` |
 | 5       | `20260927225127_AddItemLifetimePersistence`   |
+| 6       | `20260930033806_AddSocialRelationPersistence` |
 
-The current schema contract is version 5.
+The current schema contract is version 6.
 
 ## Safety rules
 
@@ -31,7 +32,7 @@ Before applying a migration:
 - do not manually edit `__EFMigrationsHistory`;
 - do not manually advance `schema_compatibility`;
 - do not bypass migration guards;
-- do not fabricate historical character or item state to make a migration pass.
+- do not fabricate historical character, item, or social-relation state to make a migration pass.
 
 Writer quiescence is a deployment invariant. Migration guards validate the schema and persisted
 state they observe, but they are not a substitute for stopping concurrent Game database writers.
@@ -68,7 +69,7 @@ Apply all pending Game migrations:
 
 To apply or resume the current migration specifically:
 
-    dotnet tool run dotnet-ef -- database update 20260927225127_AddItemLifetimePersistence \
+    dotnet tool run dotnet-ef -- database update 20260930033806_AddSocialRelationPersistence \
       --configuration Release \
       --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
       --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
@@ -98,8 +99,8 @@ Check the OpenConquer compatibility marker:
 
 For the current schema, the compatibility row must report:
 
-    schema_version = 5
-    migration_id = 20260927225127_AddItemLifetimePersistence
+    schema_version = 6
+    migration_id = 20260930033806_AddSocialRelationPersistence
 
 Inspect the character columns involved in the resumable character migrations:
 
@@ -520,6 +521,197 @@ At schema version 5, compatibility is:
     schema_version = 5
     migration_id = 20260927225127_AddItemLifetimePersistence
 
+## Social relation persistence migration
+
+Migration `20260930033806_AddSocialRelationPersistence` advances the Game schema from version 5 to
+version 6 and establishes the canonical `social_relations` table.
+
+The table stores directed social relationships:
+
+    owner_character_id         INT UNSIGNED NOT NULL
+    counterpart_character_id   INT UNSIGNED NOT NULL
+    kind                       TINYINT UNSIGNED NOT NULL
+
+The canonical primary key is:
+
+    PK_social_relations
+        (owner_character_id, kind, counterpart_character_id)
+
+The reverse-lookup index is:
+
+    IX_social_relations_counterpart_kind_owner
+        (counterpart_character_id, kind, owner_character_id)
+
+Both character identifiers reference `characters.character_id` with `ON DELETE RESTRICT` and
+`ON UPDATE RESTRICT`.
+
+The persisted relation kinds are:
+
+    1 = friend
+    2 = enemy
+
+A row is directed from `owner_character_id` to `counterpart_character_id`.
+
+Operationally, a reciprocal friendship is represented by two directed friend rows. An enemy
+relationship is one-sided unless a separate reverse row also exists. The schema permits the same
+owner/counterpart pair to have both a friend and an enemy row because `kind` is part of the primary
+key.
+
+The enforced checks require:
+
+- owner character IDs to be in the player-character entity range;
+- counterpart character IDs to be in the player-character entity range;
+- owner and counterpart to be different characters;
+- `kind` to be either `1` or `2`.
+
+No counterpart name, online state, peerage state, packet action, or gameplay friend-count limit is
+stored in `social_relations`.
+
+### Partial social-relation migration
+
+MySQL may commit creation of `social_relations` before EF records the migration.
+
+A supported partial upgrade can therefore have the complete canonical table present while:
+
+    schema_version = 5
+    migration_id = 20260927225127_AddItemLifetimePersistence
+
+and while `20260930033806_AddSocialRelationPersistence` is absent from `__EFMigrationsHistory`.
+
+The migration also supports the state where the complete canonical table and version 6
+`schema_compatibility` marker are present while EF history still lacks the migration.
+
+An existing table named `social_relations` is not accepted merely because its name matches. The
+migration validates the exact canonical:
+
+- table collation;
+- column count, order, types, nullability, defaults, and extra metadata;
+- primary-key column order;
+- reverse-index column order;
+- both character foreign keys and their update/delete rules;
+- all four enforced check constraints and their expected definitions.
+
+An unknown or incompatible existing table causes the migration to fail closed.
+
+Inspect the table:
+
+    SELECT
+        `TABLE_NAME`,
+        `TABLE_COLLATION`
+    FROM `INFORMATION_SCHEMA`.`TABLES`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'social_relations'
+      AND `TABLE_TYPE` = 'BASE TABLE';
+
+Inspect the columns:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`,
+        `EXTRA`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'social_relations'
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    owner_character_id         1   int unsigned       NO   NULL
+    counterpart_character_id   2   int unsigned       NO   NULL
+    kind                       3   tinyint unsigned   NO   NULL
+
+Inspect the indexes:
+
+    SELECT
+        `INDEX_NAME`,
+        `SEQ_IN_INDEX`,
+        `COLUMN_NAME`,
+        `NON_UNIQUE`
+    FROM `INFORMATION_SCHEMA`.`STATISTICS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'social_relations'
+      AND `INDEX_NAME` IN
+          ('PRIMARY',
+           'IX_social_relations_counterpart_kind_owner')
+    ORDER BY `INDEX_NAME`, `SEQ_IN_INDEX`;
+
+Expected index shapes:
+
+    PRIMARY:
+        1   owner_character_id
+        2   kind
+        3   counterpart_character_id
+
+    IX_social_relations_counterpart_kind_owner:
+        1   counterpart_character_id
+        2   kind
+        3   owner_character_id
+
+Inspect foreign keys:
+
+    SELECT
+        `kcu`.`CONSTRAINT_NAME`,
+        `kcu`.`COLUMN_NAME`,
+        `kcu`.`REFERENCED_TABLE_NAME`,
+        `kcu`.`REFERENCED_COLUMN_NAME`,
+        `rc`.`DELETE_RULE`,
+        `rc`.`UPDATE_RULE`
+    FROM `INFORMATION_SCHEMA`.`KEY_COLUMN_USAGE` AS `kcu`
+    INNER JOIN `INFORMATION_SCHEMA`.`REFERENTIAL_CONSTRAINTS` AS `rc`
+        ON `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`CONSTRAINT_SCHEMA`
+        AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    WHERE `kcu`.`CONSTRAINT_SCHEMA` = DATABASE()
+      AND `kcu`.`TABLE_NAME` = 'social_relations'
+      AND `kcu`.`REFERENCED_TABLE_NAME` IS NOT NULL
+    ORDER BY `kcu`.`CONSTRAINT_NAME`;
+
+Both relationships must reference `characters.character_id` and report:
+
+    DELETE_RULE = RESTRICT
+    UPDATE_RULE = RESTRICT
+
+Inspect the enforced checks:
+
+    SELECT
+        `tc`.`CONSTRAINT_NAME`,
+        `tc`.`ENFORCED`,
+        `cc`.`CHECK_CLAUSE`
+    FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS` AS `tc`
+    INNER JOIN `INFORMATION_SCHEMA`.`CHECK_CONSTRAINTS` AS `cc`
+        ON `cc`.`CONSTRAINT_SCHEMA` = `tc`.`CONSTRAINT_SCHEMA`
+        AND `cc`.`CONSTRAINT_NAME` = `tc`.`CONSTRAINT_NAME`
+    WHERE `tc`.`CONSTRAINT_SCHEMA` = DATABASE()
+      AND `tc`.`TABLE_NAME` = 'social_relations'
+      AND `tc`.`CONSTRAINT_TYPE` = 'CHECK'
+    ORDER BY `tc`.`CONSTRAINT_NAME`;
+
+The enforced checks must be:
+
+    CK_social_relations_owner_character_id
+    CK_social_relations_counterpart_character_id
+    CK_social_relations_distinct_characters
+    CK_social_relations_kind
+
+For a known supported partial state, rerun:
+
+    dotnet tool run dotnet-ef -- database update 20260930033806_AddSocialRelationPersistence \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration validates the existing canonical structure, advances `schema_compatibility` to version
+6 when necessary, and allows EF to record the migration.
+
+At schema version 6, compatibility is:
+
+    schema_version = 6
+    migration_id = 20260930033806_AddSocialRelationPersistence
+
 ## Verifying current schema after recovery
 
 After any recovery, verify that no pending model changes exist in the repository:
@@ -547,6 +739,7 @@ For the current schema, the Game migration chain must contain:
     20260923223920_RetainPreRebirthLevel
     20260927121811_AddItemPersistenceFoundation
     20260927225127_AddItemLifetimePersistence
+    20260930033806_AddSocialRelationPersistence
 
 Verify compatibility:
 
@@ -558,8 +751,8 @@ Verify compatibility:
 
 Expected:
 
-    5
-    20260927225127_AddItemLifetimePersistence
+    6
+    20260930033806_AddSocialRelationPersistence
 
 Verify the lifetime columns:
 
@@ -619,6 +812,67 @@ Verify the lifetime check exists and is enforced:
 Exactly one enforced `CK_items_lifetime` must exist and its clause must represent the canonical
 lifetime invariant described above.
 
+Verify the social-relation table:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'social_relations'
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    owner_character_id         1   int unsigned       NO   NULL
+    counterpart_character_id   2   int unsigned       NO   NULL
+    kind                       3   tinyint unsigned   NO   NULL
+
+Verify the social-relation indexes:
+
+    SELECT
+        `INDEX_NAME`,
+        `SEQ_IN_INDEX`,
+        `COLUMN_NAME`,
+        `NON_UNIQUE`
+    FROM `INFORMATION_SCHEMA`.`STATISTICS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'social_relations'
+      AND `INDEX_NAME` IN
+          ('PRIMARY',
+           'IX_social_relations_counterpart_kind_owner')
+    ORDER BY `INDEX_NAME`, `SEQ_IN_INDEX`;
+
+Verify both social-relation foreign keys are `RESTRICT`:
+
+    SELECT
+        `kcu`.`CONSTRAINT_NAME`,
+        `kcu`.`COLUMN_NAME`,
+        `rc`.`DELETE_RULE`,
+        `rc`.`UPDATE_RULE`
+    FROM `INFORMATION_SCHEMA`.`KEY_COLUMN_USAGE` AS `kcu`
+    INNER JOIN `INFORMATION_SCHEMA`.`REFERENTIAL_CONSTRAINTS` AS `rc`
+        ON `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`CONSTRAINT_SCHEMA`
+        AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    WHERE `kcu`.`CONSTRAINT_SCHEMA` = DATABASE()
+      AND `kcu`.`TABLE_NAME` = 'social_relations'
+      AND `kcu`.`REFERENCED_TABLE_NAME` = 'characters'
+    ORDER BY `kcu`.`CONSTRAINT_NAME`;
+
+Verify all social-relation checks exist and are enforced:
+
+    SELECT
+        `CONSTRAINT_NAME`,
+        `ENFORCED`
+    FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS`
+    WHERE `CONSTRAINT_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'social_relations'
+      AND `CONSTRAINT_TYPE` = 'CHECK'
+    ORDER BY `CONSTRAINT_NAME`;
+
 The Infrastructure layer implements `GameDatabaseReadinessVerifier` for validating the schema
 compatibility contract. The current `OpenConquer.GameServer` host is not yet wired as a runnable
 server and does not currently invoke that verifier. Any future runnable GameServer composition must
@@ -628,6 +882,15 @@ complete Game database readiness verification before accepting connections.
 
 Treat Game schema downgrades as destructive operations unless the specific migration has been
 reviewed for the current data.
+
+Downgrading version 6 to version 5 removes the `social_relations` table. Because this would destroy
+persisted social relationships, the migration requires `social_relations` to contain zero rows
+before dropping the table. If any social-relation rows exist, the downgrade fails closed and leaves
+the version 6 schema and compatibility marker intact.
+
+A partially committed version 6 downgrade can be resumed when `social_relations` has already been
+removed but migration metadata still reports version 6. Keep all Game database writers stopped and
+rerun the downgrade through EF rather than manually editing migration metadata.
 
 Downgrading version 5 to version 4 removes the persisted lifetime columns, lifetime index, and
 lifetime check. Because doing so would discard lifetime semantics, the migration requires the
