@@ -2,6 +2,7 @@ using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login;
@@ -442,6 +443,96 @@ public sealed class GameConnectionOwnershipTests
         Assert.Equal("itemSet", exception.ParamName);
     }
 
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_DisposeWithoutTransferDisposesOwnedConnection()
+    {
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingWeaponSkillSetConnection owner = new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet());
+
+        await owner.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => owner.TakeConnection());
+    }
+
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_ConcurrentTakeAllowsExactlyOneWinner()
+    {
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingWeaponSkillSetConnection owner = new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet());
+
+        ExistingCharacterGameConnection? first = null;
+        ExistingCharacterGameConnection? second = null;
+        Exception? firstFailure = null;
+        Exception? secondFailure = null;
+
+        await Task.WhenAll(
+            Task.Run(() => TryTake(owner, out first, out firstFailure), TestContext.Current.CancellationToken),
+            Task.Run(() => TryTake(owner, out second, out secondFailure), TestContext.Current.CancellationToken));
+
+        AssertOneTakeSucceeded(connection, first, firstFailure, second, secondFailure);
+        Assert.Equal(0, transport.DisposeCount);
+
+        await (first ?? second)!.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_TakeAndDisposeRaceAllowsExactlyOneOwner()
+    {
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingWeaponSkillSetConnection owner = new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet());
+
+        ExistingCharacterGameConnection? transferred = null;
+        Exception? takeFailure = null;
+
+        await Task.WhenAll(
+            Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
+            Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
+
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
+            $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
+
+        if (transferred is not null)
+        {
+            Assert.Same(connection, transferred);
+            Assert.Equal(0, transport.DisposeCount);
+            await transferred.DisposeAsync();
+        }
+        else
+        {
+            Assert.Equal(1, transport.DisposeCount);
+        }
+
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_ItemSetBelongsToDifferentCharacter_IsRejected()
+    {
+        FakeGameTransportConnection transport = new();
+        await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingWeaponSkillSetConnection(connection, CreateMap(), CreateItemSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1), CreateSocialRelationSet()));
+
+        Assert.Equal("itemSet", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_SocialRelationSetBelongsToDifferentCharacter_IsRejected()
+    {
+        FakeGameTransportConnection transport = new();
+        await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingWeaponSkillSetConnection(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1)));
+
+        Assert.Equal("socialRelationSet", exception.ParamName);
+    }
+
     private static void TryTake(GameConnectionAuthenticationResult owner, out AuthenticatedGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
 
     private static void TryTake(CharacterLoginHandoffResult owner, out AuthenticatedGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
@@ -453,6 +544,8 @@ public sealed class GameConnectionOwnershipTests
     private static void TryTake(AwaitingItemSetConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
 
     private static void TryTake(AwaitingFriendListConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(AwaitingWeaponSkillSetConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
 
     private static void TryTake(Func<AuthenticatedGameConnection> take, out AuthenticatedGameConnection? connection, out Exception? failure)
     {
@@ -530,6 +623,8 @@ public sealed class GameConnectionOwnershipTests
     }
 
     private static CharacterItemSet CreateItemSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId) => new(characterId, []);
+
+    private static CharacterSocialRelationSet CreateSocialRelationSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId) => new(characterId, []);
 
     private static GameMapEntryDefinition CreateMap() => new(mapId: 1002, mapDataId: 1015, flags: 0);
 }

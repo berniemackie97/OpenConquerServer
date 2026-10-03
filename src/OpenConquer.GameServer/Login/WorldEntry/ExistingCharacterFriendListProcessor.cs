@@ -56,6 +56,18 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
                 throw new InvalidDataException($"Expected friend-list action {GameAction10010.GetGoodFriendAction}, received action {friendListRequest.Action}.");
             }
 
+            if (friendListRequest.EntityId != profile.Identity.CharacterId)
+            {
+                throw new InvalidDataException("The friend-list request character ID does not match the authenticated character.");
+            }
+
+            if (friendListRequest.ParameterPair != 0 || friendListRequest.ActionParameter != 0 || friendListRequest.Direction != 0
+                || friendListRequest.PositionX != 0 || friendListRequest.PositionY != 0 || friendListRequest.Data1 != 0
+                || friendListRequest.Data2 != 0 || friendListRequest.Flag != 0)
+            {
+                throw new InvalidDataException("The native friend-list request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
+            }
+
             CharacterSocialRelationSet persistedRelationSet = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);
 
             operationToken.ThrowIfCancellationRequested();
@@ -69,7 +81,7 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
 
             operationToken.ThrowIfCancellationRequested();
 
-            GameActionPacket10010 acknowledgement = new(profile.Identity.CharacterId, friendListRequest.ParameterPair, friendListRequest.ActionParameter, friendListRequest.Timestamp, GameAction10010.GetGoodFriendAction, friendListRequest.Direction, friendListRequest.PositionX, friendListRequest.PositionY, friendListRequest.Data1, friendListRequest.Data2, friendListRequest.Flag);
+            GameActionPacket10010 acknowledgement = new(profile.Identity.CharacterId, parameterPair: 0, actionParameter: 0, friendListRequest.Timestamp, GameAction10010.GetGoodFriendAction, direction: 0, positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
 
             foreach (GameSocialRelationPacket1019 relationPacket in projection.RelationPackets)
             {
