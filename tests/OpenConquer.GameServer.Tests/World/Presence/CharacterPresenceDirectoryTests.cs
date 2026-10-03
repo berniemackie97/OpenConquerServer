@@ -68,6 +68,32 @@ public sealed class CharacterPresenceDirectoryTests
     }
 
     [Fact]
+    public void Register_DisplacedRevocationFailureRollsBackReplacementAndLeavesDirectoryUsable()
+    {
+        CharacterPresenceDirectory directory = new();
+        ICharacterPresenceLease older = directory.Register(CharacterId);
+        InvalidOperationException callbackFailure = new("revocation callback failed");
+        CancellationTokenRegistration callbackRegistration = older.RevocationToken.Register(() => throw callbackFailure);
+
+        AggregateException exception = Assert.Throws<AggregateException>(() => directory.Register(CharacterId));
+
+        callbackRegistration.Dispose();
+
+        Assert.Contains(callbackFailure, exception.Flatten().InnerExceptions);
+        Assert.True(older.IsRevoked);
+        Assert.True(older.RevocationToken.IsCancellationRequested);
+        Assert.False(directory.IsOnline(CharacterId));
+
+        using ICharacterPresenceLease recovery = directory.Register(CharacterId);
+
+        older.Dispose();
+
+        Assert.True(directory.IsOnline(CharacterId));
+        Assert.False(recovery.IsRevoked);
+        Assert.False(recovery.RevocationToken.IsCancellationRequested);
+    }
+
+    [Fact]
     public void Register_DisposingCurrentRegistrationDoesNotRestoreSupersededRegistration()
     {
         CharacterPresenceDirectory directory = new();
@@ -94,6 +120,33 @@ public sealed class CharacterPresenceDirectoryTests
         Assert.True(registration.IsRevoked);
         Assert.True(registration.RevocationToken.IsCancellationRequested);
         Assert.False(directory.IsOnline(CharacterId));
+    }
+
+    [Fact]
+    public void Registration_RevocationFailureStillReleasesPresenceAndRemainsIdempotent()
+    {
+        CharacterPresenceDirectory directory = new();
+        ICharacterPresenceLease registration = directory.Register(CharacterId);
+        InvalidOperationException callbackFailure = new("revocation callback failed");
+        CancellationTokenRegistration callbackRegistration = registration.RevocationToken.Register(() => throw callbackFailure);
+
+        AggregateException exception = Assert.Throws<AggregateException>(() => registration.Dispose());
+
+        callbackRegistration.Dispose();
+
+        Assert.Contains(callbackFailure, exception.Flatten().InnerExceptions);
+        Assert.True(registration.IsRevoked);
+        Assert.True(registration.RevocationToken.IsCancellationRequested);
+        Assert.False(directory.IsOnline(CharacterId));
+
+        registration.Dispose();
+
+        Assert.False(directory.IsOnline(CharacterId));
+
+        using ICharacterPresenceLease recovery = directory.Register(CharacterId);
+
+        Assert.True(directory.IsOnline(CharacterId));
+        Assert.False(recovery.IsRevoked);
     }
 
     [Theory]

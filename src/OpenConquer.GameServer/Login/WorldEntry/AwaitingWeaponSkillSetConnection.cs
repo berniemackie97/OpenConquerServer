@@ -41,25 +41,10 @@ internal sealed class AwaitingWeaponSkillSetConnection : IAsyncDisposable
         SocialRelationSet = socialRelationSet;
     }
 
-    public CharacterLoginProfile Profile
-    {
-        get;
-    }
-
-    public GameMapEntryDefinition Map
-    {
-        get;
-    }
-
-    public CharacterItemSet ItemSet
-    {
-        get;
-    }
-
-    public CharacterSocialRelationSet SocialRelationSet
-    {
-        get;
-    }
+    public CharacterLoginProfile Profile { get; }
+    public GameMapEntryDefinition Map { get; }
+    public CharacterItemSet ItemSet { get; }
+    public CharacterSocialRelationSet SocialRelationSet { get; }
 
     public ExistingCharacterGameConnection TakeConnection()
     {

@@ -512,6 +512,18 @@ public sealed class GameConnectionOwnershipTests
     }
 
     [Fact]
+    public async Task AwaitingWeaponSkillSet_MapDoesNotMatchPersistedCharacter_IsRejected()
+    {
+        FakeGameTransportConnection transport = new();
+        await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        GameMapEntryDefinition map = new(mapId: 1003, mapDataId: 1015, flags: 0);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingWeaponSkillSetConnection(connection, map, CreateItemSet(), CreateSocialRelationSet()));
+
+        Assert.Equal("map", exception.ParamName);
+    }
+
+    [Fact]
     public async Task AwaitingWeaponSkillSet_ItemSetBelongsToDifferentCharacter_IsRejected()
     {
         FakeGameTransportConnection transport = new();
