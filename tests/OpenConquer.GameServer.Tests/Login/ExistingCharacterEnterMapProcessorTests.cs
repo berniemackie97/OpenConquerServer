@@ -10,10 +10,12 @@ using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Character.Bootstrap;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Packets;
@@ -46,9 +48,10 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         fixture.QueueAction();
 
         EnteredMapConnection result = await processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken);
-        AuthenticatedGameConnection transferredConnection = result.TakeConnection();
+        ExistingCharacterGameConnection transferredConnection = result.TakeConnection();
 
-        Assert.Same(fixture.Connection, transferredConnection);
+        Assert.Same(fixture.Profile, transferredConnection.Profile);
+        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Same(fixture.Profile, result.Profile);
         Assert.Same(map, result.Map);
         Assert.Equal(0, fixture.Transport.DisposeCount);
@@ -95,6 +98,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         await transferredConnection.DisposeAsync();
 
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
@@ -105,13 +109,13 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         GameMapEntryDefinition map = new(MapId + 1, MapDataId, MapFlags);
         int receiveCallCountBeforeProcessing = fixture.Transport.ReceiveCallCount;
 
-        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken).AsTask());
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal("map", exception.ParamName);
         Assert.Equal(receiveCallCountBeforeProcessing, fixture.Transport.ReceiveCallCount);
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.AwaitingEnterMap.TakeConnection());
     }
 
@@ -123,11 +127,11 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
         fixture.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<EndOfStreamException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<EndOfStreamException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.AwaitingEnterMap.TakeConnection());
     }
 
@@ -141,8 +145,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 10011);
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
@@ -157,8 +160,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
         fixture.QueueAction(action: GameAction10010.EnterMapAction + 1);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("Expected EnterMap action", exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
@@ -173,8 +175,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
         fixture.QueueAction(entityId: fixture.Profile.Identity.CharacterId + 1);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("character ID", exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
@@ -193,8 +194,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         packet[40] = (byte)'B';
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("without trailing strings", exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
@@ -210,11 +210,11 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId, MapDataId, MapFlags), cancellation.Token).AsTask());
 
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.AwaitingEnterMap.TakeConnection());
     }
 
@@ -239,6 +239,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.AwaitingEnterMap.TakeConnection());
     }
 
@@ -256,12 +257,12 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         int sentLengthAfterFirstProcessing = fixture.Transport.SentBytes.Length;
         int receiveCallCountAfterFirstProcessing = fixture.Transport.ReceiveCallCount;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(sentLengthAfterFirstProcessing, fixture.Transport.SentBytes.Length);
         Assert.Equal(receiveCallCountAfterFirstProcessing, fixture.Transport.ReceiveCallCount);
         Assert.Equal(0, fixture.Transport.DisposeCount);
+        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
@@ -280,8 +281,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken).AsTask());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, map, TestContext.Current.CancellationToken).AsTask());
 
             Assert.Equal(0, fixture.Transport.DisposeCount);
         }
@@ -293,6 +293,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         await using EnteredMapConnection result = await first;
 
         Assert.Same(fixture.Profile, result.Profile);
+        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.Equal(3, ReadPackets(fixture.DecryptEnterMapResponse()).Length);
     }
@@ -304,14 +305,14 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         await using EnterMapFixture fixture = await CreateFixtureAsync(cleanupFailure);
         ExistingCharacterEnterMapProcessor processor = new(new FixedGameTickSource(ServerTick));
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
-            processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId + 1, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(fixture.AwaitingEnterMap, new GameMapEntryDefinition(MapId + 1, MapDataId, MapFlags), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<ArgumentException>(exception.InnerExceptions[0]);
         Assert.Same(cleanupFailure, exception.InnerExceptions[1]);
         Assert.Equal(fixture.EnterMapBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     private static async Task<EnterMapFixture> CreateFixtureAsync(Exception? disposeFailure = null)
@@ -335,12 +336,13 @@ public sealed class ExistingCharacterEnterMapProcessorTests
             AuthenticatedGameConnection connection = authentication.TakeConnection();
             CharacterLoginProfile profile = CreateProfile();
             CharacterLoginHandoffResult handoff = new(connection, CharacterLoginResolution.ExistingCharacter(profile));
-            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor().ProcessAsync(handoff, TestContext.Current.CancellationToken);
+            CharacterPresenceDirectory presence = new();
+            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor(presence).ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
             byte[] encryptedBootstrap = transport.SentBytes[authenticationBoundary..];
             _ = client.DecryptServerBytes(encryptedBootstrap);
 
-            return new EnterMapFixture(transport, client, connection, profile, awaitingEnterMap, transport.SentBytes.Length);
+            return new EnterMapFixture(transport, client, presence, profile, awaitingEnterMap, transport.SentBytes.Length);
         }
         catch
         {
@@ -439,12 +441,11 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         return packets.ToArray();
     }
 
-    private sealed class EnterMapFixture(FakeGameTransportConnection transport, GameClientTestPeer client, AuthenticatedGameConnection connection,
-        CharacterLoginProfile profile, AwaitingEnterMapConnection awaitingEnterMap, int enterMapBoundary) : IAsyncDisposable
+    private sealed class EnterMapFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, AwaitingEnterMapConnection awaitingEnterMap, int enterMapBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
-        public AuthenticatedGameConnection Connection { get; } = connection;
+        public CharacterPresenceDirectory Presence { get; } = presence;
         public CharacterLoginProfile Profile { get; } = profile;
         public AwaitingEnterMapConnection AwaitingEnterMap { get; } = awaitingEnterMap;
         public int EnterMapBoundary { get; } = enterMapBoundary;
@@ -470,7 +471,7 @@ public sealed class ExistingCharacterEnterMapProcessorTests
 
             if (Transport.DisposeCount == 0)
             {
-                await Connection.DisposeAsync();
+                await AwaitingEnterMap.DisposeAsync();
             }
         }
     }

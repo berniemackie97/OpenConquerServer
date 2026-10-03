@@ -1,7 +1,7 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Assets.Items;
-using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
@@ -20,17 +20,19 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetReposit
     {
         ArgumentNullException.ThrowIfNull(awaitingItemSet);
 
-        AuthenticatedGameConnection connection = awaitingItemSet.TakeConnection();
+        ExistingCharacterGameConnection connection = awaitingItemSet.TakeConnection();
         CharacterLoginProfile profile = awaitingItemSet.Profile;
         GameMapEntryDefinition map = awaitingItemSet.Map;
+        using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
+        CancellationToken operationToken = operationCancellation.Token;
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            operationToken.ThrowIfCancellationRequested();
 
             GameAction10010 itemSetRequest;
 
-            using (GameInboundFrame? frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false))
+            using (GameInboundFrame? frame = await connection.ReadAsync(operationToken).ConfigureAwait(false))
             {
                 if (frame is null)
                 {
@@ -65,9 +67,9 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetReposit
                 throw new InvalidDataException("The native item-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
-            CharacterItemSet persistedItemSet = await _repository.LoadAsync(profile.Identity.CharacterId, cancellationToken).ConfigureAwait(false);
+            CharacterItemSet persistedItemSet = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);
 
-            cancellationToken.ThrowIfCancellationRequested();
+            operationToken.ThrowIfCancellationRequested();
 
             if (persistedItemSet.CharacterId != profile.Identity.CharacterId)
             {
@@ -76,24 +78,23 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetReposit
 
             ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(persistedItemSet, _itemTypes, _timeProvider.GetUtcNow());
 
-            cancellationToken.ThrowIfCancellationRequested();
+            operationToken.ThrowIfCancellationRequested();
 
-            GameActionPacket10010 acknowledgement = new(profile.Identity.CharacterId, parameterPair: 0, actionParameter: 0,
-                itemSetRequest.Timestamp, GameAction10010.GetItemSetAction, direction: 0, positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
+            GameActionPacket10010 acknowledgement = new(profile.Identity.CharacterId, parameterPair: 0, actionParameter: 0, itemSetRequest.Timestamp, GameAction10010.GetItemSetAction, direction: 0, positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
 
             foreach (GameLocalItemSnapshotPacket1008 itemSnapshot in projection.ItemSnapshots)
             {
-                await connection.WriteAsync(itemSnapshot, cancellationToken).ConfigureAwait(false);
+                await connection.WriteAsync(itemSnapshot, operationToken).ConfigureAwait(false);
             }
 
             if (projection.ActiveEquipmentSnapshot is { } activeEquipmentSnapshot)
             {
-                await connection.WriteAsync(activeEquipmentSnapshot, cancellationToken).ConfigureAwait(false);
+                await connection.WriteAsync(activeEquipmentSnapshot, operationToken).ConfigureAwait(false);
             }
 
-            await connection.WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            await connection.WriteAsync(acknowledgement, operationToken).ConfigureAwait(false);
 
-            return new AwaitingFriendListConnection(connection, profile, map, projection.RuntimeItemSet);
+            return new AwaitingFriendListConnection(connection, map, projection.RuntimeItemSet);
         }
         catch (Exception processingException)
         {

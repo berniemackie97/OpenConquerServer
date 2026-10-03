@@ -2,13 +2,16 @@ using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.World.Presence;
 
 namespace OpenConquer.GameServer.Tests.Login;
 
@@ -72,15 +75,13 @@ public sealed class GameConnectionOwnershipTests
             Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
             Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
-        Assert.True(
-            transferred is not null ^ takeFailure is InvalidOperationException,
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
             $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
 
         if (transferred is not null)
         {
             Assert.Same(connection, transferred);
             Assert.Equal(0, transport.DisposeCount);
-
             await transferred.DisposeAsync();
         }
         else
@@ -142,15 +143,13 @@ public sealed class GameConnectionOwnershipTests
             Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
             Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
-        Assert.True(
-            transferred is not null ^ takeFailure is InvalidOperationException,
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
             $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
 
         if (transferred is not null)
         {
             Assert.Same(connection, transferred);
             Assert.Equal(0, transport.DisposeCount);
-
             await transferred.DisposeAsync();
         }
         else
@@ -165,8 +164,8 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingEnterMap_DisposeWithoutTransferDisposesOwnedConnection()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingEnterMapConnection owner = new(connection, CreateProfile());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingEnterMapConnection owner = new(connection);
 
         await owner.DisposeAsync();
 
@@ -178,11 +177,11 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingEnterMap_ConcurrentTakeAllowsExactlyOneWinner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingEnterMapConnection owner = new(connection, CreateProfile());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingEnterMapConnection owner = new(connection);
 
-        AuthenticatedGameConnection? first = null;
-        AuthenticatedGameConnection? second = null;
+        ExistingCharacterGameConnection? first = null;
+        ExistingCharacterGameConnection? second = null;
         Exception? firstFailure = null;
         Exception? secondFailure = null;
 
@@ -202,25 +201,23 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingEnterMap_TakeAndDisposeRaceAllowsExactlyOneOwner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingEnterMapConnection owner = new(connection, CreateProfile());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingEnterMapConnection owner = new(connection);
 
-        AuthenticatedGameConnection? transferred = null;
+        ExistingCharacterGameConnection? transferred = null;
         Exception? takeFailure = null;
 
         await Task.WhenAll(
             Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
             Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
-        Assert.True(
-            transferred is not null ^ takeFailure is InvalidOperationException,
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
             $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
 
         if (transferred is not null)
         {
             Assert.Same(connection, transferred);
             Assert.Equal(0, transport.DisposeCount);
-
             await transferred.DisposeAsync();
         }
         else
@@ -235,8 +232,8 @@ public sealed class GameConnectionOwnershipTests
     public async Task EnteredMap_DisposeWithoutTransferDisposesOwnedConnection()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        EnteredMapConnection owner = new(connection, CreateProfile(), CreateMap());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        EnteredMapConnection owner = new(connection, CreateMap());
 
         await owner.DisposeAsync();
 
@@ -248,11 +245,11 @@ public sealed class GameConnectionOwnershipTests
     public async Task EnteredMap_ConcurrentTakeAllowsExactlyOneWinner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        EnteredMapConnection owner = new(connection, CreateProfile(), CreateMap());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        EnteredMapConnection owner = new(connection, CreateMap());
 
-        AuthenticatedGameConnection? first = null;
-        AuthenticatedGameConnection? second = null;
+        ExistingCharacterGameConnection? first = null;
+        ExistingCharacterGameConnection? second = null;
         Exception? firstFailure = null;
         Exception? secondFailure = null;
 
@@ -272,25 +269,23 @@ public sealed class GameConnectionOwnershipTests
     public async Task EnteredMap_TakeAndDisposeRaceAllowsExactlyOneOwner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        EnteredMapConnection owner = new(connection, CreateProfile(), CreateMap());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        EnteredMapConnection owner = new(connection, CreateMap());
 
-        AuthenticatedGameConnection? transferred = null;
+        ExistingCharacterGameConnection? transferred = null;
         Exception? takeFailure = null;
 
         await Task.WhenAll(
             Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
             Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
-        Assert.True(
-            transferred is not null ^ takeFailure is InvalidOperationException,
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
             $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
 
         if (transferred is not null)
         {
             Assert.Same(connection, transferred);
             Assert.Equal(0, transport.DisposeCount);
-
             await transferred.DisposeAsync();
         }
         else
@@ -305,8 +300,8 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingItemSet_DisposeWithoutTransferDisposesOwnedConnection()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingItemSetConnection owner = new(connection, CreateProfile(), CreateMap());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingItemSetConnection owner = new(connection, CreateMap());
 
         await owner.DisposeAsync();
 
@@ -318,11 +313,11 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingItemSet_ConcurrentTakeAllowsExactlyOneWinner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingItemSetConnection owner = new(connection, CreateProfile(), CreateMap());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingItemSetConnection owner = new(connection, CreateMap());
 
-        AuthenticatedGameConnection? first = null;
-        AuthenticatedGameConnection? second = null;
+        ExistingCharacterGameConnection? first = null;
+        ExistingCharacterGameConnection? second = null;
         Exception? firstFailure = null;
         Exception? secondFailure = null;
 
@@ -342,25 +337,23 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingItemSet_TakeAndDisposeRaceAllowsExactlyOneOwner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingItemSetConnection owner = new(connection, CreateProfile(), CreateMap());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingItemSetConnection owner = new(connection, CreateMap());
 
-        AuthenticatedGameConnection? transferred = null;
+        ExistingCharacterGameConnection? transferred = null;
         Exception? takeFailure = null;
 
         await Task.WhenAll(
             Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
             Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
-        Assert.True(
-            transferred is not null ^ takeFailure is InvalidOperationException,
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
             $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
 
         if (transferred is not null)
         {
             Assert.Same(connection, transferred);
             Assert.Equal(0, transport.DisposeCount);
-
             await transferred.DisposeAsync();
         }
         else
@@ -375,8 +368,8 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingFriendList_DisposeWithoutTransferDisposesOwnedConnection()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingFriendListConnection owner = new(connection, CreateProfile(), CreateMap(), CreateItemSet());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingFriendListConnection owner = new(connection, CreateMap(), CreateItemSet());
 
         await owner.DisposeAsync();
 
@@ -388,11 +381,11 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingFriendList_ConcurrentTakeAllowsExactlyOneWinner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingFriendListConnection owner = new(connection, CreateProfile(), CreateMap(), CreateItemSet());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingFriendListConnection owner = new(connection, CreateMap(), CreateItemSet());
 
-        AuthenticatedGameConnection? first = null;
-        AuthenticatedGameConnection? second = null;
+        ExistingCharacterGameConnection? first = null;
+        ExistingCharacterGameConnection? second = null;
         Exception? firstFailure = null;
         Exception? secondFailure = null;
 
@@ -412,25 +405,23 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingFriendList_TakeAndDisposeRaceAllowsExactlyOneOwner()
     {
         FakeGameTransportConnection transport = new();
-        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
-        AwaitingFriendListConnection owner = new(connection, CreateProfile(), CreateMap(), CreateItemSet());
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingFriendListConnection owner = new(connection, CreateMap(), CreateItemSet());
 
-        AuthenticatedGameConnection? transferred = null;
+        ExistingCharacterGameConnection? transferred = null;
         Exception? takeFailure = null;
 
         await Task.WhenAll(
             Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
             Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
-        Assert.True(
-            transferred is not null ^ takeFailure is InvalidOperationException,
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
             $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
 
         if (transferred is not null)
         {
             Assert.Same(connection, transferred);
             Assert.Equal(0, transport.DisposeCount);
-
             await transferred.DisposeAsync();
         }
         else
@@ -445,43 +436,116 @@ public sealed class GameConnectionOwnershipTests
     public async Task AwaitingFriendList_ItemSetBelongsToDifferentCharacter_IsRejected()
     {
         FakeGameTransportConnection transport = new();
-        await using AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new AwaitingFriendListConnection(connection, CreateProfile(), CreateMap(), CreateItemSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1)));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingFriendListConnection(connection, CreateMap(), CreateItemSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1)));
 
         Assert.Equal("itemSet", exception.ParamName);
     }
 
-    private static void TryTake(GameConnectionAuthenticationResult owner, out AuthenticatedGameConnection? connection, out Exception? failure)
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_DisposeWithoutTransferDisposesOwnedConnection()
     {
-        TryTake(owner.TakeConnection, out connection, out failure);
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingWeaponSkillSetConnection owner = new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet());
+
+        await owner.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.Throws<InvalidOperationException>(() => owner.TakeConnection());
     }
 
-    private static void TryTake(CharacterLoginHandoffResult owner, out AuthenticatedGameConnection? connection, out Exception? failure)
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_ConcurrentTakeAllowsExactlyOneWinner()
     {
-        TryTake(owner.TakeConnection, out connection, out failure);
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingWeaponSkillSetConnection owner = new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet());
+
+        ExistingCharacterGameConnection? first = null;
+        ExistingCharacterGameConnection? second = null;
+        Exception? firstFailure = null;
+        Exception? secondFailure = null;
+
+        await Task.WhenAll(
+            Task.Run(() => TryTake(owner, out first, out firstFailure), TestContext.Current.CancellationToken),
+            Task.Run(() => TryTake(owner, out second, out secondFailure), TestContext.Current.CancellationToken));
+
+        AssertOneTakeSucceeded(connection, first, firstFailure, second, secondFailure);
+        Assert.Equal(0, transport.DisposeCount);
+
+        await (first ?? second)!.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
     }
 
-    private static void TryTake(AwaitingEnterMapConnection owner, out AuthenticatedGameConnection? connection, out Exception? failure)
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_TakeAndDisposeRaceAllowsExactlyOneOwner()
     {
-        TryTake(owner.TakeConnection, out connection, out failure);
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+        AwaitingWeaponSkillSetConnection owner = new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet());
+
+        ExistingCharacterGameConnection? transferred = null;
+        Exception? takeFailure = null;
+
+        await Task.WhenAll(
+            Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
+            Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
+
+        Assert.True(transferred is not null ^ takeFailure is InvalidOperationException,
+            $"Expected exactly one ownership winner. Transferred: {transferred is not null}, failure: {takeFailure?.GetType().Name ?? "none"}.");
+
+        if (transferred is not null)
+        {
+            Assert.Same(connection, transferred);
+            Assert.Equal(0, transport.DisposeCount);
+            await transferred.DisposeAsync();
+        }
+        else
+        {
+            Assert.Equal(1, transport.DisposeCount);
+        }
+
+        Assert.Equal(1, transport.DisposeCount);
     }
 
-    private static void TryTake(EnteredMapConnection owner, out AuthenticatedGameConnection? connection, out Exception? failure)
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_ItemSetBelongsToDifferentCharacter_IsRejected()
     {
-        TryTake(owner.TakeConnection, out connection, out failure);
+        FakeGameTransportConnection transport = new();
+        await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingWeaponSkillSetConnection(connection, CreateMap(), CreateItemSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1), CreateSocialRelationSet()));
+
+        Assert.Equal("itemSet", exception.ParamName);
     }
 
-    private static void TryTake(AwaitingItemSetConnection owner, out AuthenticatedGameConnection? connection, out Exception? failure)
+    [Fact]
+    public async Task AwaitingWeaponSkillSet_SocialRelationSetBelongsToDifferentCharacter_IsRejected()
     {
-        TryTake(owner.TakeConnection, out connection, out failure);
+        FakeGameTransportConnection transport = new();
+        await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingWeaponSkillSetConnection(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet(CharacterIdentityPolicy.FirstPlayerEntityId + 1)));
+
+        Assert.Equal("socialRelationSet", exception.ParamName);
     }
 
-    private static void TryTake(AwaitingFriendListConnection owner, out AuthenticatedGameConnection? connection, out Exception? failure)
-    {
-        TryTake(owner.TakeConnection, out connection, out failure);
-    }
+    private static void TryTake(GameConnectionAuthenticationResult owner, out AuthenticatedGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(CharacterLoginHandoffResult owner, out AuthenticatedGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(AwaitingEnterMapConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(EnteredMapConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(AwaitingItemSetConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(AwaitingFriendListConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
+
+    private static void TryTake(AwaitingWeaponSkillSetConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure) => TryTake(owner.TakeConnection, out connection, out failure);
 
     private static void TryTake(Func<AuthenticatedGameConnection> take, out AuthenticatedGameConnection? connection, out Exception? failure)
     {
@@ -497,24 +561,37 @@ public sealed class GameConnectionOwnershipTests
         }
     }
 
-    private static void AssertOneTakeSucceeded(
-        AuthenticatedGameConnection expected,
-        AuthenticatedGameConnection? first,
-        Exception? firstFailure,
-        AuthenticatedGameConnection? second,
-        Exception? secondFailure)
+    private static void TryTake(Func<ExistingCharacterGameConnection> take, out ExistingCharacterGameConnection? connection, out Exception? failure)
     {
-        Assert.True(
-            first is not null ^ second is not null,
+        try
+        {
+            connection = take();
+            failure = null;
+        }
+        catch (Exception exception)
+        {
+            connection = null;
+            failure = exception;
+        }
+    }
+
+    private static void AssertOneTakeSucceeded(AuthenticatedGameConnection expected, AuthenticatedGameConnection? first, Exception? firstFailure, AuthenticatedGameConnection? second, Exception? secondFailure)
+    {
+        Assert.True(first is not null ^ second is not null,
             $"Expected exactly one successful transfer. First: {first is not null}, second: {second is not null}.");
-
         Assert.Same(expected, first ?? second);
+        Assert.IsType<InvalidOperationException>(firstFailure ?? secondFailure);
+        Assert.True(firstFailure is null ^ secondFailure is null,
+            $"Expected exactly one failed transfer. First failure: {firstFailure?.GetType().Name ?? "none"}, second failure: {secondFailure?.GetType().Name ?? "none"}.");
+    }
 
-        Exception? failure = firstFailure ?? secondFailure;
-        Assert.IsType<InvalidOperationException>(failure);
-
-        Assert.True(
-            firstFailure is null ^ secondFailure is null,
+    private static void AssertOneTakeSucceeded(ExistingCharacterGameConnection expected, ExistingCharacterGameConnection? first, Exception? firstFailure, ExistingCharacterGameConnection? second, Exception? secondFailure)
+    {
+        Assert.True(first is not null ^ second is not null,
+            $"Expected exactly one successful transfer. First: {first is not null}, second: {second is not null}.");
+        Assert.Same(expected, first ?? second);
+        Assert.IsType<InvalidOperationException>(firstFailure ?? secondFailure);
+        Assert.True(firstFailure is null ^ secondFailure is null,
             $"Expected exactly one failed transfer. First failure: {firstFailure?.GetType().Name ?? "none"}, second failure: {secondFailure?.GetType().Name ?? "none"}.");
     }
 
@@ -522,6 +599,14 @@ public sealed class GameConnectionOwnershipTests
     {
         GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
         return new AuthenticatedGameConnection(AccountId, Username, SessionUid, LocaleTag, HardwareAddress, ResourceVersion, session);
+    }
+
+    private static async Task<ExistingCharacterGameConnection> CreateExistingCharacterConnectionAsync(FakeGameTransportConnection transport)
+    {
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterPresenceDirectory presence = new();
+        return new ExistingCharacterGameConnection(connection, profile, presence.Register(profile.Identity.CharacterId));
     }
 
     private static CharacterLoginProfile CreateProfile()
@@ -537,10 +622,9 @@ public sealed class GameConnectionOwnershipTests
         return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: 0, titleId: 0, enlightenmentPoints: 0, location);
     }
 
-    private static CharacterItemSet CreateItemSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId)
-    {
-        return new CharacterItemSet(characterId, []);
-    }
+    private static CharacterItemSet CreateItemSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId) => new(characterId, []);
+
+    private static CharacterSocialRelationSet CreateSocialRelationSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId) => new(characterId, []);
 
     private static GameMapEntryDefinition CreateMap() => new(mapId: 1002, mapDataId: 1015, flags: 0);
 }

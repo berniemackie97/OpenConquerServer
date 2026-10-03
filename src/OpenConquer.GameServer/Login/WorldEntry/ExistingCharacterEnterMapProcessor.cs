@@ -1,5 +1,5 @@
 using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
@@ -20,12 +20,14 @@ internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSou
         ArgumentNullException.ThrowIfNull(awaitingEnterMap);
         ArgumentNullException.ThrowIfNull(map);
 
-        AuthenticatedGameConnection connection = awaitingEnterMap.TakeConnection();
+        ExistingCharacterGameConnection connection = awaitingEnterMap.TakeConnection();
         CharacterLoginProfile profile = awaitingEnterMap.Profile;
+        using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
+        CancellationToken operationToken = operationCancellation.Token;
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            operationToken.ThrowIfCancellationRequested();
 
             if (profile.Location.MapId != map.MapId)
             {
@@ -34,7 +36,7 @@ internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSou
 
             GameAction10010 enterMapRequest;
 
-            using (GameInboundFrame? frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false))
+            using (GameInboundFrame? frame = await connection.ReadAsync(operationToken).ConfigureAwait(false))
             {
                 if (frame is null)
                 {
@@ -62,15 +64,17 @@ internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSou
                 throw new InvalidDataException("The EnterMap request character ID does not match the authenticated character.");
             }
 
+            operationToken.ThrowIfCancellationRequested();
+
             GameMapInfoPacket1110 mapInfo = new(map.MapId, map.MapDataId, map.Flags);
             GameWeatherUpdatePacket1016 weather = GameWeatherUpdatePacket1016.CreateClear();
             GameActionPacket10010 acknowledgement = GameActionPacket10010.CreateEnterMapAcknowledgement(profile.Identity.CharacterId, map.MapDataId, profile.Location.X, profile.Location.Y, _tickSource.CurrentTick);
 
-            await connection.WriteAsync(mapInfo, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(weather, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            await connection.WriteAsync(mapInfo, operationToken).ConfigureAwait(false);
+            await connection.WriteAsync(weather, operationToken).ConfigureAwait(false);
+            await connection.WriteAsync(acknowledgement, operationToken).ConfigureAwait(false);
 
-            return new EnteredMapConnection(connection, profile, map);
+            return new EnteredMapConnection(connection, map);
         }
         catch (Exception processingException)
         {

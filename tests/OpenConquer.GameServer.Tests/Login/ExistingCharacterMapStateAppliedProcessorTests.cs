@@ -10,10 +10,12 @@ using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Character.Bootstrap;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Packets;
@@ -45,9 +47,10 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         fixture.QueueClientStateApplied();
 
         AwaitingItemSetConnection result = await processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken);
-        AuthenticatedGameConnection transferredConnection = result.TakeConnection();
+        ExistingCharacterGameConnection transferredConnection = result.TakeConnection();
 
-        Assert.Same(fixture.Connection, transferredConnection);
+        Assert.Same(fixture.Profile, transferredConnection.Profile);
+        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Same(fixture.Profile, result.Profile);
         Assert.Same(fixture.Map, result.Map);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
@@ -62,6 +65,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         await transferredConnection.DisposeAsync();
 
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
@@ -72,11 +76,11 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         fixture.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<EndOfStreamException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<EndOfStreamException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.EnteredMap.TakeConnection());
     }
 
@@ -90,8 +94,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 10011);
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
@@ -106,8 +109,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         fixture.QueuePacket(BuildActionPacket(GameAction10010.ClientStateAppliedAction, length: 20));
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.TruncatedBody), exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
@@ -122,8 +124,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         fixture.QueuePacket(BuildActionPacket(GameAction10010.EnterMapAction));
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("Expected client-state-applied action", exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
@@ -140,8 +141,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         fixture.QueuePacket(BuildActionPacket(GameAction10010.ClientStateAppliedAction, length: length, stringCount: stringCount));
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("fixed MsgAction body", exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
@@ -168,8 +168,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         WriteNonZeroValue(packet, offset, width);
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("all non-action MsgAction fields to be zero", exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
@@ -185,11 +184,11 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(fixture.EnteredMap, cancellation.Token).AsTask());
 
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.EnteredMap.TakeConnection());
     }
 
@@ -208,6 +207,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => fixture.EnteredMap.TakeConnection());
     }
 
@@ -222,11 +222,11 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         await using AwaitingItemSetConnection result = await processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken);
         int sentLengthAfterFirstProcessing = fixture.Transport.SentBytes.Length;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(sentLengthAfterFirstProcessing, fixture.Transport.SentBytes.Length);
         Assert.Equal(0, fixture.Transport.DisposeCount);
+        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
@@ -237,8 +237,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         Task<AwaitingItemSetConnection> first = processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(0, fixture.Transport.DisposeCount);
@@ -249,6 +248,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         Assert.Same(fixture.Profile, result.Profile);
         Assert.Same(fixture.Map, result.Map);
+        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(0, fixture.Transport.DisposeCount);
     }
@@ -262,14 +262,14 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         fixture.QueuePacket(BuildActionPacket(GameAction10010.EnterMapAction));
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
-            processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(fixture.EnteredMap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
         Assert.Same(cleanupFailure, exception.InnerExceptions[1]);
         Assert.Equal(fixture.MapStateAppliedBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     private static async Task<MapStateAppliedFixture> CreateFixtureAsync(Exception? disposeFailure = null)
@@ -293,7 +293,8 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
             AuthenticatedGameConnection connection = authentication.TakeConnection();
             CharacterLoginProfile profile = CreateProfile();
             CharacterLoginHandoffResult handoff = new(connection, CharacterLoginResolution.ExistingCharacter(profile));
-            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor().ProcessAsync(handoff, TestContext.Current.CancellationToken);
+            CharacterPresenceDirectory presence = new();
+            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor(presence).ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
             byte[] encryptedBootstrap = transport.SentBytes[authenticationBoundary..];
             _ = client.DecryptServerBytes(encryptedBootstrap);
@@ -301,18 +302,14 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
             GameMapEntryDefinition map = new(MapId, MapDataId, MapFlags);
             int enterMapBoundary = transport.SentBytes.Length;
 
-            transport.QueueReceive(client.EncryptClientFrame(BuildActionPacket(
-                GameAction10010.EnterMapAction,
-                entityId: profile.Identity.CharacterId,
-                timestamp: 0x01020304)));
+            transport.QueueReceive(client.EncryptClientFrame(BuildActionPacket(GameAction10010.EnterMapAction, entityId: profile.Identity.CharacterId, timestamp: 0x01020304)));
 
-            EnteredMapConnection enteredMap = await new ExistingCharacterEnterMapProcessor(new FixedGameTickSource(ServerTick))
-                .ProcessAsync(awaitingEnterMap, map, TestContext.Current.CancellationToken);
+            EnteredMapConnection enteredMap = await new ExistingCharacterEnterMapProcessor(new FixedGameTickSource(ServerTick)).ProcessAsync(awaitingEnterMap, map, TestContext.Current.CancellationToken);
 
             byte[] encryptedEnterMapResponse = transport.SentBytes[enterMapBoundary..];
             _ = client.DecryptServerBytes(encryptedEnterMapResponse);
 
-            return new MapStateAppliedFixture(transport, client, connection, profile, map, enteredMap, transport.SentBytes.Length);
+            return new MapStateAppliedFixture(transport, client, presence, profile, map, enteredMap, transport.SentBytes.Length);
         }
         catch
         {
@@ -361,20 +358,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         return packet;
     }
 
-    private static byte[] BuildActionPacket(
-        ushort action,
-        uint entityId = 0,
-        uint parameterPair = 0,
-        uint actionParameter = 0,
-        uint timestamp = 0,
-        ushort direction = 0,
-        ushort positionX = 0,
-        ushort positionY = 0,
-        uint data1 = 0,
-        uint data2 = 0,
-        byte flag = 0,
-        int length = GameAction10010.FixedPacketLength,
-        byte stringCount = 0)
+    private static byte[] BuildActionPacket(ushort action, uint entityId = 0, uint parameterPair = 0, uint actionParameter = 0, uint timestamp = 0, ushort direction = 0, ushort positionX = 0, ushort positionY = 0, uint data1 = 0, uint data2 = 0, byte flag = 0, int length = GameAction10010.FixedPacketLength, byte stringCount = 0)
     {
         byte[] packet = new byte[length];
 
@@ -419,18 +403,11 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         }
     }
 
-    private sealed class MapStateAppliedFixture(
-        FakeGameTransportConnection transport,
-        GameClientTestPeer client,
-        AuthenticatedGameConnection connection,
-        CharacterLoginProfile profile,
-        GameMapEntryDefinition map,
-        EnteredMapConnection enteredMap,
-        int mapStateAppliedBoundary) : IAsyncDisposable
+    private sealed class MapStateAppliedFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, GameMapEntryDefinition map, EnteredMapConnection enteredMap, int mapStateAppliedBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
-        public AuthenticatedGameConnection Connection { get; } = connection;
+        public CharacterPresenceDirectory Presence { get; } = presence;
         public CharacterLoginProfile Profile { get; } = profile;
         public GameMapEntryDefinition Map { get; } = map;
         public EnteredMapConnection EnteredMap { get; } = enteredMap;
@@ -452,7 +429,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
             if (Transport.DisposeCount == 0)
             {
-                await Connection.DisposeAsync();
+                await EnteredMap.DisposeAsync();
             }
         }
     }
