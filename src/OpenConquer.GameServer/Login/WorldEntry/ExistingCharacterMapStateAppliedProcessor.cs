@@ -1,5 +1,5 @@
 using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
@@ -14,17 +14,19 @@ internal sealed class ExistingCharacterMapStateAppliedProcessor
     {
         ArgumentNullException.ThrowIfNull(enteredMap);
 
-        AuthenticatedGameConnection connection = enteredMap.TakeConnection();
+        ExistingCharacterGameConnection connection = enteredMap.TakeConnection();
         CharacterLoginProfile profile = enteredMap.Profile;
         GameMapEntryDefinition map = enteredMap.Map;
+        using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
+        CancellationToken operationToken = operationCancellation.Token;
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            operationToken.ThrowIfCancellationRequested();
 
             GameAction10010 clientStateApplied;
 
-            using (GameInboundFrame? frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false))
+            using (GameInboundFrame? frame = await connection.ReadAsync(operationToken).ConfigureAwait(false))
             {
                 if (frame is null)
                 {
@@ -55,7 +57,9 @@ internal sealed class ExistingCharacterMapStateAppliedProcessor
                 throw new InvalidDataException("The native client-state-applied notification requires all non-action MsgAction fields to be zero.");
             }
 
-            return new AwaitingItemSetConnection(connection, profile, map);
+            operationToken.ThrowIfCancellationRequested();
+
+            return new AwaitingItemSetConnection(connection, map);
         }
         catch (Exception processingException)
         {

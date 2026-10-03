@@ -10,10 +10,12 @@ using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Character.Bootstrap;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Packets;
@@ -33,18 +35,26 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
 
     [Fact]
+    public void Constructor_NullPresenceRegistrar_IsRejected()
+    {
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(null!));
+    }
+
+    [Fact]
     public async Task ProcessAsync_ExistingCharacter_WritesVerifiedBootstrapOrderAndTransfersAwaitingEnterMapConnectionExactlyOnce()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginProfile profile = CreateProfile(rebirthCount: 2, preRebirthLevel: 130);
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
-        ExistingCharacterBootstrapProcessor processor = new();
+        CharacterPresenceDirectory presence = new();
+        ExistingCharacterBootstrapProcessor processor = new(presence);
         int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
 
         AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
-        AuthenticatedGameConnection transferredConnection = result.TakeConnection();
+        ExistingCharacterGameConnection transferredConnection = result.TakeConnection();
 
-        Assert.Same(fixture.Connection, transferredConnection);
+        Assert.Same(profile, transferredConnection.Profile);
+        Assert.True(presence.IsOnline(profile.Identity.CharacterId));
         Assert.Same(profile, result.Profile);
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.Equal(receiveCallCountBeforeBootstrap, fixture.Transport.ReceiveCallCount);
@@ -66,10 +76,12 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         await result.DisposeAsync();
 
         Assert.Equal(0, fixture.Transport.DisposeCount);
+        Assert.True(presence.IsOnline(profile.Identity.CharacterId));
 
         await transferredConnection.DisposeAsync();
 
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(presence.IsOnline(profile.Identity.CharacterId));
     }
 
     [Fact]
@@ -77,14 +89,13 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
 
         await using AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
         int sentLengthAfterFirstBootstrap = fixture.Transport.SentBytes.Length;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(sentLengthAfterFirstBootstrap, fixture.Transport.SentBytes.Length);
         Assert.Equal(0, fixture.Transport.DisposeCount);
@@ -95,7 +106,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
 
         fixture.Transport.BlockSends();
 
@@ -105,8 +116,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
             Assert.Equal(0, fixture.Transport.DisposeCount);
         }
@@ -137,12 +147,11 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
 
         await handoff.DisposeAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
@@ -153,15 +162,18 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new();
+        CharacterPresenceDirectory presence = new();
+        ExistingCharacterBootstrapProcessor processor = new(presence);
 
         AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, fixture.Transport.DisposeCount);
+        Assert.True(presence.IsOnline(result.Profile.Identity.CharacterId));
 
         await result.DisposeAsync();
 
         Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(presence.IsOnline(result.Profile.Identity.CharacterId));
         Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
     }
 
@@ -170,10 +182,9 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
 
-        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() =>
-            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal("handoff", exception.ParamName);
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
@@ -186,12 +197,12 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            processor.ProcessAsync(handoff, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(handoff, cancellation.Token).AsTask());
 
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
@@ -203,7 +214,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         fixture.Transport.BlockSends();
@@ -228,10 +239,9 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         IOException cleanupFailure = new("transport dispose failed");
         await using AuthenticatedFixture fixture = await AuthenticateAsync(disposeFailure: cleanupFailure);
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
-        ExistingCharacterBootstrapProcessor processor = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
-            processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<ArgumentException>(exception.InnerExceptions[0]);
@@ -336,8 +346,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         return packetIds.ToArray();
     }
 
-    private sealed class AuthenticatedFixture(FakeGameTransportConnection transport, GameClientTestPeer client, AuthenticatedGameConnection connection,
-        int authenticationBoundary) : IAsyncDisposable
+    private sealed class AuthenticatedFixture(FakeGameTransportConnection transport, GameClientTestPeer client, AuthenticatedGameConnection connection, int authenticationBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
