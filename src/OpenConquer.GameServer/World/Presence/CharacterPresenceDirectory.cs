@@ -21,7 +21,24 @@ internal sealed class CharacterPresenceDirectory : ICharacterPresenceReader, ICh
             _registrations[characterId] = registration;
         }
 
-        displaced?.SignalRevocation();
+        try
+        {
+            displaced?.SignalRevocation();
+        }
+        catch (Exception revocationFailure)
+        {
+            try
+            {
+                registration.Dispose();
+            }
+            catch (Exception rollbackFailure)
+            {
+                throw CreateRegistrationFailure(revocationFailure, rollbackFailure);
+            }
+
+            throw;
+        }
+
         return registration;
     }
 
@@ -58,6 +75,22 @@ internal sealed class CharacterPresenceDirectory : ICharacterPresenceReader, ICh
         }
     }
 
+    private static AggregateException CreateRegistrationFailure(Exception revocationFailure, Exception rollbackFailure)
+    {
+        List<Exception> failures = [revocationFailure];
+
+        if (rollbackFailure is AggregateException aggregate)
+        {
+            failures.AddRange(aggregate.Flatten().InnerExceptions);
+        }
+        else
+        {
+            failures.Add(rollbackFailure);
+        }
+
+        return new AggregateException("Character presence replacement failed and replacement rollback also failed.", failures);
+    }
+
     private sealed class Registration : ICharacterPresenceLease
     {
         private readonly CancellationTokenSource _revocation = new();
@@ -83,8 +116,14 @@ internal sealed class CharacterPresenceDirectory : ICharacterPresenceReader, ICh
                 return;
             }
 
-            directory.Release(this);
-            _revocation.Dispose();
+            try
+            {
+                directory.Release(this);
+            }
+            finally
+            {
+                _revocation.Dispose();
+            }
         }
 
         public void MarkRevoked() => Volatile.Write(ref _revoked, 1);
