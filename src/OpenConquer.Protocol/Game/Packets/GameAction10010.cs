@@ -23,6 +23,7 @@ public readonly record struct GameAction10010(uint EntityId, uint ParameterPair,
     public const ushort GetItemSetAction = 0x4B;
     public const ushort GetGoodFriendAction = 0x4C;
     public const ushort GetWeaponSkillSetAction = 0x4D;
+    public const ushort GetMagicSetAction = 0x4E;
     public const ushort ClientStateAppliedAction = 0x198;
 
     private const int EntityIdOffset = 4;
