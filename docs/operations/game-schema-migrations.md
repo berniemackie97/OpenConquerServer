@@ -16,8 +16,9 @@ The current schema chain is:
 | 4       | `20260927121811_AddItemPersistenceFoundation` |
 | 5       | `20260927225127_AddItemLifetimePersistence`   |
 | 6       | `20260930033806_AddSocialRelationPersistence` |
+| 7       | `20261004014402_AddWeaponSkillPersistence`     |
 
-The current schema contract is version 6.
+The current schema contract is version 7.
 
 ## Safety rules
 
@@ -32,7 +33,7 @@ Before applying a migration:
 - do not manually edit `__EFMigrationsHistory`;
 - do not manually advance `schema_compatibility`;
 - do not bypass migration guards;
-- do not fabricate historical character, item, or social-relation state to make a migration pass.
+- do not fabricate historical character, item, social-relation, or weapon-skill state to make a migration pass.
 
 Writer quiescence is a deployment invariant. Migration guards validate the schema and persisted
 state they observe, but they are not a substitute for stopping concurrent Game database writers.
@@ -69,7 +70,7 @@ Apply all pending Game migrations:
 
 To apply or resume the current migration specifically:
 
-    dotnet tool run dotnet-ef -- database update 20260930033806_AddSocialRelationPersistence \
+    dotnet tool run dotnet-ef -- database update 20261004014402_AddWeaponSkillPersistence \
       --configuration Release \
       --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
       --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
@@ -99,8 +100,8 @@ Check the OpenConquer compatibility marker:
 
 For the current schema, the compatibility row must report:
 
-    schema_version = 6
-    migration_id = 20260930033806_AddSocialRelationPersistence
+    schema_version = 7
+    migration_id = 20261004014402_AddWeaponSkillPersistence
 
 Inspect the character columns involved in the resumable character migrations:
 
@@ -712,6 +713,103 @@ At schema version 6, compatibility is:
     schema_version = 6
     migration_id = 20260930033806_AddSocialRelationPersistence
 
+## Weapon skill persistence migration
+
+Migration `20261004014402_AddWeaponSkillPersistence` advances the Game schema from version 6 to
+version 7 and establishes the canonical `weapon_skills` table.
+
+The table stores one weapon proficiency per character and skill type:
+
+    owner_character_id   INT UNSIGNED NOT NULL
+    weapon_skill_type    INT UNSIGNED NOT NULL
+    level                TINYINT UNSIGNED NOT NULL
+    experience           INT UNSIGNED NOT NULL
+
+The canonical primary key is:
+
+    PK_weapon_skills
+        (owner_character_id, weapon_skill_type)
+
+`owner_character_id` references `characters.character_id` with `ON DELETE RESTRICT` and
+`ON UPDATE RESTRICT`.
+
+The enforced checks require:
+
+- owner character IDs to be in the player-character entity range;
+- weapon-skill levels to be between `0` and `20`, inclusive.
+
+`weapon_skill_type` is intentionally stored as an opaque unsigned value. The schema does not impose
+a fabricated numeric range or require three-digit types. Historical 5517 data includes four-digit
+types such as `1050`.
+
+The table does not persist legacy surrogate IDs, `old_level`, or `unlearn`. Those values are not
+part of the current login-hydration contract and must not be invented without gameplay semantics
+that require them.
+
+### Partial weapon-skill migration
+
+MySQL may commit creation of `weapon_skills` before EF records the migration.
+
+A supported partial upgrade can therefore have the complete canonical table present while:
+
+    schema_version = 6
+    migration_id = 20260930033806_AddSocialRelationPersistence
+
+and while `20261004014402_AddWeaponSkillPersistence` is absent from `__EFMigrationsHistory`.
+
+The migration also supports the complete version 7 structure and compatibility marker being present
+while EF history still lacks the migration.
+
+An existing table named `weapon_skills` is accepted only when its complete structure matches the
+canonical contract. The migration validates:
+
+- table collation;
+- all four columns, including order, type, nullability, default, and extra metadata;
+- the exact two-column primary key;
+- the character foreign key and its update/delete rules;
+- both enforced check constraints and their definitions.
+
+Unexpected indexes, foreign keys, checks, columns, or other incompatible structure cause the
+migration to fail closed.
+
+Inspect the columns:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`,
+        `EXTRA`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'weapon_skills'
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    owner_character_id   1   int unsigned       NO   NULL
+    weapon_skill_type    2   int unsigned       NO   NULL
+    level                3   tinyint unsigned   NO   NULL
+    experience           4   int unsigned       NO   NULL
+
+For a known supported partial state, rerun:
+
+    dotnet tool run dotnet-ef -- database update 20261004014402_AddWeaponSkillPersistence \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration validates the existing canonical structure, advances `schema_compatibility` to version
+7 when necessary, and allows EF to record the migration.
+
+At schema version 7, compatibility is:
+
+    schema_version = 7
+    migration_id = 20261004014402_AddWeaponSkillPersistence
+
 ## Verifying current schema after recovery
 
 After any recovery, verify that no pending model changes exist in the repository:
@@ -740,6 +838,7 @@ For the current schema, the Game migration chain must contain:
     20260927121811_AddItemPersistenceFoundation
     20260927225127_AddItemLifetimePersistence
     20260930033806_AddSocialRelationPersistence
+    20261004014402_AddWeaponSkillPersistence
 
 Verify compatibility:
 
@@ -751,8 +850,8 @@ Verify compatibility:
 
 Expected:
 
-    6
-    20260930033806_AddSocialRelationPersistence
+    7
+    20261004014402_AddWeaponSkillPersistence
 
 Verify the lifetime columns:
 
@@ -873,6 +972,32 @@ Verify all social-relation checks exist and are enforced:
       AND `CONSTRAINT_TYPE` = 'CHECK'
     ORDER BY `CONSTRAINT_NAME`;
 
+Verify the weapon-skill table:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'weapon_skills'
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    owner_character_id   1   int unsigned       NO   NULL
+    weapon_skill_type    2   int unsigned       NO   NULL
+    level                3   tinyint unsigned   NO   NULL
+    experience           4   int unsigned       NO   NULL
+
+Verify its primary key, character foreign key, and enforced checks through
+`INFORMATION_SCHEMA.STATISTICS`, `KEY_COLUMN_USAGE`, `REFERENTIAL_CONSTRAINTS`, and
+`TABLE_CONSTRAINTS`. The primary key must be `(owner_character_id, weapon_skill_type)`, the foreign
+key must use `RESTRICT` for updates and deletes, and exactly
+`CK_weapon_skills_owner_character_id` and `CK_weapon_skills_level` must be enforced.
+
 The Infrastructure layer implements `GameDatabaseReadinessVerifier` for validating the schema
 compatibility contract. The current `OpenConquer.GameServer` host is not yet wired as a runnable
 server and does not currently invoke that verifier. Any future runnable GameServer composition must
@@ -882,6 +1007,15 @@ complete Game database readiness verification before accepting connections.
 
 Treat Game schema downgrades as destructive operations unless the specific migration has been
 reviewed for the current data.
+
+Downgrading version 7 to version 6 removes the `weapon_skills` table. Because this would destroy
+persisted weapon proficiencies, the migration requires `weapon_skills` to contain zero rows before
+dropping the table. If any rows exist, the downgrade fails closed and leaves the version 7 schema
+and compatibility marker intact.
+
+A partially committed version 7 downgrade can be resumed when `weapon_skills` has already been
+removed but migration metadata still reports version 7. Keep all Game database writers stopped and
+rerun the downgrade through EF rather than manually editing migration metadata.
 
 Downgrading version 6 to version 5 removes the `social_relations` table. Because this would destroy
 persisted social relationships, the migration requires `social_relations` to contain zero rows
