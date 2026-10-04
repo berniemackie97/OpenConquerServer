@@ -17,8 +17,9 @@ The current schema chain is:
 | 5       | `20260927225127_AddItemLifetimePersistence`   |
 | 6       | `20260930033806_AddSocialRelationPersistence` |
 | 7       | `20261004014402_AddWeaponSkillPersistence`     |
+| 8       | `20261004193352_AddMagicPersistence`           |
 
-The current schema contract is version 7.
+The current schema contract is version 8.
 
 ## Safety rules
 
@@ -33,7 +34,7 @@ Before applying a migration:
 - do not manually edit `__EFMigrationsHistory`;
 - do not manually advance `schema_compatibility`;
 - do not bypass migration guards;
-- do not fabricate historical character, item, social-relation, or weapon-skill state to make a migration pass.
+- do not fabricate historical character, item, social-relation, weapon-skill, or magic state to make a migration pass.
 
 Writer quiescence is a deployment invariant. Migration guards validate the schema and persisted
 state they observe, but they are not a substitute for stopping concurrent Game database writers.
@@ -70,7 +71,7 @@ Apply all pending Game migrations:
 
 To apply or resume the current migration specifically:
 
-    dotnet tool run dotnet-ef -- database update 20261004014402_AddWeaponSkillPersistence \
+    dotnet tool run dotnet-ef -- database update 20261004193352_AddMagicPersistence \
       --configuration Release \
       --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
       --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
@@ -100,8 +101,8 @@ Check the OpenConquer compatibility marker:
 
 For the current schema, the compatibility row must report:
 
-    schema_version = 7
-    migration_id = 20261004014402_AddWeaponSkillPersistence
+    schema_version = 8
+    migration_id = 20261004193352_AddMagicPersistence
 
 Inspect the character columns involved in the resumable character migrations:
 
@@ -810,6 +811,102 @@ At schema version 7, compatibility is:
     schema_version = 7
     migration_id = 20261004014402_AddWeaponSkillPersistence
 
+## Magic persistence migration
+
+Migration `20261004193352_AddMagicPersistence` advances the Game schema from version 7 to version 8
+and establishes the canonical `magic` table.
+
+The table stores one magic entry per character and magic type:
+
+    owner_character_id   INT UNSIGNED NOT NULL
+    magic_type           SMALLINT UNSIGNED NOT NULL
+    level                SMALLINT UNSIGNED NOT NULL
+    experience           INT UNSIGNED NOT NULL
+
+The canonical primary key is:
+
+    PK_magic
+        (owner_character_id, magic_type)
+
+`owner_character_id` references `characters.character_id` with `ON DELETE RESTRICT` and
+`ON UPDATE RESTRICT`.
+
+The only enforced magic-specific check requires owner character IDs to be in the player-character
+entity range.
+
+`magic_type` and `level` intentionally preserve their full unsigned 16-bit storage ranges.
+`experience` preserves its full unsigned 32-bit range. The schema does not fabricate a universal
+magic-type range, universal maximum magic level, nonzero-type rule, or relationship between
+experience and a next-level requirement.
+
+Historical 5517 `cq_magic` storage also carried a surrogate ID, `unlearn`, and `old_level`. Those
+fields are not part of the verified login-hydration contract and are intentionally not persisted by
+this model.
+
+### Partial magic migration
+
+MySQL may commit creation of `magic` before EF records the migration.
+
+A supported partial upgrade can therefore have the complete canonical table present while:
+
+    schema_version = 7
+    migration_id = 20261004014402_AddWeaponSkillPersistence
+
+and while `20261004193352_AddMagicPersistence` is absent from `__EFMigrationsHistory`.
+
+The migration also supports the complete version 8 structure and compatibility marker being present
+while EF history still lacks the migration.
+
+An existing table named `magic` is accepted only when its complete structure matches the canonical
+contract. The migration validates:
+
+- table collation;
+- all four columns, including order, type, nullability, default, and extra metadata;
+- the exact two-column primary key;
+- the character foreign key and its update/delete rules;
+- the single enforced owner-character check constraint and its definition.
+
+Unexpected indexes, foreign keys, checks, columns, or other incompatible structure cause the
+migration to fail closed.
+
+Inspect the columns:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`,
+        `EXTRA`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'magic'
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    owner_character_id   1   int unsigned        NO   NULL
+    magic_type           2   smallint unsigned   NO   NULL
+    level                3   smallint unsigned   NO   NULL
+    experience           4   int unsigned        NO   NULL
+
+For a known supported partial state, rerun:
+
+    dotnet tool run dotnet-ef -- database update 20261004193352_AddMagicPersistence \
+      --configuration Release \
+      --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
+      --context GameDbContext \
+      --connection "$GAME_DB_CONNECTION"
+
+The migration validates the existing canonical structure, advances `schema_compatibility` to version
+8 when necessary, and allows EF to record the migration.
+
+At schema version 8, compatibility is:
+
+    schema_version = 8
+    migration_id = 20261004193352_AddMagicPersistence
+
 ## Verifying current schema after recovery
 
 After any recovery, verify that no pending model changes exist in the repository:
@@ -839,6 +936,7 @@ For the current schema, the Game migration chain must contain:
     20260927225127_AddItemLifetimePersistence
     20260930033806_AddSocialRelationPersistence
     20261004014402_AddWeaponSkillPersistence
+    20261004193352_AddMagicPersistence
 
 Verify compatibility:
 
@@ -850,8 +948,8 @@ Verify compatibility:
 
 Expected:
 
-    7
-    20261004014402_AddWeaponSkillPersistence
+    8
+    20261004193352_AddMagicPersistence
 
 Verify the lifetime columns:
 
@@ -998,6 +1096,30 @@ Verify its primary key, character foreign key, and enforced checks through
 key must use `RESTRICT` for updates and deletes, and exactly
 `CK_weapon_skills_owner_character_id` and `CK_weapon_skills_level` must be enforced.
 
+Verify the magic table:
+
+    SELECT
+        `COLUMN_NAME`,
+        `ORDINAL_POSITION`,
+        `COLUMN_TYPE`,
+        `IS_NULLABLE`,
+        `COLUMN_DEFAULT`
+    FROM `INFORMATION_SCHEMA`.`COLUMNS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` = 'magic'
+    ORDER BY `ORDINAL_POSITION`;
+
+Expected:
+
+    owner_character_id   1   int unsigned        NO   NULL
+    magic_type           2   smallint unsigned   NO   NULL
+    level                3   smallint unsigned   NO   NULL
+    experience           4   int unsigned        NO   NULL
+
+Verify the primary key is `(owner_character_id, magic_type)`, the character foreign key uses
+`RESTRICT` for updates and deletes, and exactly `CK_magic_owner_character_id` is enforced. No
+additional magic check constraints or indexes are part of the canonical version 8 contract.
+
 The Infrastructure layer implements `GameDatabaseReadinessVerifier` for validating the schema
 compatibility contract. The current `OpenConquer.GameServer` host is not yet wired as a runnable
 server and does not currently invoke that verifier. Any future runnable GameServer composition must
@@ -1007,6 +1129,15 @@ complete Game database readiness verification before accepting connections.
 
 Treat Game schema downgrades as destructive operations unless the specific migration has been
 reviewed for the current data.
+
+Downgrading version 8 to version 7 removes the `magic` table. Because this would destroy persisted
+magic progression, the migration requires `magic` to contain zero rows before dropping the table.
+If any rows exist, the downgrade fails closed and leaves the version 8 schema and compatibility
+marker intact.
+
+A partially committed version 8 downgrade can be resumed when `magic` has already been removed but
+migration metadata still reports version 8. Keep all Game database writers stopped and rerun the
+downgrade through EF rather than manually editing migration metadata.
 
 Downgrading version 7 to version 6 removes the `weapon_skills` table. Because this would destroy
 persisted weapon proficiencies, the migration requires `weapon_skills` to contain zero rows before

@@ -12,6 +12,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
     internal DbSet<ItemRecord> Items => Set<ItemRecord>();
     internal DbSet<SocialRelationRecord> SocialRelations => Set<SocialRelationRecord>();
     internal DbSet<WeaponSkillRecord> WeaponSkills => Set<WeaponSkillRecord>();
+    internal DbSet<MagicRecord> Magic => Set<MagicRecord>();
     internal DbSet<SchemaCompatibilityRecord> SchemaCompatibility => Set<SchemaCompatibilityRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -22,6 +23,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new ItemConfiguration());
         modelBuilder.ApplyConfiguration(new SocialRelationConfiguration());
         modelBuilder.ApplyConfiguration(new WeaponSkillConfiguration());
+        modelBuilder.ApplyConfiguration(new MagicConfiguration());
         modelBuilder.ApplyConfiguration(new SchemaCompatibilityConfiguration());
     }
 }
