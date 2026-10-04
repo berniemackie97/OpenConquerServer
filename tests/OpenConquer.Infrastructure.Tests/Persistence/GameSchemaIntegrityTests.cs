@@ -33,6 +33,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_social_relations_distinct_characters",
         "CK_social_relations_kind",
         "CK_social_relations_owner_character_id",
+        "CK_weapon_skills_level",
+        "CK_weapon_skills_owner_character_id",
     ];
 
     private static int s_nextAccountId = 1_000;
@@ -349,8 +351,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(6u, reader.GetUInt32(1));
-        Assert.Equal("20260930033806_AddSocialRelationPersistence", reader.GetString(2));
+        Assert.Equal(7u, reader.GetUInt32(1));
+        Assert.Equal("20261004014402_AddWeaponSkillPersistence", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

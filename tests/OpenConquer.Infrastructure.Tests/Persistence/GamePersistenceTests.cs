@@ -4,11 +4,13 @@ using MySqlConnector;
 using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 using OpenConquer.Infrastructure.Persistence.Game.Extensions;
 using OpenConquer.Infrastructure.Persistence.Game.Items;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
+using OpenConquer.Infrastructure.Persistence.Game.Skills;
 using OpenConquer.Infrastructure.Persistence.Game.Social;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
@@ -22,6 +24,8 @@ public sealed class GamePersistenceTests
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddGamePersistence(" "));
         Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence("Server=localhost", null!));
         Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence("Server=localhost", new CharacterItemHydrationOptions(), null!));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence(
+            "Server=localhost", new CharacterItemHydrationOptions(), new CharacterSocialRelationHydrationOptions(), null!));
     }
 
     [Fact]
@@ -29,9 +33,10 @@ public sealed class GamePersistenceTests
     {
         CharacterItemHydrationOptions itemOptions = new(maximumItemsPerCharacter: 512);
         CharacterSocialRelationHydrationOptions socialOptions = new(maximumRelationsPerCharacter: 256);
+        CharacterWeaponSkillHydrationOptions weaponSkillOptions = new(maximumSkillsPerCharacter: 128);
 
         await using ServiceProvider services = new ServiceCollection()
-            .AddGamePersistence("Server=localhost;Database=game;UseAffectedRows=true;AutoEnlist=true", itemOptions, socialOptions)
+            .AddGamePersistence("Server=localhost;Database=game;UseAffectedRows=true;AutoEnlist=true", itemOptions, socialOptions, weaponSkillOptions)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         IDbContextFactory<GameDbContext> factory = services.GetRequiredService<IDbContextFactory<GameDbContext>>();
@@ -52,6 +57,7 @@ public sealed class GamePersistenceTests
 
         Assert.Same(itemOptions, services.GetRequiredService<CharacterItemHydrationOptions>());
         Assert.Same(socialOptions, services.GetRequiredService<CharacterSocialRelationHydrationOptions>());
+        Assert.Same(weaponSkillOptions, services.GetRequiredService<CharacterWeaponSkillHydrationOptions>());
 
         ICharacterLoginProfileRepository characterRepository = services.GetRequiredService<ICharacterLoginProfileRepository>();
         Assert.Same(characterRepository, services.GetRequiredService<ICharacterLoginProfileRepository>());
@@ -61,6 +67,9 @@ public sealed class GamePersistenceTests
 
         ICharacterSocialRelationSetRepository socialRepository = services.GetRequiredService<ICharacterSocialRelationSetRepository>();
         Assert.Same(socialRepository, services.GetRequiredService<ICharacterSocialRelationSetRepository>());
+
+        ICharacterWeaponSkillSetRepository weaponSkillRepository = services.GetRequiredService<ICharacterWeaponSkillSetRepository>();
+        Assert.Same(weaponSkillRepository, services.GetRequiredService<ICharacterWeaponSkillSetRepository>());
 
         GameDatabaseReadinessVerifier readinessVerifier = services.GetRequiredService<GameDatabaseReadinessVerifier>();
         Assert.Same(readinessVerifier, services.GetRequiredService<GameDatabaseReadinessVerifier>());
