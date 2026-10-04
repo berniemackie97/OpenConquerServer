@@ -16,6 +16,7 @@ public sealed class GameAction10010Tests
         Assert.Equal((ushort)0x4B, GameAction10010.GetItemSetAction);
         Assert.Equal((ushort)0x4C, GameAction10010.GetGoodFriendAction);
         Assert.Equal((ushort)0x4D, GameAction10010.GetWeaponSkillSetAction);
+        Assert.Equal((ushort)0x4E, GameAction10010.GetMagicSetAction);
         Assert.Equal((ushort)0x198, GameAction10010.ClientStateAppliedAction);
     }
 
