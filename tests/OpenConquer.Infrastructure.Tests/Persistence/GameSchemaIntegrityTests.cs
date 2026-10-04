@@ -26,6 +26,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_items_location_kind",
         "CK_items_location_payload",
         "CK_items_stack_quantity",
+        "CK_magic_owner_character_id",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",
@@ -351,8 +352,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(7u, reader.GetUInt32(1));
-        Assert.Equal("20261004014402_AddWeaponSkillPersistence", reader.GetString(2));
+        Assert.Equal(8u, reader.GetUInt32(1));
+        Assert.Equal("20261004193352_AddMagicPersistence", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

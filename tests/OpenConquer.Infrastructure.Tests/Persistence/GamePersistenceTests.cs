@@ -26,6 +26,9 @@ public sealed class GamePersistenceTests
         Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence("Server=localhost", new CharacterItemHydrationOptions(), null!));
         Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence(
             "Server=localhost", new CharacterItemHydrationOptions(), new CharacterSocialRelationHydrationOptions(), null!));
+        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddGamePersistence(
+            "Server=localhost", new CharacterItemHydrationOptions(), new CharacterSocialRelationHydrationOptions(),
+            new CharacterWeaponSkillHydrationOptions(), null!));
     }
 
     [Fact]
@@ -34,9 +37,11 @@ public sealed class GamePersistenceTests
         CharacterItemHydrationOptions itemOptions = new(maximumItemsPerCharacter: 512);
         CharacterSocialRelationHydrationOptions socialOptions = new(maximumRelationsPerCharacter: 256);
         CharacterWeaponSkillHydrationOptions weaponSkillOptions = new(maximumSkillsPerCharacter: 128);
+        CharacterMagicHydrationOptions magicOptions = new(maximumMagicEntriesPerCharacter: 64);
 
         await using ServiceProvider services = new ServiceCollection()
-            .AddGamePersistence("Server=localhost;Database=game;UseAffectedRows=true;AutoEnlist=true", itemOptions, socialOptions, weaponSkillOptions)
+            .AddGamePersistence("Server=localhost;Database=game;UseAffectedRows=true;AutoEnlist=true",
+                itemOptions, socialOptions, weaponSkillOptions, magicOptions)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         IDbContextFactory<GameDbContext> factory = services.GetRequiredService<IDbContextFactory<GameDbContext>>();
@@ -58,6 +63,7 @@ public sealed class GamePersistenceTests
         Assert.Same(itemOptions, services.GetRequiredService<CharacterItemHydrationOptions>());
         Assert.Same(socialOptions, services.GetRequiredService<CharacterSocialRelationHydrationOptions>());
         Assert.Same(weaponSkillOptions, services.GetRequiredService<CharacterWeaponSkillHydrationOptions>());
+        Assert.Same(magicOptions, services.GetRequiredService<CharacterMagicHydrationOptions>());
 
         ICharacterLoginProfileRepository characterRepository = services.GetRequiredService<ICharacterLoginProfileRepository>();
         Assert.Same(characterRepository, services.GetRequiredService<ICharacterLoginProfileRepository>());
@@ -70,6 +76,9 @@ public sealed class GamePersistenceTests
 
         ICharacterWeaponSkillSetRepository weaponSkillRepository = services.GetRequiredService<ICharacterWeaponSkillSetRepository>();
         Assert.Same(weaponSkillRepository, services.GetRequiredService<ICharacterWeaponSkillSetRepository>());
+
+        ICharacterMagicSetRepository magicRepository = services.GetRequiredService<ICharacterMagicSetRepository>();
+        Assert.Same(magicRepository, services.GetRequiredService<ICharacterMagicSetRepository>());
 
         GameDatabaseReadinessVerifier readinessVerifier = services.GetRequiredService<GameDatabaseReadinessVerifier>();
         Assert.Same(readinessVerifier, services.GetRequiredService<GameDatabaseReadinessVerifier>());
