@@ -225,7 +225,7 @@ public sealed class CharacterWeaponSkillSetRepositoryTests(GameDatabaseFixture d
 
         try
         {
-            await SetCheckConstraintEnforcementAsync(connection, "weapon_skills", "CK_weapon_skills_level", enforced: false);
+            await SetCheckConstraintEnforcementAsync(connection, "weapon_skills", "CK_weapon_skills_level", enforced: false, CancellationToken);
             constraintDisabled = true;
 
             await using (MySqlCommand update = connection.CreateCommand())
@@ -249,8 +249,11 @@ public sealed class CharacterWeaponSkillSetRepositoryTests(GameDatabaseFixture d
         {
             if (constraintDisabled)
             {
-                await using (MySqlCommand restore = connection.CreateCommand())
+                CancellationToken cleanupToken = CancellationToken.None;
+
+                try
                 {
+                    await using MySqlCommand restore = connection.CreateCommand();
                     restore.CommandText = """
                         UPDATE `weapon_skills`
                         SET `level` = 1
@@ -259,18 +262,21 @@ public sealed class CharacterWeaponSkillSetRepositoryTests(GameDatabaseFixture d
                         """;
                     restore.Parameters.Add("@owner_character_id", MySqlDbType.UInt32).Value = ownerCharacterId;
                     restore.Parameters.Add("@weapon_skill_type", MySqlDbType.UInt32).Value = type;
-                    await restore.ExecuteNonQueryAsync(CancellationToken);
-                }
 
-                await SetCheckConstraintEnforcementAsync(connection, "weapon_skills", "CK_weapon_skills_level", enforced: true);
+                    await restore.ExecuteNonQueryAsync(cleanupToken);
+                }
+                finally
+                {
+                    await SetCheckConstraintEnforcementAsync(connection, "weapon_skills", "CK_weapon_skills_level", enforced: true, cleanupToken);
+                }
             }
         }
     }
 
-    private static async Task SetCheckConstraintEnforcementAsync(MySqlConnection connection, string tableName, string constraintName, bool enforced)
+    private static async Task SetCheckConstraintEnforcementAsync(MySqlConnection connection, string tableName, string constraintName, bool enforced, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = $"ALTER TABLE `{tableName}` ALTER CHECK `{constraintName}` {(enforced ? "ENFORCED" : "NOT ENFORCED")}";
-        await command.ExecuteNonQueryAsync(CancellationToken);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
