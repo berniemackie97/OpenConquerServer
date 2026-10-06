@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;

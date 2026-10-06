@@ -1,8 +1,6 @@
 using System.Data;
 using System.Security.Cryptography;
-using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Domain.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts;
@@ -297,7 +295,10 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                     {
                         await cleanupTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                     }
-                    catch { }
+                    catch
+                    {
+                        // ignored
+                    }
                 }
 
                 if (redemptionTask is not null)
@@ -306,7 +307,10 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                     {
                         await redemptionTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                     }
-                    catch { }
+                    catch
+                    {
+                        // ignored
+                    }
                 }
             }
         }
@@ -374,7 +378,10 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                 {
                     await cleanupTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }

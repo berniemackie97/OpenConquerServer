@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 
 namespace OpenConquer.Application.Tests.Accounts.GameLogin;

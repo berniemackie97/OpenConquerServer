@@ -1,5 +1,4 @@
 using OpenConquer.Application.Accounts.Authentication;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 
 namespace OpenConquer.Application.Tests.Accounts.GameLogin;

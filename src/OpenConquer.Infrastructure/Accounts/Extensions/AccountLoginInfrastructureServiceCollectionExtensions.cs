@@ -4,7 +4,6 @@ using MySqlConnector;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Authentication.Passwords;
 using OpenConquer.Application.Accounts.Authentication.Protection;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Infrastructure.Persistence.Accounts.Extensions;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
@@ -23,37 +22,30 @@ public static class AccountLoginInfrastructureServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(authenticationProtectionOptions);
         ArgumentNullException.ThrowIfNull(encodedVerificationKeys);
 
-        GameLoginTicketAuthenticationKeyRing authenticationKeyRing = GameLoginTicketAuthenticationKeyRingFactory.Create(activeVerificationKeyId, encodedVerificationKeys);
+        KeyValuePair<ushort, string>[] verificationKeys = encodedVerificationKeys.ToArray();
 
-        try
-        {
-            services.AddAccountPersistence(connectionString);
-            services.TryAddSingleton<TimeProvider>(_ => TimeProvider.System);
+        GameLoginTicketAuthenticationKeyRingFactory.ValidateConfiguration(activeVerificationKeyId, verificationKeys);
 
-            services.AddSingleton(loginConnectionProtectionOptions);
-            services.AddSingleton<AccountLoginConnectionProtection>();
-            services.AddSingleton<IAccountLoginConnectionLimiter>(provider => provider.GetRequiredService<AccountLoginConnectionProtection>());
+        services.AddAccountPersistence(connectionString);
+        services.TryAddSingleton<TimeProvider>(_ => TimeProvider.System);
 
-            services.AddSingleton(authenticationProtectionOptions);
-            services.AddSingleton<AccountAuthenticationProtection>();
-            services.AddSingleton<IAccountAuthenticationRequestLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
-            services.AddSingleton<IAccountAuthenticationAttemptLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
+        services.AddSingleton(loginConnectionProtectionOptions);
+        services.AddSingleton<AccountLoginConnectionProtection>();
+        services.AddSingleton<IAccountLoginConnectionLimiter>(provider => provider.GetRequiredService<AccountLoginConnectionProtection>());
 
-            services.AddSingleton<IAccountPasswordHasher, AccountPasswordHasher>();
-            services.AddSingleton<IAccountAuthenticator, AccountAuthenticator>();
+        services.AddSingleton(authenticationProtectionOptions);
+        services.AddSingleton<AccountAuthenticationProtection>();
+        services.AddSingleton<IAccountAuthenticationRequestLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
+        services.AddSingleton<IAccountAuthenticationAttemptLimiter>(provider => provider.GetRequiredService<AccountAuthenticationProtection>());
 
-            services.AddSingleton<IGameLoginTicketGrantStore>(provider => new GameLoginTicketGrantStore(provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>()));
-            services.AddSingleton<IGameLoginTicketTokenGenerator, CryptographicGameLoginTicketTokenGenerator>();
-            services.AddSingleton<GameLoginTicketIssuer>();
+        services.AddSingleton<IAccountPasswordHasher, AccountPasswordHasher>();
+        services.AddSingleton<IAccountAuthenticator, AccountAuthenticator>();
 
-            services.AddSingleton<GameLoginTicketAuthenticationKeyRing>(_ => authenticationKeyRing);
+        services.AddSingleton<GameLoginTicketAuthenticationKeyRing>(_ => GameLoginTicketAuthenticationKeyRingFactory.Create(activeVerificationKeyId, verificationKeys));
+        services.AddSingleton<IGameLoginTicketGrantStore>(provider => new GameLoginTicketGrantStore(provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>()));
+        services.AddSingleton<IGameLoginTicketTokenGenerator, CryptographicGameLoginTicketTokenGenerator>();
+        services.AddSingleton<GameLoginTicketIssuer>();
 
-            return services;
-        }
-        catch
-        {
-            authenticationKeyRing.Dispose();
-            throw;
-        }
+        return services;
     }
 }

@@ -6,7 +6,6 @@ using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Application.Accounts.Authentication;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login.Packets;

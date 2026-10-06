@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using MySqlConnector;
-using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
 using Testcontainers.MySql;
 

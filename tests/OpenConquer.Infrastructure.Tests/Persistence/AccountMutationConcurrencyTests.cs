@@ -2,7 +2,6 @@ using System.Data;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Accounts.Mutations;

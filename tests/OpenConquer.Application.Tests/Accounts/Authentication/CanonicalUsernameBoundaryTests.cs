@@ -1,6 +1,5 @@
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Authentication.State;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 

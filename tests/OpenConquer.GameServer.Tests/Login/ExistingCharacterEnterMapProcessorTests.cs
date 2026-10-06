@@ -1,14 +1,11 @@
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
-using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Character.Bootstrap;

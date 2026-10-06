@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
-using OpenConquer.Application.Characters.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 using OpenConquer.Infrastructure.Persistence.Game.Extensions;

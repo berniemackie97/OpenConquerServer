@@ -1,4 +1,3 @@
-using OpenConquer.Infrastructure.Security;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
 namespace OpenConquer.Infrastructure.Tests.Security;
