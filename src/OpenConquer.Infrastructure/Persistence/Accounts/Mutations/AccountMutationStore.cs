@@ -560,10 +560,10 @@ internal sealed class AccountMutationStore(MySqlDataSource dataSource) : IAccoun
         command.Parameters.Add("@actor_kind", MySqlDbType.UByte).Value = (byte)context.ActorKind;
         command.Parameters.Add("@correlation_id", MySqlDbType.Guid).Value = context.CorrelationId;
         command.Parameters.Add("@reason_code", MySqlDbType.VarChar, AccountAuditPolicy.MaximumReasonCodeLength).Value = (object?)context.ReasonCode ?? DBNull.Value;
-        command.Parameters.Add("@previous_access_status", MySqlDbType.UByte).Value = previousAccessStatus.HasValue ? (object)(byte)previousAccessStatus.Value : DBNull.Value;
-        command.Parameters.Add("@new_access_status", MySqlDbType.UByte).Value = newAccessStatus.HasValue ? (object)(byte)newAccessStatus.Value : DBNull.Value;
-        command.Parameters.Add("@previous_authority_role", MySqlDbType.UByte).Value = previousAuthorityRole.HasValue ? (object)(byte)previousAuthorityRole.Value : DBNull.Value;
-        command.Parameters.Add("@new_authority_role", MySqlDbType.UByte).Value = newAuthorityRole.HasValue ? (object)(byte)newAuthorityRole.Value : DBNull.Value;
+        command.Parameters.Add("@previous_access_status", MySqlDbType.UByte).Value = previousAccessStatus.HasValue ? (byte)previousAccessStatus.Value : DBNull.Value;
+        command.Parameters.Add("@new_access_status", MySqlDbType.UByte).Value = newAccessStatus.HasValue ? (byte)newAccessStatus.Value : DBNull.Value;
+        command.Parameters.Add("@previous_authority_role", MySqlDbType.UByte).Value = previousAuthorityRole.HasValue ? (byte)previousAuthorityRole.Value : DBNull.Value;
+        command.Parameters.Add("@new_authority_role", MySqlDbType.UByte).Value = newAuthorityRole.HasValue ? (byte)newAuthorityRole.Value : DBNull.Value;
 
         await RequireSingleAffectedRowAsync(command, "account audit-event insertion", cancellationToken).ConfigureAwait(false);
     }

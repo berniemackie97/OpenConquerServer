@@ -2,7 +2,6 @@ using System.Data;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Application.Accounts.Mutations;
 using OpenConquer.Domain.Accounts;
@@ -425,7 +424,10 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
                 {
                     await grantTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
 
             if (mutationTask is not null)
@@ -434,7 +436,10 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
                 {
                     await mutationTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }
@@ -505,7 +510,10 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
                 {
                     await mutationTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
 
             if (grantTask is not null)
@@ -514,7 +522,10 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
                 {
                     await grantTask.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }

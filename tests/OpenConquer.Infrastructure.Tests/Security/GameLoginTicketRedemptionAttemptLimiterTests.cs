@@ -1,5 +1,4 @@
 using System.Net;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 

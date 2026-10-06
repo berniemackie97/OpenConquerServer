@@ -1,7 +1,6 @@
 using System.Data;
 using System.Security.Cryptography;
 using MySqlConnector;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 

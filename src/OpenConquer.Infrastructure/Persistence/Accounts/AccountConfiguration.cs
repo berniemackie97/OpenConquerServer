@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Domain.Accounts;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts;

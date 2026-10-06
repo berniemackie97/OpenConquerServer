@@ -160,7 +160,7 @@ public sealed class PacketReaderTests
         PacketReader ansiReader = new([0x80]);
         PacketReader asciiReader = new([0x80]);
 
-        string ansi = ansiReader.ReadFixedString(1, TqTextEncoding.Ansi);
+        string ansi = ansiReader.ReadFixedString(1);
         string ascii = asciiReader.ReadFixedString(1, TqTextEncoding.Ascii);
 
         Assert.Equal("€", ansi);

@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Domain.Characters;
-using OpenConquer.Domain.Skills;
 using OpenConquer.Infrastructure.Persistence.Game.Skills;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;

@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using MySqlConnector;
 using OpenConquer.Domain.Items;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
-using OpenConquer.Infrastructure.Persistence.Game.Extensions;
 using Testcontainers.MySql;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;

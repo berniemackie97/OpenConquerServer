@@ -304,7 +304,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
     [Fact]
     public void CharacterIdentitySequence_StartsAtFirstPlayerEntityId()
     {
-        Assert.Equal((ulong)CharacterIdentityPolicy.FirstPlayerEntityId, database.InitialCharacterAutoIncrement);
+        Assert.Equal(CharacterIdentityPolicy.FirstPlayerEntityId, database.InitialCharacterAutoIncrement);
     }
 
     [Fact]

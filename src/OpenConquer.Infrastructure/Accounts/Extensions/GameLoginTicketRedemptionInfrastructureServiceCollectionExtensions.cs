@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MySqlConnector;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Infrastructure.Persistence.Accounts.Extensions;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;

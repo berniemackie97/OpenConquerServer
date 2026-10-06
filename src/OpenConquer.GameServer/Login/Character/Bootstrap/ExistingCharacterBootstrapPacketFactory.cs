@@ -40,7 +40,7 @@ internal static class ExistingCharacterBootstrapPacketFactory
             LegacyMedal = 0,
             LegacyMedalSelect = 0,
             VirtuePoints = 0,
-            EncodedPreRebirthLevel = checked((uint)profile.Progression.PreRebirthLevel * PreRebirthLevelScale),
+            EncodedPreRebirthLevel = checked(profile.Progression.PreRebirthLevel * PreRebirthLevelScale),
 
             Strength = profile.Attributes.Strength,
             Agility = profile.Attributes.Agility,

@@ -1,10 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
-using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Authentication.State;
 using OpenConquer.Domain.Accounts;
-using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;

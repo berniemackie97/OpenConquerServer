@@ -2,7 +2,6 @@ using System.Net;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.Application.Accounts.Authentication;
-using OpenConquer.Application.Accounts.GameLogin;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;

@@ -1,7 +1,6 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
-using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;

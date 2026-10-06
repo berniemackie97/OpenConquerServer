@@ -195,7 +195,7 @@ public sealed class WireFrameDecoderTests
 
         Assert.Equal(WireFrameDecodeStatus.Success, status);
         Assert.Equal(ushort.MaxValue, header.Length);
-        Assert.Equal((long)ushort.MaxValue, frame.Length);
+        Assert.Equal(ushort.MaxValue, frame.Length);
     }
 
     [Fact]

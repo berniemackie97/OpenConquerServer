@@ -7,7 +7,6 @@ using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Authentication.Passwords;
 using OpenConquer.Application.Accounts.Authentication.Protection;
 using OpenConquer.Application.Accounts.Authentication.State;
-using OpenConquer.Infrastructure.Security;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Tests.Security;

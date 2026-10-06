@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.IO.Pipelines;
-using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Handshake;
 
 namespace OpenConquer.GameServer.Tests.Connections;

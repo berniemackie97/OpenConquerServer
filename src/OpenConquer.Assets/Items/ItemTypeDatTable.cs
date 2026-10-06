@@ -115,20 +115,18 @@ public sealed class ItemTypeDatTable
 
     private static string[] NormalizeFieldTexts(string decodedLine, string sourceName, int lineNumber)
     {
-        string[] fieldTexts = decodedLine.Split("@@", StringSplitOptions.None);
+        string[] fieldTexts = decodedLine.Split("@@");
 
-        if (fieldTexts.Length == ItemTypeDatRecord.NativeParsedFieldCount)
+        switch (fieldTexts.Length)
         {
-            return fieldTexts;
+            case ItemTypeDatRecord.NativeParsedFieldCount:
+                return fieldTexts;
+            case ItemTypeDatRecord.NativeParsedFieldCount + 1 when fieldTexts[^1].Length == 0:
+                Array.Resize(ref fieldTexts, ItemTypeDatRecord.NativeParsedFieldCount);
+                return fieldTexts;
+            default:
+                throw new InvalidDataException($"{sourceName} record at line {lineNumber} has {fieldTexts.Length} split fields; expected {ItemTypeDatRecord.NativeParsedFieldCount} native fields with at most one terminal delimiter field.");
         }
-
-        if (fieldTexts.Length == ItemTypeDatRecord.NativeParsedFieldCount + 1 && fieldTexts[^1].Length == 0)
-        {
-            Array.Resize(ref fieldTexts, ItemTypeDatRecord.NativeParsedFieldCount);
-            return fieldTexts;
-        }
-
-        throw new InvalidDataException($"{sourceName} record at line {lineNumber} has {fieldTexts.Length} split fields; expected {ItemTypeDatRecord.NativeParsedFieldCount} native fields with at most one terminal delimiter field.");
     }
 
     private static uint ParseUInt32Field(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)

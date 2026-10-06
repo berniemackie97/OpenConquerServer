@@ -1,7 +1,5 @@
 using System.Diagnostics;
-using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.Authentication.Passwords;
-using OpenConquer.Infrastructure.Security;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 
 namespace OpenConquer.Infrastructure.Tests.Security;
@@ -111,7 +109,7 @@ public sealed class AccountPasswordHasherTests
 
         Assert.StartsWith(CurrentSchemePrefix, passwordHash);
 
-        string[] components = passwordHash.Split('$', StringSplitOptions.None);
+        string[] components = passwordHash.Split('$');
 
         Assert.Equal(6, components.Length);
 
