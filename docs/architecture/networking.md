@@ -551,17 +551,38 @@ An account without a persisted character routes to `CharacterCreation`.
 An account with a persisted character routes to `ExistingCharacter` with a validated
 `CharacterLoginProfile`.
 
-The profile contains the durable state required by the next existing-character bootstrap slice,
-including identity, appearance, progression, attributes, vitals, economy, PK/title/enlightenment
-state, map ID, and position.
+The profile contains the durable state required by existing-character bootstrap, including identity,
+appearance, progression, attributes, vitals, economy, PK/title/enlightenment state, map ID, and
+position.
 
-This boundary does not yet:
+The implemented existing-character connection then advances through explicit ownership states for
+the native bootstrap sequence:
 
-- process character creation requests;
-- perform character creation writes;
-- send the existing-character bootstrap packet sequence;
-- enter a map;
-- transfer ownership into a gameplay/world session.
+```text
+initial bootstrap
+    ↓
+0x4A EnterMap
+    ↓
+0x198 client-state-applied
+    ↓
+0x4B item set
+    ↓
+0x4C friend/social set
+    ↓
+0x4D weapon-skill set
+    ↓
+0x4E magic set
+    ↓
+AwaitingSyndicateAttributesConnection
+```
+
+Each rung validates the client request against the authenticated character identity, performs any
+required bounded persistence read before response emission, writes the complete deterministic
+snapshot and acknowledgement, and transfers the same live connection exactly once only after the
+boundary succeeds.
+
+Character creation requests and writes, syndicate-attributes and later bootstrap rungs, and transfer
+into an authoritative gameplay/world session remain unimplemented.
 
 ## Game Character Persistence Boundary
 
@@ -574,9 +595,12 @@ Accounts database
     -> game-login tickets
 
 Game database
-    -> character identity
-    -> character-login profile
+    -> character identity and login profile
     -> persisted login location
+    -> character-owned item state
+    -> social-relation state
+    -> weapon-skill state
+    -> magic state
 ```
 
 There is no cross-database foreign key from the Game database to the Accounts database.
@@ -590,11 +614,11 @@ Player entity IDs begin at `1,000,000`. The initial migration seeds the auto-inc
 that boundary, while application validation prevents a persisted non-player identity from crossing
 into the character-login profile.
 
-Character-login repository reads are no-tracking bounded persistence operations.
+Character-login, item-set, social-relation, weapon-skill, and magic repository reads are bounded,
+no-tracking persistence operations.
 
-The Game persistence runtime identity used by current integration coverage is read-only for the
-character-login slice. Character creation mutation is intentionally not introduced through this
-boundary yet.
+The currently implemented GameServer bootstrap persistence paths are read-only. Character creation
+and gameplay mutation are intentionally not introduced through these boundaries yet.
 
 `GameDatabaseReadinessVerifier` validates the Game database character set, collation, schema
 version, and migration identity.
@@ -707,10 +731,17 @@ Implemented GameServer connection and character-login components:
 - first protected `1052` login-proof validation;
 - protected single-use ticket redemption;
 - authenticated live-session handoff;
-- Game character persistence and schema-readiness verification;
+- Game character, item, social-relation, weapon-skill, and magic persistence with schema-readiness verification;
 - persisted character-login profile lookup;
 - authenticated account routing to character creation or existing-character login;
 - ownership-safe post-authentication character handoff;
+- existing-character bootstrap packet sequence;
+- native EnterMap and client-state-applied progression;
+- bounded item hydration and canonical item resolution;
+- native friend/social hydration and projection;
+- native weapon-skill hydration and projection;
+- native magic hydration and projection;
+- ownership-safe handoff to the syndicate-attributes bootstrap stage;
 - coordinated cancellation and disposal.
 
 Not yet implemented:
@@ -719,7 +750,7 @@ Not yet implemented:
 - GameServer listener, admission queue, and worker runtime;
 - GameServer startup execution of Game database readiness;
 - gameplay outbound scheduling and bounded mailbox policy;
-- existing-character bootstrap packet sequence and map entry;
+- syndicate-attributes and later native bootstrap rungs;
 - character creation request processing and durable creation;
 - gameplay packet routing;
 - authoritative world simulation and replication.

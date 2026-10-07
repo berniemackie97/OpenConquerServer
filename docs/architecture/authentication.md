@@ -266,7 +266,7 @@ Resolution returns:
 | Existing character      | `ExistingCharacter` |
 
 An existing-character result includes a validated `CharacterLoginProfile` containing the persisted
-state required by the future bootstrap path.
+state required by the implemented bootstrap path.
 
 The returned profile must belong to the authenticated account. A mismatched persisted account
 identity is an invariant failure rather than a usable login result.
@@ -290,8 +290,10 @@ resolution fails and cleanup also fails
 The connection is not replaced, parked, or converted into a separate transport session between
 ticket redemption and character resolution.
 
-This boundary does not yet send existing-character bootstrap packets or process character creation
-requests.
+Existing-character results continue on the same owned authenticated connection through the
+implemented bootstrap progression: initial character bootstrap, map entry, client-state-applied,
+item-set resolution, friend/social hydration, weapon-skill hydration, and magic hydration.
+Character-creation request processing remains a separate unimplemented route.
 
 ## Game Character Persistence
 
@@ -304,7 +306,8 @@ The Accounts database owns:
 - account security state;
 - durable game-login tickets.
 
-The Game database owns the persisted character-login profile.
+The Game database owns the persisted character-login profile together with character-owned item,
+social-relation, weapon-skill, and magic state required by the implemented login bootstrap.
 
 The Game database does not use a cross-database foreign key to the Accounts database. Successful
 single-use ticket redemption establishes the trusted account identity supplied to character
@@ -368,6 +371,10 @@ The Game persistence registration exposes:
 
 - pooled `GameDbContext` creation;
 - `ICharacterLoginProfileRepository`;
+- `ICharacterItemSetRepository`;
+- `ICharacterSocialRelationSetRepository`;
+- `ICharacterWeaponSkillSetRepository`;
+- `ICharacterMagicSetRepository`;
 - `IGameDatabaseReadinessVerifier`.
 
 Game database readiness is implemented as an infrastructure capability. A runnable GameServer host
@@ -493,10 +500,14 @@ connection-session, character-login, or gameplay lifecycle.
 
 ## Game Persistence Composition
 
-`AddGamePersistence` composes the Game character persistence boundary:
+`AddGamePersistence` composes the Game persistence boundary:
 
 - pooled `GameDbContext` creation;
 - character-login profile persistence;
+- bounded character-item persistence hydration;
+- bounded social-relation persistence hydration;
+- bounded weapon-skill persistence hydration;
+- bounded magic persistence hydration;
 - Game database readiness verification.
 
 The persistence registration does not own character-login orchestration, GameServer connection
@@ -548,10 +559,16 @@ Implemented:
 - GameServer `1052` login-proof authentication;
 - GameServer ticket-redemption infrastructure composition;
 - GameServer authenticated connection handoff;
-- Game character persistence and schema-readiness verification;
+- Game character, item, social-relation, weapon-skill, and magic persistence with schema-readiness verification;
 - persisted character-login profile resolution;
 - authenticated account routing to character creation or existing-character login;
 - ownership-safe post-authentication character-login handoff;
+- existing-character bootstrap packet sequence and map entry;
+- bounded item hydration and catalog-aware runtime resolution;
+- native friend/social bootstrap;
+- native weapon-skill bootstrap;
+- native magic bootstrap;
+- ownership-safe handoff to the syndicate-attributes bootstrap stage;
 - CI migration-drift verification for Accounts and Game persistence;
 - scheduled bounded expired-ticket cleanup;
 - production AccountServer authentication/game-login dependency composition.
@@ -564,6 +581,6 @@ Not yet implemented:
 - staff/admin mutation authorization;
 - runnable GameServer host composition;
 - GameServer listener, admission, and worker lifecycle;
-- existing-character bootstrap packet sequence and map entry;
+- syndicate-attributes and later existing-character bootstrap stages;
 - character creation request processing and durable creation;
 - gameplay/world-session authorization and authoritative runtime integration.
