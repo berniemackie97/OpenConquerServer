@@ -7,7 +7,7 @@ namespace OpenConquer.Domain.Syndicates;
 /// </summary>
 public readonly record struct CharacterSyndicateMembership
 {
-    private CharacterSyndicateMembership(uint characterId, ushort syndicateId, uint rank, long proffer,
+    private CharacterSyndicateMembership(uint characterId, ushort syndicateId, uint rank, uint proffer,
         uint positionExpirationUnixSeconds, uint joinDateUnixSeconds)
     {
         CharacterId = characterId;
@@ -21,7 +21,7 @@ public readonly record struct CharacterSyndicateMembership
     public uint CharacterId { get; }
     public ushort SyndicateId { get; }
     public uint Rank { get; }
-    public long Proffer { get; }
+    public uint Proffer { get; }
     public uint PositionExpirationUnixSeconds { get; }
     public uint JoinDateUnixSeconds { get; }
 
@@ -40,6 +40,11 @@ public readonly record struct CharacterSyndicateMembership
             throw new ArgumentOutOfRangeException(nameof(syndicateId), syndicateId, "A syndicate membership requires a nonzero syndicate identity.");
         }
 
-        return new CharacterSyndicateMembership(characterId, syndicateId, rank, proffer, positionExpirationUnixSeconds, joinDateUnixSeconds);
+        if (proffer < 0 || proffer > uint.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(proffer), proffer, $"A syndicate membership proffer must be between 0 and {uint.MaxValue}.");
+        }
+
+        return new CharacterSyndicateMembership(characterId, syndicateId, rank, checked((uint)proffer), positionExpirationUnixSeconds, joinDateUnixSeconds);
     }
 }

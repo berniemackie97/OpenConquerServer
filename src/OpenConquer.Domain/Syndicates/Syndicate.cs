@@ -17,6 +17,11 @@ public sealed class Syndicate
 
         ArgumentNullException.ThrowIfNull(name);
 
+        if (!SyndicateNamePolicy.IsValid(name))
+        {
+            throw new ArgumentException("A syndicate requires a valid name.", nameof(name));
+        }
+
         if (!CharacterIdentityPolicy.IsPlayerEntityId(leaderCharacterId))
         {
             throw new ArgumentOutOfRangeException(nameof(leaderCharacterId), leaderCharacterId, "A syndicate leader must identify a player character.");

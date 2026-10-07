@@ -14,14 +14,14 @@ public sealed class CharacterSyndicateMembershipTests
             characterId,
             syndicateId: ushort.MaxValue,
             rank: uint.MaxValue,
-            proffer: long.MaxValue,
+            proffer: uint.MaxValue,
             positionExpirationUnixSeconds: uint.MaxValue,
             joinDateUnixSeconds: uint.MaxValue);
 
         Assert.Equal(characterId, membership.CharacterId);
         Assert.Equal(ushort.MaxValue, membership.SyndicateId);
         Assert.Equal(uint.MaxValue, membership.Rank);
-        Assert.Equal(long.MaxValue, membership.Proffer);
+        Assert.Equal(uint.MaxValue, membership.Proffer);
         Assert.Equal(uint.MaxValue, membership.PositionExpirationUnixSeconds);
         Assert.Equal(uint.MaxValue, membership.JoinDateUnixSeconds);
         Assert.True(membership.IsValid);
@@ -39,25 +39,30 @@ public sealed class CharacterSyndicateMembershipTests
             joinDateUnixSeconds: 0);
 
         Assert.Equal(0u, membership.Rank);
-        Assert.Equal(0L, membership.Proffer);
+        Assert.Equal(0u, membership.Proffer);
         Assert.Equal(0u, membership.PositionExpirationUnixSeconds);
         Assert.Equal(0u, membership.JoinDateUnixSeconds);
         Assert.True(membership.IsValid);
     }
 
-    [Fact]
-    public void Create_NegativeProffer_IsPreserved()
+    [Theory]
+    [InlineData(-1L)]
+    [InlineData(long.MinValue)]
+    [InlineData(4_294_967_296L)]
+    [InlineData(long.MaxValue)]
+    public void Create_ProfferOutsideNativeUInt32Range_ThrowsArgumentOutOfRangeException(long proffer)
     {
-        CharacterSyndicateMembership membership = CharacterSyndicateMembership.Create(
-            CharacterIdentityPolicy.FirstPlayerEntityId,
-            syndicateId: 1,
-            rank: 200,
-            proffer: long.MinValue,
-            positionExpirationUnixSeconds: 0,
-            joinDateUnixSeconds: 0);
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CharacterSyndicateMembership.Create(
+                CharacterIdentityPolicy.FirstPlayerEntityId,
+                syndicateId: 1,
+                rank: 200,
+                proffer,
+                positionExpirationUnixSeconds: 0,
+                joinDateUnixSeconds: 0));
 
-        Assert.Equal(long.MinValue, membership.Proffer);
-        Assert.True(membership.IsValid);
+        Assert.Equal("proffer", exception.ParamName);
+        Assert.Equal(proffer, exception.ActualValue);
     }
 
     [Theory]
@@ -119,7 +124,7 @@ public sealed class CharacterSyndicateMembershipTests
         Assert.Equal(0u, membership.CharacterId);
         Assert.Equal((ushort)0, membership.SyndicateId);
         Assert.Equal(0u, membership.Rank);
-        Assert.Equal(0L, membership.Proffer);
+        Assert.Equal(0u, membership.Proffer);
         Assert.Equal(0u, membership.PositionExpirationUnixSeconds);
         Assert.Equal(0u, membership.JoinDateUnixSeconds);
     }
