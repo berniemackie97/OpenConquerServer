@@ -39,6 +39,40 @@ public sealed class FileItemTypeCatalogRepositoryTests
     }
 
     [Fact]
+    public async Task LoadAsync_MaximumRepresentableStaticLifetime_ReturnsCatalog()
+    {
+        using TemporaryFile file = new(CreateCatalog(CreateEntry(
+            100001,
+            "First",
+            staticLifetimeMinutes: ItemTypeDefinition.MaximumStaticLifetimeMinutes)));
+
+        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
+
+        ItemTypeCatalog catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(catalog.TryGet(100001, out ItemTypeDefinition? definition));
+        Assert.Equal(ItemTypeDefinition.MaximumStaticLifetimeMinutes, definition.StaticLifetimeMinutes);
+        Assert.Equal(2_147_483_640, definition.StaticLifetimeDurationSeconds);
+    }
+
+    [Fact]
+    public async Task LoadAsync_StaticLifetimeAboveRepresentableMaximum_ThrowsInvalidDataException()
+    {
+        using TemporaryFile file = new(CreateCatalog(CreateEntry(
+            100001,
+            "First",
+            staticLifetimeMinutes: ItemTypeDefinition.MaximumStaticLifetimeMinutes + 1)));
+
+        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
+
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await repository.LoadAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("contains invalid state", exception.Message, StringComparison.Ordinal);
+        Assert.IsType<ArgumentOutOfRangeException>(exception.InnerException);
+    }
+
+    [Fact]
     public async Task LoadAsync_UnsupportedFormatVersion_ThrowsInvalidDataException()
     {
         using TemporaryFile file = new(
@@ -188,7 +222,7 @@ public sealed class FileItemTypeCatalogRepositoryTests
             """;
     }
 
-    private static string CreateEntry(uint itemTypeId, string name, ushort stackCapacity = 1)
+    private static string CreateEntry(uint itemTypeId, string name, ushort stackCapacity = 1, uint staticLifetimeMinutes = 10080)
     {
         return $$"""
                 {
@@ -200,7 +234,7 @@ public sealed class FileItemTypeCatalogRepositoryTests
                   "mana": 30,
                   "initialDurability": 100,
                   "maximumDurability": 200,
-                  "staticLifetimeMinutes": 10080,
+                  "staticLifetimeMinutes": {{staticLifetimeMinutes}},
                   "stackCapacity": {{stackCapacity}}
                 }
             """;

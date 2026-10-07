@@ -21,30 +21,20 @@ internal static class ItemTypeCatalogGenerator
         {
             if (record.StaticLifetimeMinutes < 0)
             {
-                throw new InvalidDataException(
-                    $"Item type {record.ItemTypeId} has negative static lifetime {record.StaticLifetimeMinutes}."
-                );
+                throw new InvalidDataException($"Item type {record.ItemTypeId} has negative static lifetime {record.StaticLifetimeMinutes}.");
+            }
+
+            if ((uint)record.StaticLifetimeMinutes > ItemTypeDefinition.MaximumStaticLifetimeMinutes)
+            {
+                throw new InvalidDataException($"Item type {record.ItemTypeId} has static lifetime {record.StaticLifetimeMinutes} minutes, exceeding the supported maximum of {ItemTypeDefinition.MaximumStaticLifetimeMinutes} minutes.");
             }
 
             if (record.StackCapacity < 0 || record.StackCapacity > ushort.MaxValue)
             {
-                throw new InvalidDataException(
-                    $"Item type {record.ItemTypeId} has stack capacity {record.StackCapacity}, outside the supported unsigned 16-bit range."
-                );
+                throw new InvalidDataException($"Item type {record.ItemTypeId} has stack capacity {record.StackCapacity}, outside the supported unsigned 16-bit range.");
             }
 
-            definitions[index++] = new ItemTypeDefinition(
-                record.ItemTypeId,
-                NormalizeName(record.Name),
-                record.RequiredLevel,
-                record.SpeedPercentOffset,
-                record.Life,
-                record.Mana,
-                record.InitialDurability,
-                record.MaximumDurability,
-                checked((uint)record.StaticLifetimeMinutes),
-                checked((ushort)record.StackCapacity)
-            );
+            definitions[index++] = new ItemTypeDefinition(record.ItemTypeId, NormalizeName(record.Name), record.RequiredLevel, record.SpeedPercentOffset, record.Life, record.Mana, record.InitialDurability, record.MaximumDurability, checked((uint)record.StaticLifetimeMinutes), checked((ushort)record.StackCapacity));
         }
 
         return definitions;

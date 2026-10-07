@@ -36,18 +36,7 @@ public static class CharacterItemTypeValidator
                     throw new InvalidDataException($"Pending-lifetime item {item.ItemId} uses item type {item.ItemTypeId} without a positive static lifetime.");
                 }
 
-                int expectedDurationSeconds;
-
-                try
-                {
-                    expectedDurationSeconds = checked((int)(itemType.StaticLifetimeMinutes * 60L));
-                }
-                catch (OverflowException exception)
-                {
-                    throw new InvalidDataException($"Item type {item.ItemTypeId} static lifetime cannot be represented in seconds.", exception);
-                }
-
-                if (item.Lifetime.PendingActivationDurationSeconds != expectedDurationSeconds)
+                if (item.Lifetime.PendingActivationDurationSeconds != itemType.StaticLifetimeDurationSeconds)
                 {
                     throw new InvalidDataException($"Pending-lifetime item {item.ItemId} duration does not match item type {item.ItemTypeId} static lifetime.");
                 }
