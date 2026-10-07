@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
+using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Items;
 using OpenConquer.Protocol.Game.Packets;
 
@@ -22,7 +22,7 @@ internal sealed class ExistingCharacterItemSetWireProjection
     public IReadOnlyList<GameLocalItemSnapshotPacket1008> ItemSnapshots => _itemSnapshots;
     public GameActiveEquipmentSnapshotPacket1009? ActiveEquipmentSnapshot { get; }
 
-    public static ExistingCharacterItemSetWireProjection Create(CharacterItemSet itemSet, ItemTypeDatTable itemTypes, DateTimeOffset utcNow)
+    public static ExistingCharacterItemSetWireProjection Create(CharacterItemSet itemSet, ItemTypeCatalog itemTypes, DateTimeOffset utcNow)
     {
         ArgumentNullException.ThrowIfNull(itemSet);
         ArgumentNullException.ThrowIfNull(itemTypes);
@@ -57,9 +57,14 @@ internal sealed class ExistingCharacterItemSetWireProjection
                 continue;
             }
 
-            if (!itemTypes.TryGetRecord(item.ItemTypeId, out ItemTypeDatRecord itemType))
+            if (!itemTypes.TryGet(item.ItemTypeId, out ItemTypeDefinition? itemType))
             {
                 throw new InvalidDataException($"Item {item.ItemId} references unknown item type {item.ItemTypeId}.");
+            }
+
+            if (item.StackQuantity > itemType.EffectiveStackCapacity)
+            {
+                throw new InvalidDataException($"Item {item.ItemId} stack quantity {item.StackQuantity} exceeds item type {item.ItemTypeId} capacity {itemType.EffectiveStackCapacity}.");
             }
 
             int wireLifetimeSeconds = CreateWireLifetimeSeconds(item, itemType, utcNow);
@@ -160,7 +165,7 @@ internal sealed class ExistingCharacterItemSetWireProjection
         return lifetime.State == ItemLifetimeState.ActiveExpiry && lifetime.ExpiresAtUtc is { } expiresAtUtc && expiresAtUtc <= utcNow;
     }
 
-    private static int CreateWireLifetimeSeconds(CharacterItem item, ItemTypeDatRecord itemType, DateTimeOffset utcNow)
+    private static int CreateWireLifetimeSeconds(CharacterItem item, ItemTypeDefinition itemType, DateTimeOffset utcNow)
     {
         switch (item.Lifetime.State)
         {
@@ -173,7 +178,7 @@ internal sealed class ExistingCharacterItemSetWireProjection
                 return 0;
 
             case ItemLifetimeState.PendingActivation:
-                if (itemType.StaticLifetimeMinutes <= 0)
+                if (itemType.StaticLifetimeMinutes == 0)
                 {
                     throw new InvalidDataException($"Pending-lifetime item {item.ItemId} uses item type {item.ItemTypeId} without a positive static lifetime.");
                 }
@@ -181,7 +186,7 @@ internal sealed class ExistingCharacterItemSetWireProjection
                 int staticLifetimeSeconds;
                 try
                 {
-                    staticLifetimeSeconds = checked(itemType.StaticLifetimeMinutes * 60);
+                    staticLifetimeSeconds = checked((int)(itemType.StaticLifetimeMinutes * 60L));
                 }
                 catch (OverflowException exception)
                 {

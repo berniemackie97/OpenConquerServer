@@ -12,8 +12,8 @@ server architecture.
 > AccountServer login transaction, account authentication, abuse protection, password persistence
 > and migration, account security mutations, durable GameServer login tickets, ticket
 > revocation/redemption, bounded expired-ticket maintenance, and the GameServer authenticated
-> connection handoff are implemented. Account registration, the runnable GameServer host, character
-> bootstrap, and gameplay are not yet implemented.
+> connection handoff and existing-character bootstrap are implemented. Account registration, the
+> runnable GameServer host, character creation, remaining login bootstrap stages, and gameplay are not yet implemented.
 
 ## Architecture
 
@@ -41,7 +41,6 @@ flowchart TD
     GameServer --> Infrastructure
     GameServer --> Protocol
     GameServer --> Transport
-    GameServer --> Assets
 
     Infrastructure --> Application
     Infrastructure --> Domain
@@ -59,7 +58,7 @@ flowchart TD
 | **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, and connection lifetime.                                                                                   |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
 | **OpenConquer.GameServer**     | Native GameServer connection handoff, encrypted compatibility framing, login-proof authentication, and future gameplay hosting boundary.                             |
-| **OpenConquer.Assets**         | Asset boundary only; loaders are not yet implemented.                                                                                                                |
+| **OpenConquer.Assets**         | Native client-derived static asset formats and parsers used by offline game-data tooling.                                                                            |
 
 ## Current AccountServer Login Flow
 
@@ -197,7 +196,7 @@ CI verifies:
 - locked dependency restore;
 - formatting;
 - Release build;
-- account EF Core model/migration consistency;
+- account and game EF Core model/migration consistency;
 - complete test suite;
 - pull-request dependency vulnerability review.
 

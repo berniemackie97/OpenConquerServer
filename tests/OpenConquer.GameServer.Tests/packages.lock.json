@@ -291,9 +291,6 @@
           "OpenConquer.Domain": "[1.0.0, )"
         }
       },
-      "openconquer.assets": {
-        "type": "Project"
-      },
       "openconquer.domain": {
         "type": "Project"
       },
@@ -301,7 +298,6 @@
         "type": "Project",
         "dependencies": {
           "OpenConquer.Application": "[1.0.0, )",
-          "OpenConquer.Assets": "[1.0.0, )",
           "OpenConquer.Infrastructure": "[1.0.0, )",
           "OpenConquer.Protocol": "[1.0.0, )",
           "OpenConquer.Transport": "[1.0.0, )"
