@@ -43,9 +43,10 @@ flowchart TD
 | `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.                                         |
 | `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.                                        |
 | `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                                               |
-| `OpenConquer.Assets`         | Static client-derived data and asset formats.                                                                                                  |
+| `OpenConquer.Assets`         | Native client-derived static asset formats and parsers used by offline ingestion/tooling.                                                       |
 | `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                                                   |
-| `OpenConquer.GameServer`     | GameServer connection handoff, existing-character login/world-entry orchestration, native compatibility behavior, and future gameplay hosting. |
+| `OpenConquer.GameServer`     | GameServer connection handoff, existing-character login/bootstrap orchestration, native compatibility behavior, and future gameplay hosting.   |
+| `OpenConquer.GameData.Tool`  | Offline deterministic conversion of verified native client data into canonical server release content.                                        |
 
 ## Dependency Rules
 
@@ -298,6 +299,38 @@ optional MsgTick 1009 subtype-46 main-equipment snapshot
 MsgAction 0x4B acknowledgement
     ↓
 AwaitingFriendListConnection
+    ↓
+client MsgAction 0x4C GetGoodFriend
+    ↓
+bounded social-relation persistence hydration
+    ↓
+MsgFriend 1019 snapshots
+    ↓
+MsgAction 0x4C acknowledgement
+    ↓
+AwaitingWeaponSkillSetConnection
+    ↓
+client MsgAction 0x4D GetWeaponSkillSet
+    ↓
+bounded weapon-skill persistence hydration
+    ↓
+MsgWeaponSkill 1025 snapshots
+    ↓
+MsgAction 0x4D acknowledgement
+    ↓
+AwaitingMagicSetConnection
+    ↓
+client MsgAction 0x4E GetMagicSet
+    ↓
+bounded magic persistence hydration
+    ↓
+MsgMagicEffectSimple 1103 snapshots
+    ↓
+optional MsgFlushExp 1104 magic-experience snapshots
+    ↓
+MsgAction 0x4E acknowledgement
+    ↓
+AwaitingSyndicateAttributesConnection
 ```
 
 Every transition takes exclusive ownership of the prior state and transfers the same authenticated
@@ -332,19 +365,29 @@ and wire projection. Pending-activation items remain pending and are not activat
 resolution. `ExistingCharacterItemSetWireProjection` owns only native wire placement, equipment
 snapshot construction, and wire-lifetime range conversion.
 
-The resulting `AwaitingFriendListConnection` carries the validated runtime item set into the next
-native bootstrap rung. Friend/social bootstrap processing is not implemented by this boundary.
+The existing-character bootstrap continues through bounded social-relation, weapon-skill, and magic
+hydration. Each client request is validated against the authenticated character identity before
+persistence is queried. Social relations are projected to native packet 1019 snapshots, weapon
+skills to packet 1025 snapshots, and magic state to packet 1103 plus packet 1104 when persisted
+magic experience is nonzero. Each rung completes with the matching MsgAction acknowledgement before
+connection ownership advances.
+
+The resulting `AwaitingSyndicateAttributesConnection` carries the validated item, social-relation,
+weapon-skill, and magic runtime state into the next native bootstrap rung. The protocol foundation
+for syndicate attributes exists, but syndicate persistence, hydration, and runtime bootstrap
+processing are not yet implemented.
 
 The same authenticated connection remains continuously owned through character-login resolution,
-bootstrap, map entry, map-state application, and item-set hydration. Cancellation or failure closes
-the owned connection instead of exposing partial state.
+bootstrap, map entry, map-state application, item resolution, social hydration, weapon-skill
+hydration, and magic hydration. Cancellation or failure closes the owned connection instead of
+exposing partial state.
 
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
 The runnable GameServer host, connection admission runtime, character creation transaction,
-friend/social bootstrap, gameplay routing, and authoritative world integration remain future
-boundaries.
+syndicate-attributes and later bootstrap rungs, gameplay routing, and authoritative world integration
+remain future boundaries.
 
 See:
 
@@ -400,8 +443,8 @@ Accounts and Game persistence are separate durable boundaries.
 
 Accounts persistence owns account identity, credentials, security state, and game-login tickets.
 
-Game persistence currently owns durable character-login state and persisted character items. The
-current Game schema provides:
+Game persistence currently owns durable character-login, item, social-relation, weapon-skill, and
+magic state. The current Game schema provides:
 
 - one persisted character per account;
 - unique character names;
@@ -417,14 +460,17 @@ current Game schema provides:
 - item durability and verified native compatibility fields;
 - item lock/unlock state;
 - stack quantity;
-- permanent, pending-activation, and active-expiry item lifetime state.
+- permanent, pending-activation, and active-expiry item lifetime state;
+- directed friend/enemy social relationships;
+- persisted weapon-skill level and experience;
+- persisted magic level and experience.
 
 The Game database does not establish a cross-database foreign key to Accounts. Successful single-use
 ticket redemption establishes the trusted authenticated account identity used for character
 resolution.
 
-Character-login and item-set reads use bounded, no-tracking `DbContext` operations and do not expose
-persistence records to the GameServer boundary.
+Character-login, item-set, social-relation, weapon-skill, and magic reads use bounded, no-tracking
+`DbContext` operations and do not expose persistence records to the GameServer boundary.
 
 Character item-set persistence hydration has an explicit operational maximum independent of gameplay
 inventory capacity. Persistence corruption and impossible aggregate state fail closed at the
@@ -607,7 +653,7 @@ Implemented:
 - single-owner GameServer secured outbound writes;
 - GameServer `1052` login-proof authentication;
 - authenticated GameServer connection handoff;
-- Game character and item persistence with schema-readiness verification;
+- Game character, item, social-relation, weapon-skill, and magic persistence with schema-readiness verification;
 - persisted character-login profile resolution;
 - authenticated account routing to character creation or existing-character login;
 - ownership-safe post-authentication character-login handoff;
@@ -619,9 +665,12 @@ Implemented:
 - native 1008 local item snapshots;
 - native 1009 subtype-46 active main-equipment snapshot;
 - canonical item-catalog-backed runtime item resolution;
-- ownership-safe handoff to the friend-list bootstrap stage;
+- native `0x4C` friend-list bootstrap with bounded social-relation hydration and packet 1019 projection;
+- native `0x4D` weapon-skill bootstrap with bounded hydration and packet 1025 projection;
+- native `0x4E` magic bootstrap with bounded hydration and packet 1103/1104 projection;
+- ownership-safe handoff to the syndicate-attributes bootstrap stage;
 - MySQL account persistence;
-- MySQL Game character/item persistence.
+- MySQL Game character, item, social-relation, weapon-skill, and magic persistence.
 
 Not yet implemented:
 
@@ -629,7 +678,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- remaining friend/social and later native login bootstrap rungs;
+- syndicate-attributes and later native login bootstrap rungs;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
 - gameplay networking and simulation.

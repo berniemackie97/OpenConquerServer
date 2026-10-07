@@ -11,9 +11,10 @@ server architecture.
 > **Status:** Early development. Transport, the runnable AccountServer host, the standard 5517
 > AccountServer login transaction, account authentication, abuse protection, password persistence
 > and migration, account security mutations, durable GameServer login tickets, ticket
-> revocation/redemption, bounded expired-ticket maintenance, and the GameServer authenticated
-> connection handoff and existing-character bootstrap are implemented. Account registration, the
-> runnable GameServer host, character creation, remaining login bootstrap stages, and gameplay are not yet implemented.
+> revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
+> handoff, and existing-character bootstrap through item, social-relation, weapon-skill, and magic
+> hydration are implemented. Account registration, the runnable GameServer host, character creation,
+> syndicate-attributes and later bootstrap stages, and authoritative gameplay are not yet implemented.
 
 ## Architecture
 
@@ -51,14 +52,15 @@ flowchart TD
 
 | Project                        | Responsibility                                                                                                                                                       |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OpenConquer.Domain**         | Account rules, state, and invariants.                                                                                                                                |
-| **OpenConquer.Application**    | Authentication, account security mutations, and GameServer login-ticket orchestration.                                                                               |
-| **OpenConquer.Infrastructure** | MySQL persistence, password hashing/migration, authentication protection, account mutations, and durable login-ticket persistence.                                   |
-| **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and packets.                                                                            |
-| **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, and connection lifetime.                                                                                   |
+| **OpenConquer.Domain**         | Account, character, item, social, skill, and syndicate rules, state, value objects, and invariants.                                                                  |
+| **OpenConquer.Application**    | Authentication, account security, GameServer login-ticket orchestration, character-login resolution, and gameplay persistence/hydration contracts.                  |
+| **OpenConquer.Infrastructure** | Accounts/Game MySQL persistence, password/security infrastructure, abuse protection, database readiness, and canonical static-content loading.                      |
+| **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and verified AccountServer/GameServer packet contracts.                                |
+| **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer**     | Native GameServer connection handoff, encrypted compatibility framing, login-proof authentication, and future gameplay hosting boundary.                             |
-| **OpenConquer.Assets**         | Native client-derived static asset formats and parsers used by offline game-data tooling.                                                                            |
+| **OpenConquer.GameServer**     | Native GameServer connection handoff and existing-character bootstrap runtime through the syndicate-attributes ownership boundary; authoritative gameplay is future. |
+| **OpenConquer.Assets**         | Native client-derived static asset formats and parsers used only by offline ingestion/tooling.                                                                      |
+| **OpenConquer.GameData.Tool**  | Offline deterministic conversion of verified native client data into canonical server release content.                                                             |
 
 ## Current AccountServer Login Flow
 
@@ -131,10 +133,19 @@ src/
 tests/
 ├── OpenConquer.AccountServer.Tests/
 ├── OpenConquer.Application.Tests/
+├── OpenConquer.Assets.Tests/
+├── OpenConquer.Domain.Tests/
+├── OpenConquer.GameData.Tool.Tests/
 ├── OpenConquer.GameServer.Tests/
 ├── OpenConquer.Infrastructure.Tests/
 ├── OpenConquer.Protocol.Tests/
 └── OpenConquer.Transport.Tests/
+
+tools/
+└── OpenConquer.GameData.Tool/
+
+content/
+└── items/
 
 docs/
 ├── architecture/

@@ -21,8 +21,10 @@ Internal server architecture belongs under [`docs/architecture`](../architecture
 | GameServer Diffie-Hellman handshake       | Implemented             |
 | GameServer CAST5 compatibility encryption | Implemented             |
 | GameServer packet signatures              | Implemented             |
-| GameServer login proof                    | Implemented             |
-| Gameplay packets                          | Not implemented         |
+| GameServer login proof                    | Implemented                             |
+| Existing-character bootstrap protocol     | Implemented through magic-set bootstrap |
+| Syndicate bootstrap protocol foundation   | Partially implemented                   |
+| General gameplay/world-session packets    | Not implemented                         |
 
 Detailed shared contracts:
 
@@ -369,6 +371,47 @@ connection.
 Secured outbound framing permits one active writer. Overlapping writes are rejected immediately
 rather than queued.
 
+## Existing-Character Bootstrap
+
+The implemented existing-character bootstrap protocol currently covers the native progression
+through the magic-set request. Runtime processing reaches `AwaitingSyndicateAttributesConnection`.
+
+Initial bootstrap emits:
+
+| Packet | Purpose                       |
+| -----: | ----------------------------- |
+| `1004` | Game-entry acceptance message |
+| `2078` | Login-history state           |
+| `2079` | Server-state information      |
+| `1006` | Local character information   |
+
+Map entry uses:
+
+| Packet / action | Purpose                              |
+| --------------- | ------------------------------------ |
+| `10010 / 0x4A`  | EnterMap request and acknowledgement |
+| `1110`          | Map information                      |
+| `1016`          | Weather state                        |
+| `10010 / 0x198` | Client-state-applied transition      |
+
+Character bootstrap then advances through:
+
+| Request                               | Response surface                                                                             | Runtime status          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------- |
+| `10010 / 0x4B` GetItemSet             | `1008` item snapshots, optional `1009` subtype-46 equipment snapshot, then acknowledgement   | Implemented             |
+| `10010 / 0x4C` GetGoodFriend          | `1019` social-relation snapshots, then acknowledgement                                       | Implemented             |
+| `10010 / 0x4D` GetWeaponSkillSet      | `1025` weapon-skill snapshots, then acknowledgement                                          | Implemented             |
+| `10010 / 0x4E` GetMagicSet            | `1103` magic snapshots, optional `1104` persisted-experience snapshots, then acknowledgement | Implemented             |
+| `10010 / 0x61` GetSyndicateAttributes | Syndicate protocol foundation including packet `1106`                                        | Runtime not implemented |
+
+Each implemented request validates the client-supplied character identity against the authenticated
+character before persisted state is queried or exposed.
+
+Packet `1106` and the `0x61` action are protocol/domain foundation only at the current head.
+Syndicate persistence, hydration, bootstrap projection, and runtime processing are not yet
+implemented. General gameplay routing and authoritative world-session protocol handling also remain
+future work.
+
 ## Text Encoding
 
 Implemented protocol text modes are:
@@ -462,9 +505,10 @@ Protocol APIs are added only when supported by concrete wire requirements.
 
 ## Not Yet Implemented
 
-The current protocol surface does not include:
+The current protocol/runtime surface does not include:
 
 - AccountServer registration variants;
 - protected/mobile credential decoding;
-- character/session bootstrap;
-- gameplay packets.
+- syndicate-attributes runtime bootstrap and later existing-character bootstrap stages;
+- character creation protocol flow;
+- general gameplay/world-session packet handling.
