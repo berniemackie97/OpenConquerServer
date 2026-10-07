@@ -48,6 +48,19 @@ public sealed class ItemTypeCatalogGeneratorTests
     }
 
     [Fact]
+    public void Generate_MaximumRepresentableStaticLifetime_IsAccepted()
+    {
+        int lifetime = checked((int)ItemTypeDefinition.MaximumStaticLifetimeMinutes);
+        ItemTypeDatTable source = ItemTypeDatTable.Parse(EncodeText(CreateLine(
+            CreateFields(100001, "TestItem", staticLifetimeMinutes: lifetime))));
+
+        ItemTypeDefinition definition = Assert.Single(ItemTypeCatalogGenerator.Generate(source));
+
+        Assert.Equal(ItemTypeDefinition.MaximumStaticLifetimeMinutes, definition.StaticLifetimeMinutes);
+        Assert.Equal(2_147_483_640, definition.StaticLifetimeDurationSeconds);
+    }
+
+    [Fact]
     public void Generate_NegativeStaticLifetime_ThrowsInvalidDataException()
     {
         string[] fields = CreateFields(100001, "TestItem");
@@ -58,6 +71,18 @@ public sealed class ItemTypeCatalogGeneratorTests
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() => ItemTypeCatalogGenerator.Generate(source));
 
         Assert.Contains("negative static lifetime", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_StaticLifetimeAboveRepresentableMaximum_ThrowsInvalidDataException()
+    {
+        int lifetime = checked((int)ItemTypeDefinition.MaximumStaticLifetimeMinutes + 1);
+        ItemTypeDatTable source = ItemTypeDatTable.Parse(EncodeText(CreateLine(
+            CreateFields(100001, "TestItem", staticLifetimeMinutes: lifetime))));
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => ItemTypeCatalogGenerator.Generate(source));
+
+        Assert.Contains($"exceeding the supported maximum of {ItemTypeDefinition.MaximumStaticLifetimeMinutes} minutes", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -78,17 +103,7 @@ public sealed class ItemTypeCatalogGeneratorTests
     [Fact]
     public async Task Write_GeneratedCatalog_RoundTripsThroughRuntimeLoader()
     {
-        ItemTypeDatTable source = ItemTypeDatTable.Parse(EncodeText(CreateLine(CreateFields(
-            itemTypeId: 100001,
-            name: "TestItem",
-            requiredLevel: 15,
-            speedPercentOffset: -5,
-            life: 120,
-            mana: 30,
-            initialDurability: 100,
-            maximumDurability: 200,
-            staticLifetimeMinutes: 10080,
-            stackCapacity: 20))));
+        ItemTypeDatTable source = ItemTypeDatTable.Parse(EncodeText(CreateLine(CreateFields(itemTypeId: 100001, name: "TestItem", requiredLevel: 15, speedPercentOffset: -5, life: 120, mana: 30, initialDurability: 100, maximumDurability: 200, staticLifetimeMinutes: 10080, stackCapacity: 20))));
 
         ItemTypeDefinition[] definitions = ItemTypeCatalogGenerator.Generate(source);
 
@@ -99,10 +114,7 @@ public sealed class ItemTypeCatalogGeneratorTests
 
         Assert.Equal(FileItemTypeCatalogRepository.FormatVersion, ItemTypeCatalogFileWriter.FormatVersion);
 
-        FileItemTypeCatalogRepository repository = new(new ItemTypeCatalogFileOptions(
-            catalogPath,
-            maximumFileLengthBytes: 1024 * 1024,
-            maximumDefinitions: 100));
+        FileItemTypeCatalogRepository repository = new(new ItemTypeCatalogFileOptions(catalogPath, maximumFileLengthBytes: 1024 * 1024, maximumDefinitions: 100));
 
         ItemTypeCatalog catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
 

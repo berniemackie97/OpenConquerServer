@@ -7,17 +7,7 @@ public sealed class ItemTypeDefinitionTests
     [Fact]
     public void Constructor_ValidDefinition_PreservesStaticState()
     {
-        ItemTypeDefinition definition = new(
-            itemTypeId: 100001,
-            name: "TestItem",
-            requiredLevel: byte.MaxValue,
-            speedPercentOffset: short.MinValue,
-            life: short.MaxValue,
-            mana: short.MinValue,
-            initialDurability: ushort.MaxValue,
-            maximumDurability: ushort.MaxValue,
-            staticLifetimeMinutes: uint.MaxValue,
-            stackCapacity: ushort.MaxValue);
+        ItemTypeDefinition definition = new(itemTypeId: 100001, name: "TestItem", requiredLevel: byte.MaxValue, speedPercentOffset: short.MinValue, life: short.MaxValue, mana: short.MinValue, initialDurability: ushort.MaxValue, maximumDurability: ushort.MaxValue, staticLifetimeMinutes: ItemTypeDefinition.MaximumStaticLifetimeMinutes, stackCapacity: ushort.MaxValue);
 
         Assert.Equal(100001u, definition.ItemTypeId);
         Assert.Equal("TestItem", definition.Name);
@@ -27,7 +17,8 @@ public sealed class ItemTypeDefinitionTests
         Assert.Equal(short.MinValue, definition.Mana);
         Assert.Equal(ushort.MaxValue, definition.InitialDurability);
         Assert.Equal(ushort.MaxValue, definition.MaximumDurability);
-        Assert.Equal(uint.MaxValue, definition.StaticLifetimeMinutes);
+        Assert.Equal(ItemTypeDefinition.MaximumStaticLifetimeMinutes, definition.StaticLifetimeMinutes);
+        Assert.Equal(2_147_483_640, definition.StaticLifetimeDurationSeconds);
         Assert.Equal(ushort.MaxValue, definition.StackCapacity);
         Assert.Equal(ushort.MaxValue, definition.EffectiveStackCapacity);
         Assert.True(definition.IsStackable);
@@ -45,7 +36,20 @@ public sealed class ItemTypeDefinitionTests
         Assert.Equal((ushort)0, definition.InitialDurability);
         Assert.Equal((ushort)0, definition.MaximumDurability);
         Assert.Equal(0u, definition.StaticLifetimeMinutes);
+        Assert.Equal(0, definition.StaticLifetimeDurationSeconds);
         Assert.Equal((ushort)0, definition.StackCapacity);
+    }
+
+    [Fact]
+    public void Constructor_StaticLifetimeAboveRepresentableMaximum_ThrowsArgumentOutOfRangeException()
+    {
+        uint lifetime = ItemTypeDefinition.MaximumStaticLifetimeMinutes + 1;
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new ItemTypeDefinition(itemTypeId: 1, name: "TestItem", requiredLevel: 0, speedPercentOffset: 0, life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: lifetime, stackCapacity: 0));
+
+        Assert.Equal("staticLifetimeMinutes", exception.ParamName);
+        Assert.Equal(lifetime, exception.ActualValue);
     }
 
     [Theory]
@@ -77,17 +81,7 @@ public sealed class ItemTypeDefinitionTests
     public void Constructor_ZeroItemTypeId_ThrowsArgumentOutOfRangeException()
     {
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new ItemTypeDefinition(
-                itemTypeId: 0,
-                name: "TestItem",
-                requiredLevel: 0,
-                speedPercentOffset: 0,
-                life: 0,
-                mana: 0,
-                initialDurability: 0,
-                maximumDurability: 0,
-                staticLifetimeMinutes: 0,
-                stackCapacity: 0));
+            new ItemTypeDefinition(itemTypeId: 0, name: "TestItem", requiredLevel: 0, speedPercentOffset: 0, life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: 0, stackCapacity: 0));
 
         Assert.Equal("itemTypeId", exception.ParamName);
     }
@@ -96,17 +90,7 @@ public sealed class ItemTypeDefinitionTests
     public void Constructor_NullName_ThrowsArgumentNullException()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
-            new ItemTypeDefinition(
-                itemTypeId: 1,
-                name: null!,
-                requiredLevel: 0,
-                speedPercentOffset: 0,
-                life: 0,
-                mana: 0,
-                initialDurability: 0,
-                maximumDurability: 0,
-                staticLifetimeMinutes: 0,
-                stackCapacity: 0));
+            new ItemTypeDefinition(itemTypeId: 1, name: null!, requiredLevel: 0, speedPercentOffset: 0, life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: 0, stackCapacity: 0));
 
         Assert.Equal("name", exception.ParamName);
     }
@@ -114,33 +98,13 @@ public sealed class ItemTypeDefinitionTests
     [Fact]
     public void Constructor_EmptyName_IsPreserved()
     {
-        ItemTypeDefinition definition = new(
-            itemTypeId: 1,
-            name: string.Empty,
-            requiredLevel: 0,
-            speedPercentOffset: 0,
-            life: 0,
-            mana: 0,
-            initialDurability: 0,
-            maximumDurability: 0,
-            staticLifetimeMinutes: 0,
-            stackCapacity: 0);
+        ItemTypeDefinition definition = new(itemTypeId: 1, name: string.Empty, requiredLevel: 0, speedPercentOffset: 0, life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: 0, stackCapacity: 0);
 
         Assert.Equal(string.Empty, definition.Name);
     }
 
     private static ItemTypeDefinition Create(ushort stackCapacity)
     {
-        return new ItemTypeDefinition(
-            itemTypeId: 100001,
-            name: "TestItem",
-            requiredLevel: 0,
-            speedPercentOffset: 0,
-            life: 0,
-            mana: 0,
-            initialDurability: 0,
-            maximumDurability: 0,
-            staticLifetimeMinutes: 0,
-            stackCapacity);
+        return new ItemTypeDefinition(itemTypeId: 100001, name: "TestItem", requiredLevel: 0, speedPercentOffset: 0, life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: 0, stackCapacity);
     }
 }

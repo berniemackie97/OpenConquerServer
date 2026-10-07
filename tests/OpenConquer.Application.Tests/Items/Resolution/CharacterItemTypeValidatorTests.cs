@@ -75,6 +75,15 @@ public sealed class CharacterItemTypeValidatorTests
     }
 
     [Fact]
+    public void Validate_PendingItemAtMaximumStaticLifetime_IsAccepted()
+    {
+        ItemTypeDefinition itemType = CreateItemType(staticLifetimeMinutes: ItemTypeDefinition.MaximumStaticLifetimeMinutes);
+        CharacterItem item = CreateItem(lifetime: ItemLifetime.CreatePendingActivation(itemType.StaticLifetimeDurationSeconds));
+
+        CharacterItemTypeValidator.Validate(item, itemType);
+    }
+
+    [Fact]
     public void Validate_PendingItemWithoutStaticLifetime_FailsClosed()
     {
         CharacterItem item = CreateItem(lifetime: ItemLifetime.CreatePendingActivation(300));
@@ -94,18 +103,6 @@ public sealed class CharacterItemTypeValidatorTests
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() => CharacterItemTypeValidator.Validate(item, itemType));
 
         Assert.Contains("does not match", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Validate_StaticLifetimeOverflow_FailsClosed()
-    {
-        CharacterItem item = CreateItem(lifetime: ItemLifetime.CreatePendingActivation(int.MaxValue));
-        ItemTypeDefinition itemType = CreateItemType(staticLifetimeMinutes: uint.MaxValue);
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => CharacterItemTypeValidator.Validate(item, itemType));
-
-        Assert.Contains("cannot be represented in seconds", exception.Message, StringComparison.Ordinal);
-        Assert.IsType<OverflowException>(exception.InnerException);
     }
 
     [Fact]
