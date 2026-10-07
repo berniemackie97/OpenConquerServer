@@ -283,9 +283,13 @@ AwaitingItemSetConnection
     ↓
 client MsgAction 0x4B GetItemSet
     ↓
-bounded CharacterItemSet hydration
+bounded CharacterItemSet persistence hydration
     ↓
-canonical item catalog validation + wire projection
+CharacterItemSetResolver
+    ↓
+canonical item catalog resolution
+    ↓
+wire projection
     ↓
 MsgItem 1008 snapshots
     ↓
@@ -316,13 +320,17 @@ optional 1009 subtype-46 active main-equipment snapshot
 0x4B acknowledgement
 ```
 
-Item projection uses the immutable canonical `ItemTypeCatalog`. Native `itemtype.dat` decoding is
-kept behind the offline asset/tooling boundary; the GameServer runtime does not parse or depend on
-native client asset files. Catalog validation fails closed for unknown item types, incompatible
-static-lifetime state, and persisted stack quantities above the item type effective stack capacity.
-Already-expired active-lifetime items are removed from the login runtime projection instead of being
-serialized with the native zero-lifetime sentinel. Pending-activation items remain pending and are
-not activated by login hydration.
+`CharacterItemSetRepository` performs bounded persistence reconstruction without owning static-content
+policy. `CharacterItemSetResolver` combines that persisted state with the immutable canonical
+`ItemTypeCatalog` and explicit UTC time before the item set reaches GameServer protocol projection.
+Resolution fails closed for unknown item types, incompatible static-lifetime state, and persisted
+stack quantities above the item type effective stack capacity. Native `itemtype.dat` decoding remains
+behind the offline asset/tooling boundary and is not a GameServer runtime dependency.
+
+Already-expired active-lifetime items are removed during item-set resolution before catalog lookup
+and wire projection. Pending-activation items remain pending and are not activated by login
+resolution. `ExistingCharacterItemSetWireProjection` owns only native wire placement, equipment
+snapshot construction, and wire-lifetime range conversion.
 
 The resulting `AwaitingFriendListConnection` carries the validated runtime item set into the next
 native bootstrap rung. Friend/social bootstrap processing is not implemented by this boundary.
@@ -415,12 +423,13 @@ The Game database does not establish a cross-database foreign key to Accounts. S
 ticket redemption establishes the trusted authenticated account identity used for character
 resolution.
 
-Character-login and item-set reads use bounded, no-tracking `DbContext` operations and produce
-validated application models rather than exposing persistence records to the GameServer boundary.
+Character-login and item-set reads use bounded, no-tracking `DbContext` operations and do not expose
+persistence records to the GameServer boundary.
 
-Character item-set hydration has an explicit operational maximum independent of gameplay inventory
-capacity. Persistence corruption and impossible aggregate state fail closed at the infrastructure
-boundary.
+Character item-set persistence hydration has an explicit operational maximum independent of gameplay
+inventory capacity. Persistence corruption and impossible aggregate state fail closed at the
+infrastructure boundary. Catalog-dependent item invariants are resolved separately in Application
+against the canonical `ItemTypeCatalog`; they are not duplicated as database constraints.
 
 Long-running `DbContext` instances do not own active world state.
 
@@ -516,7 +525,7 @@ GameServer character-login resolution failure
 GameServer existing-character world-entry failure
     -> owned authenticated connection is closed instead of exposing a partially advanced bootstrap state
 
-GameServer item-set hydration/projection failure
+GameServer item-set resolution/projection failure
     -> no item response is written and the owned authenticated connection is closed
 
 GameServer overlapping secured write
@@ -539,7 +548,7 @@ durable ticket issue / expiration
 maintenance cadence
     -> injected process time
 
-persisted item expiration / login wire projection
+persisted item expiration / login item resolution and wire projection
     -> explicit UTC wall-clock authority
 
 calendar or persisted wall-clock events
@@ -548,8 +557,8 @@ calendar or persisted wall-clock events
 
 Process time does not decide durable game-login ticket validity.
 
-Item-set login projection captures one UTC instant for the complete projection so all active item
-lifetimes are evaluated against one coherent wall-clock value.
+Item-set login processing captures one UTC instant and passes it through resolution and projection so
+all active item lifetimes are evaluated against one coherent wall-clock value.
 
 ## Scaling Model
 
@@ -605,11 +614,11 @@ Implemented:
 - existing-character bootstrap packet sequence;
 - native `0x4A` EnterMap processing;
 - native `0x198` client-state-applied transition;
-- bounded character item-set hydration;
+- bounded character item-set persistence hydration and catalog-aware runtime resolution;
 - native `0x4B` GetItemSet validation and response progression;
 - native 1008 local item snapshots;
 - native 1009 subtype-46 active main-equipment snapshot;
-- canonical item-catalog-backed lifetime and stack-capacity wire projection;
+- canonical item-catalog-backed runtime item resolution;
 - ownership-safe handoff to the friend-list bootstrap stage;
 - MySQL account persistence;
 - MySQL Game character/item persistence.
