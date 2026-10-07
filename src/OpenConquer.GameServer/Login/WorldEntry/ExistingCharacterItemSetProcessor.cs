@@ -1,16 +1,15 @@
 using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.Items.Resolution;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
-internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetRepository repository, ItemTypeCatalog itemTypes, TimeProvider timeProvider)
+internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetResolver resolver, TimeProvider timeProvider)
 {
-    private readonly ICharacterItemSetRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-    private readonly ItemTypeCatalog _itemTypes = itemTypes ?? throw new ArgumentNullException(nameof(itemTypes));
+    private readonly ICharacterItemSetResolver _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     /// <summary>
@@ -67,20 +66,25 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetReposit
                 throw new InvalidDataException("The native item-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
-            CharacterItemSet persistedItemSet = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);
+            DateTimeOffset utcNow = _timeProvider.GetUtcNow();
 
             operationToken.ThrowIfCancellationRequested();
 
-            if (persistedItemSet.CharacterId != profile.Identity.CharacterId)
+            CharacterItemSet resolvedItemSet = await _resolver.ResolveAsync(profile.Identity.CharacterId, utcNow, operationToken).ConfigureAwait(false);
+
+            operationToken.ThrowIfCancellationRequested();
+
+            if (resolvedItemSet.CharacterId != profile.Identity.CharacterId)
             {
-                throw new InvalidDataException($"The hydrated item set belongs to character {persistedItemSet.CharacterId}, not authenticated character {profile.Identity.CharacterId}.");
+                throw new InvalidDataException($"The resolved item set belongs to character {resolvedItemSet.CharacterId}, not authenticated character {profile.Identity.CharacterId}.");
             }
 
-            ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(persistedItemSet, _itemTypes, _timeProvider.GetUtcNow());
+            ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(resolvedItemSet, utcNow);
 
             operationToken.ThrowIfCancellationRequested();
 
-            GameActionPacket10010 acknowledgement = new(profile.Identity.CharacterId, parameterPair: 0, actionParameter: 0, itemSetRequest.Timestamp, GameAction10010.GetItemSetAction, direction: 0, positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
+            GameActionPacket10010 acknowledgement = new(profile.Identity.CharacterId, 0, 0, itemSetRequest.Timestamp,
+                GameAction10010.GetItemSetAction, 0, 0, 0, 0, 0, 0);
 
             foreach (GameLocalItemSnapshotPacket1008 itemSnapshot in projection.ItemSnapshots)
             {

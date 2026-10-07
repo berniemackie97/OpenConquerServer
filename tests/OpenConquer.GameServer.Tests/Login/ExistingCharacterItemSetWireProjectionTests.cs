@@ -1,5 +1,3 @@
-using System.Globalization;
-using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Items;
@@ -11,20 +9,17 @@ namespace OpenConquer.GameServer.Tests.Login;
 public sealed class ExistingCharacterItemSetWireProjectionTests
 {
     private const uint CharacterId = CharacterIdentityPolicy.FirstPlayerEntityId;
-    private const uint DefaultItemTypeId = 100_000;
-
+    private const uint ItemTypeId = 100_000;
     private static readonly DateTimeOffset s_utcNow = new(2026, 9, 28, 21, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public void Create_EmptyItemSet_ReturnsEmptyProjection()
     {
         CharacterItemSet itemSet = new(CharacterId, []);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
-        Assert.Equal(CharacterId, projection.RuntimeItemSet.CharacterId);
-        Assert.Empty(projection.RuntimeItemSet.Items);
+        Assert.Same(itemSet, projection.RuntimeItemSet);
         Assert.Empty(projection.ItemSnapshots);
         Assert.Null(projection.ActiveEquipmentSnapshot);
     }
@@ -32,14 +27,11 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     [Fact]
     public void Create_InventoryItem_UsesNativeInventoryPlacement()
     {
-        CharacterItem item = CreateItem(itemId: 1);
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1)]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
-        GameLocalItemSnapshotPacket1008 snapshot = Assert.Single(projection.ItemSnapshots);
-        Assert.Equal(GameLocalItemSnapshotPacket1008.InventoryPlacement, snapshot.ItemWirePlacement);
+        Assert.Equal(GameLocalItemSnapshotPacket1008.InventoryPlacement, Assert.Single(projection.ItemSnapshots).ItemWirePlacement);
     }
 
     [Theory]
@@ -70,35 +62,24 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     [InlineData(EquipmentSet.Alternate, EquipmentSlot.Garment, 29)]
     public void Create_EquipmentItem_MapsVerifiedNativePlacement(EquipmentSet set, EquipmentSlot slot, byte expectedPlacement)
     {
-        CharacterItem item = CreateItem(itemId: 1, placement: CreateEquipmentPlacement(set, slot));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1, placement: ItemPlacement.CreateEquipment(EquipmentPosition.Create(set, slot)))]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
-        GameLocalItemSnapshotPacket1008 snapshot = Assert.Single(projection.ItemSnapshots);
-        Assert.Equal(expectedPlacement, snapshot.ItemWirePlacement);
+        Assert.Equal(expectedPlacement, Assert.Single(projection.ItemSnapshots).ItemWirePlacement);
     }
 
     [Fact]
-    public void Create_ItemSnapshot_PreservesCompleteHydratedWireState()
+    public void Create_ItemSnapshot_PreservesCompleteRuntimeWireState()
     {
-        DateTimeOffset unlockAtUtc = s_utcNow.AddHours(4);
-        CharacterItem item = new(0x01020304, CharacterId, DefaultItemTypeId, ItemPlacement.CreateInventory(),
-            durability: 0x0506, maximumDurability: 0x0708, retailCompatibilityByteA: 0x09,
-            talismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline: 0x0A0B0C0D,
-            socket1Code: 0x0E, socket2Code: 0x0F, hiddenAttackEffect: 0x10111213, retailCompatibilityByteB: 0x14,
-            additionLevel: 0x15, damageReductionPercentOrSteedCompositionRed: 0x16, itemBindingCode: 0x17,
-            enchantmentLifeBonusOrSteedCompositionGreen: 0x18, monsterRestraintIdOrSteedCompositionBlue: 0x191A1B1C,
-            isSuspicious: true, equipmentLockStateMask: 0x8002, equipmentUnlockAtUtc: unlockAtUtc,
-            equipmentColor: 0x1D1E, compositionProgress: 0x1F202122, inscribedSyndicateId: 0x23242526,
-            stackQuantity: 0x2728, lifetime: ItemLifetime.CreatePermanent());
+        CharacterItem item = new(0x01020304, CharacterId, ItemTypeId, ItemPlacement.CreateInventory(),
+            0x0506, 0x0708, 0x09, 0x0A0B0C0D, 0x0E, 0x0F, 0x10111213, 0x14, 0x15, 0x16, 0x17, 0x18, 0x191A1B1C,
+            true, 0x8002, s_utcNow.AddHours(4), 0x1D1E, 0x1F202122, 0x23242526, 0x2728, ItemLifetime.CreatePermanent());
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: ushort.MaxValue);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
-
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
         GameLocalItemSnapshotPacket1008 snapshot = Assert.Single(projection.ItemSnapshots);
+
         Assert.Equal(item.ItemId, snapshot.ItemId);
         Assert.Equal(item.ItemTypeId, snapshot.ItemTypeId);
         Assert.Equal(item.Durability, snapshot.Durability);
@@ -129,25 +110,18 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItemSet itemSet = new(CharacterId,
         [
-            CreateItem(1, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Headwear)),
-            CreateItem(2, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Necklace)),
-            CreateItem(3, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Armor)),
-            CreateItem(4, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RightHand)),
-            CreateItem(5, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.LeftHand)),
-            CreateItem(6, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Ring)),
-            CreateItem(7, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Bottle)),
-            CreateItem(8, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Boots)),
-            CreateItem(9, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Garment)),
-            CreateItem(10, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RightWeaponAccessory)),
-            CreateItem(11, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.LeftWeaponAccessory)),
-            CreateItem(12, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.SteedArmor)),
-            CreateItem(13, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RidingCrop)),
+            CreateEquipmentItem(1, EquipmentSlot.Headwear), CreateEquipmentItem(2, EquipmentSlot.Necklace),
+            CreateEquipmentItem(3, EquipmentSlot.Armor), CreateEquipmentItem(4, EquipmentSlot.RightHand),
+            CreateEquipmentItem(5, EquipmentSlot.LeftHand), CreateEquipmentItem(6, EquipmentSlot.Ring),
+            CreateEquipmentItem(7, EquipmentSlot.Bottle), CreateEquipmentItem(8, EquipmentSlot.Boots),
+            CreateEquipmentItem(9, EquipmentSlot.Garment), CreateEquipmentItem(10, EquipmentSlot.RightWeaponAccessory),
+            CreateEquipmentItem(11, EquipmentSlot.LeftWeaponAccessory), CreateEquipmentItem(12, EquipmentSlot.SteedArmor),
+            CreateEquipmentItem(13, EquipmentSlot.RidingCrop),
         ]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
-
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
         GameActiveEquipmentSnapshotPacket1009 snapshot = Assert.IsType<GameActiveEquipmentSnapshotPacket1009>(projection.ActiveEquipmentSnapshot);
+
         Assert.Equal(GameActiveEquipmentSnapshotPacket1009.MainEquipmentMode, snapshot.EquipmentMode);
         Assert.Equal(1u, snapshot.HeadwearItemId);
         Assert.Equal(2u, snapshot.NecklaceItemId);
@@ -169,192 +143,58 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItemSet itemSet = new(CharacterId,
         [
-            CreateItem(1, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Fan)),
-            CreateItem(2, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Tower)),
-            CreateItem(3, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Steed)),
-            CreateItem(4, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RightWeaponAccessory)),
-            CreateItem(5, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.LeftWeaponAccessory)),
-            CreateItem(6, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.SteedArmor)),
-            CreateItem(7, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RidingCrop)),
-            CreateItem(8, placement: CreateEquipmentPlacement(EquipmentSet.Alternate, EquipmentSlot.Headwear)),
+            CreateEquipmentItem(1, EquipmentSlot.Fan), CreateEquipmentItem(2, EquipmentSlot.Tower),
+            CreateEquipmentItem(3, EquipmentSlot.Steed), CreateEquipmentItem(4, EquipmentSlot.RightWeaponAccessory),
+            CreateEquipmentItem(5, EquipmentSlot.LeftWeaponAccessory), CreateEquipmentItem(6, EquipmentSlot.SteedArmor),
+            CreateEquipmentItem(7, EquipmentSlot.RidingCrop),
+            CreateItem(8, placement: ItemPlacement.CreateEquipment(EquipmentPosition.Create(EquipmentSet.Alternate, EquipmentSlot.Headwear))),
         ]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
         Assert.Equal(8, projection.ItemSnapshots.Count);
         Assert.Null(projection.ActiveEquipmentSnapshot);
     }
 
     [Fact]
-    public void Create_ExpiredMainEquipment_IsRemovedFromRuntimePacketsAndActiveSnapshot()
+    public void Create_ItemSnapshots_PreserveDeterministicItemOrder()
     {
-        CharacterItem expiredHeadwear = CreateItem(1, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Headwear),
-            lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow));
-        CharacterItem activeArmor = CreateItem(2, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Armor));
-        CharacterItemSet itemSet = new(CharacterId, [expiredHeadwear, activeArmor]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(30), CreateItem(10), CreateItem(20)]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
-        CharacterItem runtimeItem = Assert.Single(projection.RuntimeItemSet.Items);
-        GameLocalItemSnapshotPacket1008 itemSnapshot = Assert.Single(projection.ItemSnapshots);
-        GameActiveEquipmentSnapshotPacket1009 activeEquipment = Assert.IsType<GameActiveEquipmentSnapshotPacket1009>(projection.ActiveEquipmentSnapshot);
-
-        Assert.Equal(2u, runtimeItem.ItemId);
-        Assert.Equal(2u, itemSnapshot.ItemId);
-        Assert.Equal(0u, activeEquipment.HeadwearItemId);
-        Assert.Equal(2u, activeEquipment.ArmorItemId);
+        Assert.Same(itemSet, projection.RuntimeItemSet);
+        Assert.Equal([10u, 20u, 30u], projection.ItemSnapshots.Select(static packet => packet.ItemId));
     }
 
     [Fact]
-    public void Create_ItemsRemainDeterministicallyOrderedAfterFiltering()
+    public void Create_PermanentItem_WritesZeroLifetime()
     {
-        CharacterItemSet itemSet = new(CharacterId,
-        [
-            CreateItem(30),
-            CreateItem(10),
-            CreateItem(20, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow)),
-        ]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1)]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
-
-        Assert.Equal([10u, 30u], projection.RuntimeItemSet.Items.Select(static item => item.ItemId));
-        Assert.Equal([10u, 30u], projection.ItemSnapshots.Select(static packet => packet.ItemId));
-    }
-
-    [Fact]
-    public void Create_PermanentItemWithoutStaticLifetime_WritesZeroLifetime()
-    {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePermanent());
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
-
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
         Assert.Equal(0, Assert.Single(projection.ItemSnapshots).WireLifetimeSeconds);
     }
 
     [Fact]
-    public void Create_PermanentItemWithPositiveStaticLifetime_FailsClosed()
-    {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePermanent());
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
-
-        Assert.Contains(item.ItemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
-        Assert.Contains("positive static lifetime", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Create_PendingActivationMatchingStaticLifetime_WritesZeroWithoutActivating()
+    public void Create_PendingActivationItem_WritesZeroWithoutActivating()
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(300));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
-        GameLocalItemSnapshotPacket1008 snapshot = Assert.Single(projection.ItemSnapshots);
-        CharacterItem runtimeItem = Assert.Single(projection.RuntimeItemSet.Items);
-
-        Assert.Equal(0, snapshot.WireLifetimeSeconds);
-        Assert.Equal(ItemLifetimeState.PendingActivation, runtimeItem.Lifetime.State);
-        Assert.Equal(300, runtimeItem.Lifetime.PendingActivationDurationSeconds);
-        Assert.Null(runtimeItem.Lifetime.ExpiresAtUtc);
-    }
-
-    [Fact]
-    public void Create_PendingActivationWithoutStaticLifetime_FailsClosed()
-    {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(300));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
-
-        Assert.Contains("without a positive static lifetime", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Create_PendingActivationDurationMismatch_FailsClosed()
-    {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(299));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
-
-        Assert.Contains("does not match", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Create_PendingActivationStaticLifetimeOverflow_FailsClosed()
-    {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(int.MaxValue));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: uint.MaxValue);
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
-
-        Assert.Contains("cannot be represented in seconds", exception.Message, StringComparison.Ordinal);
-        Assert.IsType<OverflowException>(exception.InnerException);
-    }
-
-    [Fact]
-    public void Create_ZeroRawStackCapacity_AllowsSingleItem()
-    {
-        CharacterItem item = CreateItem(1, stackQuantity: 1);
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: 0);
-
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
-
-        Assert.Equal((ushort)1, Assert.Single(projection.ItemSnapshots).StackQuantity);
-    }
-
-    [Fact]
-    public void Create_StackQuantityAtCapacity_IsAccepted()
-    {
-        CharacterItem item = CreateItem(1, stackQuantity: 20);
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: 20);
-
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
-
-        Assert.Equal((ushort)20, Assert.Single(projection.ItemSnapshots).StackQuantity);
-    }
-
-    [Fact]
-    public void Create_StackQuantityExceedsEffectiveCapacity_FailsClosed()
-    {
-        CharacterItem item = CreateItem(1, stackQuantity: 2);
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: 0);
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
-
-        Assert.Contains(item.ItemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
-        Assert.Contains("stack quantity 2", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("capacity 1", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, Assert.Single(projection.ItemSnapshots).WireLifetimeSeconds);
+        Assert.Equal(ItemLifetimeState.PendingActivation, Assert.Single(projection.RuntimeItemSet.Items).Lifetime.State);
     }
 
     [Fact]
     public void Create_ActiveExpiry_WritesExactRemainingWholeSeconds()
     {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddSeconds(90)));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddSeconds(90)))]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
         Assert.Equal(90, Assert.Single(projection.ItemSnapshots).WireLifetimeSeconds);
     }
@@ -362,11 +202,9 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     [Fact]
     public void Create_ActiveExpiryWithFractionalSecond_CeilingRoundsToPositiveSecond()
     {
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(1)));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(1)))]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow);
 
         Assert.Equal(1, Assert.Single(projection.ItemSnapshots).WireLifetimeSeconds);
     }
@@ -374,88 +212,45 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Create_ExpiredActiveItem_IsFilteredBeforeCatalogLookup(long expirationOffsetTicks)
+    public void Create_ExpiredActiveItem_FailsClosedBecauseResolutionShouldHaveRemovedIt(long offsetTicks)
     {
-        const uint unknownItemTypeId = 999_999;
-        CharacterItem item = CreateItem(1, itemTypeId: unknownItemTypeId,
-            lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(expirationOffsetTicks)));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(offsetTicks)))]);
 
-        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow));
 
-        Assert.Empty(projection.RuntimeItemSet.Items);
-        Assert.Empty(projection.ItemSnapshots);
-        Assert.Null(projection.ActiveEquipmentSnapshot);
+        Assert.Contains("instead of being filtered during item-set resolution", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Create_ActiveExpiryOutsideNativeSignedRange_FailsClosed()
     {
         long remainingTicks = ((long)int.MaxValue + 1L) * TimeSpan.TicksPerSecond;
-        CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(remainingTicks)));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        CharacterItemSet itemSet = new(CharacterId, [CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(remainingTicks)))]);
 
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow));
 
         Assert.Contains("signed 32-bit wire range", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Create_UnknownActiveItemType_FailsClosed()
-    {
-        const uint unknownItemTypeId = 999_999;
-        CharacterItem item = CreateItem(1, itemTypeId: unknownItemTypeId,
-            lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddMinutes(5)));
-        CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
-
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
-
-        Assert.Contains(unknownItemTypeId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
-        Assert.Contains("unknown item type", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Create_NonUtcProjectionTimestamp_IsRejected()
+    public void Create_NonUtcTimestamp_IsRejected()
     {
         CharacterItemSet itemSet = new(CharacterId, []);
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
-        DateTimeOffset nonUtc = s_utcNow.ToOffset(TimeSpan.FromHours(-4));
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, nonUtc));
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => ExistingCharacterItemSetWireProjection.Create(itemSet, s_utcNow.ToOffset(TimeSpan.FromHours(-4))));
 
         Assert.Equal("utcNow", exception.ParamName);
     }
 
-    private static CharacterItem CreateItem(uint itemId, uint itemTypeId = DefaultItemTypeId, ItemPlacement? placement = null,
-        ItemLifetime? lifetime = null, ushort stackQuantity = 1)
+    private static CharacterItem CreateEquipmentItem(uint itemId, EquipmentSlot slot)
     {
-        return new CharacterItem(itemId, CharacterId, itemTypeId, placement ?? ItemPlacement.CreateInventory(),
-            durability: 100, maximumDurability: 100, retailCompatibilityByteA: 0,
-            talismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline: 0,
-            socket1Code: 0, socket2Code: 0, hiddenAttackEffect: 0, retailCompatibilityByteB: 0,
-            additionLevel: 0, damageReductionPercentOrSteedCompositionRed: 0, itemBindingCode: 0,
-            enchantmentLifeBonusOrSteedCompositionGreen: 0, monsterRestraintIdOrSteedCompositionBlue: 0,
-            isSuspicious: false, equipmentLockStateMask: 0, equipmentUnlockAtUtc: null,
-            equipmentColor: 0, compositionProgress: 0, inscribedSyndicateId: 0,
-            stackQuantity, lifetime ?? ItemLifetime.CreatePermanent());
+        return CreateItem(itemId, placement: ItemPlacement.CreateEquipment(EquipmentPosition.Create(EquipmentSet.Main, slot)));
     }
 
-    private static ItemPlacement CreateEquipmentPlacement(EquipmentSet set, EquipmentSlot slot)
+    private static CharacterItem CreateItem(uint itemId, ItemPlacement? placement = null, ItemLifetime? lifetime = null)
     {
-        return ItemPlacement.CreateEquipment(EquipmentPosition.Create(set, slot));
-    }
-
-    private static ItemTypeCatalog CreateItemTypeCatalog(uint staticLifetimeMinutes = 0, ushort stackCapacity = 1)
-    {
-        ItemTypeDefinition definition = new(DefaultItemTypeId, $"Item{DefaultItemTypeId}", requiredLevel: 0, speedPercentOffset: 0,
-            life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes, stackCapacity);
-
-        return new ItemTypeCatalog([definition]);
+        return new CharacterItem(itemId, CharacterId, ItemTypeId, placement ?? ItemPlacement.CreateInventory(), 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            false, 0, null, 0, 0, 0, 1, lifetime ?? ItemLifetime.CreatePermanent());
     }
 }

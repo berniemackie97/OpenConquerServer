@@ -1,12 +1,11 @@
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
-using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.Items.Resolution;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Items;
 using OpenConquer.GameServer.Handshake;
@@ -30,13 +29,12 @@ public sealed class ExistingCharacterItemSetProcessorTests
     private const uint SessionUid = 0x1020_3040;
     private const uint AuthenticationKey = 0x5060_7080;
     private const ushort LocaleTag = 0x6E45;
-    private const ulong HardwareAddress = 0x0000_6655_4433_2211;
     private const int ResourceVersion = 5517;
     private const uint MapId = 1002;
     private const uint MapDataId = 1015;
     private const ulong MapFlags = 0x1122334455667788;
     private const uint ServerTick = 0xA1B2C3D4;
-    private const uint DefaultItemTypeId = 100_000;
+    private const uint ItemTypeId = 100_000;
     private const uint RequestTimestamp = 0x11223344;
 
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
@@ -45,12 +43,10 @@ public sealed class ExistingCharacterItemSetProcessorTests
     [Fact]
     public void Constructor_NullDependencies_AreRejected()
     {
-        FakeItemSetRepository repository = new(new CharacterItemSet(CharacterIdentityPolicy.FirstPlayerEntityId, []));
-        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
+        FakeItemSetResolver resolver = new(new CharacterItemSet(CharacterIdentityPolicy.FirstPlayerEntityId, []));
 
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(null!, itemTypes, TimeProvider.System));
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(repository, null!, TimeProvider.System));
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(repository, itemTypes, null!));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(null!, TimeProvider.System));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(resolver, null!));
     }
 
     [Fact]
@@ -60,10 +56,10 @@ public sealed class ExistingCharacterItemSetProcessorTests
         CharacterItemSet itemSet = new(fixture.Profile.Identity.CharacterId,
         [
             CreateItem(fixture.Profile.Identity.CharacterId, 20),
-            CreateItem(fixture.Profile.Identity.CharacterId, 10, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Headwear)),
+            CreateItem(fixture.Profile.Identity.CharacterId, 10, ItemPlacement.CreateEquipment(EquipmentPosition.Create(EquipmentSet.Main, EquipmentSlot.Headwear))),
         ]);
-        FakeItemSetRepository repository = new(itemSet);
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(itemSet);
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
 
         fixture.QueueItemSetRequest(timestamp: RequestTimestamp);
 
@@ -75,8 +71,9 @@ public sealed class ExistingCharacterItemSetProcessorTests
         Assert.Same(fixture.Profile, result.Profile);
         Assert.Same(fixture.Map, result.Map);
         Assert.Equal([10u, 20u], result.ItemSet.Items.Select(static item => item.ItemId));
-        Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.Profile.Identity.CharacterId, repository.LastCharacterId);
+        Assert.Equal(1, resolver.ResolveCount);
+        Assert.Equal(fixture.Profile.Identity.CharacterId, resolver.CharacterId);
+        Assert.Equal(s_utcNow, resolver.UtcNow);
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.Throws<InvalidOperationException>(() => fixture.AwaitingItemSet.TakeConnection());
         Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
@@ -88,37 +85,22 @@ public sealed class ExistingCharacterItemSetProcessorTests
         Assert.Equal(GameLocalItemSnapshotPacket1008.PacketIdentifier, ReadPacketId(packets[1]));
         Assert.Equal(GameActiveEquipmentSnapshotPacket1009.PacketIdentifier, ReadPacketId(packets[2]));
         Assert.Equal(GameAction10010.PacketIdentifier, ReadPacketId(packets[3]));
-
         Assert.Equal(10u, BinaryPrimitives.ReadUInt32LittleEndian(packets[0].AsSpan(4)));
         Assert.Equal((byte)1, packets[0][18]);
-
         Assert.Equal(20u, BinaryPrimitives.ReadUInt32LittleEndian(packets[1].AsSpan(4)));
         Assert.Equal(GameLocalItemSnapshotPacket1008.InventoryPlacement, packets[1][18]);
-
         Assert.Equal(GameActiveEquipmentSnapshotPacket1009.MainEquipmentMode, BinaryPrimitives.ReadUInt32LittleEndian(packets[2].AsSpan(8)));
         Assert.Equal(GameActiveEquipmentSnapshotPacket1009.ActiveEquipmentSnapshotSubtype, BinaryPrimitives.ReadUInt16LittleEndian(packets[2].AsSpan(12)));
         Assert.Equal(10u, BinaryPrimitives.ReadUInt32LittleEndian(packets[2].AsSpan(32)));
-
         Assert.Equal(GameAction10010.FixedPacketLength, packets[3].Length);
         Assert.Equal(fixture.Profile.Identity.CharacterId, BinaryPrimitives.ReadUInt32LittleEndian(packets[3].AsSpan(4)));
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packets[3].AsSpan(8)));
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packets[3].AsSpan(12)));
         Assert.Equal(RequestTimestamp, BinaryPrimitives.ReadUInt32LittleEndian(packets[3].AsSpan(16)));
         Assert.Equal(GameAction10010.GetItemSetAction, BinaryPrimitives.ReadUInt16LittleEndian(packets[3].AsSpan(20)));
-        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(packets[3].AsSpan(22)));
-        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(packets[3].AsSpan(24)));
-        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(packets[3].AsSpan(26)));
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packets[3].AsSpan(28)));
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packets[3].AsSpan(32)));
-        Assert.Equal((byte)0, packets[3][36]);
-        Assert.Equal((byte)0, packets[3][37]);
 
         await result.DisposeAsync();
-
         Assert.Equal(0, fixture.Transport.DisposeCount);
 
         await transferredConnection.DisposeAsync();
-
         Assert.Equal(1, fixture.Transport.DisposeCount);
         Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
@@ -127,130 +109,126 @@ public sealed class ExistingCharacterItemSetProcessorTests
     public async Task ProcessAsync_EmptyItemSet_WritesOnlyAcknowledgement()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
 
         fixture.QueueItemSetRequest(timestamp: RequestTimestamp);
 
         await using AwaitingFriendListConnection result = await processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken);
+        byte[] acknowledgement = Assert.Single(ReadPackets(fixture.DecryptItemSetResponse()));
 
-        byte[][] packets = ReadPackets(fixture.DecryptItemSetResponse());
-
-        byte[] acknowledgement = Assert.Single(packets);
         Assert.Equal(GameAction10010.PacketIdentifier, ReadPacketId(acknowledgement));
         Assert.Equal(fixture.Profile.Identity.CharacterId, BinaryPrimitives.ReadUInt32LittleEndian(acknowledgement.AsSpan(4)));
         Assert.Equal(RequestTimestamp, BinaryPrimitives.ReadUInt32LittleEndian(acknowledgement.AsSpan(16)));
         Assert.Equal(GameAction10010.GetItemSetAction, BinaryPrimitives.ReadUInt16LittleEndian(acknowledgement.AsSpan(20)));
         Assert.Empty(result.ItemSet.Items);
-        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
+        Assert.Equal(1, resolver.ResolveCount);
         Assert.Equal(0, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_PeerClosesBeforeItemSetRequest_DisposesConnectionWithoutRepositoryLoad()
+    public async Task ProcessAsync_PeerClosesBeforeRequest_DisposesConnectionWithoutResolution()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
 
         fixture.Transport.QueueEndOfStream();
 
         await Assert.ThrowsAsync<EndOfStreamException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
-        Assert.Throws<InvalidOperationException>(() => fixture.AwaitingItemSet.TakeConnection());
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacket_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_UnexpectedPacket_RejectsWithoutResolutionOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         byte[] packet = BuildActionPacket(GameAction10010.GetItemSetAction, fixture.Profile.Identity.CharacterId);
-
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 10011);
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_TruncatedAction_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_TruncatedAction_RejectsWithoutResolutionOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueuePacket(BuildActionPacket(GameAction10010.GetItemSetAction, fixture.Profile.Identity.CharacterId, length: 20));
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.TruncatedBody), exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_WrongAction_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_WrongAction_RejectsWithoutResolutionOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest(action: GameAction10010.GetItemSetAction + 1);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("Expected item-set action", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_WrongCharacter_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_WrongCharacter_RejectsWithoutResolutionOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest(entityId: fixture.Profile.Identity.CharacterId + 1);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("character ID", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_ItemSetRequestContainsTrailingStrings_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_TrailingStrings_RejectsWithoutResolutionOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         byte[] packet = BuildActionPacket(GameAction10010.GetItemSetAction, fixture.Profile.Identity.CharacterId, length: 41, stringCount: 1);
-
         packet[38] = 2;
         packet[39] = (byte)'A';
         packet[40] = (byte)'B';
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("without trailing strings", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
@@ -264,255 +242,212 @@ public sealed class ExistingCharacterItemSetProcessorTests
     [InlineData(28, 4)]
     [InlineData(32, 4)]
     [InlineData(36, 1)]
-    public async Task ProcessAsync_NonZeroReservedRequestField_RejectsWithoutRepositoryLoadOrWrite(int offset, int width)
+    public async Task ProcessAsync_NonZeroReservedRequestField_RejectsWithoutResolutionOrWrite(int offset, int width)
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         byte[] packet = BuildActionPacket(GameAction10010.GetItemSetAction, fixture.Profile.Identity.CharacterId, timestamp: RequestTimestamp);
-
         WriteNonZeroValue(packet, offset, width);
         fixture.QueuePacket(packet);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("non-identity, non-timestamp and non-action", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_RepositoryFailure_WritesNothingAndDisposesConnection()
+    public async Task ProcessAsync_ResolverFailure_WritesNothingAndDisposesConnection()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        IOException repositoryFailure = new("item repository failed");
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [])) { Failure = repositoryFailure };
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        IOException failure = new("item resolution failed");
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [])) { Failure = failure };
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest();
 
-        IOException exception = await Assert.ThrowsAsync<IOException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        IOException exception = await Assert.ThrowsAsync<IOException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Same(repositoryFailure, exception);
-        Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.Profile.Identity.CharacterId, repository.LastCharacterId);
+        Assert.Same(failure, exception);
+        Assert.Equal(1, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
         Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
-    public async Task ProcessAsync_RepositoryReturnsDifferentCharacter_FailsBeforeWriting()
+    public async Task ProcessAsync_ResolverReturnsDifferentCharacter_FailsBeforeWriting()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
         uint otherCharacterId = fixture.Profile.Identity.CharacterId + 1;
-        FakeItemSetRepository repository = new(new CharacterItemSet(otherCharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(otherCharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest();
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Contains(otherCharacterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
-        Assert.Contains(fixture.Profile.Identity.CharacterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
-        Assert.Equal(fixture.Profile.Identity.CharacterId, repository.LastCharacterId);
+        Assert.Contains(otherCharacterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(fixture.Profile.Identity.CharacterId.ToString(), exception.Message, StringComparison.Ordinal);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_ProjectionFailure_WritesNothingAndDisposesConnection()
+    public async Task ProcessAsync_PreCanceledOperation_DoesNotReadResolveOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        const uint unknownItemTypeId = 999_999;
-        CharacterItem item = CreateItem(fixture.Profile.Identity.CharacterId, 1, itemTypeId: unknownItemTypeId);
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [item]));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository, CreateItemTypeCatalog());
-
-        fixture.QueueItemSetRequest();
-
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
-
-        Assert.Contains("unknown item type", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-    }
-
-    [Fact]
-    public async Task ProcessAsync_PreCanceledOperation_DoesNotReadLoadOrWriteAndDisposesConnection()
-    {
-        await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        int receiveCallCountBeforeProcessing = fixture.Transport.ReceiveCallCount;
-
+        int receiveCallCount = fixture.Transport.ReceiveCallCount;
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, cancellation.Token).AsTask());
 
-        Assert.Equal(receiveCallCountBeforeProcessing, fixture.Transport.ReceiveCallCount);
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(receiveCallCount, fixture.Transport.ReceiveCallCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
-        Assert.Throws<InvalidOperationException>(() => fixture.AwaitingItemSet.TakeConnection());
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationWhileAwaitingRequest_DoesNotLoadOrWriteAndDisposesConnection()
+    public async Task ProcessAsync_CancellationWhileAwaitingRequest_DoesNotResolveOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         Task<AwaitingFriendListConnection> processing = processor.ProcessAsync(fixture.AwaitingItemSet, cancellation.Token).AsTask();
-
         await fixture.Transport.ReceiveStarted.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
 
-        Assert.Equal(0, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationDuringRepositoryLoad_WritesNothingAndDisposesConnection()
+    public async Task ProcessAsync_CancellationDuringResolution_WritesNothingAndDisposesConnection()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        BlockingItemSetRepository repository = new();
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        BlockingItemSetResolver resolver = new();
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-
         fixture.QueueItemSetRequest();
 
         Task<AwaitingFriendListConnection> processing = processor.ProcessAsync(fixture.AwaitingItemSet, cancellation.Token).AsTask();
-
-        await repository.Started.WaitAsync(TestContext.Current.CancellationToken);
+        await resolver.Started.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
 
-        Assert.Equal(fixture.Profile.Identity.CharacterId, repository.CharacterId);
+        Assert.Equal(fixture.Profile.Identity.CharacterId, resolver.CharacterId);
+        Assert.Equal(s_utcNow, resolver.UtcNow);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationImmediatelyAfterRepositoryReturn_WritesNothingAndDisposesConnection()
+    public async Task ProcessAsync_CancellationImmediatelyAfterResolution_WritesNothingAndDisposesConnection()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        CancelingItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []), cancellation);
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        CancelingItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []), cancellation);
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, cancellation.Token).AsTask());
 
-        Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.Profile.Identity.CharacterId, repository.CharacterId);
+        Assert.Equal(1, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationDuringProjectionTimestampCapture_StopsBeforeFirstWrite()
+    public async Task ProcessAsync_CancellationDuringTimestampCapture_StopsBeforeResolution()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        CharacterItem item = CreateItem(fixture.Profile.Identity.CharacterId, 1);
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [item]));
-        ExistingCharacterItemSetProcessor processor = new(repository, CreateItemTypeCatalog(), new CancelingTimeProvider(s_utcNow, cancellation));
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver, new CancelingTimeProvider(s_utcNow, cancellation));
         fixture.QueueItemSetRequest();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, cancellation.Token).AsTask());
 
-        Assert.Equal(1, repository.LoadCount);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationDuringFirstResponseWrite_WritesNoPartialPacketAndDisposesConnection()
+    public async Task ProcessAsync_CancellationDuringFirstResponseWrite_WritesNoPartialPacket()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        CharacterItem item = CreateItem(fixture.Profile.Identity.CharacterId, 1);
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [item]));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [CreateItem(fixture.Profile.Identity.CharacterId, 1)]));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-
         fixture.QueueItemSetRequest();
         fixture.Transport.BlockSends();
 
         Task<AwaitingFriendListConnection> processing = processor.ProcessAsync(fixture.AwaitingItemSet, cancellation.Token).AsTask();
-
         await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
-
         fixture.Transport.ReleaseSends();
 
         Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
-        Assert.Throws<InvalidOperationException>(() => fixture.AwaitingItemSet.TakeConnection());
     }
 
     [Fact]
-    public async Task ProcessAsync_SequentialReuseOfAwaitingStateIsRejectedWithoutSecondReadLoadOrWrite()
+    public async Task ProcessAsync_SequentialReuse_IsRejectedWithoutSecondReadResolutionOrWrite()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest();
 
         await using AwaitingFriendListConnection result = await processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken);
 
-        int sentLengthAfterFirstProcessing = fixture.Transport.SentBytes.Length;
-        int receiveCallCountAfterFirstProcessing = fixture.Transport.ReceiveCallCount;
+        int sentLength = fixture.Transport.SentBytes.Length;
+        int receiveCallCount = fixture.Transport.ReceiveCallCount;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Equal(sentLengthAfterFirstProcessing, fixture.Transport.SentBytes.Length);
-        Assert.Equal(receiveCallCountAfterFirstProcessing, fixture.Transport.ReceiveCallCount);
-        Assert.Equal(1, repository.LoadCount);
+        Assert.Equal(sentLength, fixture.Transport.SentBytes.Length);
+        Assert.Equal(receiveCallCount, fixture.Transport.ReceiveCallCount);
+        Assert.Equal(1, resolver.ResolveCount);
         Assert.Equal(0, fixture.Transport.DisposeCount);
-        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
     [Fact]
-    public async Task ProcessAsync_OverlappingReuseOfAwaitingStateAllowsExactlyOneOwner()
+    public async Task ProcessAsync_OverlappingReuse_AllowsExactlyOneOwner()
     {
         await using ItemSetFixture fixture = await CreateFixtureAsync();
-        CharacterItem item = CreateItem(fixture.Profile.Identity.CharacterId, 1);
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [item]));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [CreateItem(fixture.Profile.Identity.CharacterId, 1)]));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest();
         fixture.Transport.BlockSends();
 
         Task<AwaitingFriendListConnection> first = processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask();
-
         await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
 
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
-            Assert.Equal(1, repository.LoadCount);
+            Assert.Equal(1, resolver.ResolveCount);
             Assert.Equal(0, fixture.Transport.DisposeCount);
         }
         finally
@@ -522,49 +457,44 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
         await using AwaitingFriendListConnection result = await first;
 
-        Assert.Same(fixture.Profile, result.Profile);
-        Assert.Same(fixture.Map, result.Map);
         Assert.Single(result.ItemSet.Items);
-        Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
-        Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(0, fixture.Transport.DisposeCount);
+        Assert.Equal(1, resolver.ResolveCount);
         Assert.Equal(2, ReadPackets(fixture.DecryptItemSetResponse()).Length);
     }
 
     [Fact]
-    public async Task ProcessAsync_ProcessingFailureAndCleanupFailureAreAggregated()
+    public async Task ProcessAsync_ProcessingAndCleanupFailure_AreAggregated()
     {
         IOException cleanupFailure = new("transport dispose failed");
         await using ItemSetFixture fixture = await CreateFixtureAsync(cleanupFailure);
-        FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository);
-
+        FakeItemSetResolver resolver = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, []));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(resolver);
         fixture.QueueItemSetRequest(action: GameAction10010.GetItemSetAction + 1);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(
+            () => processor.ProcessAsync(fixture.AwaitingItemSet, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
         Assert.Same(cleanupFailure, exception.InnerExceptions[1]);
-        Assert.Equal(0, repository.LoadCount);
-        Assert.Equal(fixture.ItemSetBoundary, fixture.Transport.SentBytes.Length);
+        Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
-    private static ExistingCharacterItemSetProcessor CreateProcessor(ICharacterItemSetRepository repository, ItemTypeCatalog? itemTypes = null)
+    private static ExistingCharacterItemSetProcessor CreateProcessor(ICharacterItemSetResolver resolver, TimeProvider? timeProvider = null)
     {
-        return new ExistingCharacterItemSetProcessor(repository, itemTypes ?? CreateItemTypeCatalog(), new FixedTimeProvider(s_utcNow));
+        return new ExistingCharacterItemSetProcessor(resolver, timeProvider ?? new FixedTimeProvider(s_utcNow));
     }
 
     private static async Task<ItemSetFixture> CreateFixtureAsync(Exception? disposeFailure = null)
     {
-        FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000), disposeFailure: disposeFailure);
-        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid) };
-        FakeAttemptLimiter limiter = new();
-        GameConnectionHandoffProcessor handoffProcessor = CreateHandoffProcessor(store, limiter);
-        Task<GameConnectionAuthenticationResult> authenticationTask = handoffProcessor.ProcessAsync(transport, TestContext.Current.CancellationToken).AsTask();
+        FakeGameTransportConnection transport = new(new IPEndPoint(s_remoteAddress, 40000), disposeFailure: disposeFailure);
+        GameConnectionHandoffProcessor handoffProcessor = CreateHandoffProcessor(new FakeRedemptionStore
+        {
+            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid),
+        }, new FakeAttemptLimiter());
 
+        Task<GameConnectionAuthenticationResult> authenticationTask = handoffProcessor.ProcessAsync(transport, TestContext.Current.CancellationToken).AsTask();
         await transport.SendCompleted.WaitAsync(TestContext.Current.CancellationToken);
 
         GameClientTestPeer client = GameClientTestPeer.Create(transport.SentBytes);
@@ -575,11 +505,11 @@ public sealed class ExistingCharacterItemSetProcessorTests
             transport.QueueReceive([.. client.EncryptedKeyExchangeResponse, .. client.EncryptClientFrame(BuildLoginProof())]);
 
             GameConnectionAuthenticationResult authentication = await authenticationTask;
-            AuthenticatedGameConnection connection = authentication.TakeConnection();
             CharacterLoginProfile profile = CreateProfile();
-            CharacterLoginHandoffResult handoff = new(connection, CharacterLoginResolution.ExistingCharacter(profile));
+            CharacterLoginHandoffResult handoff = new(authentication.TakeConnection(), CharacterLoginResolution.ExistingCharacter(profile));
             CharacterPresenceDirectory presence = new();
-            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor(presence).ProcessAsync(handoff, TestContext.Current.CancellationToken);
+            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor(presence)
+                .ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
             _ = client.DecryptServerBytes(transport.SentBytes[authenticationBoundary..]);
 
@@ -588,13 +518,14 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
             transport.QueueReceive(client.EncryptClientFrame(BuildActionPacket(GameAction10010.EnterMapAction, profile.Identity.CharacterId, timestamp: 0x01020304)));
 
-            EnteredMapConnection enteredMap = await new ExistingCharacterEnterMapProcessor(new FixedGameTickSource(ServerTick)).ProcessAsync(awaitingEnterMap, map, TestContext.Current.CancellationToken);
+            EnteredMapConnection enteredMap = await new ExistingCharacterEnterMapProcessor(new FixedGameTickSource(ServerTick))
+                .ProcessAsync(awaitingEnterMap, map, TestContext.Current.CancellationToken);
 
             _ = client.DecryptServerBytes(transport.SentBytes[enterMapBoundary..]);
-
             transport.QueueReceive(client.EncryptClientFrame(BuildActionPacket(GameAction10010.ClientStateAppliedAction)));
 
-            AwaitingItemSetConnection awaitingItemSet = await new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(enteredMap, TestContext.Current.CancellationToken);
+            AwaitingItemSetConnection awaitingItemSet = await new ExistingCharacterMapStateAppliedProcessor()
+                .ProcessAsync(enteredMap, TestContext.Current.CancellationToken);
 
             return new ItemSetFixture(transport, client, presence, profile, map, awaitingItemSet, transport.SentBytes.Length);
         }
@@ -607,65 +538,45 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
     private static GameConnectionHandoffProcessor CreateHandoffProcessor(FakeRedemptionStore store, FakeAttemptLimiter limiter)
     {
-        GameLoginTicketRedeemer redeemer = new(store, limiter);
-        GameConnectionAuthenticator authenticator = new(redeemer);
-        return new GameConnectionHandoffProcessor(new GameTransportHandshakeProcessor(), authenticator);
+        return new GameConnectionHandoffProcessor(new GameTransportHandshakeProcessor(), new GameConnectionAuthenticator(new GameLoginTicketRedeemer(store, limiter)));
     }
 
     private static CharacterLoginProfile CreateProfile()
     {
-        CharacterLoginIdentity identity = new(CharacterIdentityPolicy.FirstPlayerEntityId, AccountId, Username);
-        CharacterAppearance appearance = new(composite: 2011003, hair: 339);
-        CharacterProgression progression = new(level: 120, experience: 123456789, profession: 60, firstProfession: 10, previousProfession: 20, rebirthCount: 2, preRebirthLevel: 130);
-        CharacterAttributes attributes = new(101, 102, 103, 104, 105);
-        CharacterVitals vitals = new(Life: 1234, Mana: 567);
-        CharacterEconomy economy = new(Silver: 1_234_567, ConquerPoints: 2_345, BoundConquerPoints: 678);
-        CharacterLocation location = new(MapId, x: 430, y: 378);
-        return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: -25, titleId: 321, enlightenmentPoints: 1234, location);
+        return new CharacterLoginProfile(
+            new CharacterLoginIdentity(CharacterIdentityPolicy.FirstPlayerEntityId, AccountId, Username),
+            new CharacterAppearance(2011003, 339),
+            new CharacterProgression(120, 123456789, 60, 10, 20, 2, 130),
+            new CharacterAttributes(101, 102, 103, 104, 105),
+            new CharacterVitals(1234, 567),
+            new CharacterEconomy(1_234_567, 2_345, 678),
+            -25, 321, 1234, new CharacterLocation(MapId, 430, 378));
     }
 
-    private static CharacterItem CreateItem(uint characterId, uint itemId, uint itemTypeId = DefaultItemTypeId, ItemPlacement? placement = null)
+    private static CharacterItem CreateItem(uint characterId, uint itemId, ItemPlacement? placement = null)
     {
-        return new CharacterItem(itemId, characterId, itemTypeId, placement ?? ItemPlacement.CreateInventory(),
-            durability: 100, maximumDurability: 100, retailCompatibilityByteA: 0,
-            talismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline: 0,
-            socket1Code: 0, socket2Code: 0, hiddenAttackEffect: 0, retailCompatibilityByteB: 0,
-            additionLevel: 0, damageReductionPercentOrSteedCompositionRed: 0, itemBindingCode: 0,
-            enchantmentLifeBonusOrSteedCompositionGreen: 0, monsterRestraintIdOrSteedCompositionBlue: 0,
-            isSuspicious: false, equipmentLockStateMask: 0, equipmentUnlockAtUtc: null,
-            equipmentColor: 0, compositionProgress: 0, inscribedSyndicateId: 0,
-            stackQuantity: 1, lifetime: ItemLifetime.CreatePermanent());
-    }
-
-    private static ItemPlacement CreateEquipmentPlacement(EquipmentSet set, EquipmentSlot slot)
-    {
-        return ItemPlacement.CreateEquipment(EquipmentPosition.Create(set, slot));
+        return new CharacterItem(itemId, characterId, ItemTypeId, placement ?? ItemPlacement.CreateInventory(), 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            false, 0, null, 0, 0, 0, 1, ItemLifetime.CreatePermanent());
     }
 
     private static byte[] BuildLoginProof()
     {
         byte[] packet = new byte[GameLoginProof1052.PacketLength];
-
         WireFrameHeader.Write(packet, GameLoginProof1052.PacketLength, GameLoginProof1052.PacketId);
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), SessionUid);
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(8), AuthenticationKey);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(12), GameLoginProof1052.ExpectedMode);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(14), LocaleTag);
-        packet[16] = 0x11;
-        packet[17] = 0x22;
-        packet[18] = 0x33;
-        packet[19] = 0x44;
-        packet[20] = 0x55;
-        packet[21] = 0x66;
+        packet[16] = 0x11; packet[17] = 0x22; packet[18] = 0x33; packet[19] = 0x44; packet[20] = 0x55; packet[21] = 0x66;
         BinaryPrimitives.WriteInt32LittleEndian(packet.AsSpan(24), ResourceVersion);
-
         return packet;
     }
 
-    private static byte[] BuildActionPacket(ushort action, uint entityId = 0, uint parameterPair = 0, uint actionParameter = 0, uint timestamp = 0, ushort direction = 0, ushort positionX = 0, ushort positionY = 0, uint data1 = 0, uint data2 = 0, byte flag = 0, int length = GameAction10010.FixedPacketLength, byte stringCount = 0)
+    private static byte[] BuildActionPacket(ushort action, uint entityId = 0, uint parameterPair = 0, uint actionParameter = 0,
+        uint timestamp = 0, ushort direction = 0, ushort positionX = 0, ushort positionY = 0, uint data1 = 0, uint data2 = 0,
+        byte flag = 0, int length = GameAction10010.FixedPacketLength, byte stringCount = 0)
     {
         byte[] packet = new byte[length];
-
         WireFrameHeader.Write(packet, checked((ushort)length), GameAction10010.PacketIdentifier);
 
         if (length < GameAction10010.FixedPacketLength)
@@ -685,7 +596,6 @@ public sealed class ExistingCharacterItemSetProcessorTests
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(32), data2);
         packet[36] = flag;
         packet[37] = stringCount;
-
         return packet;
     }
 
@@ -716,29 +626,15 @@ public sealed class ExistingCharacterItemSetProcessorTests
     {
         switch (width)
         {
-            case 1:
-                packet[offset] = 1;
-                break;
-            case 2:
-                BinaryPrimitives.WriteUInt16LittleEndian(packet[offset..], 1);
-                break;
-            case 4:
-                BinaryPrimitives.WriteUInt32LittleEndian(packet[offset..], 1);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(width));
+            case 1: packet[offset] = 1; break;
+            case 2: BinaryPrimitives.WriteUInt16LittleEndian(packet[offset..], 1); break;
+            case 4: BinaryPrimitives.WriteUInt32LittleEndian(packet[offset..], 1); break;
+            default: throw new ArgumentOutOfRangeException(nameof(width));
         }
     }
 
-    private static ItemTypeCatalog CreateItemTypeCatalog()
-    {
-        ItemTypeDefinition definition = new(DefaultItemTypeId, $"Item{DefaultItemTypeId}", requiredLevel: 0, speedPercentOffset: 0,
-            life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: 0, stackCapacity: 1);
-
-        return new ItemTypeCatalog([definition]);
-    }
-
-    private sealed class ItemSetFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, GameMapEntryDefinition map, AwaitingItemSetConnection awaitingItemSet, int itemSetBoundary) : IAsyncDisposable
+    private sealed class ItemSetFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence,
+        CharacterLoginProfile profile, GameMapEntryDefinition map, AwaitingItemSetConnection awaitingItemSet, int itemSetBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
@@ -749,15 +645,9 @@ public sealed class ExistingCharacterItemSetProcessorTests
         public int ItemSetBoundary { get; } = itemSetBoundary;
 
         public void QueueItemSetRequest(ushort action = GameAction10010.GetItemSetAction, uint? entityId = null, uint timestamp = 0)
-        {
-            QueuePacket(BuildActionPacket(action, entityId ?? Profile.Identity.CharacterId, timestamp: timestamp));
-        }
+            => QueuePacket(BuildActionPacket(action, entityId ?? Profile.Identity.CharacterId, timestamp: timestamp));
 
-        public void QueuePacket(byte[] packet)
-        {
-            Transport.QueueReceive(Client.EncryptClientFrame(packet));
-        }
-
+        public void QueuePacket(byte[] packet) => Transport.QueueReceive(Client.EncryptClientFrame(packet));
         public byte[] DecryptItemSetResponse() => Client.DecryptServerBytes(Transport.SentBytes[ItemSetBoundary..]);
 
         public async ValueTask DisposeAsync()
@@ -771,57 +661,54 @@ public sealed class ExistingCharacterItemSetProcessorTests
         }
     }
 
-    private sealed class FakeItemSetRepository(CharacterItemSet result) : ICharacterItemSetRepository
+    private sealed class FakeItemSetResolver(CharacterItemSet result) : ICharacterItemSetResolver
     {
-        private int _loadCount;
+        private int _resolveCount;
 
         public Exception? Failure { get; init; }
-        public int LoadCount => Volatile.Read(ref _loadCount);
-        public uint? LastCharacterId { get; private set; }
+        public int ResolveCount => Volatile.Read(ref _resolveCount);
+        public uint? CharacterId { get; private set; }
+        public DateTimeOffset? UtcNow { get; private set; }
 
-        public ValueTask<CharacterItemSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
+        public ValueTask<CharacterItemSet> ResolveAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Interlocked.Increment(ref _loadCount);
-            LastCharacterId = characterId;
+            Interlocked.Increment(ref _resolveCount);
+            CharacterId = characterId;
+            UtcNow = utcNow;
 
-            if (Failure is not null)
-            {
-                return ValueTask.FromException<CharacterItemSet>(Failure);
-            }
-
-            return ValueTask.FromResult(result);
+            return Failure is null ? ValueTask.FromResult(result) : ValueTask.FromException<CharacterItemSet>(Failure);
         }
     }
 
-    private sealed class BlockingItemSetRepository : ICharacterItemSetRepository
+    private sealed class BlockingItemSetResolver : ICharacterItemSetResolver
     {
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Started => _started.Task;
         public uint? CharacterId { get; private set; }
+        public DateTimeOffset? UtcNow { get; private set; }
 
-        public async ValueTask<CharacterItemSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
+        public async ValueTask<CharacterItemSet> ResolveAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {
             CharacterId = characterId;
+            UtcNow = utcNow;
             _started.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("Unreachable.");
         }
     }
 
-    private sealed class CancelingItemSetRepository(CharacterItemSet result, CancellationTokenSource cancellation) : ICharacterItemSetRepository
+    private sealed class CancelingItemSetResolver(CharacterItemSet result, CancellationTokenSource cancellation) : ICharacterItemSetResolver
     {
-        private int _loadCount;
+        private int _resolveCount;
 
-        public int LoadCount => Volatile.Read(ref _loadCount);
-        public uint? CharacterId { get; private set; }
+        public int ResolveCount => Volatile.Read(ref _resolveCount);
 
-        public ValueTask<CharacterItemSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
+        public ValueTask<CharacterItemSet> ResolveAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Interlocked.Increment(ref _loadCount);
-            CharacterId = characterId;
+            Interlocked.Increment(ref _resolveCount);
             cancellation.Cancel();
             return ValueTask.FromResult(result);
         }

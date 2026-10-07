@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Items;
 using OpenConquer.Protocol.Game.Packets;
@@ -22,120 +21,55 @@ internal sealed class ExistingCharacterItemSetWireProjection
     public IReadOnlyList<GameLocalItemSnapshotPacket1008> ItemSnapshots => _itemSnapshots;
     public GameActiveEquipmentSnapshotPacket1009? ActiveEquipmentSnapshot { get; }
 
-    public static ExistingCharacterItemSetWireProjection Create(CharacterItemSet itemSet, ItemTypeCatalog itemTypes, DateTimeOffset utcNow)
+    public static ExistingCharacterItemSetWireProjection Create(CharacterItemSet itemSet, DateTimeOffset utcNow)
     {
         ArgumentNullException.ThrowIfNull(itemSet);
-        ArgumentNullException.ThrowIfNull(itemTypes);
 
         if (utcNow.Offset != TimeSpan.Zero)
         {
             throw new ArgumentException("Item-set wire projection requires a UTC timestamp.", nameof(utcNow));
         }
 
-        List<CharacterItem> runtimeItems = new(itemSet.Count);
-        List<GameLocalItemSnapshotPacket1008> itemSnapshots = new(itemSet.Count);
-
-        uint headwearItemId = 0;
-        uint necklaceItemId = 0;
-        uint armorItemId = 0;
-        uint rightHandItemId = 0;
-        uint leftHandItemId = 0;
-        uint ringItemId = 0;
-        uint bottleItemId = 0;
-        uint bootsItemId = 0;
-        uint garmentItemId = 0;
-        uint rightWeaponAccessoryItemId = 0;
-        uint leftWeaponAccessoryItemId = 0;
-        uint steedArmorItemId = 0;
-        uint ridingCropItemId = 0;
+        GameLocalItemSnapshotPacket1008[] itemSnapshots = new GameLocalItemSnapshotPacket1008[itemSet.Count];
+        uint headwearItemId = 0, necklaceItemId = 0, armorItemId = 0, rightHandItemId = 0, leftHandItemId = 0, ringItemId = 0;
+        uint bottleItemId = 0, bootsItemId = 0, garmentItemId = 0, rightWeaponAccessoryItemId = 0, leftWeaponAccessoryItemId = 0;
+        uint steedArmorItemId = 0, ridingCropItemId = 0;
         bool requiresActiveEquipmentSnapshot = false;
 
-        foreach (CharacterItem item in itemSet.Items)
+        for (int index = 0; index < itemSet.Count; index++)
         {
-            if (IsExpired(item.Lifetime, utcNow))
+            CharacterItem item = itemSet.Items[index];
+            int wireLifetimeSeconds = CreateWireLifetimeSeconds(item, utcNow);
+            itemSnapshots[index] = CreateItemSnapshot(item, CreateWirePlacement(item), wireLifetimeSeconds);
+
+            if (item.Placement.EquipmentPosition is not { Set: EquipmentSet.Main } position)
             {
                 continue;
             }
 
-            if (!itemTypes.TryGet(item.ItemTypeId, out ItemTypeDefinition? itemType))
+            switch (position.Slot)
             {
-                throw new InvalidDataException($"Item {item.ItemId} references unknown item type {item.ItemTypeId}.");
-            }
-
-            if (item.StackQuantity > itemType.EffectiveStackCapacity)
-            {
-                throw new InvalidDataException($"Item {item.ItemId} stack quantity {item.StackQuantity} exceeds item type {item.ItemTypeId} capacity {itemType.EffectiveStackCapacity}.");
-            }
-
-            int wireLifetimeSeconds = CreateWireLifetimeSeconds(item, itemType, utcNow);
-            byte wirePlacement = CreateWirePlacement(item);
-
-            runtimeItems.Add(item);
-            itemSnapshots.Add(CreateItemSnapshot(item, wirePlacement, wireLifetimeSeconds));
-
-            if (item.Placement.EquipmentPosition is { Set: EquipmentSet.Main } position)
-            {
-                switch (position.Slot)
-                {
-                    case EquipmentSlot.Headwear:
-                        headwearItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.Necklace:
-                        necklaceItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.Armor:
-                        armorItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.RightHand:
-                        rightHandItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.LeftHand:
-                        leftHandItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.Ring:
-                        ringItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.Bottle:
-                        bottleItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.Boots:
-                        bootsItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.Garment:
-                        garmentItemId = item.ItemId;
-                        requiresActiveEquipmentSnapshot = true;
-                        break;
-                    case EquipmentSlot.RightWeaponAccessory:
-                        rightWeaponAccessoryItemId = item.ItemId;
-                        break;
-                    case EquipmentSlot.LeftWeaponAccessory:
-                        leftWeaponAccessoryItemId = item.ItemId;
-                        break;
-                    case EquipmentSlot.SteedArmor:
-                        steedArmorItemId = item.ItemId;
-                        break;
-                    case EquipmentSlot.RidingCrop:
-                        ridingCropItemId = item.ItemId;
-                        break;
-                    case EquipmentSlot.Fan:
-                    case EquipmentSlot.Tower:
-                    case EquipmentSlot.Steed:
-                        break;
-                    default:
-                        throw new InvalidDataException($"Item {item.ItemId} contains unsupported main equipment slot {(byte)position.Slot}.");
-                }
+                case EquipmentSlot.Headwear: headwearItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.Necklace: necklaceItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.Armor: armorItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.RightHand: rightHandItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.LeftHand: leftHandItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.Ring: ringItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.Bottle: bottleItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.Boots: bootsItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.Garment: garmentItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
+                case EquipmentSlot.RightWeaponAccessory: rightWeaponAccessoryItemId = item.ItemId; break;
+                case EquipmentSlot.LeftWeaponAccessory: leftWeaponAccessoryItemId = item.ItemId; break;
+                case EquipmentSlot.SteedArmor: steedArmorItemId = item.ItemId; break;
+                case EquipmentSlot.RidingCrop: ridingCropItemId = item.ItemId; break;
+                case EquipmentSlot.Fan:
+                case EquipmentSlot.Tower:
+                case EquipmentSlot.Steed:
+                    break;
+                default:
+                    throw new InvalidDataException($"Item {item.ItemId} contains unsupported main equipment slot {(byte)position.Slot}.");
             }
         }
-
-        CharacterItemSet runtimeItemSet = new(itemSet.CharacterId, runtimeItems);
 
         GameActiveEquipmentSnapshotPacket1009? activeEquipmentSnapshot = requiresActiveEquipmentSnapshot
             ? new GameActiveEquipmentSnapshotPacket1009
@@ -157,47 +91,15 @@ internal sealed class ExistingCharacterItemSetWireProjection
             }
             : null;
 
-        return new ExistingCharacterItemSetWireProjection(runtimeItemSet, itemSnapshots.ToArray(), activeEquipmentSnapshot);
+        return new ExistingCharacterItemSetWireProjection(itemSet, itemSnapshots, activeEquipmentSnapshot);
     }
 
-    private static bool IsExpired(ItemLifetime lifetime, DateTimeOffset utcNow)
-    {
-        return lifetime.State == ItemLifetimeState.ActiveExpiry && lifetime.ExpiresAtUtc is { } expiresAtUtc && expiresAtUtc <= utcNow;
-    }
-
-    private static int CreateWireLifetimeSeconds(CharacterItem item, ItemTypeDefinition itemType, DateTimeOffset utcNow)
+    private static int CreateWireLifetimeSeconds(CharacterItem item, DateTimeOffset utcNow)
     {
         switch (item.Lifetime.State)
         {
             case ItemLifetimeState.Permanent:
-                if (itemType.StaticLifetimeMinutes > 0)
-                {
-                    throw new InvalidDataException($"Permanent item {item.ItemId} uses item type {item.ItemTypeId} with positive static lifetime {itemType.StaticLifetimeMinutes} minutes.");
-                }
-
-                return 0;
-
             case ItemLifetimeState.PendingActivation:
-                if (itemType.StaticLifetimeMinutes == 0)
-                {
-                    throw new InvalidDataException($"Pending-lifetime item {item.ItemId} uses item type {item.ItemTypeId} without a positive static lifetime.");
-                }
-
-                int staticLifetimeSeconds;
-                try
-                {
-                    staticLifetimeSeconds = checked((int)(itemType.StaticLifetimeMinutes * 60L));
-                }
-                catch (OverflowException exception)
-                {
-                    throw new InvalidDataException($"Item type {item.ItemTypeId} static lifetime cannot be represented in seconds.", exception);
-                }
-
-                if (item.Lifetime.PendingActivationDurationSeconds != staticLifetimeSeconds)
-                {
-                    throw new InvalidDataException($"Pending-lifetime item {item.ItemId} duration does not match item type {item.ItemTypeId} static lifetime.");
-                }
-
                 return 0;
 
             case ItemLifetimeState.ActiveExpiry:
@@ -207,12 +109,14 @@ internal sealed class ExistingCharacterItemSetWireProjection
                 }
 
                 long remainingTicks = (expiresAtUtc - utcNow).Ticks;
+
                 if (remainingTicks <= 0)
                 {
-                    throw new InvalidDataException($"Expired item {item.ItemId} reached wire projection instead of being filtered.");
+                    throw new InvalidDataException($"Expired item {item.ItemId} reached wire projection instead of being filtered during item-set resolution.");
                 }
 
                 long remainingSeconds = (remainingTicks + TimeSpan.TicksPerSecond - 1) / TimeSpan.TicksPerSecond;
+
                 if (remainingSeconds > int.MaxValue)
                 {
                     throw new InvalidDataException($"Item {item.ItemId} remaining lifetime exceeds the native signed 32-bit wire range.");
