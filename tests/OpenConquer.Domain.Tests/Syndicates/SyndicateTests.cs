@@ -39,7 +39,7 @@ public sealed class SyndicateTests
     {
         Syndicate syndicate = new(
             syndicateId: 1,
-            name: string.Empty,
+            name: "X",
             leaderCharacterId: CharacterIdentityPolicy.FirstPlayerEntityId,
             leaderName: "Bernie",
             silverFund: 0,
@@ -49,7 +49,7 @@ public sealed class SyndicateTests
             requiredProfession: 0,
             requiredMetempsychosis: 0);
 
-        Assert.Equal(string.Empty, syndicate.Name);
+        Assert.Equal("X", syndicate.Name);
         Assert.Equal(0ul, syndicate.SilverFund);
         Assert.Equal(0u, syndicate.EmoneyFund);
         Assert.Equal(0u, syndicate.Population);
@@ -106,6 +106,28 @@ public sealed class SyndicateTests
             new Syndicate(
                 syndicateId: 1,
                 name: null!,
+                leaderCharacterId: CharacterIdentityPolicy.FirstPlayerEntityId,
+                leaderName: "Bernie",
+                silverFund: 0,
+                emoneyFund: 0,
+                population: 1,
+                requiredLevel: 1,
+                requiredProfession: 0,
+                requiredMetempsychosis: 0));
+
+        Assert.Equal("name", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("12345678901234567")]
+    [InlineData("Open漢Conquer")]
+    public void Constructor_InvalidName_ThrowsArgumentException(string name)
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new Syndicate(
+                syndicateId: 1,
+                name,
                 leaderCharacterId: CharacterIdentityPolicy.FirstPlayerEntityId,
                 leaderName: "Bernie",
                 silverFund: 0,
