@@ -43,7 +43,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
     private static readonly DateTimeOffset s_utcNow = new(2026, 9, 28, 21, 0, 0, TimeSpan.Zero);
-    private static readonly Encoding s_retailEncoding = CreateRetailEncoding();
+    private static readonly Encoding s_textEncoding = CreateTextEncoding();
 
     [Fact]
     public void Constructor_NullDependencies_AreRejected()
@@ -746,7 +746,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
     private static string[] CreateFields(uint itemTypeId, int staticLifetimeMinutes)
     {
-        string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.NativeParsedFieldCount).ToArray();
+        string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.RecordFieldCount).ToArray();
         fields[ItemTypeDatRecord.ItemTypeIdFieldIndex] = itemTypeId.ToString(CultureInfo.InvariantCulture);
         fields[ItemTypeDatRecord.NameFieldIndex] = $"Item{itemTypeId}";
         fields[ItemTypeDatRecord.RequiredLevelFieldIndex] = "0";
@@ -764,7 +764,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
     private static byte[] EncodeText(string decodedText)
     {
-        byte[] encodedPayload = s_retailEncoding.GetBytes(decodedText);
+        byte[] encodedPayload = s_textEncoding.GetBytes(decodedText);
         Span<byte> seedTable = stackalloc byte[SeedTableLength];
 
         BuildSeedTable(seedTable, ItemTypeDatTable.DecodedTextSeed);
@@ -792,10 +792,10 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
     private static byte RotateLeft(byte value, int bitCount) => (byte)((value << bitCount) | (value >> (8 - bitCount)));
 
-    private static Encoding CreateRetailEncoding()
+    private static Encoding CreateTextEncoding()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        return Encoding.GetEncoding(ItemTypeDatTable.RetailCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        return Encoding.GetEncoding(ItemTypeDatTable.TextCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
     }
 
     private sealed class ItemSetFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, GameMapEntryDefinition map, AwaitingItemSetConnection awaitingItemSet, int itemSetBoundary) : IAsyncDisposable

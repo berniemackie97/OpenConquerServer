@@ -14,63 +14,38 @@ internal static class ItemTypeCatalogFileWriter
 
         if (definitions.Count == 0)
         {
-            throw new ArgumentException(
-                "An item-type catalog cannot be empty.",
-                nameof(definitions)
-            );
+            throw new ArgumentException("An item-type catalog cannot be empty.", nameof(definitions));
         }
 
-        ItemTypeDefinition[] ordered = definitions
-            .OrderBy(definition => definition.ItemTypeId)
-            .ToArray();
+        ItemTypeDefinition[] ordered = definitions.ToArray();
         HashSet<uint> observedItemTypeIds = [];
 
-        foreach (ItemTypeDefinition definition in ordered)
+        foreach (ItemTypeDefinition? definition in ordered)
         {
             if (definition is null)
             {
-                throw new ArgumentException(
-                    "An item-type catalog cannot contain a null definition.",
-                    nameof(definitions)
-                );
+                throw new ArgumentException("An item-type catalog cannot contain a null definition.", nameof(definitions));
             }
 
             if (!observedItemTypeIds.Add(definition.ItemTypeId))
             {
-                throw new ArgumentException(
-                    $"Item-type catalog contains duplicate item type {definition.ItemTypeId}.",
-                    nameof(definitions)
-                );
+                throw new ArgumentException($"Item-type catalog contains duplicate item type {definition.ItemTypeId}.", nameof(definitions));
             }
         }
 
+        Array.Sort(ordered, static (left, right) => left.ItemTypeId.CompareTo(right.ItemTypeId));
+
         string fullPath = Path.GetFullPath(destinationPath);
-        string directoryPath =
-            Path.GetDirectoryName(fullPath)
-            ?? throw new ArgumentException(
-                "Item-type catalog destination must have a parent directory.",
-                nameof(destinationPath)
-            );
+        string directoryPath = Path.GetDirectoryName(fullPath)
+            ?? throw new ArgumentException("Item-type catalog destination must have a parent directory.", nameof(destinationPath));
 
         Directory.CreateDirectory(directoryPath);
 
-        string temporaryPath = Path.Combine(
-            directoryPath,
-            $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp"
-        );
+        string temporaryPath = Path.Combine(directoryPath, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
 
         try
         {
-            using (
-                FileStream stream = new(
-                    temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 81920,
-                    FileOptions.SequentialScan
-                )
-            )
+            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 81920, FileOptions.SequentialScan))
             using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Indented = true }))
             {
                 writer.WriteStartObject();

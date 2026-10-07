@@ -44,6 +44,10 @@ public sealed class ItemTypeDatTableTests
         Assert.Equal("Weapon", record.TypeDescription);
         Assert.Equal("测试物品", record.ItemDescription);
         Assert.Equal(ItemTypeDatRecord.RecordFieldCount, record.FieldCount);
+        Assert.Equal("10080", record.FieldTexts[ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex]);
+        Assert.Equal("20", record.FieldTexts[ItemTypeDatRecord.StackCapacityFieldIndex]);
+        Assert.Equal("Weapon", record.FieldTexts[ItemTypeDatRecord.TypeDescriptionFieldIndex]);
+        Assert.Equal("测试物品", record.FieldTexts[ItemTypeDatRecord.ItemDescriptionFieldIndex]);
     }
 
     [Fact]
@@ -115,6 +119,8 @@ public sealed class ItemTypeDatTableTests
         string primary = CreateLine(CreateFields(
             100000,
             "OriginalBlade",
+            typeDescription: "Weapon",
+            itemDescription: "Primary",
             staticLifetimeMinutes: 0,
             stackCapacity: 1));
 
@@ -122,11 +128,15 @@ public sealed class ItemTypeDatTableTests
             CreateLine(CreateFields(
                 100000,
                 "OverrideBlade",
+                typeDescription: "Weapon2",
+                itemDescription: "Supplemental",
                 staticLifetimeMinutes: 43200,
                 stackCapacity: 10)),
             CreateLine(CreateFields(
                 100002,
                 "SecondItem",
+                typeDescription: "Other",
+                itemDescription: "Second",
                 staticLifetimeMinutes: 10080,
                 stackCapacity: 20)));
 
@@ -138,11 +148,15 @@ public sealed class ItemTypeDatTableTests
         Assert.Equal("OverrideBlade", overridden.Name);
         Assert.Equal(43200, overridden.StaticLifetimeMinutes);
         Assert.Equal(10, overridden.StackCapacity);
+        Assert.Equal("Weapon2", overridden.TypeDescription);
+        Assert.Equal("Supplemental", overridden.ItemDescription);
 
         Assert.True(table.TryGetRecord(100002, out ItemTypeDatRecord added));
         Assert.Equal("SecondItem", added.Name);
         Assert.Equal(10080, added.StaticLifetimeMinutes);
         Assert.Equal(20, added.StackCapacity);
+        Assert.Equal("Other", added.TypeDescription);
+        Assert.Equal("Second", added.ItemDescription);
     }
 
     [Fact]
@@ -264,8 +278,10 @@ public sealed class ItemTypeDatTableTests
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ItemTypeDatTable.Parse(EncodeText(CreateLine(fields, terminalDelimiter: false))));
 
-        Assert.Contains($"has {ItemTypeDatRecord.RecordFieldCount - 1} split fields; expected {ItemTypeDatRecord.RecordFieldCount} fields",
-            exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            $"has {ItemTypeDatRecord.RecordFieldCount - 1} split fields; expected {ItemTypeDatRecord.RecordFieldCount} fields",
+            exception.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -276,8 +292,24 @@ public sealed class ItemTypeDatTableTests
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ItemTypeDatTable.Parse(EncodeText(CreateLine(fields, terminalDelimiter: false))));
 
-        Assert.Contains($"has {ItemTypeDatRecord.RecordFieldCount + 1} split fields; expected {ItemTypeDatRecord.RecordFieldCount} fields",
-            exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            $"has {ItemTypeDatRecord.RecordFieldCount + 1} split fields; expected {ItemTypeDatRecord.RecordFieldCount} fields",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_MultipleTerminalDelimiterFields_ThrowsInvalidDataException()
+    {
+        string decodedText = CreateLine(CreateFields(100001, "TestItem")) + "@@";
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            ItemTypeDatTable.Parse(EncodeText(decodedText)));
+
+        Assert.Contains(
+            $"has {ItemTypeDatRecord.RecordFieldCount + 2} split fields; expected {ItemTypeDatRecord.RecordFieldCount} fields",
+            exception.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]
