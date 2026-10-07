@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenConquer.Assets\OpenConquer.Assets.csproj" />
+    <ProjectReference Include="..\..\src\OpenConquer.Domain\OpenConquer.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OpenConquer.GameData.Tool.Tests" />
+  </ItemGroup>
+</Project>
