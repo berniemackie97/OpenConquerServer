@@ -8,6 +8,5 @@
     <ProjectReference Include="..\OpenConquer.Infrastructure\OpenConquer.Infrastructure.csproj" />
     <ProjectReference Include="..\OpenConquer.Protocol\OpenConquer.Protocol.csproj" />
     <ProjectReference Include="..\OpenConquer.Transport\OpenConquer.Transport.csproj" />
-    <ProjectReference Include="..\OpenConquer.Assets\OpenConquer.Assets.csproj" />
   </ItemGroup>
 </Project>

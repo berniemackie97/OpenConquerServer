@@ -32,7 +32,6 @@ flowchart TD
     GameServer --> Infrastructure
     GameServer --> Protocol
     GameServer --> Transport
-    GameServer --> Assets
 ```
 
 ## Projects
@@ -80,7 +79,9 @@ Hosts
     compose concrete implementations and protocol/transport adapters
 
 Assets
+    owns native client-derived static data decoding for offline ingestion/tooling
     does not own mutable live-world state
+    is not a runtime GameServer dependency
 ```
 
 A new assembly requires a real dependency, ownership, deployment, provider, or reuse boundary.
@@ -284,7 +285,7 @@ client MsgAction 0x4B GetItemSet
     ↓
 bounded CharacterItemSet hydration
     ↓
-static itemtype validation + wire projection
+canonical item catalog validation + wire projection
     ↓
 MsgItem 1008 snapshots
     ↓
@@ -315,7 +316,10 @@ optional 1009 subtype-46 active main-equipment snapshot
 0x4B acknowledgement
 ```
 
-Item projection uses the immutable `ItemTypeDatTable` for native static-lifetime compatibility.
+Item projection uses the immutable canonical `ItemTypeCatalog`. Native `itemtype.dat` decoding is
+kept behind the offline asset/tooling boundary; the GameServer runtime does not parse or depend on
+native client asset files. Catalog validation fails closed for unknown item types, incompatible
+static-lifetime state, and persisted stack quantities above the item type effective stack capacity.
 Already-expired active-lifetime items are removed from the login runtime projection instead of being
 serialized with the native zero-lifetime sentinel. Pending-activation items remain pending and are
 not activated by login hydration.
@@ -605,7 +609,7 @@ Implemented:
 - native `0x4B` GetItemSet validation and response progression;
 - native 1008 local item snapshots;
 - native 1009 subtype-46 active main-equipment snapshot;
-- itemtype-backed lifetime wire projection;
+- canonical item-catalog-backed lifetime and stack-capacity wire projection;
 - ownership-safe handoff to the friend-list bootstrap stage;
 - MySQL account persistence;
 - MySQL Game character/item persistence.

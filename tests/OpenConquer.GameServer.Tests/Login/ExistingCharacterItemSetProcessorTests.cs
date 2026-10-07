@@ -2,12 +2,11 @@ using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
-using System.Text;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Items;
 using OpenConquer.GameServer.Handshake;
@@ -26,7 +25,6 @@ namespace OpenConquer.GameServer.Tests.Login;
 
 public sealed class ExistingCharacterItemSetProcessorTests
 {
-    private const int SeedTableLength = 128;
     private const uint AccountId = 42;
     private const string Username = "Bernie";
     private const uint SessionUid = 0x1020_3040;
@@ -43,13 +41,12 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
     private static readonly DateTimeOffset s_utcNow = new(2026, 9, 28, 21, 0, 0, TimeSpan.Zero);
-    private static readonly Encoding s_textEncoding = CreateTextEncoding();
 
     [Fact]
     public void Constructor_NullDependencies_AreRejected()
     {
         FakeItemSetRepository repository = new(new CharacterItemSet(CharacterIdentityPolicy.FirstPlayerEntityId, []));
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(null!, itemTypes, TimeProvider.System));
         Assert.Throws<ArgumentNullException>(() => new ExistingCharacterItemSetProcessor(repository, null!, TimeProvider.System));
@@ -331,7 +328,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
         const uint unknownItemTypeId = 999_999;
         CharacterItem item = CreateItem(fixture.Profile.Identity.CharacterId, 1, itemTypeId: unknownItemTypeId);
         FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [item]));
-        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository, CreateItemTypeTable((DefaultItemTypeId, 0)));
+        ExistingCharacterItemSetProcessor processor = CreateProcessor(repository, CreateItemTypeCatalog());
 
         fixture.QueueItemSetRequest();
 
@@ -434,7 +431,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         CharacterItem item = CreateItem(fixture.Profile.Identity.CharacterId, 1);
         FakeItemSetRepository repository = new(new CharacterItemSet(fixture.Profile.Identity.CharacterId, [item]));
-        ExistingCharacterItemSetProcessor processor = new(repository, CreateItemTypeTable((DefaultItemTypeId, 0)), new CancelingTimeProvider(s_utcNow, cancellation));
+        ExistingCharacterItemSetProcessor processor = new(repository, CreateItemTypeCatalog(), new CancelingTimeProvider(s_utcNow, cancellation));
 
         fixture.QueueItemSetRequest();
 
@@ -555,9 +552,9 @@ public sealed class ExistingCharacterItemSetProcessorTests
         Assert.False(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
     }
 
-    private static ExistingCharacterItemSetProcessor CreateProcessor(ICharacterItemSetRepository repository, ItemTypeDatTable? itemTypes = null)
+    private static ExistingCharacterItemSetProcessor CreateProcessor(ICharacterItemSetRepository repository, ItemTypeCatalog? itemTypes = null)
     {
-        return new ExistingCharacterItemSetProcessor(repository, itemTypes ?? CreateItemTypeTable((DefaultItemTypeId, 0)), new FixedTimeProvider(s_utcNow));
+        return new ExistingCharacterItemSetProcessor(repository, itemTypes ?? CreateItemTypeCatalog(), new FixedTimeProvider(s_utcNow));
     }
 
     private static async Task<ItemSetFixture> CreateFixtureAsync(Exception? disposeFailure = null)
@@ -733,69 +730,12 @@ public sealed class ExistingCharacterItemSetProcessorTests
         }
     }
 
-    private static ItemTypeDatTable CreateItemTypeTable(params (uint ItemTypeId, int StaticLifetimeMinutes)[] records)
+    private static ItemTypeCatalog CreateItemTypeCatalog()
     {
-        if (records.Length == 0)
-        {
-            records = [(DefaultItemTypeId, 0)];
-        }
+        ItemTypeDefinition definition = new(DefaultItemTypeId, $"Item{DefaultItemTypeId}", requiredLevel: 0, speedPercentOffset: 0,
+            life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes: 0, stackCapacity: 1);
 
-        string decodedText = string.Join("\r\n", records.Select(static record => CreateLine(CreateFields(record.ItemTypeId, record.StaticLifetimeMinutes))));
-        return ItemTypeDatTable.Parse(EncodeText(decodedText));
-    }
-
-    private static string[] CreateFields(uint itemTypeId, int staticLifetimeMinutes)
-    {
-        string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.RecordFieldCount).ToArray();
-        fields[ItemTypeDatRecord.ItemTypeIdFieldIndex] = itemTypeId.ToString(CultureInfo.InvariantCulture);
-        fields[ItemTypeDatRecord.NameFieldIndex] = $"Item{itemTypeId}";
-        fields[ItemTypeDatRecord.RequiredLevelFieldIndex] = "0";
-        fields[ItemTypeDatRecord.SpeedPercentOffsetFieldIndex] = "0";
-        fields[ItemTypeDatRecord.LifeFieldIndex] = "0";
-        fields[ItemTypeDatRecord.ManaFieldIndex] = "0";
-        fields[ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex] = staticLifetimeMinutes.ToString(CultureInfo.InvariantCulture);
-        fields[ItemTypeDatRecord.StackCapacityFieldIndex] = "1";
-        fields[ItemTypeDatRecord.TypeDescriptionFieldIndex] = string.Empty;
-        fields[ItemTypeDatRecord.ItemDescriptionFieldIndex] = string.Empty;
-        return fields;
-    }
-
-    private static string CreateLine(string[] fields) => string.Join("@@", fields) + "@@";
-
-    private static byte[] EncodeText(string decodedText)
-    {
-        byte[] encodedPayload = s_textEncoding.GetBytes(decodedText);
-        Span<byte> seedTable = stackalloc byte[SeedTableLength];
-
-        BuildSeedTable(seedTable, ItemTypeDatTable.DecodedTextSeed);
-
-        for (int index = 0; index < encodedPayload.Length; index++)
-        {
-            int rotation = index & 7;
-            byte transformed = rotation == 0 ? encodedPayload[index] : RotateLeft(encodedPayload[index], rotation);
-            encodedPayload[index] = (byte)(transformed ^ seedTable[index % SeedTableLength]);
-        }
-
-        return encodedPayload;
-    }
-
-    private static void BuildSeedTable(Span<byte> seedTable, int seed)
-    {
-        uint state = unchecked((uint)seed);
-
-        for (int index = 0; index < seedTable.Length; index++)
-        {
-            state = unchecked(state * 214013u + 2531011u);
-            seedTable[index] = (byte)(((state >> 16) & 0x7FFFu) % 256u);
-        }
-    }
-
-    private static byte RotateLeft(byte value, int bitCount) => (byte)((value << bitCount) | (value >> (8 - bitCount)));
-
-    private static Encoding CreateTextEncoding()
-    {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        return Encoding.GetEncoding(ItemTypeDatTable.TextCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        return new ItemTypeCatalog([definition]);
     }
 
     private sealed class ItemSetFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, GameMapEntryDefinition map, AwaitingItemSetConnection awaitingItemSet, int itemSetBoundary) : IAsyncDisposable

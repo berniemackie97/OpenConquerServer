@@ -1,7 +1,6 @@
 using System.Globalization;
-using System.Text;
+using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Items;
 using OpenConquer.GameServer.Login.WorldEntry;
@@ -11,18 +10,16 @@ namespace OpenConquer.GameServer.Tests.Login;
 
 public sealed class ExistingCharacterItemSetWireProjectionTests
 {
-    private const int SeedTableLength = 128;
     private const uint CharacterId = CharacterIdentityPolicy.FirstPlayerEntityId;
     private const uint DefaultItemTypeId = 100_000;
 
     private static readonly DateTimeOffset s_utcNow = new(2026, 9, 28, 21, 0, 0, TimeSpan.Zero);
-    private static readonly Encoding s_textEncoding = CreateTextEncoding();
 
     [Fact]
     public void Create_EmptyItemSet_ReturnsEmptyProjection()
     {
         CharacterItemSet itemSet = new(CharacterId, []);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable();
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -37,7 +34,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(itemId: 1);
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -75,7 +72,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(itemId: 1, placement: CreateEquipmentPlacement(set, slot));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -97,7 +94,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
             equipmentColor: 0x1D1E, compositionProgress: 0x1F202122, inscribedSyndicateId: 0x23242526,
             stackQuantity: 0x2728, lifetime: ItemLifetime.CreatePermanent());
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: ushort.MaxValue);
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -146,7 +143,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
             CreateItem(12, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.SteedArmor)),
             CreateItem(13, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RidingCrop)),
         ]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -181,7 +178,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
             CreateItem(7, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.RidingCrop)),
             CreateItem(8, placement: CreateEquipmentPlacement(EquipmentSet.Alternate, EquipmentSlot.Headwear)),
         ]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -196,7 +193,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
             lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow));
         CharacterItem activeArmor = CreateItem(2, placement: CreateEquipmentPlacement(EquipmentSet.Main, EquipmentSlot.Armor));
         CharacterItemSet itemSet = new(CharacterId, [expiredHeadwear, activeArmor]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -219,7 +216,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
             CreateItem(10),
             CreateItem(20, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow)),
         ]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -227,14 +224,12 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
         Assert.Equal([10u, 30u], projection.ItemSnapshots.Select(static packet => packet.ItemId));
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void Create_PermanentItemWithoutPositiveStaticLifetime_WritesZeroLifetime(int staticLifetimeMinutes)
+    [Fact]
+    public void Create_PermanentItemWithoutStaticLifetime_WritesZeroLifetime()
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePermanent());
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, staticLifetimeMinutes));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -246,7 +241,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePermanent());
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 5));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
@@ -260,7 +255,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(300));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 5));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -273,14 +268,12 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
         Assert.Null(runtimeItem.Lifetime.ExpiresAtUtc);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void Create_PendingActivationWithoutPositiveStaticLifetime_FailsClosed(int staticLifetimeMinutes)
+    [Fact]
+    public void Create_PendingActivationWithoutStaticLifetime_FailsClosed()
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(300));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, staticLifetimeMinutes));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
@@ -293,7 +286,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(299));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 5));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
@@ -306,7 +299,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreatePendingActivation(int.MaxValue));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, int.MaxValue));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: uint.MaxValue);
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
@@ -316,11 +309,50 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     }
 
     [Fact]
+    public void Create_ZeroRawStackCapacity_AllowsSingleItem()
+    {
+        CharacterItem item = CreateItem(1, stackQuantity: 1);
+        CharacterItemSet itemSet = new(CharacterId, [item]);
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: 0);
+
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+
+        Assert.Equal((ushort)1, Assert.Single(projection.ItemSnapshots).StackQuantity);
+    }
+
+    [Fact]
+    public void Create_StackQuantityAtCapacity_IsAccepted()
+    {
+        CharacterItem item = CreateItem(1, stackQuantity: 20);
+        CharacterItemSet itemSet = new(CharacterId, [item]);
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: 20);
+
+        ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
+
+        Assert.Equal((ushort)20, Assert.Single(projection.ItemSnapshots).StackQuantity);
+    }
+
+    [Fact]
+    public void Create_StackQuantityExceedsEffectiveCapacity_FailsClosed()
+    {
+        CharacterItem item = CreateItem(1, stackQuantity: 2);
+        CharacterItemSet itemSet = new(CharacterId, [item]);
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(stackCapacity: 0);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
+
+        Assert.Contains(item.ItemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
+        Assert.Contains("stack quantity 2", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("capacity 1", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Create_ActiveExpiry_WritesExactRemainingWholeSeconds()
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddSeconds(90)));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 5));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -332,7 +364,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     {
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(1)));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 5));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog(staticLifetimeMinutes: 5);
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -342,13 +374,13 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Create_ExpiredActiveItem_IsFilteredBeforeStaticAssetLookup(long expirationOffsetTicks)
+    public void Create_ExpiredActiveItem_IsFilteredBeforeCatalogLookup(long expirationOffsetTicks)
     {
         const uint unknownItemTypeId = 999_999;
         CharacterItem item = CreateItem(1, itemTypeId: unknownItemTypeId,
             lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(expirationOffsetTicks)));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         ExistingCharacterItemSetWireProjection projection = ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow);
 
@@ -363,7 +395,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
         long remainingTicks = ((long)int.MaxValue + 1L) * TimeSpan.TicksPerSecond;
         CharacterItem item = CreateItem(1, lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddTicks(remainingTicks)));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
@@ -378,7 +410,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
         CharacterItem item = CreateItem(1, itemTypeId: unknownItemTypeId,
             lifetime: ItemLifetime.CreateActiveExpiry(s_utcNow.AddMinutes(5)));
         CharacterItemSet itemSet = new(CharacterId, [item]);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable((DefaultItemTypeId, 0));
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
             ExistingCharacterItemSetWireProjection.Create(itemSet, itemTypes, s_utcNow));
@@ -391,7 +423,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     public void Create_NonUtcProjectionTimestamp_IsRejected()
     {
         CharacterItemSet itemSet = new(CharacterId, []);
-        ItemTypeDatTable itemTypes = CreateItemTypeTable();
+        ItemTypeCatalog itemTypes = CreateItemTypeCatalog();
         DateTimeOffset nonUtc = s_utcNow.ToOffset(TimeSpan.FromHours(-4));
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
@@ -419,75 +451,11 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
         return ItemPlacement.CreateEquipment(EquipmentPosition.Create(set, slot));
     }
 
-    private static ItemTypeDatTable CreateItemTypeTable(params (uint ItemTypeId, int StaticLifetimeMinutes)[] records)
+    private static ItemTypeCatalog CreateItemTypeCatalog(uint staticLifetimeMinutes = 0, ushort stackCapacity = 1)
     {
-        if (records.Length == 0)
-        {
-            records = [(DefaultItemTypeId, 0)];
-        }
+        ItemTypeDefinition definition = new(DefaultItemTypeId, $"Item{DefaultItemTypeId}", requiredLevel: 0, speedPercentOffset: 0,
+            life: 0, mana: 0, initialDurability: 0, maximumDurability: 0, staticLifetimeMinutes, stackCapacity);
 
-        string decodedText = string.Join("\r\n", records.Select(static record =>
-            CreateLine(CreateFields(record.ItemTypeId, record.StaticLifetimeMinutes))));
-
-        return ItemTypeDatTable.Parse(EncodeText(decodedText));
-    }
-
-    private static string[] CreateFields(uint itemTypeId, int staticLifetimeMinutes)
-    {
-        string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.RecordFieldCount).ToArray();
-        fields[ItemTypeDatRecord.ItemTypeIdFieldIndex] = itemTypeId.ToString(CultureInfo.InvariantCulture);
-        fields[ItemTypeDatRecord.NameFieldIndex] = $"Item{itemTypeId}";
-        fields[ItemTypeDatRecord.RequiredLevelFieldIndex] = "0";
-        fields[ItemTypeDatRecord.SpeedPercentOffsetFieldIndex] = "0";
-        fields[ItemTypeDatRecord.LifeFieldIndex] = "0";
-        fields[ItemTypeDatRecord.ManaFieldIndex] = "0";
-        fields[ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex] = staticLifetimeMinutes.ToString(CultureInfo.InvariantCulture);
-        fields[ItemTypeDatRecord.StackCapacityFieldIndex] = "1";
-        fields[ItemTypeDatRecord.TypeDescriptionFieldIndex] = string.Empty;
-        fields[ItemTypeDatRecord.ItemDescriptionFieldIndex] = string.Empty;
-        return fields;
-    }
-
-    private static string CreateLine(string[] fields)
-    {
-        return string.Join("@@", fields) + "@@";
-    }
-
-    private static byte[] EncodeText(string decodedText)
-    {
-        byte[] encodedPayload = s_textEncoding.GetBytes(decodedText);
-        Span<byte> seedTable = stackalloc byte[SeedTableLength];
-        BuildSeedTable(seedTable, ItemTypeDatTable.DecodedTextSeed);
-
-        for (int index = 0; index < encodedPayload.Length; index++)
-        {
-            int rotation = index & 7;
-            byte transformed = rotation == 0 ? encodedPayload[index] : RotateLeft(encodedPayload[index], rotation);
-            encodedPayload[index] = (byte)(transformed ^ seedTable[index % SeedTableLength]);
-        }
-
-        return encodedPayload;
-    }
-
-    private static void BuildSeedTable(Span<byte> seedTable, int seed)
-    {
-        uint state = unchecked((uint)seed);
-
-        for (int index = 0; index < seedTable.Length; index++)
-        {
-            state = unchecked(state * 214013u + 2531011u);
-            seedTable[index] = (byte)(((state >> 16) & 0x7FFFu) % 256u);
-        }
-    }
-
-    private static byte RotateLeft(byte value, int bitCount)
-    {
-        return (byte)((value << bitCount) | (value >> (8 - bitCount)));
-    }
-
-    private static Encoding CreateTextEncoding()
-    {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        return Encoding.GetEncoding(ItemTypeDatTable.TextCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        return new ItemTypeCatalog([definition]);
     }
 }

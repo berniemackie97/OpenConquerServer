@@ -1,16 +1,16 @@
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Assets.Items;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
-internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetRepository repository, ItemTypeDatTable itemTypes, TimeProvider timeProvider)
+internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetRepository repository, ItemTypeCatalog itemTypes, TimeProvider timeProvider)
 {
     private readonly ICharacterItemSetRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-    private readonly ItemTypeDatTable _itemTypes = itemTypes ?? throw new ArgumentNullException(nameof(itemTypes));
+    private readonly ItemTypeCatalog _itemTypes = itemTypes ?? throw new ArgumentNullException(nameof(itemTypes));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     /// <summary>
