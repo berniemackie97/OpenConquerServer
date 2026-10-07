@@ -16,7 +16,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
     private const uint DefaultItemTypeId = 100_000;
 
     private static readonly DateTimeOffset s_utcNow = new(2026, 9, 28, 21, 0, 0, TimeSpan.Zero);
-    private static readonly Encoding s_retailEncoding = CreateRetailEncoding();
+    private static readonly Encoding s_textEncoding = CreateTextEncoding();
 
     [Fact]
     public void Create_EmptyItemSet_ReturnsEmptyProjection()
@@ -434,7 +434,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
 
     private static string[] CreateFields(uint itemTypeId, int staticLifetimeMinutes)
     {
-        string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.NativeParsedFieldCount).ToArray();
+        string[] fields = Enumerable.Repeat("0", ItemTypeDatRecord.RecordFieldCount).ToArray();
         fields[ItemTypeDatRecord.ItemTypeIdFieldIndex] = itemTypeId.ToString(CultureInfo.InvariantCulture);
         fields[ItemTypeDatRecord.NameFieldIndex] = $"Item{itemTypeId}";
         fields[ItemTypeDatRecord.RequiredLevelFieldIndex] = "0";
@@ -455,7 +455,7 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
 
     private static byte[] EncodeText(string decodedText)
     {
-        byte[] encodedPayload = s_retailEncoding.GetBytes(decodedText);
+        byte[] encodedPayload = s_textEncoding.GetBytes(decodedText);
         Span<byte> seedTable = stackalloc byte[SeedTableLength];
         BuildSeedTable(seedTable, ItemTypeDatTable.DecodedTextSeed);
 
@@ -485,9 +485,9 @@ public sealed class ExistingCharacterItemSetWireProjectionTests
         return (byte)((value << bitCount) | (value >> (8 - bitCount)));
     }
 
-    private static Encoding CreateRetailEncoding()
+    private static Encoding CreateTextEncoding()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        return Encoding.GetEncoding(ItemTypeDatTable.RetailCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        return Encoding.GetEncoding(ItemTypeDatTable.TextCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
     }
 }

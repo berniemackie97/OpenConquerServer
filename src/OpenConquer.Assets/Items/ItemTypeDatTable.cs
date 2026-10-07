@@ -8,9 +8,9 @@ namespace OpenConquer.Assets.Items;
 public sealed class ItemTypeDatTable
 {
     public const int DecodedTextSeed = 0x2537;
-    public const int RetailCodePage = 936;
+    public const int TextCodePage = 936;
 
-    private static readonly Lazy<Encoding> s_retailTextEncoding = new(CreateRetailTextEncoding);
+    private static readonly Lazy<Encoding> s_textEncoding = new(CreateTextEncoding);
 
     private readonly FrozenDictionary<uint, ItemTypeDatRecord> _recordsByItemTypeId;
 
@@ -20,6 +20,7 @@ public sealed class ItemTypeDatTable
     }
 
     public int RecordCount => _recordsByItemTypeId.Count;
+    public IEnumerable<ItemTypeDatRecord> Records => _recordsByItemTypeId.Values;
 
     public static ItemTypeDatTable Open(string primaryPath, string? supplementalPath = null)
     {
@@ -51,7 +52,7 @@ public sealed class ItemTypeDatTable
             throw new InvalidDataException("Supplemental itemtype.dat payload is empty.");
         }
 
-        Encoding encoding = s_retailTextEncoding.Value;
+        Encoding encoding = s_textEncoding.Value;
         Dictionary<uint, ItemTypeDatRecord> recordsByItemTypeId = [];
 
         int primaryRecordCount = ParseDecodedLinesInto(recordsByItemTypeId,
@@ -93,6 +94,7 @@ public sealed class ItemTypeDatTable
             string[] fieldTexts = NormalizeFieldTexts(decodedLine, sourceName, lineNumber);
 
             uint itemTypeId = ParseUInt32Field(fieldTexts, ItemTypeDatRecord.ItemTypeIdFieldIndex, "item type ID", sourceName, lineNumber);
+
             if (itemTypeId == 0)
             {
                 throw new InvalidDataException($"{sourceName} record at line {lineNumber} has zero item type ID.");
@@ -102,11 +104,13 @@ public sealed class ItemTypeDatTable
             short speedPercentOffset = ParseInt16Field(fieldTexts, ItemTypeDatRecord.SpeedPercentOffsetFieldIndex, "speed percent offset", sourceName, lineNumber);
             short life = ParseInt16Field(fieldTexts, ItemTypeDatRecord.LifeFieldIndex, "life", sourceName, lineNumber);
             short mana = ParseInt16Field(fieldTexts, ItemTypeDatRecord.ManaFieldIndex, "mana", sourceName, lineNumber);
+            ushort initialDurability = ParseUInt16Field(fieldTexts, ItemTypeDatRecord.InitialDurabilityFieldIndex, "initial durability", sourceName, lineNumber);
+            ushort maximumDurability = ParseUInt16Field(fieldTexts, ItemTypeDatRecord.MaximumDurabilityFieldIndex, "maximum durability", sourceName, lineNumber);
             int staticLifetimeMinutes = ParseInt32Field(fieldTexts, ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex, "static lifetime minutes", sourceName, lineNumber);
             int stackCapacity = ParseInt32Field(fieldTexts, ItemTypeDatRecord.StackCapacityFieldIndex, "stack capacity", sourceName, lineNumber);
 
-            recordsByItemTypeId[itemTypeId] = new ItemTypeDatRecord(itemTypeId, fieldTexts, requiredLevel, speedPercentOffset, life, mana,
-                staticLifetimeMinutes, stackCapacity);
+            recordsByItemTypeId[itemTypeId] = new ItemTypeDatRecord(itemTypeId, fieldTexts, requiredLevel, speedPercentOffset, life, mana, initialDurability, maximumDurability, staticLifetimeMinutes, stackCapacity);
+
             parsedRecordCount++;
         }
 
@@ -119,20 +123,36 @@ public sealed class ItemTypeDatTable
 
         switch (fieldTexts.Length)
         {
-            case ItemTypeDatRecord.NativeParsedFieldCount:
+            case ItemTypeDatRecord.RecordFieldCount:
                 return fieldTexts;
-            case ItemTypeDatRecord.NativeParsedFieldCount + 1 when fieldTexts[^1].Length == 0:
-                Array.Resize(ref fieldTexts, ItemTypeDatRecord.NativeParsedFieldCount);
+
+            case ItemTypeDatRecord.RecordFieldCount + 1 when fieldTexts[^1].Length == 0:
+                Array.Resize(ref fieldTexts, ItemTypeDatRecord.RecordFieldCount);
                 return fieldTexts;
+
             default:
-                throw new InvalidDataException($"{sourceName} record at line {lineNumber} has {fieldTexts.Length} split fields; expected {ItemTypeDatRecord.NativeParsedFieldCount} native fields with at most one terminal delimiter field.");
+                throw new InvalidDataException(
+                    $"{sourceName} record at line {lineNumber} has {fieldTexts.Length} split fields; expected {ItemTypeDatRecord.RecordFieldCount} fields with at most one terminal delimiter field.");
         }
     }
 
     private static uint ParseUInt32Field(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)
     {
         string fieldText = fieldTexts[fieldIndex];
+
         if (!uint.TryParse(fieldText, NumberStyles.None, CultureInfo.InvariantCulture, out uint value))
+        {
+            throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
+        }
+
+        return value;
+    }
+
+    private static ushort ParseUInt16Field(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)
+    {
+        string fieldText = fieldTexts[fieldIndex];
+
+        if (!ushort.TryParse(fieldText, NumberStyles.None, CultureInfo.InvariantCulture, out ushort value))
         {
             throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
         }
@@ -143,6 +163,7 @@ public sealed class ItemTypeDatTable
     private static byte ParseByteField(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)
     {
         string fieldText = fieldTexts[fieldIndex];
+
         if (!byte.TryParse(fieldText, NumberStyles.None, CultureInfo.InvariantCulture, out byte value))
         {
             throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
@@ -154,6 +175,7 @@ public sealed class ItemTypeDatTable
     private static short ParseInt16Field(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)
     {
         string fieldText = fieldTexts[fieldIndex];
+
         if (!short.TryParse(fieldText, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out short value))
         {
             throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
@@ -165,6 +187,7 @@ public sealed class ItemTypeDatTable
     private static int ParseInt32Field(string[] fieldTexts, int fieldIndex, string fieldName, string sourceName, int lineNumber)
     {
         string fieldText = fieldTexts[fieldIndex];
+
         if (!int.TryParse(fieldText, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int value))
         {
             throw new InvalidDataException($"{sourceName} record at line {lineNumber} has invalid {fieldName} '{fieldText}' at field {fieldIndex}.");
@@ -173,17 +196,17 @@ public sealed class ItemTypeDatTable
         return value;
     }
 
-    private static Encoding CreateRetailTextEncoding()
+    private static Encoding CreateTextEncoding()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         try
         {
-            return Encoding.GetEncoding(RetailCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+            return Encoding.GetEncoding(TextCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
         }
         catch (ArgumentException exception)
         {
-            throw new NotSupportedException($"Retail item assets require code page {RetailCodePage}, but that encoding is unavailable.", exception);
+            throw new NotSupportedException($"Item data requires code page {TextCodePage}, but that encoding is unavailable.", exception);
         }
     }
 }
