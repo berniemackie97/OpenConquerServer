@@ -31,5 +31,19 @@ Run the repository game-data tool against the verified clean 5517 source:
 
 The generated catalog is deterministic for the same source payload and generator implementation.
 
-Catalog changes must be intentional and reviewed together with their source-data or generator change.
-The canonical catalog integrity test pins the expected definition count and generated SHA-256.
+Catalog changes must be intentional and reviewed. The existing canonical catalog integrity
+test pins the original 5517 baseline's definition count and SHA-256 to detect unintended
+changes to that historical artifact.
+
+## OpenConquer-owned content
+
+`item-types.json` is a first-class canonical content format. Future custom items,
+balance changes, and item definitions can be authored directly without retail
+`itemtype.dat`, native evidence references, or the native import tool.
+
+The legacy importer remains available for reconstructing the initial baseline.
+Do not run it over independently edited content without reviewing the replacement.
+Changes to a pinned catalog require corresponding intentional updates to its
+content-integrity expectations, or a separately versioned release artifact.
+Integrity hashes identify approved release content; they do not permanently
+require retail item definitions or prevent custom OpenConquer items.
