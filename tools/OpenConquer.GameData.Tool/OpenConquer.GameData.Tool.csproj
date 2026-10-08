@@ -4,6 +4,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="SharpCompress" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenConquer.Application\OpenConquer.Application.csproj" />
     <ProjectReference Include="..\..\src\OpenConquer.Assets\OpenConquer.Assets.csproj" />
     <ProjectReference Include="..\..\src\OpenConquer.Domain\OpenConquer.Domain.csproj" />
   </ItemGroup>

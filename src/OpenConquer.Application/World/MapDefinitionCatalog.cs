@@ -36,6 +36,7 @@ public sealed class MapDefinitionCatalog
     }
 
     public int Count => _definitions.Count;
+    public IEnumerable<MapDefinition> Definitions => _definitions.Values;
 
     public bool TryGet(uint mapId, [NotNullWhen(true)] out MapDefinition? definition)
     {
