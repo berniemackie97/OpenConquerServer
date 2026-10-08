@@ -908,6 +908,49 @@ At schema version 8, compatibility is:
     schema_version = 8
     migration_id = 20261004193352_AddMagicPersistence
 
+## Syndicate persistence (version 9)
+
+Migration `20261008033456_AddSyndicatePersistence` introduces `syndicates` and `syndicate_memberships`.
+
+The migration does not backfill historical syndicate state or modify existing character, item,
+social-relation, weapon-skill, or magic records.
+
+Syndicate names use a 16-character `utf8mb4_bin` storage boundary. The domain independently enforces
+strict Windows-1252 representability and rejects control characters; database character length
+alone is not equivalent to the protocol's encoded-byte restriction.
+
+Leader names remain authoritative in `characters`. Syndicate population is derived from
+membership records rather than duplicated. Native syndicate level, mantle, and packet-1106's
+unresolved field are not assigned invented persistent values.
+
+### Recovery
+
+The migration verifies the exact table, ordered-column, index, foreign-key-action, collation, and
+enforced-check contracts before advancing `schema_compatibility`.
+
+Supported interrupted states include:
+
+- neither new table exists;
+- only a structurally compatible `syndicates` table exists;
+- both tables exist with compatible structure but incomplete migration metadata;
+- both tables and compatibility metadata exist while EF history remains incomplete.
+
+Unexpected or incompatible tables fail closed. Do not manually edit EF migration history or
+`schema_compatibility`.
+
+Because MySQL DDL may commit independently of migration metadata, inspect the actual database
+structure after failure and rerun the same migration only when its supported recovery conditions hold.
+
+### Downgrade
+
+Version 9 to version 8 downgrade is refused while either syndicate table contains data.
+
+Stop database writers and take a verified backup before running administrative migrations.
+Never delete persisted syndicate state merely to make a downgrade succeed.
+
+The runtime database identity receives `SELECT` permission for the two new tables, not mutation
+permissions. Read-only syndicate hydration and native `0x61` processing belong to later slices.
+
 ## Verifying current schema after recovery
 
 After any recovery, verify that no pending model changes exist in the repository:
@@ -938,6 +981,7 @@ For the current schema, the Game migration chain must contain:
     20260930033806_AddSocialRelationPersistence
     20261004014402_AddWeaponSkillPersistence
     20261004193352_AddMagicPersistence
+    20261008033456_AddSyndicatePersistence
 
 Verify compatibility:
 
@@ -949,8 +993,43 @@ Verify compatibility:
 
 Expected:
 
-    8
-    20261004193352_AddMagicPersistence
+    9
+    20261008033456_AddSyndicatePersistence
+
+Verify syndicate tables:
+
+    SELECT `TABLE_NAME`
+    FROM `INFORMATION_SCHEMA`.`TABLES`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_TYPE` = 'BASE TABLE'
+      AND `TABLE_NAME` IN ('syndicates', 'syndicate_memberships')
+    ORDER BY `TABLE_NAME`;
+
+Exactly two tables must exist.
+
+Verify syndicate constraints:
+
+    SELECT `TABLE_NAME`, `CONSTRAINT_NAME`, `CONSTRAINT_TYPE`
+    FROM `INFORMATION_SCHEMA`.`TABLE_CONSTRAINTS`
+    WHERE `CONSTRAINT_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` IN ('syndicates', 'syndicate_memberships')
+    ORDER BY `TABLE_NAME`, `CONSTRAINT_TYPE`, `CONSTRAINT_NAME`;
+
+Verify syndicate indexes:
+
+    SELECT `TABLE_NAME`, `INDEX_NAME`, `COLUMN_NAME`, `SEQ_IN_INDEX`, `NON_UNIQUE`
+    FROM `INFORMATION_SCHEMA`.`STATISTICS`
+    WHERE `TABLE_SCHEMA` = DATABASE()
+      AND `TABLE_NAME` IN ('syndicates', 'syndicate_memberships')
+    ORDER BY `TABLE_NAME`, `INDEX_NAME`, `SEQ_IN_INDEX`;
+
+The expected schema includes two primary keys, two unique syndicate indexes, one
+membership lookup index, three restrictive foreign keys, and four enforced checks.
+
+Verify actual table definitions:
+
+    SHOW CREATE TABLE `syndicates`;
+    SHOW CREATE TABLE `syndicate_memberships`;
 
 Verify the lifetime columns:
 
@@ -1131,6 +1210,10 @@ complete Game database readiness verification before accepting connections.
 Treat Game schema downgrades as destructive operations unless the specific migration has been
 reviewed for the current data.
 
+Downgrading version 9 to version 8 removes both syndicate persistence tables.
+The migration refuses to drop either table while syndicate or membership rows exist.
+Inspect both tables and take a verified backup before attempting this downgrade.
+
 Downgrading version 8 to version 7 removes the `magic` table. Because this would destroy persisted
 magic progression, the migration requires `magic` to contain zero rows before dropping the table.
 If any rows exist, the downgrade fails closed and leaves the version 8 schema and compatibility
@@ -1180,45 +1263,3 @@ all downgrade preconditions against production data, understand which semantic i
 lost, and do not bypass migration guards or manually rewrite migration history to force the
 downgrade.
 
-## Syndicate persistence (version 9)
-
-Migration `20261008033456_AddSyndicatePersistence` introduces `syndicates` and `syndicate_memberships`.
-
-The migration does not backfill historical syndicate state or modify existing character, item,
-social-relation, weapon-skill, or magic records.
-
-Syndicate names use a 16-character `utf8mb4_bin` storage boundary. The domain independently enforces
-strict Windows-1252 representability and rejects control characters; database character length
-alone is not equivalent to the protocol's encoded-byte restriction.
-
-Leader names remain authoritative in `characters`. Syndicate population is derived from
-membership records rather than duplicated. Native syndicate level, mantle, and packet-1106's
-unresolved field are not assigned invented persistent values.
-
-### Recovery
-
-The migration verifies the exact table, ordered-column, index, foreign-key-action, collation, and
-enforced-check contracts before advancing `schema_compatibility`.
-
-Supported interrupted states include:
-
-- neither new table exists;
-- only a structurally compatible `syndicates` table exists;
-- both tables exist with compatible structure but incomplete migration metadata;
-- both tables and compatibility metadata exist while EF history remains incomplete.
-
-Unexpected or incompatible tables fail closed. Do not manually edit EF migration history or
-`schema_compatibility`.
-
-Because MySQL DDL may commit independently of migration metadata, inspect the actual database
-structure after failure and rerun the same migration only when its supported recovery conditions hold.
-
-### Downgrade
-
-Version 9 to version 8 downgrade is refused while either syndicate table contains data.
-
-Stop database writers and take a verified backup before running administrative migrations.
-Never delete persisted syndicate state merely to make a downgrade succeed.
-
-The runtime database identity receives `SELECT` permission for the two new tables, not mutation
-permissions. Read-only syndicate hydration and native `0x61` processing belong to later slices.
