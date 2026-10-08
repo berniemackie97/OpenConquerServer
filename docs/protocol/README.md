@@ -22,7 +22,7 @@ Internal server architecture belongs under [`docs/architecture`](../architecture
 | GameServer CAST5 compatibility encryption | Implemented             |
 | GameServer packet signatures              | Implemented             |
 | GameServer login proof                    | Implemented                             |
-| Existing-character bootstrap protocol     | Implemented through `0xFB`             |
+| Existing-character bootstrap protocol     | Implemented through `0x84`             |
 | Syndicate bootstrap protocol foundation   | Implemented                             |
 | General gameplay/world-session packets    | Not implemented                         |
 
@@ -373,8 +373,9 @@ rather than queued.
 
 ## Existing-Character Bootstrap
 
-The implemented existing-character bootstrap protocol currently covers the native progression
-through the silent-info report. Runtime processing reaches `AwaitingStatisticRequestConnection`.
+The implemented existing-character bootstrap protocol currently covers the verified native
+client-driven request sequence through `0x84` GetStatistic. Runtime processing reaches
+`ExistingCharacterBootstrapCompleteConnection`; authoritative world-session integration remains future work.
 
 Initial bootstrap emits:
 
@@ -404,6 +405,7 @@ Character bootstrap then advances through:
 | `10010 / 0x4E` GetMagicSet            | `1103` magic snapshots, optional `1104` persisted-experience snapshots, then acknowledgement | Implemented             |
 | `10010 / 0x61` GetSyndicateAttributes | `1106` member snapshot when applicable, then acknowledgement                                | Implemented             |
 | `10010 / 0xFB` ReportSilentInfo      | Authenticated-hero acknowledgement preserving client-reported checksum and version           | Implemented             |
+| `10010 / 0x84` GetStatistic          | No response; transfers ownership after canonical request validation                           | Implemented             |
 
 Each identity-bearing bootstrap request validates the client-supplied character identity against
 the authenticated character before persisted state is queried or exposed. The native `0xFB`
@@ -434,9 +436,19 @@ action and resolvable entity identity. OpenConquerPublic's zero-entity acknowled
 copied because it does not satisfy that native identity-resolution gate. LongV6270's
 `LoginComplete = 251` is a later-version implementation and does not establish 5517 behavior.
 
-Runtime processing advances to `AwaitingStatisticRequestConnection`. Client-content distribution,
-checksum enforcement, statistics-request processing, gameplay routing, and authoritative
-world-session handling remain future work.
+Native `0x84` GetStatistic is a fixed 38-byte `10010` request carrying the authenticated
+hero ID at offset `+4`, the client-supplied `timeGetTime()` timestamp at offset `+16`, and
+action `0x84` at offset `+20`. All other body fields are zero, including the string count.
+The server validates the request against the authenticated character and consumes it without
+sending a response. The native request builder and action are verified; the absence of a
+required retail-server response is not established by a retail server capture. The current
+no-response policy agrees with the OpenConquerPublic reference implementation.
+
+Runtime processing advances to `ExistingCharacterBootstrapCompleteConnection`, retaining the
+authenticated connection, accumulated character snapshots, and untrusted client-reported
+silent-data values. This marks completion of the verified client-driven request sequence,
+not authoritative gameplay-session activation. Client-content distribution, checksum
+enforcement, gameplay routing, and authoritative world-session handling remain future work.
 
 ## Text Encoding
 
@@ -535,6 +547,6 @@ The current protocol/runtime surface does not include:
 
 - AccountServer registration variants;
 - protected/mobile credential decoding;
-- statistics-request processing and later existing-character bootstrap stages;
+- authoritative world-session integration following the verified client-driven bootstrap sequence;
 - character creation protocol flow;
 - general gameplay/world-session packet handling.

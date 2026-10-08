@@ -349,6 +349,14 @@ validate native checksum/version report shape
 MsgAction 0xFB acknowledgement with authenticated hero ID
     ↓
 AwaitingStatisticRequestConnection
+    ↓
+client MsgAction 0x84 GetStatistic
+    ↓
+validate authenticated identity and fixed request shape
+    ↓
+consume request without an invented response
+    ↓
+ExistingCharacterBootstrapCompleteConnection
 ```
 
 Every transition takes exclusive ownership of the prior state and transfers the same authenticated
@@ -414,19 +422,31 @@ server policy. No client-content distribution or checksum enforcement is impleme
 
 `AwaitingStatisticRequestConnection` takes exclusive ownership after the acknowledgement and
 preserves the accumulated character snapshots and untrusted report values. The following native
-request is `10010 / 0x84` GetStatistic. That request remains a separate bootstrap boundary.
+request is `10010 / 0x84` GetStatistic, carrying the authenticated hero ID and an ordinary
+client timestamp. All other non-action fields are zero.
+
+The statistics-request processor validates the fixed 38-byte request and authenticated identity,
+then consumes the action without sending an acknowledgement. Native 5517 evidence establishes
+the client request but does not establish a required response packet or statistics payload.
+The no-response behavior is also consistent with OpenConquerPublic's emulator implementation;
+it is not independently proven retail-server policy.
+
+`ExistingCharacterBootstrapCompleteConnection` receives exclusive ownership of the connection,
+all previously hydrated state, and the untrusted client-reported silent-data values. Completion
+refers only to the verified native client-driven request sequence. The character has not been
+promoted into an authoritative gameplay session.
 
 The same authenticated connection remains continuously owned through character-login resolution,
 bootstrap, map entry, map-state application, item resolution, social hydration, weapon-skill
-hydration, magic hydration, syndicate hydration, and silent-info processing. Cancellation or
-failure closes the owned connection instead of exposing partial state.
+hydration, magic hydration, syndicate hydration, silent-info processing, and statistics-request
+validation. Cancellation or failure closes the owned connection instead of exposing partial state.
 
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
 The runnable GameServer host, connection admission runtime, character creation transaction,
-statistics-request processing and later bootstrap rungs, gameplay routing, and authoritative
-world integration remain future boundaries.
+authoritative world-session integration, gameplay routing, and the remaining world simulation
+remain future boundaries.
 
 See:
 
@@ -714,6 +734,7 @@ Implemented:
 - native `0x4E` magic bootstrap with bounded hydration and packet 1103/1104 projection;
 - native `0x61` syndicate-attributes hydration, packet-1106 projection, and ownership-safe handoff to silent-info reporting;
 - native `0xFB` silent-info report validation, authenticated-hero acknowledgement, and ownership-safe handoff to statistics-request processing;
+- native `0x84` statistics-request validation, no-response consumption, and ownership-safe completion of the verified client-driven bootstrap sequence;
 - MySQL account persistence;
 - MySQL Game character, item, social-relation, weapon-skill, magic, and syndicate persistence.
 
@@ -723,7 +744,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- statistics-request processing and later native login bootstrap rungs;
+- authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
 - gameplay networking and simulation.
