@@ -11,6 +11,7 @@ namespace OpenConquer.Infrastructure.Tests.Persistence;
 public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 200_000;
+    private static readonly DateTimeOffset s_utcNow = new(2026, 10, 7, 16, 0, 0, TimeSpan.Zero);
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
@@ -23,7 +24,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         uint pendingItemId = await InsertItemAsync(characterId, itemTypeId: 410_339, locationKind: 2, equipmentSet: 1, equipmentSlot: 4,
             lifetimeState: (byte)ItemLifetimeState.PendingActivation, lifetimeDurationSeconds: 3600);
         DateTime unlockAtUtc = new(2027, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-        DateTime expiresAtUtc = new(2020, 6, 7, 8, 9, 10, DateTimeKind.Utc);
+        DateTime expiresAtUtc = new(2027, 6, 7, 8, 9, 10, DateTimeKind.Utc);
         uint activeItemId = await InsertItemAsync(characterId, itemTypeId: 120_249, locationKind: 2, equipmentSet: 2, equipmentSlot: 3,
             durability: 1200, maximumDurability: 1500, retailCompatibilityByteA: 1,
             talismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline: 123456, socket1Code: 13, socket2Code: 14,
@@ -35,7 +36,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
 
         ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
 
-        CharacterItemSet itemSet = await repository.LoadAsync(characterId, CancellationToken);
+        CharacterItemSet itemSet = await repository.LoadAsync(characterId, s_utcNow, CancellationToken);
 
         Assert.Equal(characterId, itemSet.CharacterId);
         Assert.Equal(3, itemSet.Count);
@@ -90,7 +91,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         uint characterId = await InsertCharacterAsync();
         ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
 
-        CharacterItemSet itemSet = await repository.LoadAsync(characterId, CancellationToken);
+        CharacterItemSet itemSet = await repository.LoadAsync(characterId, s_utcNow, CancellationToken);
 
         Assert.Equal(characterId, itemSet.CharacterId);
         Assert.Empty(itemSet.Items);
@@ -105,7 +106,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         uint secondItemId = await InsertItemAsync(characterId);
         CharacterItemSetRepository repository = new(database.ContextFactory, new CharacterItemHydrationOptions(maximumItemsPerCharacter: 2));
 
-        CharacterItemSet itemSet = await repository.LoadAsync(characterId, CancellationToken);
+        CharacterItemSet itemSet = await repository.LoadAsync(characterId, s_utcNow, CancellationToken);
 
         Assert.Equal(2, itemSet.Count);
         Assert.Equal([firstItemId, secondItemId], itemSet.Items.Select(static item => item.ItemId));
@@ -120,10 +121,70 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         await InsertItemAsync(characterId);
         CharacterItemSetRepository repository = new(database.ContextFactory, new CharacterItemHydrationOptions(maximumItemsPerCharacter: 2));
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, CancellationToken));
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, s_utcNow, CancellationToken));
 
         Assert.Contains(characterId.ToString(), exception.Message, StringComparison.Ordinal);
         Assert.Contains("configured item hydration limit of 2", exception.Message, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task LoadAsync_ExpiredRowsDoNotConsumeHydrationLimit()
+    {
+        uint characterId = await InsertCharacterAsync();
+        await InsertItemAsync(characterId, lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: s_utcNow.AddSeconds(-1).UtcDateTime);
+        await InsertItemAsync(characterId, lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: s_utcNow.UtcDateTime);
+        uint permanentItemId = await InsertItemAsync(characterId);
+        uint futureItemId = await InsertItemAsync(characterId, lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: s_utcNow.AddSeconds(1).UtcDateTime);
+
+        CharacterItemSetRepository repository = new(database.ContextFactory, new CharacterItemHydrationOptions(maximumItemsPerCharacter: 2));
+
+        CharacterItemSet result = await repository.LoadAsync(characterId, s_utcNow, CancellationToken);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal([permanentItemId, futureItemId], result.Items.Select(static item => item.ItemId));
+    }
+
+    [Fact]
+    public async Task LoadAsync_ExpiryCutoffDoesNotRoundForwardBeyondDatabasePrecision()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId, lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: s_utcNow.AddTicks(10).UtcDateTime);
+
+        ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
+
+        CharacterItemSet result = await repository.LoadAsync(characterId, s_utcNow.AddTicks(9), CancellationToken);
+
+        Assert.Equal(itemId, Assert.Single(result.Items).ItemId);
+    }
+
+    [Fact]
+    public async Task LoadAsync_MalformedExpiredActiveLifetime_FailsClosed()
+    {
+        uint characterId = await InsertCharacterAsync();
+        uint itemId = await InsertItemAsync(characterId, lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: s_utcNow.AddMinutes(-1).UtcDateTime);
+
+        InvalidDataException exception = await AssertCorruptItemFailsClosedAsync(characterId, itemId,
+            "`lifetime_duration_seconds` = 60", "CK_items_lifetime");
+
+        Assert.Contains("invalid lifetime payload", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NonUtcTimestamp_IsRejected()
+    {
+        ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
+
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await repository.LoadAsync(CharacterIdentityPolicy.FirstPlayerEntityId,
+                s_utcNow.ToOffset(TimeSpan.FromHours(-4)), CancellationToken));
+
+        Assert.Equal("utcNow", exception.ParamName);
     }
 
     [Theory]
@@ -133,7 +194,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
     {
         ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
 
-        ArgumentOutOfRangeException exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await repository.LoadAsync(characterId, CancellationToken));
+        ArgumentOutOfRangeException exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await repository.LoadAsync(characterId, s_utcNow, CancellationToken));
 
         Assert.Equal("characterId", exception.ParamName);
     }
@@ -145,7 +206,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await repository.LoadAsync(CharacterIdentityPolicy.FirstPlayerEntityId, cancellation.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await repository.LoadAsync(CharacterIdentityPolicy.FirstPlayerEntityId, s_utcNow, cancellation.Token));
     }
 
     [Fact]
@@ -217,7 +278,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         uint itemId = await InsertItemAsync(characterId);
         ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
 
-        CharacterItemSet itemSet = await repository.LoadAsync(characterId, CancellationToken);
+        CharacterItemSet itemSet = await repository.LoadAsync(characterId, s_utcNow, CancellationToken);
 
         Assert.Single(itemSet.Items);
         Assert.Equal(itemId, itemSet.Items[0].ItemId);
@@ -351,7 +412,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
             }
 
             ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
-            return await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, CancellationToken));
+            return await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, s_utcNow, CancellationToken));
         }
         finally
         {
@@ -388,7 +449,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
             await InsertItemAsync(characterId, locationKind: 2, equipmentSet: 1, equipmentSlot: 4);
 
             ICharacterItemSetRepository repository = database.Services.GetRequiredService<ICharacterItemSetRepository>();
-            return await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, CancellationToken));
+            return await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, s_utcNow, CancellationToken));
         }
         finally
         {

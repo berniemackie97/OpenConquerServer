@@ -11,18 +11,32 @@ public sealed class CharacterItemSetRepository(IDbContextFactory<GameDbContext> 
     private readonly IDbContextFactory<GameDbContext> _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
     private readonly int _maximumItemsPerCharacter = (options ?? throw new ArgumentNullException(nameof(options))).MaximumItemsPerCharacter;
 
-    public async ValueTask<CharacterItemSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
+    public async ValueTask<CharacterItemSet> LoadAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
         if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
         {
             throw new ArgumentOutOfRangeException(nameof(characterId), $"An item-set lookup character ID must be at least {CharacterIdentityPolicy.FirstPlayerEntityId}.");
         }
 
+        if (utcNow.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException("Item-set hydration requires a UTC timestamp.", nameof(utcNow));
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
+
+        DateTime cutoff = utcNow.UtcDateTime;
+        cutoff = cutoff.AddTicks(-(cutoff.Ticks % TimeSpan.TicksPerMicrosecond));
 
         await using GameDbContext db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-        List<ItemRecord> records = await db.Items.AsNoTracking().Where(item => item.OwnerCharacterId == characterId)
+        // Retain malformed lifetime payloads so bounded hydration can reject them.
+        List<ItemRecord> records = await db.Items.AsNoTracking()
+            .Where(item => item.OwnerCharacterId == characterId &&
+                (item.LifetimeState != ItemLifetimeState.ActiveExpiry ||
+                 item.LifetimeDurationSeconds != null ||
+                 item.LifetimeExpiresAtUtc == null ||
+                 item.LifetimeExpiresAtUtc > cutoff))
             .OrderBy(item => item.ItemId).Take(_maximumItemsPerCharacter + 1).ToListAsync(cancellationToken).ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();

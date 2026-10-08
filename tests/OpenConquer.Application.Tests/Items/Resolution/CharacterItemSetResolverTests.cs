@@ -34,6 +34,7 @@ public sealed class CharacterItemSetResolverTests
         Assert.Same(persisted, result);
         Assert.Equal(1, repository.LoadCount);
         Assert.Equal(CharacterId, repository.CharacterId);
+        Assert.Equal(s_utcNow, repository.UtcNow);
     }
 
     [Fact]
@@ -160,12 +161,14 @@ public sealed class CharacterItemSetResolverTests
 
         public int LoadCount => Volatile.Read(ref _loadCount);
         public uint? CharacterId { get; private set; }
+        public DateTimeOffset? UtcNow { get; private set; }
 
-        public ValueTask<CharacterItemSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
+        public ValueTask<CharacterItemSet> LoadAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _loadCount);
             CharacterId = characterId;
+            UtcNow = utcNow;
             return ValueTask.FromResult(result);
         }
     }
@@ -176,7 +179,7 @@ public sealed class CharacterItemSetResolverTests
 
         public int LoadCount => Volatile.Read(ref _loadCount);
 
-        public ValueTask<CharacterItemSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
+        public ValueTask<CharacterItemSet> LoadAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _loadCount);
