@@ -34,6 +34,10 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_social_relations_distinct_characters",
         "CK_social_relations_kind",
         "CK_social_relations_owner_character_id",
+        "CK_syndicate_memberships_character_id",
+        "CK_syndicate_memberships_syndicate_id",
+        "CK_syndicates_leader_character_id",
+        "CK_syndicates_name_length",
         "CK_weapon_skills_level",
         "CK_weapon_skills_owner_character_id",
     ];
@@ -352,8 +356,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(8u, reader.GetUInt32(1));
-        Assert.Equal("20261004193352_AddMagicPersistence", reader.GetString(2));
+        Assert.Equal(9u, reader.GetUInt32(1));
+        Assert.Equal("20261008033456_AddSyndicatePersistence", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

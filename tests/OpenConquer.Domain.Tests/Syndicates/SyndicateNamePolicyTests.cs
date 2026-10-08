@@ -35,6 +35,8 @@ public sealed class SyndicateNamePolicyTests
     {
         Assert.False(SyndicateNamePolicy.IsValid("Open\nConquer"));
         Assert.False(SyndicateNamePolicy.IsValid("Open\0Conquer"));
+        Assert.False(SyndicateNamePolicy.IsValid("Open\u007FConquer"));
+        Assert.False(SyndicateNamePolicy.IsValid("Open\u009FConquer"));
     }
 
     [Fact]

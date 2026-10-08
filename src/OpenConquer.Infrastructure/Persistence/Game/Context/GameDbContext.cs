@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenConquer.Infrastructure.Persistence.Game.Items;
 using OpenConquer.Infrastructure.Persistence.Game.Skills;
 using OpenConquer.Infrastructure.Persistence.Game.Social;
+using OpenConquer.Infrastructure.Persistence.Game.Syndicates;
 using OpenConquer.Infrastructure.Persistence.Schema;
 
 namespace OpenConquer.Infrastructure.Persistence.Game.Context;
@@ -13,6 +14,8 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
     internal DbSet<SocialRelationRecord> SocialRelations => Set<SocialRelationRecord>();
     internal DbSet<WeaponSkillRecord> WeaponSkills => Set<WeaponSkillRecord>();
     internal DbSet<MagicRecord> Magic => Set<MagicRecord>();
+    internal DbSet<SyndicateRecord> Syndicates => Set<SyndicateRecord>();
+    internal DbSet<SyndicateMembershipRecord> SyndicateMemberships => Set<SyndicateMembershipRecord>();
     internal DbSet<SchemaCompatibilityRecord> SchemaCompatibility => Set<SchemaCompatibilityRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -24,6 +27,8 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new SocialRelationConfiguration());
         modelBuilder.ApplyConfiguration(new WeaponSkillConfiguration());
         modelBuilder.ApplyConfiguration(new MagicConfiguration());
+        modelBuilder.ApplyConfiguration(new SyndicateConfiguration());
+        modelBuilder.ApplyConfiguration(new SyndicateMembershipConfiguration());
         modelBuilder.ApplyConfiguration(new SchemaCompatibilityConfiguration());
     }
 }
