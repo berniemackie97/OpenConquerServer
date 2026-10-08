@@ -377,8 +377,7 @@ connection ownership advances.
 
 The resulting `AwaitingSyndicateAttributesConnection` carries the validated item, social-relation,
 weapon-skill, and magic runtime state into the next native bootstrap rung. The protocol foundation
-for syndicate attributes exists, but syndicate persistence, hydration, and runtime bootstrap
-processing are not yet implemented.
+for syndicate attributes exists, but syndicate read hydration and runtime bootstrap processing are not yet implemented.
 
 The same authenticated connection remains continuously owned through character-login resolution,
 bootstrap, map entry, map-state application, item resolution, social hydration, weapon-skill
@@ -446,8 +445,8 @@ Accounts and Game persistence are separate durable boundaries.
 
 Accounts persistence owns account identity, credentials, security state, and game-login tickets.
 
-Game persistence currently owns durable character-login, item, social-relation, weapon-skill, and
-magic state. The current Game schema provides:
+Game persistence currently owns durable character-login, item, social-relation, weapon-skill, magic,
+and syndicate persistence foundations. The current Game schema provides:
 
 - one persisted character per account;
 - unique character names;
@@ -466,7 +465,9 @@ magic state. The current Game schema provides:
 - permanent, pending-activation, and active-expiry item lifetime state;
 - directed friend/enemy social relationships;
 - persisted weapon-skill level and experience;
-- persisted magic level and experience.
+- persisted magic level and experience;
+- syndicate identity, name, leader identity, funds, and requirements;
+- character-owned syndicate memberships, rank, proffer, and native date values.
 
 The Game database does not establish a cross-database foreign key to Accounts. Successful single-use
 ticket redemption establishes the trusted authenticated account identity used for character
@@ -657,7 +658,7 @@ Implemented:
 - single-owner GameServer secured outbound writes;
 - GameServer `1052` login-proof authentication;
 - authenticated GameServer connection handoff;
-- Game character, item, social-relation, weapon-skill, and magic persistence with schema-readiness verification;
+- Game character, item, social-relation, weapon-skill, magic, and syndicate persistence with schema-readiness verification;
 - persisted character-login profile resolution;
 - authenticated account routing to character creation or existing-character login;
 - ownership-safe post-authentication character-login handoff;
@@ -674,7 +675,7 @@ Implemented:
 - native `0x4E` magic bootstrap with bounded hydration and packet 1103/1104 projection;
 - ownership-safe handoff to the syndicate-attributes bootstrap stage;
 - MySQL account persistence;
-- MySQL Game character, item, social-relation, weapon-skill, and magic persistence.
+- MySQL Game character, item, social-relation, weapon-skill, magic, and syndicate persistence.
 
 Not yet implemented:
 

@@ -18,8 +18,9 @@ The current schema chain is:
 | 6       | `20260930033806_AddSocialRelationPersistence` |
 | 7       | `20261004014402_AddWeaponSkillPersistence`     |
 | 8       | `20261004193352_AddMagicPersistence`           |
+| 9       | `20261008030000_AddSyndicatePersistence` |
 
-The current schema contract is version 8.
+The current schema contract is version 9.
 
 ## Safety rules
 
@@ -71,7 +72,7 @@ Apply all pending Game migrations:
 
 To apply or resume the current migration specifically:
 
-    dotnet tool run dotnet-ef -- database update 20261004193352_AddMagicPersistence \
+    dotnet tool run dotnet-ef -- database update 20261008030000_AddSyndicatePersistence \
       --configuration Release \
       --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
       --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
@@ -101,8 +102,8 @@ Check the OpenConquer compatibility marker:
 
 For the current schema, the compatibility row must report:
 
-    schema_version = 8
-    migration_id = 20261004193352_AddMagicPersistence
+    schema_version = 9
+    migration_id = 20261008030000_AddSyndicatePersistence
 
 Inspect the character columns involved in the resumable character migrations:
 
@@ -1178,3 +1179,46 @@ Before any downgrade, take a verified backup, inspect the migration's `Down` imp
 all downgrade preconditions against production data, understand which semantic information will be
 lost, and do not bypass migration guards or manually rewrite migration history to force the
 downgrade.
+
+## Syndicate persistence (version 9)
+
+Migration `20261008030000_AddSyndicatePersistence` introduces `syndicates` and `syndicate_memberships`.
+
+The migration does not backfill historical syndicate state or modify existing character, item,
+social-relation, weapon-skill, or magic records.
+
+Syndicate names use a 16-character `utf8mb4_bin` storage boundary. The domain independently enforces
+strict Windows-1252 representability and rejects control characters; database character length
+alone is not equivalent to the protocol's encoded-byte restriction.
+
+Leader names remain authoritative in `characters`. Syndicate population is derived from
+membership records rather than duplicated. Native syndicate level, mantle, and packet-1106's
+unresolved field are not assigned invented persistent values.
+
+### Recovery
+
+The migration verifies the exact table, ordered-column, index, foreign-key-action, collation, and
+enforced-check contracts before advancing `schema_compatibility`.
+
+Supported interrupted states include:
+
+- neither new table exists;
+- only a structurally compatible `syndicates` table exists;
+- both tables exist with compatible structure but incomplete migration metadata;
+- both tables and compatibility metadata exist while EF history remains incomplete.
+
+Unexpected or incompatible tables fail closed. Do not manually edit EF migration history or
+`schema_compatibility`.
+
+Because MySQL DDL may commit independently of migration metadata, inspect the actual database
+structure after failure and rerun the same migration only when its supported recovery conditions hold.
+
+### Downgrade
+
+Version 9 to version 8 downgrade is refused while either syndicate table contains data.
+
+Stop database writers and take a verified backup before running administrative migrations.
+Never delete persisted syndicate state merely to make a downgrade succeed.
+
+The runtime database identity receives `SELECT` permission for the two new tables, not mutation
+permissions. Read-only syndicate hydration and native `0x61` processing belong to later slices.

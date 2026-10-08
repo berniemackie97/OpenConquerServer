@@ -19,7 +19,7 @@ public static class SyndicateNamePolicy
 
         foreach (char character in name)
         {
-            if (character < ' ')
+            if (char.IsControl(character))
             {
                 return false;
             }
