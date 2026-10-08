@@ -1,6 +1,7 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Login.Character.Bootstrap;
+using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.Login;
 
@@ -9,7 +10,7 @@ public sealed class ExistingCharacterBootstrapPacketFactoryTests
     [Fact]
     public void Accepted_UsesEstablishedCompatibilityPolicy()
     {
-        var packet = ExistingCharacterBootstrapPacketFactory.Accepted;
+        GameTalkPacket1004 packet = ExistingCharacterBootstrapPacketFactory.Accepted;
 
         Assert.Equal((ushort)1004, packet.PacketId);
         Assert.Equal((uint)0, packet.Color);
@@ -25,7 +26,7 @@ public sealed class ExistingCharacterBootstrapPacketFactoryTests
     [Fact]
     public void LoginHistory_UsesEstablishedCompatibilityPolicy()
     {
-        var packet = ExistingCharacterBootstrapPacketFactory.LoginHistory;
+        GameLoginHistoryPacket2078 packet = ExistingCharacterBootstrapPacketFactory.LoginHistory;
 
         Assert.Equal((ushort)2078, packet.PacketId);
         Assert.Equal((uint)0, packet.LastLoginTimestamp);
@@ -36,7 +37,7 @@ public sealed class ExistingCharacterBootstrapPacketFactoryTests
     [Fact]
     public void ServerState_UsesEstablishedCompatibilityPolicy()
     {
-        var packet = ExistingCharacterBootstrapPacketFactory.ServerState;
+        GameServerStatePacket2079 packet = ExistingCharacterBootstrapPacketFactory.ServerState;
 
         Assert.Equal((ushort)2079, packet.PacketId);
         Assert.Equal((uint)0, packet.State);
@@ -47,7 +48,7 @@ public sealed class ExistingCharacterBootstrapPacketFactoryTests
     {
         CharacterLoginProfile profile = CreateProfile(rebirthCount: 2, preRebirthLevel: 130, pkPoints: -25, enlightenmentPoints: 1234);
 
-        var packet = ExistingCharacterBootstrapPacketFactory.CreateUserInfo(profile);
+        GameUserInfoPacket1006 packet = ExistingCharacterBootstrapPacketFactory.CreateUserInfo(profile);
 
         Assert.Equal(profile.Identity.CharacterId, packet.EntityId);
         Assert.Equal((ushort)0, packet.TransformLookSourceId);
@@ -95,7 +96,7 @@ public sealed class ExistingCharacterBootstrapPacketFactoryTests
     {
         CharacterLoginProfile profile = CreateProfile(rebirthCount: 0, preRebirthLevel: 0);
 
-        var packet = ExistingCharacterBootstrapPacketFactory.CreateUserInfo(profile);
+        GameUserInfoPacket1006 packet = ExistingCharacterBootstrapPacketFactory.CreateUserInfo(profile);
 
         Assert.Equal((uint)0, packet.EncodedPreRebirthLevel);
     }

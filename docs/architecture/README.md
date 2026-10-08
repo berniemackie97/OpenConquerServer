@@ -331,6 +331,16 @@ optional MsgFlushExp 1104 magic-experience snapshots
 MsgAction 0x4E acknowledgement
     ↓
 AwaitingSyndicateAttributesConnection
+    ↓
+client MsgAction 0x61 GetSyndicateAttributes
+    ↓
+read-only syndicate hydration
+    ↓
+optional MsgSyndicateAttributeInfo 1106 snapshot
+    ↓
+MsgAction 0x61 acknowledgement
+    ↓
+AwaitingSilentInfoReportConnection
 ```
 
 Every transition takes exclusive ownership of the prior state and transfers the same authenticated
@@ -375,21 +385,28 @@ skills to packet 1025 snapshots, and magic state to packet 1103 plus packet 1104
 magic experience is nonzero. Each rung completes with the matching MsgAction acknowledgement before
 connection ownership advances.
 
-The resulting `AwaitingSyndicateAttributesConnection` carries the validated item, social-relation,
-weapon-skill, and magic runtime state into the next native bootstrap rung. The protocol foundation
-for syndicate attributes and read-only syndicate hydration exist, but native syndicate-attributes
-bootstrap processing is not yet implemented.
+The syndicate-attributes processor receives the native `0x61` request, validates the authenticated
+character identity, and hydrates the existing read-only syndicate state. Members receive one
+packet-1106 attribute snapshot before the `0x61` acknowledgement. Characters without membership
+receive only the acknowledgement. The snapshot preserves authoritative funds, membership rank,
+proffer, leadership, population, and requirements. Persisted Unix date values are projected to
+UTC `yyyyMMdd`; expired position dates are zero. Syndicate level, mantle, and the unresolved
+packet-1106 field remain zero because no authoritative persisted values exist.
+
+`AwaitingSilentInfoReportConnection` owns the same authenticated connection and accumulated
+character state after successful transmission. The client next sends `10010 / 0xFB`, containing
+its silent-data checksum and version. Processing that report remains a separate bootstrap rung.
 
 The same authenticated connection remains continuously owned through character-login resolution,
 bootstrap, map entry, map-state application, item resolution, social hydration, weapon-skill
-hydration, and magic hydration. Cancellation or failure closes the owned connection instead of
+hydration, magic hydration, and syndicate hydration. Cancellation or failure closes the owned connection instead of
 exposing partial state.
 
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
 The runnable GameServer host, connection admission runtime, character creation transaction,
-syndicate-attributes and later bootstrap rungs, gameplay routing, and authoritative world integration
+silent-info reporting and later bootstrap rungs, gameplay routing, and authoritative world integration
 remain future boundaries.
 
 See:
@@ -676,7 +693,7 @@ Implemented:
 - native `0x4C` friend-list bootstrap with bounded social-relation hydration and packet 1019 projection;
 - native `0x4D` weapon-skill bootstrap with bounded hydration and packet 1025 projection;
 - native `0x4E` magic bootstrap with bounded hydration and packet 1103/1104 projection;
-- ownership-safe handoff to the syndicate-attributes bootstrap stage;
+- native `0x61` syndicate-attributes hydration, packet-1106 projection, and ownership-safe handoff to silent-info reporting;
 - MySQL account persistence;
 - MySQL Game character, item, social-relation, weapon-skill, magic, and syndicate persistence.
 
@@ -686,7 +703,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- syndicate-attributes and later native login bootstrap rungs;
+- silent-info reporting and later native login bootstrap rungs;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
 - gameplay networking and simulation.

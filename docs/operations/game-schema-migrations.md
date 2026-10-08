@@ -951,7 +951,8 @@ Never delete persisted syndicate state merely to make a downgrade succeed.
 Read-only syndicate hydration is implemented. Runtime Game database credentials require
 `SELECT` access to `syndicates`, `syndicate_memberships`, and `characters`. The integration-test
 fixture provisions these permissions for tests; production identities must be provisioned
-separately. Syndicate mutations and native `0x61` processing remain unimplemented.
+separately. Native `0x61` bootstrap processing uses this read-only hydration contract without
+requiring another schema migration. Syndicate mutations remain unimplemented.
 
 ## Verifying current schema after recovery
 
