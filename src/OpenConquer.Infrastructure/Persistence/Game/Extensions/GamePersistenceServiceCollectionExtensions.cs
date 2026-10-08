@@ -3,12 +3,14 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 using OpenConquer.Infrastructure.Persistence.Game.Items;
 using OpenConquer.Infrastructure.Persistence.Game.Login;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
 using OpenConquer.Infrastructure.Persistence.Game.Skills;
 using OpenConquer.Infrastructure.Persistence.Game.Social;
+using OpenConquer.Infrastructure.Persistence.Game.Syndicates;
 
 namespace OpenConquer.Infrastructure.Persistence.Game.Extensions;
 
@@ -61,6 +63,7 @@ public static class GamePersistenceServiceCollectionExtensions
         services.AddSingleton<ICharacterSocialRelationSetRepository, CharacterSocialRelationSetRepository>();
         services.AddSingleton<ICharacterWeaponSkillSetRepository, CharacterWeaponSkillSetRepository>();
         services.AddSingleton<ICharacterMagicSetRepository, CharacterMagicSetRepository>();
+        services.AddSingleton<ICharacterSyndicateStateRepository, CharacterSyndicateStateRepository>();
         services.AddSingleton<GameDatabaseReadinessVerifier>();
         services.AddSingleton<IGameDatabaseReadinessVerifier>(provider => provider.GetRequiredService<GameDatabaseReadinessVerifier>());
 

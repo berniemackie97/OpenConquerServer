@@ -948,8 +948,10 @@ Version 9 to version 8 downgrade is refused while either syndicate table contain
 Stop database writers and take a verified backup before running administrative migrations.
 Never delete persisted syndicate state merely to make a downgrade succeed.
 
-The runtime database identity receives `SELECT` permission for the two new tables, not mutation
-permissions. Read-only syndicate hydration and native `0x61` processing belong to later slices.
+Read-only syndicate hydration is implemented. Runtime Game database credentials require
+`SELECT` access to `syndicates`, `syndicate_memberships`, and `characters`. The integration-test
+fixture provisions these permissions for tests; production identities must be provisioned
+separately. Syndicate mutations and native `0x61` processing remain unimplemented.
 
 ## Verifying current schema after recovery
 

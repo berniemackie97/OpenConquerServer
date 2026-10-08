@@ -377,7 +377,8 @@ connection ownership advances.
 
 The resulting `AwaitingSyndicateAttributesConnection` carries the validated item, social-relation,
 weapon-skill, and magic runtime state into the next native bootstrap rung. The protocol foundation
-for syndicate attributes exists, but syndicate read hydration and runtime bootstrap processing are not yet implemented.
+for syndicate attributes and read-only syndicate hydration exist, but native syndicate-attributes
+bootstrap processing is not yet implemented.
 
 The same authenticated connection remains continuously owned through character-login resolution,
 bootstrap, map entry, map-state application, item resolution, social hydration, weapon-skill
@@ -446,7 +447,8 @@ Accounts and Game persistence are separate durable boundaries.
 Accounts persistence owns account identity, credentials, security state, and game-login tickets.
 
 Game persistence currently owns durable character-login, item, social-relation, weapon-skill, magic,
-and syndicate persistence foundations. The current Game schema provides:
+and syndicate persistence. Read-only hydration resolves authoritative leadership and
+membership-derived population. The current Game schema provides:
 
 - one persisted character per account;
 - unique character names;
@@ -659,6 +661,7 @@ Implemented:
 - GameServer `1052` login-proof authentication;
 - authenticated GameServer connection handoff;
 - Game character, item, social-relation, weapon-skill, magic, and syndicate persistence with schema-readiness verification;
+- read-only character-syndicate hydration with authoritative leader names and derived population;
 - persisted character-login profile resolution;
 - authenticated account routing to character creation or existing-character login;
 - ownership-safe post-authentication character-login handoff;
