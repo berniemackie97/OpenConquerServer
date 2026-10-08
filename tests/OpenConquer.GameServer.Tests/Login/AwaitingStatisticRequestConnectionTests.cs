@@ -30,9 +30,7 @@ public sealed class AwaitingStatisticRequestConnectionTests
     public async Task Constructor_NullDependencies_AreRejected()
     {
         FakeGameTransportConnection transport = new();
-        await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(
-            transport
-        );
+        await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(transport);
 
         GameMapEntryDefinition map = CreateMap();
         CharacterItemSet items = CreateItemSet();
@@ -41,121 +39,31 @@ public sealed class AwaitingStatisticRequestConnectionTests
         CharacterMagicSet magic = CreateMagicSet();
         CharacterSyndicateState syndicate = CreateSyndicateState();
 
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                null!,
-                map,
-                items,
-                relations,
-                weaponSkills,
-                magic,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                null!,
-                items,
-                relations,
-                weaponSkills,
-                magic,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                map,
-                null!,
-                relations,
-                weaponSkills,
-                magic,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                map,
-                items,
-                null!,
-                weaponSkills,
-                magic,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                map,
-                items,
-                relations,
-                null!,
-                magic,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                map,
-                items,
-                relations,
-                weaponSkills,
-                null!,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
-        Assert.Throws<ArgumentNullException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                map,
-                items,
-                relations,
-                weaponSkills,
-                magic,
-                null!,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(null!, map, items, relations,
+            weaponSkills, magic, syndicate, ClientChecksum, ClientVersion));
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(connection, null!, items, relations,
+            weaponSkills, magic, syndicate, ClientChecksum, ClientVersion));
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(connection, map, null!, relations,
+            weaponSkills, magic, syndicate, ClientChecksum, ClientVersion));
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(connection, map, items, null!,
+            weaponSkills, magic, syndicate, ClientChecksum, ClientVersion));
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(connection, map, items, relations,
+            null!, magic, syndicate, ClientChecksum, ClientVersion));
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(connection, map, items, relations,
+            weaponSkills, null!, syndicate, ClientChecksum, ClientVersion));
+        Assert.Throws<ArgumentNullException>(() => new AwaitingStatisticRequestConnection(connection, map, items, relations,
+            weaponSkills, magic, null!, ClientChecksum, ClientVersion));
     }
 
     [Fact]
     public async Task Constructor_WrongMap_IsRejected()
     {
         FakeGameTransportConnection transport = new();
-        await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(
-            transport
-        );
+        await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(transport);
         GameMapEntryDefinition wrongMap = new(1003, 1015, 0);
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                wrongMap,
-                CreateItemSet(),
-                CreateSocialRelationSet(),
-                CreateWeaponSkillSet(),
-                CreateMagicSet(),
-                CreateSyndicateState(),
-                ClientChecksum,
-                ClientVersion
-            )
-        );
+            new AwaitingStatisticRequestConnection(connection, wrongMap, CreateItemSet(), CreateSocialRelationSet(), CreateWeaponSkillSet(), CreateMagicSet(), CreateSyndicateState(), ClientChecksum, ClientVersion));
 
         Assert.Equal("map", exception.ParamName);
     }
@@ -169,41 +77,18 @@ public sealed class AwaitingStatisticRequestConnectionTests
     public async Task Constructor_StateBelongsToAnotherCharacter_IsRejected(string parameterName)
     {
         FakeGameTransportConnection transport = new();
-        await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(
-            transport
-        );
+        await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(transport);
 
         uint otherCharacterId = CharacterId + 1;
 
-        CharacterItemSet items = CreateItemSet(
-            parameterName == "itemSet" ? otherCharacterId : CharacterId
-        );
-        CharacterSocialRelationSet relations = CreateSocialRelationSet(
-            parameterName == "socialRelationSet" ? otherCharacterId : CharacterId
-        );
-        CharacterWeaponSkillSet weaponSkills = CreateWeaponSkillSet(
-            parameterName == "weaponSkillSet" ? otherCharacterId : CharacterId
-        );
-        CharacterMagicSet magic = CreateMagicSet(
-            parameterName == "magicSet" ? otherCharacterId : CharacterId
-        );
-        CharacterSyndicateState syndicate = CreateSyndicateState(
-            parameterName == "syndicateState" ? otherCharacterId : CharacterId
-        );
+        CharacterItemSet items = CreateItemSet(parameterName == "itemSet" ? otherCharacterId : CharacterId);
+        CharacterSocialRelationSet relations = CreateSocialRelationSet(parameterName == "socialRelationSet" ? otherCharacterId : CharacterId);
+        CharacterWeaponSkillSet weaponSkills = CreateWeaponSkillSet(parameterName == "weaponSkillSet" ? otherCharacterId : CharacterId);
+        CharacterMagicSet magic = CreateMagicSet(parameterName == "magicSet" ? otherCharacterId : CharacterId);
+        CharacterSyndicateState syndicate = CreateSyndicateState(parameterName == "syndicateState" ? otherCharacterId : CharacterId);
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new AwaitingStatisticRequestConnection(
-                connection,
-                CreateMap(),
-                items,
-                relations,
-                weaponSkills,
-                magic,
-                syndicate,
-                ClientChecksum,
-                ClientVersion
-            )
-        );
+            new AwaitingStatisticRequestConnection(connection, CreateMap(), items, relations, weaponSkills, magic, syndicate, ClientChecksum, ClientVersion));
 
         Assert.Equal(parameterName, exception.ParamName);
     }
@@ -221,17 +106,8 @@ public sealed class AwaitingStatisticRequestConnectionTests
         CharacterMagicSet magic = CreateMagicSet();
         CharacterSyndicateState syndicate = CreateSyndicateState();
 
-        await using AwaitingStatisticRequestConnection owner = new(
-            connection,
-            map,
-            items,
-            relations,
-            weaponSkills,
-            magic,
-            syndicate,
-            ClientChecksum,
-            ClientVersion
-        );
+        await using AwaitingStatisticRequestConnection owner = new(connection, map, items, relations,
+            weaponSkills, magic, syndicate, ClientChecksum, ClientVersion);
 
         Assert.Same(connection.Profile, owner.Profile);
         Assert.Same(map, owner.Map);
@@ -293,16 +169,8 @@ public sealed class AwaitingStatisticRequestConnectionTests
         Exception? firstFailure = null;
         Exception? secondFailure = null;
 
-        await Task.WhenAll(
-            Task.Run(
-                () => TryTake(owner, out first, out firstFailure),
-                TestContext.Current.CancellationToken
-            ),
-            Task.Run(
-                () => TryTake(owner, out second, out secondFailure),
-                TestContext.Current.CancellationToken
-            )
-        );
+        await Task.WhenAll(Task.Run(() => TryTake(owner, out first, out firstFailure), TestContext.Current.CancellationToken),
+            Task.Run(() => TryTake(owner, out second, out secondFailure), TestContext.Current.CancellationToken));
 
         Assert.True(first is not null ^ second is not null);
         Assert.Same(connection, first ?? second);
@@ -326,12 +194,8 @@ public sealed class AwaitingStatisticRequestConnectionTests
         Exception? takeFailure = null;
 
         await Task.WhenAll(
-            Task.Run(
-                () => TryTake(owner, out transferred, out takeFailure),
-                TestContext.Current.CancellationToken
-            ),
-            Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken)
-        );
+            Task.Run(() => TryTake(owner, out transferred, out takeFailure), TestContext.Current.CancellationToken),
+            Task.Run(async () => await owner.DisposeAsync(), TestContext.Current.CancellationToken));
 
         Assert.True(transferred is not null ^ takeFailure is InvalidOperationException);
 
@@ -350,11 +214,7 @@ public sealed class AwaitingStatisticRequestConnectionTests
         Assert.Equal(1, transport.DisposeCount);
     }
 
-    private static void TryTake(
-        AwaitingStatisticRequestConnection owner,
-        out ExistingCharacterGameConnection? connection,
-        out Exception? failure
-    )
+    private static void TryTake(AwaitingStatisticRequestConnection owner, out ExistingCharacterGameConnection? connection, out Exception? failure)
     {
         try
         {
@@ -368,95 +228,37 @@ public sealed class AwaitingStatisticRequestConnectionTests
         }
     }
 
-    private static AwaitingStatisticRequestConnection CreateOwner(
-        ExistingCharacterGameConnection connection
-    ) =>
-        new(
-            connection,
-            CreateMap(),
-            CreateItemSet(),
-            CreateSocialRelationSet(),
-            CreateWeaponSkillSet(),
-            CreateMagicSet(),
-            CreateSyndicateState(),
-            ClientChecksum,
-            ClientVersion
-        );
+    private static AwaitingStatisticRequestConnection CreateOwner(ExistingCharacterGameConnection connection) =>
+        new(connection, CreateMap(), CreateItemSet(), CreateSocialRelationSet(), CreateWeaponSkillSet(), CreateMagicSet(), CreateSyndicateState(), ClientChecksum, ClientVersion);
 
-    private static async Task<ExistingCharacterGameConnection> CreateConnectionAsync(
-        FakeGameTransportConnection transport
-    )
+    private static async Task<ExistingCharacterGameConnection> CreateConnectionAsync(FakeGameTransportConnection transport)
     {
-        GameConnectionSession session = await GameConnectionSession.OpenAsync(
-            transport,
-            TestContext.Current.CancellationToken
-        );
-        AuthenticatedGameConnection authenticated = new(
-            AccountId,
-            Username,
-            SessionUid,
-            LocaleTag,
-            HardwareAddress,
-            ResourceVersion,
-            session
-        );
+        GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
+        AuthenticatedGameConnection authenticated = new(AccountId, Username, SessionUid, LocaleTag, HardwareAddress, ResourceVersion, session);
         CharacterLoginProfile profile = CreateProfile();
         CharacterPresenceDirectory presence = new();
 
-        return new ExistingCharacterGameConnection(
-            authenticated,
-            profile,
-            presence.Register(profile.Identity.CharacterId)
-        );
+        return new ExistingCharacterGameConnection(authenticated, profile, presence.Register(profile.Identity.CharacterId));
     }
 
     private static CharacterLoginProfile CreateProfile()
     {
         CharacterLoginIdentity identity = new(CharacterId, AccountId, Username);
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
-        CharacterProgression progression = new(
-            level: 1,
-            experience: 0,
-            profession: 10,
-            firstProfession: 0,
-            previousProfession: 0,
-            rebirthCount: 0,
-            preRebirthLevel: 0
-        );
+        CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0, previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
         CharacterAttributes attributes = new(10, 10, 10, 10, 0);
         CharacterVitals vitals = new(100, 0);
         CharacterEconomy economy = new(0, 0, 0);
         CharacterLocation location = new(mapId: 1002, x: 430, y: 378);
 
-        return new CharacterLoginProfile(
-            identity,
-            appearance,
-            progression,
-            attributes,
-            vitals,
-            economy,
-            pkPoints: 0,
-            titleId: 0,
-            enlightenmentPoints: 0,
-            location
-        );
+        return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: 0, titleId: 0, enlightenmentPoints: 0, location);
     }
 
     private static GameMapEntryDefinition CreateMap() => new(1002, 1015, 0);
+    private static CharacterItemSet CreateItemSet(uint characterId = CharacterId) => new(characterId, []);
+    private static CharacterSocialRelationSet CreateSocialRelationSet(uint characterId = CharacterId) => new(characterId, []);
+    private static CharacterWeaponSkillSet CreateWeaponSkillSet(uint characterId = CharacterId) => new(characterId, []);
+    private static CharacterMagicSet CreateMagicSet(uint characterId = CharacterId) => new(characterId, []);
 
-    private static CharacterItemSet CreateItemSet(uint characterId = CharacterId) =>
-        new(characterId, []);
-
-    private static CharacterSocialRelationSet CreateSocialRelationSet(
-        uint characterId = CharacterId
-    ) => new(characterId, []);
-
-    private static CharacterWeaponSkillSet CreateWeaponSkillSet(uint characterId = CharacterId) =>
-        new(characterId, []);
-
-    private static CharacterMagicSet CreateMagicSet(uint characterId = CharacterId) =>
-        new(characterId, []);
-
-    private static CharacterSyndicateState CreateSyndicateState(uint characterId = CharacterId) =>
-        new(characterId, membership: null, syndicate: null);
+    private static CharacterSyndicateState CreateSyndicateState(uint characterId = CharacterId) => new(characterId, membership: null, syndicate: null);
 }
