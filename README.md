@@ -12,9 +12,9 @@ server architecture.
 > AccountServer login transaction, account authentication, abuse protection, password persistence
 > and migration, account security mutations, durable GameServer login tickets, ticket
 > revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
-> handoff, existing-character bootstrap through syndicate-attributes processing, and Game schema
-> v9 syndicate persistence and read hydration are implemented.
-> Account registration, the runnable GameServer host, character creation, silent-info report
+> handoff, existing-character bootstrap through silent-info reporting, and Game schema v9
+> syndicate persistence and read hydration are implemented.
+> Account registration, the runnable GameServer host, character creation, statistics-request
 > processing, later bootstrap stages, and authoritative gameplay are not yet implemented.
 
 ## Architecture
@@ -59,7 +59,7 @@ flowchart TD
 | **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and verified AccountServer/GameServer packet contracts.                                |
 | **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer**     | Native GameServer connection handoff and existing-character bootstrap runtime through the silent-info report ownership boundary; authoritative gameplay is future. |
+| **OpenConquer.GameServer**     | Native GameServer connection handoff and existing-character bootstrap runtime through the statistics-request ownership boundary; authoritative gameplay is future. |
 | **OpenConquer.Assets**         | Native client-derived static asset formats and parsers used only by offline ingestion/tooling.                                                                      |
 | **OpenConquer.GameData.Tool**  | Offline deterministic conversion of verified native client data into canonical server release content.                                                             |
 

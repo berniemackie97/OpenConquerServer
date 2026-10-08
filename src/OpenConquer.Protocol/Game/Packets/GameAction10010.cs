@@ -25,6 +25,7 @@ public readonly record struct GameAction10010(uint EntityId, uint ParameterPair,
     public const ushort GetWeaponSkillSetAction = 0x4D;
     public const ushort GetMagicSetAction = 0x4E;
     public const ushort GetSyndicateAttributesAction = 0x61;
+    public const ushort ReportSilentInfoAction = 0xFB;
     public const ushort ClientStateAppliedAction = 0x198;
 
     private const int EntityIdOffset = 4;
