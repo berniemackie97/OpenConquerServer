@@ -9,67 +9,82 @@ property value. Multiple world maps may share one map-data identity.
 Native `ini/GameMap.dat` provides client terrain references. It does not
 establish the complete server-owned map-definition catalog.
 
-## Source and runtime formats
+## Canonical content format
 
-The offline source is `map-definitions.source.json`, with format version 1.
+`map-definitions.json` is OpenConquer's authoritative, versioned map-definition
+catalog. Developers can author and maintain it directly. Neither the file format
+nor the runtime loader requires native Conquer Online source data.
 
-Every source record contains:
+Format version 1 contains a `maps` array. Each definition contains exactly:
 
-- `mapId`: nonzero unsigned 32-bit world-map ID;
-- `mapDataId`: nonzero unsigned 32-bit client terrain ID;
-- `flags`: unsigned 64-bit map-property value;
-- `mapDataEvidence`: nonempty reference supporting the map-data assignment;
-- `flagsEvidence`: nonempty reference supporting the exact flags value.
+- `mapId`: nonzero unsigned 32-bit server world-map ID;
+- `mapDataId`: nonzero unsigned 32-bit terrain-resource identity;
+- `flags`: unsigned 64-bit map-property value.
 
-Evidence references are required for review and traceability. Their presence
-does not independently prove a value is correct. A zero flags value must be
-supported just like any other value; it must not substitute for missing evidence.
+Multiple server maps may share one `mapDataId`. A zero flags value is valid when
+zero is the intended value, but it must not be used to disguise unknown flags
+during initial retail-baseline reconstruction.
 
-Source validation rejects unsupported versions, unexpected or repeated JSON
-properties, missing evidence, invalid identities, duplicate world-map IDs,
-invalid numeric widths, and oversized source documents.
+The runtime loader rejects unsupported versions, unexpected or duplicate
+properties, missing fields, invalid identities, duplicate world-map IDs,
+invalid numeric values, empty catalogs, and resource-limit violations.
+It publishes an immutable `MapDefinitionCatalog`.
 
-The generated runtime file is `map-definitions.json`, also format version 1.
-It contains only `mapId`, `mapDataId`, and `flags`, ordered by MapId.
+## Optional import and normalization
 
-The runtime loader validates the file and publishes one immutable
-`MapDefinitionCatalog`. It does not access or parse the source evidence,
-retail client DAT files, or terrain containers.
+The offline generator accepts the same required fields as the canonical format.
+Imported records may additionally supply `mapDataEvidence` and `flagsEvidence`
+as optional nonempty strings of at most 512 characters.
 
-## Generation
+Provided provenance is validated and discarded during canonical generation.
+It is useful for reviewing the original 5517 baseline, but never required for
+custom OpenConquer content. A reference is not independent proof of correctness.
 
-After the source records and their evidence have been reviewed:
+The generator sorts definitions by `mapId` and writes the canonical format
+deterministically. Running the generator is optional; authored canonical content
+can be loaded directly.
+
+Historical source records and canonical runtime records are not two mandatory
+representations that developers must maintain in parallel.
+
+## Optional generation
+
+To normalize imported or authored records into deterministic canonical output:
 
     dotnet run \
       --project tools/OpenConquer.GameData.Tool/OpenConquer.GameData.Tool.csproj \
       -c Release \
       -- \
       generate-map-definitions \
-      <audited-source>/map-definitions.source.json \
+      <source>/maps.json \
       content/maps/map-definitions.json
 
-The tool reports SHA-256 hashes for both source and generated content.
+The source and destination must be different files. Generation replaces the
+destination with the normalized catalog, so review the resulting diff before
+committing. Do not overwrite independently authored changes unintentionally.
 
-The canonical output is deterministic for an identical set of source records,
-regardless of source record ordering.
+The tool reports SHA-256 hashes for the source and generated content.
+Different record orderings and optional provenance metadata do not change
+the canonical output when the map definitions themselves are identical.
 
-## Production baseline status
+## Native 5517 compatibility baseline
 
 A complete verified 5517 world-map definition baseline has not yet been
 established in this repository.
 
-Do not create a production `map-definitions.json` from guessed assignments,
-default flags, unrelated 6270-era database rows, or unreviewed emulator
-exports merely to satisfy the catalog loader.
+For the initial compatibility baseline, do not substitute guessed assignments,
+default flags, unrelated 6270-era database rows, or unreviewed emulator exports
+for verified original behavior. The OpenConquerPublic corrections are useful
+research inputs but include unresolved and previously incorrect mappings.
 
-The historical OpenConquerPublic map corrections are useful evidence, but
-they also document unresolved identities and previously incorrect mappings.
-The original map and flag assignments still require independent review.
+Once the historical baseline is established, preserve its provenance and
+recorded integrity hashes as regression evidence for that baseline.
 
-Before a production baseline is accepted, its complete record count, source
-hash, output hash, and verified map-specific evidence must be documented
-and pinned by an integrity test, following the existing item-type catalog
-precedent.
+Future OpenConquer maps and revisions are independent project-owned content.
+They require normal schema, gameplay, asset, and compatibility validation;
+they do not require retail 5517 provenance or matching native definitions.
+Release-content integrity hashes identify intentional artifacts and are not
+requirements to reproduce the original retail bytes.
 
 ## Remaining map-system boundaries
 

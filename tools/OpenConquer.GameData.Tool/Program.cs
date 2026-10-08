@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Items;
 using OpenConquer.Domain.World;
+using OpenConquer.GameData.Tool.IO;
 using OpenConquer.GameData.Tool.Items;
 using OpenConquer.GameData.Tool.Maps;
 
@@ -12,6 +13,7 @@ internal static class Program
     private const int SuccessExitCode = 0;
     private const int OperationFailedExitCode = 1;
     private const int InvalidArgumentsExitCode = 2;
+    private const int MaximumItemTypeSourceLengthBytes = 64 * 1024 * 1024;
 
     private static int Main(string[] args)
     {
@@ -64,7 +66,10 @@ internal static class Program
 
     private static int GenerateItemTypes(string sourcePath, string destinationPath)
     {
-        byte[] sourcePayload = File.ReadAllBytes(sourcePath);
+        byte[] sourcePayload = ToolSourceFileReader.Read(
+            sourcePath,
+            MaximumItemTypeSourceLengthBytes
+        );
         ItemTypeDatTable source = ItemTypeDatTable.Parse(sourcePayload);
         ItemTypeDefinition[] definitions = ItemTypeCatalogGenerator.Generate(source);
 
@@ -77,21 +82,15 @@ internal static class Program
 
     private static int GenerateMapDefinitions(string sourcePath, string destinationPath)
     {
-        FileInfo sourceFile = new(sourcePath);
-
-        if (sourceFile.Length > MapDefinitionSourceReader.MaximumSourceLengthBytes)
-        {
-            throw new InvalidDataException(
-                $"Map-definition source exceeds {MapDefinitionSourceReader.MaximumSourceLengthBytes} bytes."
-            );
-        }
-
-        byte[] sourcePayload = File.ReadAllBytes(sourcePath);
+        byte[] sourcePayload = ToolSourceFileReader.Read(
+            sourcePath,
+            MapDefinitionSourceReader.MaximumSourceLengthBytes
+        );
         MapDefinition[] definitions = MapDefinitionSourceReader.Parse(sourcePayload);
 
         MapDefinitionCatalogFileWriter.Write(destinationPath, definitions);
 
-        PrintResult("map definition", definitions.Length, sourcePayload, destinationPath);
+        PrintResult("map", definitions.Length, sourcePayload, destinationPath);
 
         return SuccessExitCode;
     }
@@ -115,7 +114,7 @@ internal static class Program
             "  OpenConquer.GameData.Tool generate-item-types <itemtype.dat> <item-types.json>"
         );
         Console.Error.WriteLine(
-            "  OpenConquer.GameData.Tool generate-map-definitions <map-definitions.source.json> <map-definitions.json>"
+            "  OpenConquer.GameData.Tool generate-map-definitions <source.json> <map-definitions.json>"
         );
     }
 

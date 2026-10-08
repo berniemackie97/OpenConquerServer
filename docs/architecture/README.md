@@ -46,7 +46,7 @@ flowchart TD
 | `OpenConquer.Assets`         | Native client-derived static asset formats and parsers used by offline ingestion/tooling.                                                       |
 | `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                                                   |
 | `OpenConquer.GameServer`     | GameServer connection handoff, existing-character login/bootstrap orchestration, native compatibility behavior, and future gameplay hosting.   |
-| `OpenConquer.GameData.Tool`  | Offline deterministic conversion of verified native client data into canonical server release content.                                        |
+| `OpenConquer.GameData.Tool`  | Optional offline import and normalization of legacy or authored content into canonical OpenConquer release data.                                        |
 
 ## Dependency Rules
 
@@ -460,10 +460,16 @@ World-map identity is server-owned and separate from client terrain identity.
 `MapDefinitionCatalog` provides immutable world-map-ID lookups; multiple server maps may
 reference the same client terrain identity. No fallback assumes the two IDs are equal.
 
-An offline tool converts reviewed map-definition source records with separate map-data
-and flags evidence references into deterministic versioned JSON. Infrastructure validates
-that canonical catalog with explicit file-size and record-count limits before creating
-the immutable snapshot. Native client `.dat` files are not runtime dependencies.
+The versioned JSON map catalog is first-class OpenConquer-owned content. Definitions may
+be authored and maintained directly without native files, import tools, or historical
+evidence references. An optional offline tool accepts authored or imported records,
+validates any provenance references that are provided, and produces deterministic
+canonical JSON. Infrastructure validates the runtime catalog with explicit file-size
+and record-count limits before creating the immutable snapshot.
+
+Native 5517 evidence establishes the initial compatibility baseline; it is not a
+requirement for later OpenConquer content. The GameServer never loads retail `.dat`
+files at runtime.
 
 The existing EnterMap contract can project a canonical definition into
 `GameMapEntryDefinition`. The runnable GameServer host, startup catalog publication,

@@ -31,6 +31,17 @@ public sealed class MapDefinitionCatalogGenerationTests
         }
         """;
 
+    private const string CustomContent =
+        """
+        {
+          "formatVersion": 1,
+          "maps": [
+            {"mapId": 1003, "mapDataId": 1010, "flags": 18446744073709551615},
+            {"mapId": 1002, "mapDataId": 1010, "flags": 274877906960}
+          ]
+        }
+        """;
+
     [Fact]
     public void Parse_ValidSource_PreservesCompleteValuesAndSorts()
     {
@@ -44,17 +55,57 @@ public sealed class MapDefinitionCatalogGenerationTests
         Assert.Equal(ulong.MaxValue, definitions[1].Flags);
     }
 
+    [Fact]
+    public void Parse_CustomContent_DoesNotRequireNativeEvidence()
+    {
+        MapDefinition[] definitions = MapDefinitionSourceReader.Parse(Encoding.UTF8.GetBytes(CustomContent));
+
+        Assert.Equal(2, definitions.Length);
+        Assert.Equal(1002u, definitions[0].MapId);
+        Assert.Equal(1003u, definitions[1].MapId);
+        Assert.Equal(ulong.MaxValue, definitions[1].Flags);
+    }
+
+    [Fact]
+    public void Parse_MixedHistoricalAndCustomRecords_IsAccepted()
+    {
+        const string source =
+            """
+            {
+              "formatVersion": 1,
+              "maps": [
+                {"mapId": 1, "mapDataId": 2, "flags": 0, "mapDataEvidence": "import/terrain.md"},
+                {"mapId": 3, "mapDataId": 2, "flags": 18446744073709551615, "flagsEvidence": "import/flags.md"},
+                {"mapId": 4, "mapDataId": 5, "flags": 0}
+              ]
+            }
+            """;
+
+        MapDefinition[] definitions = MapDefinitionSourceReader.Parse(Encoding.UTF8.GetBytes(source));
+
+        Assert.Equal(3, definitions.Length);
+        Assert.Equal(0ul, definitions[0].Flags);
+        Assert.Equal(ulong.MaxValue, definitions[1].Flags);
+        Assert.Equal(5u, definitions[2].MapDataId);
+    }
+
     [Theory]
     [InlineData("""{"formatVersion":1,"maps":[]}""")]
     [InlineData("""{"formatVersion":2,"maps":[]}""")]
     [InlineData("""{"formatVersion":1,"maps":[{}]}""")]
     [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":"","flagsEvidence":"source"}]}""")]
     [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":"source","flagsEvidence":" "}]}""")]
-    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":null,"flagsEvidence":"source"}]}""")]
-    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":-1,"mapDataEvidence":"source","flagsEvidence":"source"}]}""")]
-    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":"source","flagsEvidence":"source","unknown":0}]}""")]
-    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":"source","flagsEvidence":"source","flags":1}]}""")]
-    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":"source","flagsEvidence":"source"},{"mapId":1,"mapDataId":3,"flags":0,"mapDataEvidence":"source","flagsEvidence":"source"}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"mapDataEvidence":null}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"flagsEvidence":123}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":-1}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":18446744073709551616}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":0,"mapDataId":2,"flags":0}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":0,"flags":0}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"unknown":0}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0,"flags":1}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0},{"mapId":1,"mapDataId":3,"flags":0}]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[null]}""")]
+    [InlineData("""{"formatVersion":1,"maps":[{"mapId":1,"mapDataId":2,"flags":0}],"unexpected":true}""")]
     public void Parse_InvalidSource_IsRejected(string source)
     {
         Assert.Throws<InvalidDataException>(() => MapDefinitionSourceReader.Parse(Encoding.UTF8.GetBytes(source)));
@@ -95,6 +146,44 @@ public sealed class MapDefinitionCatalogGenerationTests
     }
 
     [Fact]
+    public async Task Generate_CustomContent_RoundTripsWithoutNativeEvidence()
+    {
+        MapDefinition[] definitions = MapDefinitionSourceReader.Parse(Encoding.UTF8.GetBytes(CustomContent));
+
+        using TemporaryDirectory directory = new();
+        string path = Path.Combine(directory.Path, "map-definitions.json");
+
+        MapDefinitionCatalogFileWriter.Write(path, definitions);
+
+        FileMapDefinitionCatalogRepository repository = new(
+            new MapDefinitionCatalogFileOptions(path, 1024 * 1024, 100));
+
+        MapDefinitionCatalog catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, catalog.Count);
+        Assert.True(catalog.TryGet(1002, out MapDefinition? first));
+        Assert.Equal(1010u, first.MapDataId);
+        Assert.True(catalog.TryGet(1003, out MapDefinition? second));
+        Assert.Equal(ulong.MaxValue, second.Flags);
+    }
+
+    [Fact]
+    public void Write_HistoricalAndCustomInputs_ProduceIdenticalCanonicalBytes()
+    {
+        using TemporaryDirectory directory = new();
+        string historicalPath = Path.Combine(directory.Path, "historical.json");
+        string customPath = Path.Combine(directory.Path, "custom.json");
+
+        MapDefinition[] historical = MapDefinitionSourceReader.Parse(Encoding.UTF8.GetBytes(ValidSource));
+        MapDefinition[] custom = MapDefinitionSourceReader.Parse(Encoding.UTF8.GetBytes(CustomContent));
+
+        MapDefinitionCatalogFileWriter.Write(historicalPath, historical);
+        MapDefinitionCatalogFileWriter.Write(customPath, custom);
+
+        Assert.Equal(File.ReadAllBytes(historicalPath), File.ReadAllBytes(customPath));
+    }
+
+    [Fact]
     public void Write_DifferentInputOrdering_ProducesIdenticalBytes()
     {
         using TemporaryDirectory directory = new();
@@ -116,14 +205,9 @@ public sealed class MapDefinitionCatalogGenerationTests
         string path = Path.Combine(directory.Path, "map-definitions.json");
         File.WriteAllText(path, "original");
 
-        Assert.Throws<ArgumentException>(() =>
-            MapDefinitionCatalogFileWriter.Write(path, []));
-
-        Assert.Throws<ArgumentException>(() =>
-            MapDefinitionCatalogFileWriter.Write(path, [new MapDefinition(1, 2, 0), null!]));
-
-        Assert.Throws<ArgumentException>(() =>
-            MapDefinitionCatalogFileWriter.Write(path, [new MapDefinition(1, 2, 0), new MapDefinition(1, 3, 0)]));
+        Assert.Throws<ArgumentException>(() => MapDefinitionCatalogFileWriter.Write(path, []));
+        Assert.Throws<ArgumentException>(() => MapDefinitionCatalogFileWriter.Write(path, [new MapDefinition(1, 2, 0), null!]));
+        Assert.Throws<ArgumentException>(() => MapDefinitionCatalogFileWriter.Write(path, [new MapDefinition(1, 2, 0), new MapDefinition(1, 3, 0)]));
 
         Assert.Equal("original", File.ReadAllText(path));
     }

@@ -9,6 +9,10 @@ internal static class MapDefinitionSourceReader
     public const int MaximumSourceLengthBytes = 1024 * 1024;
     public const int MaximumDefinitions = 10_000;
 
+    private static readonly string[] s_rootProperties = ["formatVersion", "maps"];
+    private static readonly string[] s_recordProperties = ["mapId", "mapDataId", "flags"];
+    private static readonly string[] s_optionalProperties = ["mapDataEvidence", "flagsEvidence"];
+
     public static MapDefinition[] Parse(byte[] payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -23,7 +27,7 @@ internal static class MapDefinitionSourceReader
             using JsonDocument document = JsonDocument.Parse(payload, new JsonDocumentOptions { MaxDepth = 5 });
             JsonElement root = document.RootElement;
 
-            ValidateProperties(root, "formatVersion", "maps");
+            ValidateProperties(root, s_rootProperties);
 
             JsonElement formatVersion = root.GetProperty("formatVersion");
 
@@ -57,14 +61,14 @@ internal static class MapDefinitionSourceReader
 
             foreach (JsonElement record in records.EnumerateArray())
             {
-                ValidateProperties(record, "mapId", "mapDataId", "flags", "mapDataEvidence", "flagsEvidence");
+                ValidateProperties(record, s_recordProperties, s_optionalProperties);
 
                 uint mapId = ReadUInt32(record, "mapId");
                 uint mapDataId = ReadUInt32(record, "mapDataId");
                 ulong flags = ReadUInt64(record, "flags");
 
-                ValidateEvidence(record, "mapDataEvidence");
-                ValidateEvidence(record, "flagsEvidence");
+                ValidateOptionalEvidence(record, "mapDataEvidence");
+                ValidateOptionalEvidence(record, "flagsEvidence");
 
                 if (!observedMapIds.Add(mapId))
                 {
@@ -93,7 +97,7 @@ internal static class MapDefinitionSourceReader
         }
     }
 
-    private static void ValidateProperties(JsonElement element, params string[] required)
+    private static void ValidateProperties(JsonElement element, string[] required, string[]? optional = null)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -104,7 +108,10 @@ internal static class MapDefinitionSourceReader
 
         foreach (JsonProperty property in element.EnumerateObject())
         {
-            if (!required.Contains(property.Name, StringComparer.Ordinal) || !observed.Add(property.Name))
+            bool recognized = required.Contains(property.Name, StringComparer.Ordinal)
+                || optional is not null && optional.Contains(property.Name, StringComparer.Ordinal);
+
+            if (!recognized || !observed.Add(property.Name))
             {
                 throw new InvalidDataException($"Map-definition source contains unexpected or duplicate property '{property.Name}'.");
             }
@@ -143,20 +150,23 @@ internal static class MapDefinitionSourceReader
         return number;
     }
 
-    private static void ValidateEvidence(JsonElement element, string name)
+    private static void ValidateOptionalEvidence(JsonElement element, string name)
     {
-        JsonElement value = element.GetProperty(name);
+        if (!element.TryGetProperty(name, out JsonElement value))
+        {
+            return;
+        }
 
         if (value.ValueKind != JsonValueKind.String)
         {
-            throw new InvalidDataException($"Map-definition source property '{name}' must be a string.");
+            throw new InvalidDataException($"Map-definition source property '{name}' must be a string when provided.");
         }
 
         string? evidence = value.GetString();
 
         if (string.IsNullOrWhiteSpace(evidence) || evidence.Length > 512)
         {
-            throw new InvalidDataException($"Map-definition source property '{name}' must contain a nonempty evidence reference of at most 512 characters.");
+            throw new InvalidDataException($"Map-definition source property '{name}' must contain a nonempty reference of at most 512 characters when provided.");
         }
     }
 }

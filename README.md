@@ -14,8 +14,8 @@ server architecture.
 > revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
 > handoff, the verified existing-character bootstrap request sequence through `0x84`, and
 > Game schema v9 syndicate persistence and read hydration are implemented.
-> The offline canonical map-definition pipeline and immutable catalog loader are implemented;
-> a verified production 5517 map-definition baseline is not yet available.
+> Canonical OpenConquer map definitions, optional offline normalization, and immutable catalog
+> loading are implemented; a verified production 5517 map-definition baseline remains pending.
 > Account registration, the runnable GameServer host, character creation, authoritative
 > world-session integration, and gameplay are not yet implemented.
 
@@ -63,7 +63,7 @@ flowchart TD
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
 | **OpenConquer.GameServer**     | Native GameServer connection handoff and existing-character bootstrap runtime through the completed native request-sequence ownership boundary; authoritative gameplay is future. |
 | **OpenConquer.Assets**         | Native client-derived static asset formats and parsers used only by offline ingestion/tooling.                                                                      |
-| **OpenConquer.GameData.Tool**  | Offline deterministic conversion of verified native client data into canonical server release content.                                                             |
+| **OpenConquer.GameData.Tool**  | Optional offline import and normalization of legacy or authored content into canonical OpenConquer release data.                                                             |
 
 ## Current AccountServer Login Flow
 

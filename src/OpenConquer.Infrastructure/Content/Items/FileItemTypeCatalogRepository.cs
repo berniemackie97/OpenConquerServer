@@ -22,7 +22,27 @@ public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions opt
 
         try
         {
-            document = JsonSerializer.Deserialize<ItemTypeCatalogFileDocument>(payload)
+            using JsonDocument json = JsonDocument.Parse(payload, new JsonDocumentOptions { MaxDepth = 5 });
+            JsonElement root = json.RootElement;
+
+            ValidateUniqueProperties(root, "root");
+
+            if (root.TryGetProperty("itemTypes", out JsonElement entries) && entries.ValueKind == JsonValueKind.Array)
+            {
+                int index = 0;
+
+                foreach (JsonElement entry in entries.EnumerateArray())
+                {
+                    if (entry.ValueKind == JsonValueKind.Object)
+                    {
+                        ValidateUniqueProperties(entry, $"itemTypes[{index}]");
+                    }
+
+                    index++;
+                }
+            }
+
+            document = JsonSerializer.Deserialize<ItemTypeCatalogFileDocument>(root)
                 ?? throw new InvalidDataException("Item-type catalog content is empty.");
         }
         catch (JsonException exception)
@@ -54,7 +74,9 @@ public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions opt
 
             try
             {
-                definitions[index] = new ItemTypeDefinition(entry.ItemTypeId, entry.Name, entry.RequiredLevel, entry.SpeedPercentOffset, entry.Life, entry.Mana, entry.InitialDurability, entry.MaximumDurability, entry.StaticLifetimeMinutes, entry.StackCapacity);
+                definitions[index] = new ItemTypeDefinition(entry.ItemTypeId, entry.Name, entry.RequiredLevel,
+                    entry.SpeedPercentOffset, entry.Life, entry.Mana, entry.InitialDurability, entry.MaximumDurability,
+                    entry.StaticLifetimeMinutes, entry.StackCapacity);
             }
             catch (ArgumentException exception)
             {
@@ -69,6 +91,24 @@ public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions opt
         catch (ArgumentException exception)
         {
             throw new InvalidDataException("Item-type catalog content contains invalid aggregate state.", exception);
+        }
+    }
+
+    private static void ValidateUniqueProperties(JsonElement element, string context)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidDataException($"Item-type catalog {context} must be a JSON object.");
+        }
+
+        HashSet<string> observed = new(StringComparer.Ordinal);
+
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (!observed.Add(property.Name))
+            {
+                throw new InvalidDataException($"Item-type catalog {context} contains duplicate JSON property '{property.Name}'.");
+            }
         }
     }
 
@@ -111,7 +151,8 @@ public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions opt
 
         byte[] payload = GC.AllocateUninitializedArray<byte>(checked((int)fileLength));
 
-        await using FileStream stream = new(_options.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using FileStream stream = new(_options.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
         int offset = 0;
 
