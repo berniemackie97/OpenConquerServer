@@ -1,3 +1,5 @@
+using OpenConquer.Domain.World;
+
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
@@ -20,6 +22,11 @@ internal sealed class GameMapEntryDefinition
         MapId = mapId;
         MapDataId = mapDataId;
         Flags = flags;
+    }
+
+    public GameMapEntryDefinition(MapDefinition definition)
+        : this((definition ?? throw new ArgumentNullException(nameof(definition))).MapId, definition.MapDataId, definition.Flags)
+    {
     }
 
     public uint MapId { get; }

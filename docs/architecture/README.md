@@ -453,6 +453,25 @@ See:
 - [Networking Architecture](networking.md)
 - [Authentication](authentication.md)
 
+### Canonical Map Definitions
+
+World-map identity is server-owned and separate from client terrain identity.
+`MapDefinition` carries `MapId`, `MapDataId`, and the complete 64-bit map flags.
+`MapDefinitionCatalog` provides immutable world-map-ID lookups; multiple server maps may
+reference the same client terrain identity. No fallback assumes the two IDs are equal.
+
+An offline tool converts reviewed map-definition source records with separate map-data
+and flags evidence references into deterministic versioned JSON. Infrastructure validates
+that canonical catalog with explicit file-size and record-count limits before creating
+the immutable snapshot. Native client `.dat` files are not runtime dependencies.
+
+The existing EnterMap contract can project a canonical definition into
+`GameMapEntryDefinition`. The runnable GameServer host, startup catalog publication,
+a fully verified 5517 map-definition baseline, native terrain conversion, and
+authoritative world instances remain separate future integration boundaries.
+
+See [`content/maps`](../../content/maps/README.md) for the source and canonical formats.
+
 ## Authoritative World
 
 Clients submit requests; they do not directly mutate gameplay state.
@@ -735,6 +754,7 @@ Implemented:
 - native `0x61` syndicate-attributes hydration, packet-1106 projection, and ownership-safe handoff to silent-info reporting;
 - native `0xFB` silent-info report validation, authenticated-hero acknowledgement, and ownership-safe handoff to statistics-request processing;
 - native `0x84` statistics-request validation, no-response consumption, and ownership-safe completion of the verified client-driven bootstrap sequence;
+- offline canonical map-definition conversion with evidence references, immutable catalog lookup, and bounded runtime catalog loading;
 - MySQL account persistence;
 - MySQL Game character, item, social-relation, weapon-skill, magic, and syndicate persistence.
 
@@ -744,6 +764,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
+- verified production 5517 map-definition baseline, terrain conversion, and GameServer startup catalog integration;
 - authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;

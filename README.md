@@ -14,6 +14,8 @@ server architecture.
 > revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
 > handoff, the verified existing-character bootstrap request sequence through `0x84`, and
 > Game schema v9 syndicate persistence and read hydration are implemented.
+> The offline canonical map-definition pipeline and immutable catalog loader are implemented;
+> a verified production 5517 map-definition baseline is not yet available.
 > Account registration, the runnable GameServer host, character creation, authoritative
 > world-session integration, and gameplay are not yet implemented.
 
