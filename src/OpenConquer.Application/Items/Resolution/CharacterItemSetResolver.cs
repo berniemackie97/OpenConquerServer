@@ -25,7 +25,7 @@ public sealed class CharacterItemSetResolver(ICharacterItemSetRepository reposit
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        CharacterItemSet persistedItemSet = await _repository.LoadAsync(characterId, cancellationToken).ConfigureAwait(false);
+        CharacterItemSet persistedItemSet = await _repository.LoadAsync(characterId, utcNow, cancellationToken).ConfigureAwait(false);
 
         cancellationToken.ThrowIfCancellationRequested();
 

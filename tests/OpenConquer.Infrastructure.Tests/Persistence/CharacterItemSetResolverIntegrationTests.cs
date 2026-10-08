@@ -4,6 +4,7 @@ using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Items.Resolution;
 using OpenConquer.Domain.Items;
+using OpenConquer.Infrastructure.Persistence.Game.Items;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 
@@ -82,6 +83,24 @@ public sealed class CharacterItemSetResolverIntegrationTests(GameDatabaseFixture
         CharacterItemSet result = await resolver.ResolveAsync(characterId, s_utcNow, CancellationToken);
 
         Assert.Empty(result.Items);
+    }
+
+
+    [Fact]
+    public async Task ResolveAsync_ExpiredRowsDoNotPreventBoundedCatalogResolution()
+    {
+        uint characterId = await InsertCharacterAsync();
+        await InsertItemAsync(characterId, 999_999, lifetimeState: (byte)ItemLifetimeState.ActiveExpiry,
+            lifetimeExpiresAtUtc: s_utcNow.AddSeconds(-1).UtcDateTime);
+        uint activeItemId = await InsertItemAsync(characterId, ItemTypeId);
+
+        ICharacterItemSetRepository repository = new CharacterItemSetRepository(database.ContextFactory,
+            new CharacterItemHydrationOptions(maximumItemsPerCharacter: 1));
+        CharacterItemSetResolver resolver = new(repository, CreateCatalog());
+
+        CharacterItemSet result = await resolver.ResolveAsync(characterId, s_utcNow, CancellationToken);
+
+        Assert.Equal(activeItemId, Assert.Single(result.Items).ItemId);
     }
 
     private CharacterItemSetResolver CreateResolver(ItemTypeCatalog itemTypes)

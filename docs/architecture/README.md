@@ -354,15 +354,18 @@ optional 1009 subtype-46 active main-equipment snapshot
 ```
 
 `CharacterItemSetRepository` performs bounded persistence reconstruction without owning static-content
-policy. `CharacterItemSetResolver` combines that persisted state with the immutable canonical
-`ItemTypeCatalog` and explicit UTC time before the item set reaches GameServer protocol projection.
+policy. It uses the resolver-supplied UTC instant to exclude structurally valid, already-expired
+active-lifetime rows in SQL before applying the hydration cap. The database cutoff is rounded down
+to `datetime(6)` precision, never forward. Malformed lifetime payloads remain eligible for bounded
+hydration and fail closed. `CharacterItemSetResolver` combines the resulting persisted state with
+the immutable canonical `ItemTypeCatalog` and the same UTC authority before GameServer projection.
 Resolution fails closed for unknown item types, incompatible static-lifetime state, and persisted
 stack quantities above the item type effective stack capacity. Native `itemtype.dat` decoding remains
 behind the offline asset/tooling boundary and is not a GameServer runtime dependency.
 
-Already-expired active-lifetime items are removed during item-set resolution before catalog lookup
-and wire projection. Pending-activation items remain pending and are not activated by login
-resolution. `ExistingCharacterItemSetWireProjection` owns only native wire placement, equipment
+Already-expired active-lifetime items are excluded before bounded database hydration, with defensive
+expiration filtering retained in Application before catalog lookup and wire projection.
+Pending-activation items remain pending and are not activated by login resolution. `ExistingCharacterItemSetWireProjection` owns only native wire placement, equipment
 snapshot construction, and wire-lifetime range conversion.
 
 The existing-character bootstrap continues through bounded social-relation, weapon-skill, and magic
@@ -603,8 +606,9 @@ calendar or persisted wall-clock events
 
 Process time does not decide durable game-login ticket validity.
 
-Item-set login processing captures one UTC instant and passes it through resolution and projection so
-all active item lifetimes are evaluated against one coherent wall-clock value.
+Item-set login processing captures one UTC instant and passes it through bounded persistence
+hydration, resolution, and projection so active item lifetimes are evaluated against one coherent
+wall-clock authority.
 
 ## Scaling Model
 
