@@ -408,9 +408,9 @@ Each implemented request validates the client-supplied character identity agains
 character before persisted state is queried or exposed.
 
 Packet `1106` and the `0x61` action are protocol/domain foundation only at the current head.
-Syndicate persistence tables exist, but syndicate read hydration, bootstrap projection, and
-runtime processing are not yet implemented. General gameplay routing and authoritative world-session protocol handling also remain
-future work.
+Syndicate persistence and read-only character-syndicate hydration are implemented. Native
+`0x61` request processing and packet-1106 runtime projection remain unimplemented. General
+gameplay routing and authoritative world-session protocol handling also remain future work.
 
 ## Text Encoding
 

@@ -12,9 +12,10 @@ server architecture.
 > AccountServer login transaction, account authentication, abuse protection, password persistence
 > and migration, account security mutations, durable GameServer login tickets, ticket
 > revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
-> handoff, and existing-character bootstrap through item, social-relation, weapon-skill, and magic
-> hydration, and Game schema v9 syndicate persistence foundations are implemented. Account registration, the runnable GameServer host, character creation,
-> syndicate-attributes and later bootstrap stages, and authoritative gameplay are not yet implemented.
+> handoff, existing-character bootstrap through item, social-relation, weapon-skill, and magic
+> hydration, and Game schema v9 syndicate persistence and read hydration are implemented.
+> Account registration, the runnable GameServer host, character creation, syndicate-attributes
+> bootstrap processing, later bootstrap stages, and authoritative gameplay are not yet implemented.
 
 ## Architecture
 
