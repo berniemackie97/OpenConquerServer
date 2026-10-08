@@ -18,7 +18,7 @@ The current schema chain is:
 | 6       | `20260930033806_AddSocialRelationPersistence` |
 | 7       | `20261004014402_AddWeaponSkillPersistence`     |
 | 8       | `20261004193352_AddMagicPersistence`           |
-| 9       | `20261008030000_AddSyndicatePersistence` |
+| 9       | `20261008033456_AddSyndicatePersistence` |
 
 The current schema contract is version 9.
 
@@ -72,7 +72,7 @@ Apply all pending Game migrations:
 
 To apply or resume the current migration specifically:
 
-    dotnet tool run dotnet-ef -- database update 20261008030000_AddSyndicatePersistence \
+    dotnet tool run dotnet-ef -- database update 20261008033456_AddSyndicatePersistence \
       --configuration Release \
       --project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
       --startup-project src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj \
@@ -103,7 +103,7 @@ Check the OpenConquer compatibility marker:
 For the current schema, the compatibility row must report:
 
     schema_version = 9
-    migration_id = 20261008030000_AddSyndicatePersistence
+    migration_id = 20261008033456_AddSyndicatePersistence
 
 Inspect the character columns involved in the resumable character migrations:
 
@@ -1182,7 +1182,7 @@ downgrade.
 
 ## Syndicate persistence (version 9)
 
-Migration `20261008030000_AddSyndicatePersistence` introduces `syndicates` and `syndicate_memberships`.
+Migration `20261008033456_AddSyndicatePersistence` introduces `syndicates` and `syndicate_memberships`.
 
 The migration does not backfill historical syndicate state or modify existing character, item,
 social-relation, weapon-skill, or magic records.
