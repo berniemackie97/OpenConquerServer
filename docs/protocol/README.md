@@ -22,7 +22,7 @@ Internal server architecture belongs under [`docs/architecture`](../architecture
 | GameServer CAST5 compatibility encryption | Implemented             |
 | GameServer packet signatures              | Implemented             |
 | GameServer login proof                    | Implemented                             |
-| Existing-character bootstrap protocol     | Implemented through `0x61`             |
+| Existing-character bootstrap protocol     | Implemented through `0xFB`             |
 | Syndicate bootstrap protocol foundation   | Implemented                             |
 | General gameplay/world-session packets    | Not implemented                         |
 
@@ -374,7 +374,7 @@ rather than queued.
 ## Existing-Character Bootstrap
 
 The implemented existing-character bootstrap protocol currently covers the native progression
-through the syndicate-attributes request. Runtime processing reaches `AwaitingSilentInfoReportConnection`.
+through the silent-info report. Runtime processing reaches `AwaitingStatisticRequestConnection`.
 
 Initial bootstrap emits:
 
@@ -403,9 +403,11 @@ Character bootstrap then advances through:
 | `10010 / 0x4D` GetWeaponSkillSet      | `1025` weapon-skill snapshots, then acknowledgement                                          | Implemented             |
 | `10010 / 0x4E` GetMagicSet            | `1103` magic snapshots, optional `1104` persisted-experience snapshots, then acknowledgement | Implemented             |
 | `10010 / 0x61` GetSyndicateAttributes | `1106` member snapshot when applicable, then acknowledgement                                | Implemented             |
+| `10010 / 0xFB` ReportSilentInfo      | Authenticated-hero acknowledgement preserving client-reported checksum and version           | Implemented             |
 
-Each implemented request validates the client-supplied character identity against the authenticated
-character before persisted state is queried or exposed.
+Each identity-bearing bootstrap request validates the client-supplied character identity against
+the authenticated character before persisted state is queried or exposed. The native `0xFB`
+report instead requires entity ID zero and does not authorize a new character identity.
 
 Native `0x61` processing uses the implemented read-only character-syndicate hydration contract.
 A character with membership receives one packet `1106` before the `0x61` acknowledgement.
@@ -417,8 +419,24 @@ Packet `1106` preserves the existing fixed 92-byte server encoding. Position-exp
 join dates are projected from persisted Unix seconds to UTC `yyyyMMdd` values; expired position
 dates become zero. Syndicate level and mantle remain zero without authoritative persisted data.
 The unidentified four-byte field at offset `+71` remains zero. This packet ordering is a
-compatible server policy, not a verified retail-server packet capture. Silent-info processing,
-gameplay routing, and authoritative world-session handling remain future work.
+compatible server policy, not a verified retail-server packet capture.
+
+Native `0xFB` ReportSilentInfo is a fixed 38-byte `10010` request. The client sends entity ID
+zero, its `ini/Slient.dat` checksum at offset `+8`, and its silent-data version at offset
+`+16`. These values are client reports, not authenticated server data. Other non-action fields
+must be zero. The server accepts arbitrary unsigned checksum and version values without
+inventing an unavailable authoritative content policy.
+
+The `0xFB` acknowledgement uses the authenticated character ID so the native client can resolve
+the hero and advance to `0x84` GetStatistic. The acknowledgement preserves the reported checksum
+and version as server compatibility policy; the native consumer's progression depends on the
+action and resolvable entity identity. OpenConquerPublic's zero-entity acknowledgement is not
+copied because it does not satisfy that native identity-resolution gate. LongV6270's
+`LoginComplete = 251` is a later-version implementation and does not establish 5517 behavior.
+
+Runtime processing advances to `AwaitingStatisticRequestConnection`. Client-content distribution,
+checksum enforcement, statistics-request processing, gameplay routing, and authoritative
+world-session handling remain future work.
 
 ## Text Encoding
 
@@ -517,6 +535,6 @@ The current protocol/runtime surface does not include:
 
 - AccountServer registration variants;
 - protected/mobile credential decoding;
-- silent-info reporting and later existing-character bootstrap stages;
+- statistics-request processing and later existing-character bootstrap stages;
 - character creation protocol flow;
 - general gameplay/world-session packet handling.
