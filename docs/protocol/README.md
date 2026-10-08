@@ -22,8 +22,8 @@ Internal server architecture belongs under [`docs/architecture`](../architecture
 | GameServer CAST5 compatibility encryption | Implemented             |
 | GameServer packet signatures              | Implemented             |
 | GameServer login proof                    | Implemented                             |
-| Existing-character bootstrap protocol     | Implemented through magic-set bootstrap |
-| Syndicate bootstrap protocol foundation   | Partially implemented                   |
+| Existing-character bootstrap protocol     | Implemented through `0x61`             |
+| Syndicate bootstrap protocol foundation   | Implemented                             |
 | General gameplay/world-session packets    | Not implemented                         |
 
 Detailed shared contracts:
@@ -374,7 +374,7 @@ rather than queued.
 ## Existing-Character Bootstrap
 
 The implemented existing-character bootstrap protocol currently covers the native progression
-through the magic-set request. Runtime processing reaches `AwaitingSyndicateAttributesConnection`.
+through the syndicate-attributes request. Runtime processing reaches `AwaitingSilentInfoReportConnection`.
 
 Initial bootstrap emits:
 
@@ -402,15 +402,23 @@ Character bootstrap then advances through:
 | `10010 / 0x4C` GetGoodFriend          | `1019` social-relation snapshots, then acknowledgement                                       | Implemented             |
 | `10010 / 0x4D` GetWeaponSkillSet      | `1025` weapon-skill snapshots, then acknowledgement                                          | Implemented             |
 | `10010 / 0x4E` GetMagicSet            | `1103` magic snapshots, optional `1104` persisted-experience snapshots, then acknowledgement | Implemented             |
-| `10010 / 0x61` GetSyndicateAttributes | Syndicate protocol foundation including packet `1106`                                        | Runtime not implemented |
+| `10010 / 0x61` GetSyndicateAttributes | `1106` member snapshot when applicable, then acknowledgement                                | Implemented             |
 
 Each implemented request validates the client-supplied character identity against the authenticated
 character before persisted state is queried or exposed.
 
-Packet `1106` and the `0x61` action are protocol/domain foundation only at the current head.
-Syndicate persistence and read-only character-syndicate hydration are implemented. Native
-`0x61` request processing and packet-1106 runtime projection remain unimplemented. General
-gameplay routing and authoritative world-session protocol handling also remain future work.
+Native `0x61` processing uses the implemented read-only character-syndicate hydration contract.
+A character with membership receives one packet `1106` before the `0x61` acknowledgement.
+A character without membership receives only the acknowledgement. The acknowledgement advances
+the native 5517 client to action `0xFB`, which reports the silent-data checksum and version.
+Packet `1106` alone does not complete this bootstrap step.
+
+Packet `1106` preserves the existing fixed 92-byte server encoding. Position-expiration and
+join dates are projected from persisted Unix seconds to UTC `yyyyMMdd` values; expired position
+dates become zero. Syndicate level and mantle remain zero without authoritative persisted data.
+The unidentified four-byte field at offset `+71` remains zero. This packet ordering is a
+compatible server policy, not a verified retail-server packet capture. Silent-info processing,
+gameplay routing, and authoritative world-session handling remain future work.
 
 ## Text Encoding
 
@@ -509,6 +517,6 @@ The current protocol/runtime surface does not include:
 
 - AccountServer registration variants;
 - protected/mobile credential decoding;
-- syndicate-attributes runtime bootstrap and later existing-character bootstrap stages;
+- silent-info reporting and later existing-character bootstrap stages;
 - character creation protocol flow;
 - general gameplay/world-session packet handling.

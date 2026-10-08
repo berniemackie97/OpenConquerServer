@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Domain.Characters;
+using OpenConquer.Domain.Syndicates;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence;
 
@@ -37,7 +38,7 @@ public sealed class CharacterSyndicateStateRepositoryTests(GameDatabaseFixture d
         Assert.True(state.HasMembership);
         Assert.True(state.Membership.HasValue);
 
-        var membership = state.Membership.Value;
+        CharacterSyndicateMembership membership = state.Membership.Value;
 
         Assert.Equal(memberId, membership.CharacterId);
         Assert.Equal(syndicateId, membership.SyndicateId);
@@ -48,7 +49,7 @@ public sealed class CharacterSyndicateStateRepositoryTests(GameDatabaseFixture d
 
         Assert.NotNull(state.Syndicate);
 
-        var syndicate = state.Syndicate;
+        Syndicate? syndicate = state.Syndicate;
 
         Assert.Equal(syndicateId, syndicate.SyndicateId);
         Assert.Equal(syndicateName, syndicate.Name);
