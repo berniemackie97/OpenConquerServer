@@ -1,0 +1,1415 @@
+{
+  "formatVersion": 1,
+  "maps": [
+    {
+      "mapId": 601,
+      "mapDataId": 601,
+      "flags": 2216203976782
+    },
+    {
+      "mapId": 700,
+      "mapDataId": 700,
+      "flags": 588
+    },
+    {
+      "mapId": 1000,
+      "mapDataId": 1000,
+      "flags": 8192
+    },
+    {
+      "mapId": 1001,
+      "mapDataId": 1001,
+      "flags": 8192
+    },
+    {
+      "mapId": 1002,
+      "mapDataId": 1002,
+      "flags": 211106232541192
+    },
+    {
+      "mapId": 1003,
+      "mapDataId": 1003,
+      "flags": 8192
+    },
+    {
+      "mapId": 1004,
+      "mapDataId": 1004,
+      "flags": 8200
+    },
+    {
+      "mapId": 1005,
+      "mapDataId": 1005,
+      "flags": 1
+    },
+    {
+      "mapId": 1006,
+      "mapDataId": 1006,
+      "flags": 8200
+    },
+    {
+      "mapId": 1007,
+      "mapDataId": 1007,
+      "flags": 8192
+    },
+    {
+      "mapId": 1008,
+      "mapDataId": 1008,
+      "flags": 8206
+    },
+    {
+      "mapId": 1009,
+      "mapDataId": 1009,
+      "flags": 8192
+    },
+    {
+      "mapId": 1010,
+      "mapDataId": 1010,
+      "flags": 0
+    },
+    {
+      "mapId": 1011,
+      "mapDataId": 1011,
+      "flags": 24576
+    },
+    {
+      "mapId": 1012,
+      "mapDataId": 1012,
+      "flags": 8192
+    },
+    {
+      "mapId": 1013,
+      "mapDataId": 1013,
+      "flags": 8192
+    },
+    {
+      "mapId": 1014,
+      "mapDataId": 1014,
+      "flags": 8192
+    },
+    {
+      "mapId": 1015,
+      "mapDataId": 1015,
+      "flags": 8192
+    },
+    {
+      "mapId": 1016,
+      "mapDataId": 1016,
+      "flags": 8192
+    },
+    {
+      "mapId": 1018,
+      "mapDataId": 1018,
+      "flags": 7
+    },
+    {
+      "mapId": 1020,
+      "mapDataId": 1020,
+      "flags": 24576
+    },
+    {
+      "mapId": 1021,
+      "mapDataId": 1021,
+      "flags": 8198
+    },
+    {
+      "mapId": 1025,
+      "mapDataId": 1025,
+      "flags": 10242
+    },
+    {
+      "mapId": 1026,
+      "mapDataId": 1026,
+      "flags": 10242
+    },
+    {
+      "mapId": 1027,
+      "mapDataId": 1027,
+      "flags": 10242
+    },
+    {
+      "mapId": 1028,
+      "mapDataId": 1028,
+      "flags": 10242
+    },
+    {
+      "mapId": 1036,
+      "mapDataId": 1036,
+      "flags": 30
+    },
+    {
+      "mapId": 1038,
+      "mapDataId": 1038,
+      "flags": 1125900981731462
+    },
+    {
+      "mapId": 1039,
+      "mapDataId": 1039,
+      "flags": 14
+    },
+    {
+      "mapId": 1040,
+      "mapDataId": 1040,
+      "flags": 8710
+    },
+    {
+      "mapId": 1041,
+      "mapDataId": 1041,
+      "flags": 518
+    },
+    {
+      "mapId": 1042,
+      "mapDataId": 1042,
+      "flags": 8192
+    },
+    {
+      "mapId": 1043,
+      "mapDataId": 1043,
+      "flags": 8258
+    },
+    {
+      "mapId": 1044,
+      "mapDataId": 1044,
+      "flags": 8258
+    },
+    {
+      "mapId": 1045,
+      "mapDataId": 1045,
+      "flags": 8258
+    },
+    {
+      "mapId": 1046,
+      "mapDataId": 1046,
+      "flags": 8258
+    },
+    {
+      "mapId": 1047,
+      "mapDataId": 1047,
+      "flags": 8258
+    },
+    {
+      "mapId": 1048,
+      "mapDataId": 1048,
+      "flags": 8258
+    },
+    {
+      "mapId": 1049,
+      "mapDataId": 1049,
+      "flags": 8258
+    },
+    {
+      "mapId": 1050,
+      "mapDataId": 1050,
+      "flags": 8258
+    },
+    {
+      "mapId": 1051,
+      "mapDataId": 1079,
+      "flags": 8192
+    },
+    {
+      "mapId": 1052,
+      "mapDataId": 1082,
+      "flags": 8192
+    },
+    {
+      "mapId": 1060,
+      "mapDataId": 1060,
+      "flags": 8710
+    },
+    {
+      "mapId": 1061,
+      "mapDataId": 1061,
+      "flags": 8710
+    },
+    {
+      "mapId": 1062,
+      "mapDataId": 1062,
+      "flags": 8710
+    },
+    {
+      "mapId": 1063,
+      "mapDataId": 1063,
+      "flags": 8710
+    },
+    {
+      "mapId": 1070,
+      "mapDataId": 1070,
+      "flags": 8198
+    },
+    {
+      "mapId": 1072,
+      "mapDataId": 1508,
+      "flags": 52614725639
+    },
+    {
+      "mapId": 1073,
+      "mapDataId": 1090,
+      "flags": 7
+    },
+    {
+      "mapId": 1074,
+      "mapDataId": 1091,
+      "flags": 7
+    },
+    {
+      "mapId": 1075,
+      "mapDataId": 1075,
+      "flags": 8192
+    },
+    {
+      "mapId": 1076,
+      "mapDataId": 1076,
+      "flags": 8192
+    },
+    {
+      "mapId": 1077,
+      "mapDataId": 1077,
+      "flags": 8192
+    },
+    {
+      "mapId": 1078,
+      "mapDataId": 1078,
+      "flags": 8192
+    },
+    {
+      "mapId": 1080,
+      "mapDataId": 1018,
+      "flags": 7
+    },
+    {
+      "mapId": 1081,
+      "mapDataId": 1018,
+      "flags": 7
+    },
+    {
+      "mapId": 1090,
+      "mapDataId": 1090,
+      "flags": 7
+    },
+    {
+      "mapId": 1091,
+      "mapDataId": 1091,
+      "flags": 7
+    },
+    {
+      "mapId": 1092,
+      "mapDataId": 1090,
+      "flags": 7
+    },
+    {
+      "mapId": 1093,
+      "mapDataId": 1091,
+      "flags": 7
+    },
+    {
+      "mapId": 1094,
+      "mapDataId": 1090,
+      "flags": 7
+    },
+    {
+      "mapId": 1095,
+      "mapDataId": 1091,
+      "flags": 7
+    },
+    {
+      "mapId": 1100,
+      "mapDataId": 1100,
+      "flags": 8196
+    },
+    {
+      "mapId": 1101,
+      "mapDataId": 1101,
+      "flags": 8196
+    },
+    {
+      "mapId": 1102,
+      "mapDataId": 1102,
+      "flags": 8196
+    },
+    {
+      "mapId": 1103,
+      "mapDataId": 1103,
+      "flags": 8196
+    },
+    {
+      "mapId": 1104,
+      "mapDataId": 1104,
+      "flags": 8196
+    },
+    {
+      "mapId": 1105,
+      "mapDataId": 1105,
+      "flags": 8196
+    },
+    {
+      "mapId": 1106,
+      "mapDataId": 1106,
+      "flags": 8196
+    },
+    {
+      "mapId": 1107,
+      "mapDataId": 1107,
+      "flags": 8196
+    },
+    {
+      "mapId": 1108,
+      "mapDataId": 1108,
+      "flags": 8196
+    },
+    {
+      "mapId": 1109,
+      "mapDataId": 1109,
+      "flags": 8196
+    },
+    {
+      "mapId": 1201,
+      "mapDataId": 1201,
+      "flags": 0
+    },
+    {
+      "mapId": 1202,
+      "mapDataId": 1202,
+      "flags": 0
+    },
+    {
+      "mapId": 1204,
+      "mapDataId": 1204,
+      "flags": 0
+    },
+    {
+      "mapId": 1205,
+      "mapDataId": 1205,
+      "flags": 0
+    },
+    {
+      "mapId": 1207,
+      "mapDataId": 1207,
+      "flags": 0
+    },
+    {
+      "mapId": 1208,
+      "mapDataId": 1208,
+      "flags": 0
+    },
+    {
+      "mapId": 1210,
+      "mapDataId": 1210,
+      "flags": 64
+    },
+    {
+      "mapId": 1211,
+      "mapDataId": 1211,
+      "flags": 64
+    },
+    {
+      "mapId": 1212,
+      "mapDataId": 1212,
+      "flags": 64
+    },
+    {
+      "mapId": 1213,
+      "mapDataId": 1213,
+      "flags": 0
+    },
+    {
+      "mapId": 1214,
+      "mapDataId": 1214,
+      "flags": 0
+    },
+    {
+      "mapId": 1215,
+      "mapDataId": 1215,
+      "flags": 0
+    },
+    {
+      "mapId": 1216,
+      "mapDataId": 1216,
+      "flags": 0
+    },
+    {
+      "mapId": 1217,
+      "mapDataId": 1075,
+      "flags": 0
+    },
+    {
+      "mapId": 1218,
+      "mapDataId": 1025,
+      "flags": 2114
+    },
+    {
+      "mapId": 1219,
+      "mapDataId": 1212,
+      "flags": 64
+    },
+    {
+      "mapId": 1300,
+      "mapDataId": 1001,
+      "flags": 8194
+    },
+    {
+      "mapId": 1351,
+      "mapDataId": 1351,
+      "flags": 8194
+    },
+    {
+      "mapId": 1352,
+      "mapDataId": 1352,
+      "flags": 8194
+    },
+    {
+      "mapId": 1353,
+      "mapDataId": 1353,
+      "flags": 8194
+    },
+    {
+      "mapId": 1354,
+      "mapDataId": 1354,
+      "flags": 8194
+    },
+    {
+      "mapId": 1451,
+      "mapDataId": 1017,
+      "flags": 7
+    },
+    {
+      "mapId": 1500,
+      "mapDataId": 1734,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1501,
+      "mapDataId": 1730,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1502,
+      "mapDataId": 1735,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1505,
+      "mapDataId": 1505,
+      "flags": 7
+    },
+    {
+      "mapId": 1506,
+      "mapDataId": 1506,
+      "flags": 7
+    },
+    {
+      "mapId": 1508,
+      "mapDataId": 1508,
+      "flags": 7
+    },
+    {
+      "mapId": 1511,
+      "mapDataId": 1004,
+      "flags": 8200
+    },
+    {
+      "mapId": 1515,
+      "mapDataId": 1505,
+      "flags": 7
+    },
+    {
+      "mapId": 1516,
+      "mapDataId": 1506,
+      "flags": 7
+    },
+    {
+      "mapId": 1518,
+      "mapDataId": 1508,
+      "flags": 7
+    },
+    {
+      "mapId": 1525,
+      "mapDataId": 1505,
+      "flags": 7
+    },
+    {
+      "mapId": 1526,
+      "mapDataId": 1506,
+      "flags": 7
+    },
+    {
+      "mapId": 1528,
+      "mapDataId": 1508,
+      "flags": 7
+    },
+    {
+      "mapId": 1550,
+      "mapDataId": 1550,
+      "flags": 8196
+    },
+    {
+      "mapId": 1551,
+      "mapDataId": 1551,
+      "flags": 8196
+    },
+    {
+      "mapId": 1700,
+      "mapDataId": 1700,
+      "flags": 8195
+    },
+    {
+      "mapId": 1763,
+      "mapDataId": 1763,
+      "flags": 2
+    },
+    {
+      "mapId": 1764,
+      "mapDataId": 1764,
+      "flags": 2
+    },
+    {
+      "mapId": 1765,
+      "mapDataId": 1765,
+      "flags": 14
+    },
+    {
+      "mapId": 1768,
+      "mapDataId": 1768,
+      "flags": 0
+    },
+    {
+      "mapId": 1769,
+      "mapDataId": 1769,
+      "flags": 0
+    },
+    {
+      "mapId": 1770,
+      "mapDataId": 1770,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1771,
+      "mapDataId": 1771,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1772,
+      "mapDataId": 1772,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1773,
+      "mapDataId": 1773,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1774,
+      "mapDataId": 1774,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1775,
+      "mapDataId": 1775,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1777,
+      "mapDataId": 1777,
+      "flags": 1074856007
+    },
+    {
+      "mapId": 1778,
+      "mapDataId": 1013,
+      "flags": 7
+    },
+    {
+      "mapId": 1779,
+      "mapDataId": 1779,
+      "flags": 7
+    },
+    {
+      "mapId": 1780,
+      "mapDataId": 1780,
+      "flags": 7
+    },
+    {
+      "mapId": 1782,
+      "mapDataId": 1004,
+      "flags": 14
+    },
+    {
+      "mapId": 1783,
+      "mapDataId": 1004,
+      "flags": 14
+    },
+    {
+      "mapId": 1784,
+      "mapDataId": 601,
+      "flags": 14
+    },
+    {
+      "mapId": 1785,
+      "mapDataId": 1785,
+      "flags": 70368744177678
+    },
+    {
+      "mapId": 1786,
+      "mapDataId": 1786,
+      "flags": 70368744177678
+    },
+    {
+      "mapId": 1787,
+      "mapDataId": 1787,
+      "flags": 70368744177678
+    },
+    {
+      "mapId": 1791,
+      "mapDataId": 1765,
+      "flags": 14
+    },
+    {
+      "mapId": 1792,
+      "mapDataId": 1014,
+      "flags": 10
+    },
+    {
+      "mapId": 1794,
+      "mapDataId": 1028,
+      "flags": 70
+    },
+    {
+      "mapId": 1801,
+      "mapDataId": 1801,
+      "flags": 14
+    },
+    {
+      "mapId": 1806,
+      "mapDataId": 1806,
+      "flags": 14
+    },
+    {
+      "mapId": 1812,
+      "mapDataId": 1812,
+      "flags": 0
+    },
+    {
+      "mapId": 1818,
+      "mapDataId": 1765,
+      "flags": 14
+    },
+    {
+      "mapId": 1837,
+      "mapDataId": 1734,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1838,
+      "mapDataId": 1730,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1839,
+      "mapDataId": 1735,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1858,
+      "mapDataId": 1858,
+      "flags": 1075642442
+    },
+    {
+      "mapId": 1860,
+      "mapDataId": 1860,
+      "flags": 14
+    },
+    {
+      "mapId": 1863,
+      "mapDataId": 1730,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1864,
+      "mapDataId": 1730,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1868,
+      "mapDataId": 1733,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1869,
+      "mapDataId": 1733,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1873,
+      "mapDataId": 1735,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1874,
+      "mapDataId": 1735,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1878,
+      "mapDataId": 1737,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1879,
+      "mapDataId": 1737,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1883,
+      "mapDataId": 1732,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1884,
+      "mapDataId": 1732,
+      "flags": 52614856711
+    },
+    {
+      "mapId": 1888,
+      "mapDataId": 700,
+      "flags": 66126
+    },
+    {
+      "mapId": 1926,
+      "mapDataId": 1762,
+      "flags": 70368744185856
+    },
+    {
+      "mapId": 1927,
+      "mapDataId": 1762,
+      "flags": 70368744185856
+    },
+    {
+      "mapId": 1928,
+      "mapDataId": 1735,
+      "flags": 11260151194517518
+    },
+    {
+      "mapId": 1946,
+      "mapDataId": 1730,
+      "flags": 9007251869466631
+    },
+    {
+      "mapId": 1947,
+      "mapDataId": 1730,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1948,
+      "mapDataId": 1730,
+      "flags": 13511951008464903
+    },
+    {
+      "mapId": 1950,
+      "mapDataId": 1950,
+      "flags": 33554734
+    },
+    {
+      "mapId": 1961,
+      "mapDataId": 1961,
+      "flags": 0
+    },
+    {
+      "mapId": 1962,
+      "mapDataId": 1962,
+      "flags": 0
+    },
+    {
+      "mapId": 1963,
+      "mapDataId": 1963,
+      "flags": 0
+    },
+    {
+      "mapId": 1964,
+      "mapDataId": 1964,
+      "flags": 0
+    },
+    {
+      "mapId": 1965,
+      "mapDataId": 1965,
+      "flags": 0
+    },
+    {
+      "mapId": 1966,
+      "mapDataId": 1966,
+      "flags": 0
+    },
+    {
+      "mapId": 1967,
+      "mapDataId": 1967,
+      "flags": 0
+    },
+    {
+      "mapId": 1968,
+      "mapDataId": 1968,
+      "flags": 0
+    },
+    {
+      "mapId": 1969,
+      "mapDataId": 1969,
+      "flags": 7
+    },
+    {
+      "mapId": 1971,
+      "mapDataId": 1971,
+      "flags": 0
+    },
+    {
+      "mapId": 1972,
+      "mapDataId": 1972,
+      "flags": 0
+    },
+    {
+      "mapId": 1973,
+      "mapDataId": 1973,
+      "flags": 0
+    },
+    {
+      "mapId": 1974,
+      "mapDataId": 1974,
+      "flags": 0
+    },
+    {
+      "mapId": 1975,
+      "mapDataId": 1975,
+      "flags": 0
+    },
+    {
+      "mapId": 1976,
+      "mapDataId": 1976,
+      "flags": 0
+    },
+    {
+      "mapId": 1977,
+      "mapDataId": 1977,
+      "flags": 0
+    },
+    {
+      "mapId": 1978,
+      "mapDataId": 1978,
+      "flags": 0
+    },
+    {
+      "mapId": 1979,
+      "mapDataId": 1979,
+      "flags": 0
+    },
+    {
+      "mapId": 1981,
+      "mapDataId": 1981,
+      "flags": 0
+    },
+    {
+      "mapId": 1982,
+      "mapDataId": 1982,
+      "flags": 0
+    },
+    {
+      "mapId": 1983,
+      "mapDataId": 1983,
+      "flags": 0
+    },
+    {
+      "mapId": 1984,
+      "mapDataId": 1984,
+      "flags": 0
+    },
+    {
+      "mapId": 1985,
+      "mapDataId": 1985,
+      "flags": 0
+    },
+    {
+      "mapId": 1986,
+      "mapDataId": 1986,
+      "flags": 0
+    },
+    {
+      "mapId": 1987,
+      "mapDataId": 1987,
+      "flags": 0
+    },
+    {
+      "mapId": 1988,
+      "mapDataId": 1988,
+      "flags": 0
+    },
+    {
+      "mapId": 1989,
+      "mapDataId": 1989,
+      "flags": 0
+    },
+    {
+      "mapId": 1999,
+      "mapDataId": 1999,
+      "flags": 70368744185856
+    },
+    {
+      "mapId": 2000,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2001,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2002,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2003,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2004,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2005,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2006,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2007,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2008,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2009,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2010,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2011,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2012,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2013,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2020,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2021,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2022,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2023,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2024,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2025,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2026,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2027,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2028,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2029,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2030,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2031,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2032,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2033,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2040,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2041,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2042,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2043,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2044,
+      "mapDataId": 1500,
+      "flags": 10242
+    },
+    {
+      "mapId": 2045,
+      "mapDataId": 1501,
+      "flags": 10242
+    },
+    {
+      "mapId": 2046,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2047,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2048,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2049,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2050,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2051,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2052,
+      "mapDataId": 1503,
+      "flags": 10242
+    },
+    {
+      "mapId": 2053,
+      "mapDataId": 1502,
+      "flags": 10242
+    },
+    {
+      "mapId": 2054,
+      "mapDataId": 2054,
+      "flags": 70368744185856
+    },
+    {
+      "mapId": 2055,
+      "mapDataId": 2055,
+      "flags": 70368744185862
+    },
+    {
+      "mapId": 2056,
+      "mapDataId": 2056,
+      "flags": 70368744185862
+    },
+    {
+      "mapId": 2060,
+      "mapDataId": 2060,
+      "flags": 1125901250134023
+    },
+    {
+      "mapId": 2061,
+      "mapDataId": 2061,
+      "flags": 33554734
+    },
+    {
+      "mapId": 2062,
+      "mapDataId": 2062,
+      "flags": 33554734
+    },
+    {
+      "mapId": 2063,
+      "mapDataId": 2063,
+      "flags": 33554734
+    },
+    {
+      "mapId": 2064,
+      "mapDataId": 2064,
+      "flags": 33554734
+    },
+    {
+      "mapId": 2065,
+      "mapDataId": 2065,
+      "flags": 0
+    },
+    {
+      "mapId": 2071,
+      "mapDataId": 2071,
+      "flags": 1125901250134023
+    },
+    {
+      "mapId": 2072,
+      "mapDataId": 2071,
+      "flags": 1125901250134023
+    },
+    {
+      "mapId": 2073,
+      "mapDataId": 2071,
+      "flags": 1125901250134023
+    },
+    {
+      "mapId": 2074,
+      "mapDataId": 2071,
+      "flags": 1125901250134023
+    },
+    {
+      "mapId": 2075,
+      "mapDataId": 2068,
+      "flags": 2398086401425482
+    },
+    {
+      "mapId": 2076,
+      "mapDataId": 2068,
+      "flags": 2398086401425482
+    },
+    {
+      "mapId": 2077,
+      "mapDataId": 2068,
+      "flags": 2398086401425482
+    },
+    {
+      "mapId": 2078,
+      "mapDataId": 2068,
+      "flags": 2398086401425482
+    },
+    {
+      "mapId": 4021,
+      "mapDataId": 2021,
+      "flags": 8198
+    },
+    {
+      "mapId": 4022,
+      "mapDataId": 2022,
+      "flags": 8198
+    },
+    {
+      "mapId": 4023,
+      "mapDataId": 2023,
+      "flags": 8198
+    },
+    {
+      "mapId": 4024,
+      "mapDataId": 2023,
+      "flags": 8198
+    },
+    {
+      "mapId": 4025,
+      "mapDataId": 2024,
+      "flags": 8263
+    },
+    {
+      "mapId": 5000,
+      "mapDataId": 1025,
+      "flags": 7
+    },
+    {
+      "mapId": 5002,
+      "mapDataId": 1002,
+      "flags": 70
+    },
+    {
+      "mapId": 6000,
+      "mapDataId": 6000,
+      "flags": 10594
+    },
+    {
+      "mapId": 6001,
+      "mapDataId": 6001,
+      "flags": 99
+    },
+    {
+      "mapId": 6002,
+      "mapDataId": 6000,
+      "flags": 8266
+    },
+    {
+      "mapId": 6003,
+      "mapDataId": 6000,
+      "flags": 8266
+    },
+    {
+      "mapId": 6010,
+      "mapDataId": 6000,
+      "flags": 8554
+    },
+    {
+      "mapId": 6072,
+      "mapDataId": 1004,
+      "flags": 286728
+    },
+    {
+      "mapId": 8822,
+      "mapDataId": 8822,
+      "flags": 0
+    },
+    {
+      "mapId": 8823,
+      "mapDataId": 8823,
+      "flags": 0
+    },
+    {
+      "mapId": 8824,
+      "mapDataId": 8824,
+      "flags": 0
+    },
+    {
+      "mapId": 8825,
+      "mapDataId": 8825,
+      "flags": 0
+    },
+    {
+      "mapId": 8826,
+      "mapDataId": 8826,
+      "flags": 0
+    },
+    {
+      "mapId": 8827,
+      "mapDataId": 8827,
+      "flags": 0
+    },
+    {
+      "mapId": 8828,
+      "mapDataId": 8828,
+      "flags": 0
+    },
+    {
+      "mapId": 8829,
+      "mapDataId": 8829,
+      "flags": 0
+    },
+    {
+      "mapId": 8830,
+      "mapDataId": 8830,
+      "flags": 0
+    },
+    {
+      "mapId": 8831,
+      "mapDataId": 8831,
+      "flags": 0
+    },
+    {
+      "mapId": 8832,
+      "mapDataId": 8832,
+      "flags": 0
+    },
+    {
+      "mapId": 8833,
+      "mapDataId": 8833,
+      "flags": 0
+    },
+    {
+      "mapId": 8834,
+      "mapDataId": 8834,
+      "flags": 0
+    },
+    {
+      "mapId": 8835,
+      "mapDataId": 8835,
+      "flags": 0
+    },
+    {
+      "mapId": 8836,
+      "mapDataId": 8836,
+      "flags": 0
+    },
+    {
+      "mapId": 8837,
+      "mapDataId": 8837,
+      "flags": 0
+    },
+    {
+      "mapId": 8838,
+      "mapDataId": 8838,
+      "flags": 0
+    },
+    {
+      "mapId": 8839,
+      "mapDataId": 8839,
+      "flags": 0
+    },
+    {
+      "mapId": 900000,
+      "mapDataId": 900000,
+      "flags": 15922080498122855
+    },
+    {
+      "mapId": 910000,
+      "mapDataId": 900000,
+      "flags": 29432879916056647
+    },
+    {
+      "mapId": 1000000,
+      "mapDataId": 900000,
+      "flags": 2270544260825191
+    }
+  ]
+}

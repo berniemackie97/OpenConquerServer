@@ -69,16 +69,26 @@ the canonical output when the map definitions themselves are identical.
 
 ## Native 5517 compatibility baseline
 
-A complete verified 5517 world-map definition baseline has not yet been
-established in this repository.
+The initial reconstruction baseline is included in this repository:
 
-For the initial compatibility baseline, do not substitute guessed assignments,
-default flags, unrelated 6270-era database rows, or unreviewed emulator exports
-for verified original behavior. The OpenConquerPublic corrections are useful
-research inputs but include unresolved and previously incorrect mappings.
+- 282 resolved world-map definitions;
+- 185 distinct canonical base-terrain artifacts;
+- seven explicitly unavailable historical map identities;
+- 48 documented zero-flag defaults where source flags were unavailable;
+- preservation of the full 64-bit source flags, including values containing
+  bits outside the client compatibility projection.
 
-Once the historical baseline is established, preserve its provenance and
-recorded integrity hashes as regression evidence for that baseline.
+`catalog-manifest.json` records the reconstruction decisions, availability,
+and source checksum. The original research evidence is maintained separately
+and is not required to compile, run, or extend OpenConquer.
+
+The offline `import-map-catalog` command reproduces the initial catalog from
+that evidence. It is a historical migration adapter, not a required step
+for future map creation or updates.
+
+This is a working compatibility baseline, not proof of complete retail parity.
+Unresolved identities, provisional defaults, scenery collision, and remaining
+native behavior require further verification.
 
 Future OpenConquer maps and revisions are independent project-owned content.
 They require normal schema, gameplay, asset, and compatibility validation;
@@ -86,14 +96,27 @@ they do not require retail 5517 provenance or matching native definitions.
 Release-content integrity hashes identify intentional artifacts and are not
 requirements to reproduce the original retail bytes.
 
+## Base terrain
+
+Base terrain is stored as versioned `.ocbt` content indexed by `MapDataId`.
+It is independent of retail DMap and 7-Zip containers. The immutable runtime
+catalog loads only required terrain identities and validates resource limits,
+format version, file length, and SHA-256 integrity.
+
+Maps sharing the same `MapDataId` share one immutable base-terrain grid.
+Native importing is optional. Custom terrain may be generated directly
+from authored JSON without a retail client or historical provenance.
+
+See [Base Terrain](base-terrain.md) for the exact format and generation commands.
+
 ## Remaining map-system boundaries
 
 The following are not completed by this catalog slice:
 
-- a verified full 5517 map-definition dataset;
-- offline client map-index and terrain conversion;
-- canonical terrain/collision artifacts;
-- cross-validation of world-map definitions against terrain;
+- resolution of the remaining historical map-definition uncertainties;
+- independent retail conversion and behavioral conformance verification;
+- scenery and positioned-overlay collision composition;
+- complete world-map-to-terrain readiness integration;
 - GameServer startup publication and readiness gating;
 - authoritative map instances and world-session integration.
 

@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <None Include="..\..\content\items\item-types.json" Link="Content\Items\item-types.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\content\maps\*.json" Link="Content\Maps\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

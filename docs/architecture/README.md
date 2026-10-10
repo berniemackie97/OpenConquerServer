@@ -473,8 +473,19 @@ files at runtime.
 
 The existing EnterMap contract can project a canonical definition into
 `GameMapEntryDefinition`. The runnable GameServer host, startup catalog publication,
-a fully verified 5517 map-definition baseline, native terrain conversion, and
-authoritative world instances remain separate future integration boundaries.
+resolution of remaining 5517 reconstruction uncertainties, completed terrain
+collision composition, and authoritative world instances remain future boundaries.
+
+Canonical base-terrain files are versioned, checksummed binary content keyed by
+`MapDataId`. The offline tool accepts authored terrain or imports the verified
+native DMap base grid and exit-marker sections. Runtime loading requires only
+canonical terrain artifacts and the immutable map-definition catalog.
+Multiple maps sharing one terrain identity share one immutable grid.
+
+Base-grid passability is not authoritative movement collision. Native scenery
+and positioned overlays can modify effective collision and remain a separate
+required composition boundary. The converter does not claim validation of
+uninterpreted later native DMap sections.
 
 See [`content/maps`](../../content/maps/README.md) for the source and canonical formats.
 
@@ -760,7 +771,8 @@ Implemented:
 - native `0x61` syndicate-attributes hydration, packet-1106 projection, and ownership-safe handoff to silent-info reporting;
 - native `0xFB` silent-info report validation, authenticated-hero acknowledgement, and ownership-safe handoff to statistics-request processing;
 - native `0x84` statistics-request validation, no-response consumption, and ownership-safe completion of the verified client-driven bootstrap sequence;
-- offline canonical map-definition conversion with evidence references, immutable catalog lookup, and bounded runtime catalog loading;
+- offline canonical map-definition conversion with optional evidence references, immutable catalog lookup, and bounded runtime catalog loading;
+- canonical base-terrain binary generation, native base-grid import, immutable terrain catalog loading, and integrity validation;
 - MySQL account persistence;
 - MySQL Game character, item, social-relation, weapon-skill, magic, and syndicate persistence.
 
@@ -770,7 +782,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- verified production 5517 map-definition baseline, terrain conversion, and GameServer startup catalog integration;
+- resolution of remaining historical map uncertainties, complete terrain collision composition, and GameServer startup catalog integration;
 - authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;

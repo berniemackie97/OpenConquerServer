@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using OpenConquer.Application.World;
 using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Items;
 using OpenConquer.Domain.World;
@@ -17,10 +18,9 @@ internal static class Program
 
     private static int Main(string[] args)
     {
-        if (
-            args.Length != 3
-            || args[0] is not ("generate-item-types" or "generate-map-definitions")
-        )
+        bool validArguments = args is [("generate-item-types" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _] or ["generate-map-terrains", _, _, _];
+
+        if (!validArguments)
         {
             PrintUsage();
             return InvalidArgumentsExitCode;
@@ -30,16 +30,21 @@ internal static class Program
         {
             string sourcePath = Path.GetFullPath(args[1]);
             string destinationPath = Path.GetFullPath(args[2]);
-            StringComparison pathComparison =
-                OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal;
+
+            if (args[0] == "generate-map-terrains")
+            {
+                int count = NativeMapTerrainImporter.Generate(sourcePath, destinationPath, Path.GetFullPath(args[3]), MapTerrainLoadLimits.CreateDefault());
+
+                Console.WriteLine($"Generated {count} canonical base-terrain artifacts.");
+                return SuccessExitCode;
+            }
+
+            StringComparison pathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
             if (string.Equals(sourcePath, destinationPath, pathComparison))
             {
-                Console.Error.WriteLine(
-                    "OpenConquer.GameData.Tool: source and destination paths must be different files."
-                );
+                Console.Error.WriteLine("OpenConquer.GameData.Tool: source and destination paths must differ.");
                 return InvalidArgumentsExitCode;
             }
 
@@ -47,34 +52,37 @@ internal static class Program
             {
                 "generate-item-types" => GenerateItemTypes(sourcePath, destinationPath),
                 "generate-map-definitions" => GenerateMapDefinitions(sourcePath, destinationPath),
-                _ => InvalidArgumentsExitCode,
+                "generate-base-terrain" => GenerateBaseTerrain(sourcePath, destinationPath),
+                "import-map-catalog" => ImportMapCatalog(sourcePath, destinationPath),
+                _ => InvalidArgumentsExitCode
             };
         }
-        catch (Exception exception)
-            when (exception
-                    is ArgumentException
-                        or InvalidDataException
-                        or IOException
-                        or UnauthorizedAccessException
-                        or NotSupportedException
-            )
+        catch (Exception exception) when (exception is ArgumentException or InvalidDataException
+            or IOException or UnauthorizedAccessException or NotSupportedException)
         {
             Console.Error.WriteLine($"OpenConquer.GameData.Tool: {exception.Message}");
             return OperationFailedExitCode;
         }
     }
 
+    private static int ImportMapCatalog(string sourcePath, string destinationDirectory)
+    {
+        byte[] payload = ToolSourceFileReader.Read(sourcePath, MapCatalogSourceReader.MaximumSourceLengthBytes);
+        (int resolved, int unavailable) = MapCatalogImporter.Import(payload, destinationDirectory);
+
+        Console.WriteLine($"Imported {resolved} resolved maps and {unavailable} unavailable map records.");
+        Console.WriteLine($"Source SHA-256: {ComputeSha256(payload)}");
+
+        return SuccessExitCode;
+    }
+
     private static int GenerateItemTypes(string sourcePath, string destinationPath)
     {
-        byte[] sourcePayload = ToolSourceFileReader.Read(
-            sourcePath,
-            MaximumItemTypeSourceLengthBytes
-        );
+        byte[] sourcePayload = ToolSourceFileReader.Read(sourcePath, MaximumItemTypeSourceLengthBytes);
         ItemTypeDatTable source = ItemTypeDatTable.Parse(sourcePayload);
         ItemTypeDefinition[] definitions = ItemTypeCatalogGenerator.Generate(source);
 
         ItemTypeCatalogFileWriter.Write(destinationPath, definitions);
-
         PrintResult("item type", definitions.Length, sourcePayload, destinationPath);
 
         return SuccessExitCode;
@@ -82,25 +90,31 @@ internal static class Program
 
     private static int GenerateMapDefinitions(string sourcePath, string destinationPath)
     {
-        byte[] sourcePayload = ToolSourceFileReader.Read(
-            sourcePath,
-            MapDefinitionSourceReader.MaximumSourceLengthBytes
-        );
+        byte[] sourcePayload = ToolSourceFileReader.Read(sourcePath, MapDefinitionSourceReader.MaximumSourceLengthBytes);
         MapDefinition[] definitions = MapDefinitionSourceReader.Parse(sourcePayload);
 
         MapDefinitionCatalogFileWriter.Write(destinationPath, definitions);
-
         PrintResult("map", definitions.Length, sourcePayload, destinationPath);
 
         return SuccessExitCode;
     }
 
-    private static void PrintResult(
-        string contentName,
-        int count,
-        ReadOnlySpan<byte> sourcePayload,
-        string destinationPath
-    )
+    private static int GenerateBaseTerrain(string sourcePath, string destinationPath)
+    {
+        MapTerrainLoadLimits limits = MapTerrainLoadLimits.CreateDefault();
+        byte[] sourcePayload = ToolSourceFileReader.Read(sourcePath, checked((int)limits.MaximumContainerBytes));
+        MapBaseTerrain terrain = MapBaseTerrainSourceReader.Parse(sourcePayload, limits);
+
+        MapBaseTerrainBinaryWriter.Write(destinationPath, terrain);
+
+        Console.WriteLine($"Generated base terrain for MapDataId {terrain.MapDataId}.");
+        Console.WriteLine($"Source SHA-256: {ComputeSha256(sourcePayload)}");
+        Console.WriteLine($"Terrain SHA-256: {ComputeSha256(destinationPath)}");
+
+        return SuccessExitCode;
+    }
+
+    private static void PrintResult(string contentName, int count, ReadOnlySpan<byte> sourcePayload, string destinationPath)
     {
         Console.WriteLine($"Generated {count} {contentName} definitions.");
         Console.WriteLine($"Source SHA-256: {ComputeSha256(sourcePayload)}");
@@ -110,12 +124,11 @@ internal static class Program
     private static void PrintUsage()
     {
         Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine(
-            "  OpenConquer.GameData.Tool generate-item-types <itemtype.dat> <item-types.json>"
-        );
-        Console.Error.WriteLine(
-            "  OpenConquer.GameData.Tool generate-map-definitions <source.json> <map-definitions.json>"
-        );
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-item-types <itemtype.dat> <item-types.json>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-definitions <source.json> <map-definitions.json>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-base-terrain <source.json> <terrain.ocbt>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-terrains <client-root> <map-definitions.json> <destination-directory>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool import-map-catalog <source.json> <new-destination-directory>");
     }
 
     private static string ComputeSha256(ReadOnlySpan<byte> payload)
@@ -125,14 +138,7 @@ internal static class Program
 
     private static string ComputeSha256(string path)
     {
-        using FileStream stream = new(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 81920,
-            FileOptions.SequentialScan
-        );
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, FileOptions.SequentialScan);
 
         return Convert.ToHexStringLower(SHA256.HashData(stream));
     }

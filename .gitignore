@@ -481,3 +481,5 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+/content/maps/import/map-catalog-source.json
