@@ -120,3 +120,42 @@ authoritative collision or pathing.
 
 Custom OpenConquer features need valid canonical content and supported runtime
 rules, not evidence that they existed in the original 5517 client.
+
+## Collision source verification
+
+The offline verifier reconstructs static scenery collision from a supplied
+client asset root and compares the native first-grid content against the
+published canonical base-terrain artifacts.
+
+    dotnet run \
+      --project tools/OpenConquer.GameData.Tool/OpenConquer.GameData.Tool.csproj \
+      -c Release \
+      -- \
+      verify-map-collision-sources \
+      <verified-client-root> \
+      content/maps/map-definitions.json \
+      content/maps/terrains
+
+The verifier uses the production canonical terrain loader and validates every
+required MapDataId. It compares grid dimensions, every base cell, and exit
+markers before composing scenery attachments.
+
+Native map-container decoding, terrain-object file resolution, and composition
+are bounded. Unsupported scenery records, missing files, unsafe paths, corrupt
+sources, and canonical mismatches fail verification.
+
+Verification does not modify release content or publish new collision
+artifacts. It prints per-terrain source and composition statistics in
+ascending MapDataId order.
+
+The historical collision census covered 170 terrains. The canonical release
+currently requires 185 distinct terrain identities. Complete source coverage
+and independent behavioral conformance must be established before publishing
+canonical collision content.
+
+A successful verification demonstrates source consistency and successful
+composition. It does not independently prove that every reconstructed tile
+matches the original client implementation.
+
+The final server collision rules must also distinguish static terrain
+passability from dynamic world occupancy and gameplay movement restrictions.
