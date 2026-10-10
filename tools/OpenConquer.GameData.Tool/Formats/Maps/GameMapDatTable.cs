@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Frozen;
 using System.Text;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
 public sealed record GameMapDatRecord(uint MapDataId, string RelativePath, uint ComponentLinkId);
 

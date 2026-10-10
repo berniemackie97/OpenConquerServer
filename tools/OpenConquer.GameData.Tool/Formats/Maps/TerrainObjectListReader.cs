@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
 public readonly record struct TerrainObjectCell(ushort PassabilityFlag, ushort SurfaceId, short ElevationDelta);
 

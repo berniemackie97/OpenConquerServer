@@ -1,6 +1,6 @@
 using OpenConquer.Application.World;
-using OpenConquer.Assets.Maps;
 using OpenConquer.Domain.World;
+using OpenConquer.GameData.Tool.Formats.Maps;
 using OpenConquer.GameData.Tool.IO;
 
 namespace OpenConquer.GameData.Tool.Maps;

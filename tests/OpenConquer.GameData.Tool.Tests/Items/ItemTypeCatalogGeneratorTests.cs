@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
 using OpenConquer.Application.Items.Catalog;
-using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Items;
+using OpenConquer.GameData.Tool.Formats.Items;
 using OpenConquer.GameData.Tool.Items;
 using OpenConquer.Infrastructure.Content.Items;
 

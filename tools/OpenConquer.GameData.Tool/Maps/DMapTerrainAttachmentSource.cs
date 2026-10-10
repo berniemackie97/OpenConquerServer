@@ -1,5 +1,5 @@
-using OpenConquer.Assets.Maps;
 using OpenConquer.Domain.World;
+using OpenConquer.GameData.Tool.Formats.Maps;
 
 namespace OpenConquer.GameData.Tool.Maps;
 

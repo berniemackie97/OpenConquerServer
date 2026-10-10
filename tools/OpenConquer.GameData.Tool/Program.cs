@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using OpenConquer.Application.World;
-using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Items;
 using OpenConquer.Domain.World;
+using OpenConquer.GameData.Tool.Formats.Items;
 using OpenConquer.GameData.Tool.IO;
 using OpenConquer.GameData.Tool.Items;
 using OpenConquer.GameData.Tool.Maps;

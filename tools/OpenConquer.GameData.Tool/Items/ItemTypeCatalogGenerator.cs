@@ -1,5 +1,5 @@
-using OpenConquer.Assets.Items;
 using OpenConquer.Domain.Items;
+using OpenConquer.GameData.Tool.Formats.Items;
 
 namespace OpenConquer.GameData.Tool.Items;
 

@@ -1,7 +1,7 @@
 using System.Text;
 using OpenConquer.Application.World;
-using OpenConquer.Assets.Maps;
 using OpenConquer.Domain.World;
+using OpenConquer.GameData.Tool.Formats.Maps;
 using OpenConquer.GameData.Tool.Maps;
 
 namespace OpenConquer.GameData.Tool.Tests.Maps;

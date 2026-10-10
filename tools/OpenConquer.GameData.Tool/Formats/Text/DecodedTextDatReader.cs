@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace OpenConquer.Assets.IO;
+namespace OpenConquer.GameData.Tool.Formats.Text;
 
 public static class DecodedTextDatReader
 {

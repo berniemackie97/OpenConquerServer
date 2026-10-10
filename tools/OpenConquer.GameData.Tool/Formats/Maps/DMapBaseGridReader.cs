@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
 public readonly record struct DMapBaseCell(ushort SurfaceId, ushort PassabilityFlag, short Elevation);
 public readonly record struct DMapExitMarker(int X, int Y, uint PasswayIndex);

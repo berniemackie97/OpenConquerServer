@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
 public readonly record struct DMapTerrainObjectGroup(string ListPath, int AnchorTileX, int AnchorTileY);
 
