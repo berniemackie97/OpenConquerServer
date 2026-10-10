@@ -70,7 +70,7 @@ IDs required by a supplied canonical map-definition catalog.
       generate-map-terrains \
       <verified-client-root> \
       content/maps/map-definitions.json \
-      content/maps/terrains
+      <new-output-directory>
 
 The destination directory must not already exist. The tool stages all outputs
 and publishes the directory only if every required base terrain succeeds.
@@ -87,7 +87,12 @@ FoxConquer's extracted `RequiredFiles/Maps/*.DMap` representation is not a
 verified retail 5517 DMap container fixture and must not serve as a retail
 conformance baseline.
 
-The complete retail baseline still requires independent source verification.
+The 185 included canonical terrain artifacts cover all 282 resolved world-map
+definitions. Repository content tests verify required-file coverage and load
+every artifact through the production integrity-validating reader.
+
+Independent retail conformance verification and reconstruction of scenery
+collision, positioned overlays, and later DMap sections remain outstanding.
 
 ## Runtime
 

@@ -473,8 +473,8 @@ files at runtime.
 
 The existing EnterMap contract can project a canonical definition into
 `GameMapEntryDefinition`. The runnable GameServer host, startup catalog publication,
-a fully verified 5517 map-definition baseline, completed terrain collision
-composition, and authoritative world instances remain separate future boundaries.
+resolution of remaining 5517 reconstruction uncertainties, completed terrain
+collision composition, and authoritative world instances remain future boundaries.
 
 Canonical base-terrain files are versioned, checksummed binary content keyed by
 `MapDataId`. The offline tool accepts authored terrain or imports the verified
@@ -782,7 +782,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- verified production 5517 map-definition and terrain baselines, complete terrain collision composition, and GameServer startup catalog integration;
+- resolution of remaining historical map uncertainties, complete terrain collision composition, and GameServer startup catalog integration;
 - authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;

@@ -14,10 +14,10 @@ server architecture.
 > revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
 > handoff, the verified existing-character bootstrap request sequence through `0x84`, and
 > Game schema v9 syndicate persistence and read hydration are implemented.
-> Canonical OpenConquer map definitions, optional offline normalization, and immutable catalog
-> loading are implemented. Canonical base-terrain generation and immutable terrain
-> loading are implemented without a runtime dependency on native client assets;
-> a verified production 5517 map-definition and terrain baseline remains pending.
+> The initial canonical map-content baseline includes 282 world-map definitions and
+> 185 distinct base-terrain artifacts, with immutable loading and integrity validation.
+> Seven historical map identities remain unresolved. Complete native-parity verification,
+> scenery collision composition, and GameServer runtime integration remain pending.
 > Account registration, the runnable GameServer host, character creation, authoritative
 > world-session integration, and gameplay are not yet implemented.
 
