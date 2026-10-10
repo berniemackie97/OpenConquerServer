@@ -16,9 +16,11 @@ internal static class Program
     private const int InvalidArgumentsExitCode = 2;
     private const int MaximumItemTypeSourceLengthBytes = 64 * 1024 * 1024;
 
-    private static int Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
-        bool validArguments = args is [("generate-item-types" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _] or ["generate-map-terrains", _, _, _];
+        bool validArguments = args is [("generate-item-types" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _]
+            or ["generate-map-terrains", _, _, _]
+            or ["verify-map-collision-sources", _, _, _];
 
         if (!validArguments)
         {
@@ -33,14 +35,21 @@ internal static class Program
 
             if (args[0] == "generate-map-terrains")
             {
-                int count = NativeMapTerrainImporter.Generate(sourcePath, destinationPath, Path.GetFullPath(args[3]), MapTerrainLoadLimits.CreateDefault());
+                int count = NativeMapTerrainImporter.Generate(sourcePath, destinationPath,
+                    Path.GetFullPath(args[3]), MapTerrainLoadLimits.CreateDefault());
 
                 Console.WriteLine($"Generated {count} canonical base-terrain artifacts.");
                 return SuccessExitCode;
             }
 
+            if (args[0] == "verify-map-collision-sources")
+            {
+                return await VerifyMapCollisionSourcesAsync(sourcePath, destinationPath, Path.GetFullPath(args[3])).ConfigureAwait(false);
+            }
+
             StringComparison pathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
 
             if (string.Equals(sourcePath, destinationPath, pathComparison))
             {
@@ -58,11 +67,34 @@ internal static class Program
             };
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidDataException
-            or IOException or UnauthorizedAccessException or NotSupportedException)
+            or IOException or UnauthorizedAccessException or NotSupportedException or OverflowException)
         {
             Console.Error.WriteLine($"OpenConquer.GameData.Tool: {exception.Message}");
             return OperationFailedExitCode;
         }
+    }
+
+    private static async Task<int> VerifyMapCollisionSourcesAsync(
+        string assetRootPath, string definitionsPath, string terrainDirectory)
+    {
+        MapCollisionSourceReport report = await MapCollisionSourceVerifier.VerifyAsync(
+            assetRootPath, definitionsPath, terrainDirectory,
+            MapTerrainLoadLimits.CreateDefault(), MapCollisionSourceLimits.CreateDefault())
+            .ConfigureAwait(false);
+
+        foreach (MapCollisionSourceResult terrain in report.Terrains)
+        {
+            Console.WriteLine($"MapDataId {terrain.MapDataId}: scenery={terrain.ScenerySubcomponents}, " +
+                              $"groups={terrain.TerrainObjectGroups}, lists={terrain.ObjectListFiles}, " +
+                              $"attachments={terrain.Attachments}, overrides={terrain.EffectiveOverrides}");
+        }
+
+        Console.WriteLine($"Verified {report.TerrainCount} terrain identities; " +
+                          $"groups={report.TotalGroups}, attachments={report.TotalAttachments}, " +
+                          $"effective overrides={report.TotalEffectiveOverrides}, " +
+                          $"object-list bytes={report.TotalObjectBytes}.");
+
+        return SuccessExitCode;
     }
 
     private static int ImportMapCatalog(string sourcePath, string destinationDirectory)
@@ -129,6 +161,7 @@ internal static class Program
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-base-terrain <source.json> <terrain.ocbt>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-terrains <client-root> <map-definitions.json> <destination-directory>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool import-map-catalog <source.json> <new-destination-directory>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool verify-map-collision-sources <client-root> <map-definitions.json> <terrain-directory>");
     }
 
     private static string ComputeSha256(ReadOnlySpan<byte> payload)

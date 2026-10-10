@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\src\OpenConquer.Application\OpenConquer.Application.csproj" />
     <ProjectReference Include="..\..\src\OpenConquer.Assets\OpenConquer.Assets.csproj" />
     <ProjectReference Include="..\..\src\OpenConquer.Domain\OpenConquer.Domain.csproj" />
+    <ProjectReference Include="..\..\src\OpenConquer.Infrastructure\OpenConquer.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

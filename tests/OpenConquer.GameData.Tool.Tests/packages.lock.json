@@ -297,6 +297,7 @@
           "OpenConquer.Application": "[1.0.0, )",
           "OpenConquer.Assets": "[1.0.0, )",
           "OpenConquer.Domain": "[1.0.0, )",
+          "OpenConquer.Infrastructure": "[1.0.0, )",
           "SharpCompress": "[0.50.4, )"
         }
       },
