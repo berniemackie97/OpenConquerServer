@@ -784,7 +784,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- resolution of remaining historical map uncertainties, canonical collision artifact publication, and GameServer startup catalog integration;
+- resolution of remaining historical map uncertainties, runtime collision catalog loading, and GameServer startup catalog integration;
 - authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;

@@ -15,9 +15,21 @@ internal sealed record MapCollisionSourceReport(IReadOnlyList<MapCollisionSource
     public long TotalEffectiveOverrides => Terrains.Sum(terrain => (long)terrain.EffectiveOverrides);
 }
 
+internal sealed record MapCollisionSourceBuild(MapCollisionSourceReport Report, IReadOnlyList<MapTerrainCollision> Collisions);
+
 internal static class MapCollisionSourceVerifier
 {
     public static async Task<MapCollisionSourceReport> VerifyAsync(string assetRootPath,
+        string definitionsPath, string terrainDirectory, MapTerrainLoadLimits terrainLimits,
+        MapCollisionSourceLimits collisionLimits, CancellationToken cancellationToken = default)
+    {
+        MapCollisionSourceBuild build = await BuildAsync(assetRootPath, definitionsPath, terrainDirectory,
+            terrainLimits, collisionLimits, cancellationToken).ConfigureAwait(false);
+
+        return build.Report;
+    }
+
+    public static async Task<MapCollisionSourceBuild> BuildAsync(string assetRootPath,
         string definitionsPath, string terrainDirectory, MapTerrainLoadLimits terrainLimits,
         MapCollisionSourceLimits collisionLimits, CancellationToken cancellationToken = default)
     {
@@ -45,6 +57,7 @@ internal static class MapCollisionSourceVerifier
         uint[] requiredIds = definitions.Definitions.Select(definition => definition.MapDataId).Distinct().Order().ToArray();
 
         List<MapCollisionSourceResult> results = new(requiredIds.Length);
+        List<MapTerrainCollision> collisions = new(requiredIds.Length);
         long totalAttachments = 0;
         long totalObjectBytes = 0;
 
@@ -66,9 +79,12 @@ internal static class MapCollisionSourceVerifier
 
                 SourceSections sections = sources.ReadMap(record.RelativePath, stream =>
                 {
-                    DMapBaseGrid grid = DMapBaseGridReader.Read(stream, terrainLimits.MaximumWidth, terrainLimits.MaximumHeight, terrainLimits.MaximumCellsPerTerrain, terrainLimits.MaximumExitsPerTerrain, cancellationToken);
+                    DMapBaseGrid grid = DMapBaseGridReader.Read(stream, terrainLimits.MaximumWidth,
+                        terrainLimits.MaximumHeight, terrainLimits.MaximumCellsPerTerrain,
+                        terrainLimits.MaximumExitsPerTerrain, cancellationToken);
 
-                    DMapScenerySection scenery = DMapScenerySectionReader.Read(stream, collisionLimits.MaximumScenerySubcomponents, cancellationToken);
+                    DMapScenerySection scenery = DMapScenerySectionReader.Read(stream,
+                        collisionLimits.MaximumScenerySubcomponents, cancellationToken);
 
                     return new SourceSections(grid, scenery);
                 }, cancellationToken);
@@ -104,13 +120,15 @@ internal static class MapCollisionSourceVerifier
 
                     using MemoryStream stream = new(payload, writable: false);
 
-                    TerrainObjectList objects = TerrainObjectListReader.Read(stream, collisionLimits.MaximumObjectsPerList, collisionLimits.MaximumCellsPerList, cancellationToken);
+                    TerrainObjectList objects = TerrainObjectListReader.Read(stream,
+                        collisionLimits.MaximumObjectsPerList, collisionLimits.MaximumCellsPerList, cancellationToken);
 
                     objectLists.Add(resolvedPath, objects);
                     return objects;
                 }
 
-                IEnumerable<MapTerrainAttachment> sourceAttachments = DMapTerrainAttachmentSource.Enumerate(sections.Scenery, LoadObjectList);
+                IEnumerable<MapTerrainAttachment> sourceAttachments =
+                    DMapTerrainAttachmentSource.Enumerate(sections.Scenery, LoadObjectList);
 
                 long attachmentCount = 0;
 
@@ -124,7 +142,8 @@ internal static class MapCollisionSourceVerifier
                     }
                 }
 
-                MapTerrainCollision collision = MapTerrainCollisionComposer.Compose(baseTerrain, CountAttachments(), collisionLimits.MaximumAttachmentsPerTerrain);
+                MapTerrainCollision collision = MapTerrainCollisionComposer.Compose(
+                    baseTerrain, CountAttachments(), collisionLimits.MaximumAttachmentsPerTerrain);
 
                 totalAttachments = checked(totalAttachments + attachmentCount);
 
@@ -133,7 +152,11 @@ internal static class MapCollisionSourceVerifier
                     throw new InvalidDataException($"Terrain attachments exceed the aggregate limit of {collisionLimits.MaximumTotalAttachments}.");
                 }
 
-                results.Add(new MapCollisionSourceResult(mapDataId, sections.Scenery.SubcomponentCount, sections.Scenery.TerrainObjectGroups.Length, objectLists.Count, attachmentCount, collision.OverrideCount));
+                results.Add(new MapCollisionSourceResult(mapDataId,
+                    sections.Scenery.SubcomponentCount, sections.Scenery.TerrainObjectGroups.Length,
+                    objectLists.Count, attachmentCount, collision.OverrideCount));
+
+                collisions.Add(collision);
             }
             catch (Exception exception) when (exception is InvalidDataException or IOException
                 or UnauthorizedAccessException or OverflowException or ArgumentException)
@@ -142,7 +165,8 @@ internal static class MapCollisionSourceVerifier
             }
         }
 
-        return new MapCollisionSourceReport(results.ToArray(), totalAttachments, totalObjectBytes);
+        MapCollisionSourceReport report = new(results.ToArray(), totalAttachments, totalObjectBytes);
+        return new MapCollisionSourceBuild(report, collisions.ToArray());
     }
 
     private static void VerifyBaseTerrain(MapBaseTerrain expected, DMapBaseGrid actual, CancellationToken cancellationToken)

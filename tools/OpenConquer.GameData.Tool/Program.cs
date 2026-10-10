@@ -20,7 +20,8 @@ internal static class Program
     {
         bool validArguments = args is [("generate-item-types" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _]
             or ["generate-map-terrains", _, _, _]
-            or ["verify-map-collision-sources", _, _, _];
+            or ["verify-map-collision-sources", _, _, _]
+            or ["generate-map-collisions", _, _, _, _];
 
         if (!validArguments)
         {
@@ -45,6 +46,12 @@ internal static class Program
             if (args[0] == "verify-map-collision-sources")
             {
                 return await VerifyMapCollisionSourcesAsync(sourcePath, destinationPath, Path.GetFullPath(args[3])).ConfigureAwait(false);
+            }
+
+            if (args[0] == "generate-map-collisions")
+            {
+                return await GenerateMapCollisionsAsync(sourcePath, destinationPath,
+                    Path.GetFullPath(args[3]), Path.GetFullPath(args[4])).ConfigureAwait(false);
             }
 
             StringComparison pathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
@@ -82,6 +89,25 @@ internal static class Program
             MapTerrainLoadLimits.CreateDefault(), MapCollisionSourceLimits.CreateDefault())
             .ConfigureAwait(false);
 
+        PrintCollisionReport(report, "Verified");
+        return SuccessExitCode;
+    }
+
+    private static async Task<int> GenerateMapCollisionsAsync(
+        string assetRootPath, string definitionsPath, string terrainDirectory, string collisionDirectory)
+    {
+        MapCollisionSourceReport report = await MapCollisionContentGenerator.GenerateAsync(
+            assetRootPath, definitionsPath, terrainDirectory, collisionDirectory,
+            MapTerrainLoadLimits.CreateDefault(), MapCollisionSourceLimits.CreateDefault(),
+            MapCollisionLoadLimits.CreateDefault()).ConfigureAwait(false);
+
+        PrintCollisionReport(report, "Generated");
+        Console.WriteLine($"Collision release directory: {collisionDirectory}");
+        return SuccessExitCode;
+    }
+
+    private static void PrintCollisionReport(MapCollisionSourceReport report, string action)
+    {
         foreach (MapCollisionSourceResult terrain in report.Terrains)
         {
             Console.WriteLine($"MapDataId {terrain.MapDataId}: scenery={terrain.ScenerySubcomponents}, " +
@@ -89,12 +115,10 @@ internal static class Program
                               $"attachments={terrain.Attachments}, overrides={terrain.EffectiveOverrides}");
         }
 
-        Console.WriteLine($"Verified {report.TerrainCount} terrain identities; " +
+        Console.WriteLine($"{action} {report.TerrainCount} terrain identities; " +
                           $"groups={report.TotalGroups}, attachments={report.TotalAttachments}, " +
                           $"effective overrides={report.TotalEffectiveOverrides}, " +
                           $"object-list bytes={report.TotalObjectBytes}.");
-
-        return SuccessExitCode;
     }
 
     private static int ImportMapCatalog(string sourcePath, string destinationDirectory)
@@ -162,6 +186,7 @@ internal static class Program
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-terrains <client-root> <map-definitions.json> <destination-directory>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool import-map-catalog <source.json> <new-destination-directory>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool verify-map-collision-sources <client-root> <map-definitions.json> <terrain-directory>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-collisions <client-root> <map-definitions.json> <terrain-directory> <new-collision-directory>");
     }
 
     private static string ComputeSha256(ReadOnlySpan<byte> payload)

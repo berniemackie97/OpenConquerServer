@@ -87,7 +87,7 @@ that evidence. It is a historical migration adapter, not a required step
 for future map creation or updates.
 
 This is a working compatibility baseline, not proof of complete retail parity.
-Unresolved identities, provisional defaults, scenery collision, and remaining
+Unresolved identities, provisional defaults, independent collision parity, and remaining
 native behavior require further verification.
 
 Future OpenConquer maps and revisions are independent project-owned content.
@@ -115,7 +115,7 @@ The following are not completed by this catalog slice:
 
 - resolution of the remaining historical map-definition uncertainties;
 - independent retail conversion and behavioral conformance verification;
-- scenery and positioned-overlay collision composition;
+- canonical static collision catalog loading and runtime readiness;
 - complete world-map-to-terrain readiness integration;
 - GameServer startup publication and readiness gating;
 - authoritative map instances and world-session integration.

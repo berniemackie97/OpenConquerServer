@@ -91,8 +91,10 @@ The 185 included canonical terrain artifacts cover all 282 resolved world-map
 definitions. Repository content tests verify required-file coverage and load
 every artifact through the production integrity-validating reader.
 
-Independent retail conformance verification and reconstruction of scenery
-collision, positioned overlays, and later DMap sections remain outstanding.
+Static scenery collision reconstruction and source verification are
+implemented in the offline tool. Independent full tile-level parity,
+unsupported later source sections, and runtime collision publication remain
+separate verification and implementation boundaries.
 
 ## Runtime
 
@@ -114,9 +116,10 @@ The base-grid `PassabilityFlag` is retained as raw content information.
 
 It is not a complete, authoritative `IsWalkable` rule.
 
-Scenery, terrain objects, positioned overlays, movement restrictions, and map
-rules must be composed and verified before world partitions use terrain for
-authoritative collision or pathing.
+Canonical static terrain-object collision must be loaded and validated before
+world partitions use it for authoritative collision or pathing. Dynamic
+occupancy, movement restrictions, and map-specific gameplay rules remain
+separate responsibilities.
 
 Custom OpenConquer features need valid canonical content and supported runtime
 rules, not evidence that they existed in the original 5517 client.
