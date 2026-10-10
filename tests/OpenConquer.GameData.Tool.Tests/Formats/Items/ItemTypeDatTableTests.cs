@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
-using OpenConquer.Assets.Items;
+using OpenConquer.GameData.Tool.Formats.Items;
 
-namespace OpenConquer.Assets.Tests.Items;
+namespace OpenConquer.GameData.Tool.Tests.Formats.Items;
 
 public sealed class ItemTypeDatTableTests
 {

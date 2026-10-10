@@ -1,11 +1,11 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
-using OpenConquer.Assets.IO;
+using OpenConquer.GameData.Tool.Formats.Text;
 
-namespace OpenConquer.Assets.Items;
+namespace OpenConquer.GameData.Tool.Formats.Items;
 
-public sealed class ItemTypeDatTable
+internal sealed class ItemTypeDatTable
 {
     public const int DecodedTextSeed = 0x2537;
     public const int TextCodePage = 936;

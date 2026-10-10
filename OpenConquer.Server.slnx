@@ -2,7 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/OpenConquer.AccountServer/OpenConquer.AccountServer.csproj" />
     <Project Path="src/OpenConquer.Application/OpenConquer.Application.csproj" />
-    <Project Path="src/OpenConquer.Assets/OpenConquer.Assets.csproj" />
     <Project Path="src/OpenConquer.Domain/OpenConquer.Domain.csproj" />
     <Project Path="src/OpenConquer.GameServer/OpenConquer.GameServer.csproj" />
     <Project Path="src/OpenConquer.Infrastructure/OpenConquer.Infrastructure.csproj" />
@@ -13,7 +12,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/OpenConquer.AccountServer.Tests/OpenConquer.AccountServer.Tests.csproj" />
     <Project Path="tests/OpenConquer.Application.Tests/OpenConquer.Application.Tests.csproj" />
-    <Project Path="tests/OpenConquer.Assets.Tests/OpenConquer.Assets.Tests.csproj" />
     <Project Path="tests/OpenConquer.Domain.Tests/OpenConquer.Domain.Tests.csproj" />
     <Project Path="tests/OpenConquer.GameData.Tool.Tests/OpenConquer.GameData.Tool.Tests.csproj" />
     <Project Path="tests/OpenConquer.GameServer.Tests/OpenConquer.GameServer.Tests.csproj" />

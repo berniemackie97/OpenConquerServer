@@ -13,7 +13,7 @@ flowchart TD
 
     Protocol["OpenConquer.Protocol"]
     Transport["OpenConquer.Transport"]
-    Assets["OpenConquer.Assets"]
+    GameDataTool["OpenConquer.GameData.Tool (offline)"]
 
     AccountServer["OpenConquer.AccountServer"]
     GameServer["OpenConquer.GameServer"]
@@ -22,6 +22,9 @@ flowchart TD
 
     Infrastructure --> Application
     Infrastructure --> Domain
+    GameDataTool --> Application
+    GameDataTool --> Domain
+    GameDataTool --> Infrastructure
 
     AccountServer --> Application
     AccountServer --> Infrastructure
@@ -43,10 +46,9 @@ flowchart TD
 | `OpenConquer.Infrastructure` | MySQL persistence, EF Core mappings, password storage, security infrastructure, and external adapters.                                         |
 | `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.                                        |
 | `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                                               |
-| `OpenConquer.Assets`         | Native client-derived static asset formats and parsers used by offline ingestion/tooling.                                                       |
 | `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                                                   |
 | `OpenConquer.GameServer`     | GameServer connection handoff, existing-character login/bootstrap orchestration, native compatibility behavior, and future gameplay hosting.   |
-| `OpenConquer.GameData.Tool`  | Optional offline import and normalization of legacy or authored content into canonical OpenConquer release data.                                        |
+| `OpenConquer.GameData.Tool`  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                        |
 
 ## Dependency Rules
 
@@ -79,10 +81,10 @@ Transport
 Hosts
     compose concrete implementations and protocol/transport adapters
 
-Assets
-    owns native client-derived static data decoding for offline ingestion/tooling
-    does not own mutable live-world state
-    is not a runtime GameServer dependency
+GameData.Tool
+    owns external source-format decoding, import, and canonical content generation
+    depends on Application, Domain, and Infrastructure as an offline executable
+    is not a runtime AccountServer or GameServer dependency
 ```
 
 A new assembly requires a real dependency, ownership, deployment, provider, or reuse boundary.
@@ -387,7 +389,7 @@ hydration and fail closed. `CharacterItemSetResolver` combines the resulting per
 the immutable canonical `ItemTypeCatalog` and the same UTC authority before GameServer projection.
 Resolution fails closed for unknown item types, incompatible static-lifetime state, and persisted
 stack quantities above the item type effective stack capacity. Native `itemtype.dat` decoding remains
-behind the offline asset/tooling boundary and is not a GameServer runtime dependency.
+behind the offline tooling boundary and is not a GameServer runtime dependency.
 
 Already-expired active-lifetime items are excluded before bounded database hydration, with defensive
 expiration filtering retained in Application before catalog lookup and wire projection.
@@ -473,8 +475,8 @@ files at runtime.
 
 The existing EnterMap contract can project a canonical definition into
 `GameMapEntryDefinition`. The runnable GameServer host, startup catalog publication,
-resolution of remaining 5517 reconstruction uncertainties, completed terrain
-collision composition, and authoritative world instances remain future boundaries.
+resolution of remaining 5517 reconstruction uncertainties, canonical terrain
+collision artifact publication, and authoritative world instances remain future boundaries.
 
 Canonical base-terrain files are versioned, checksummed binary content keyed by
 `MapDataId`. The offline tool accepts authored terrain or imports the verified
@@ -782,7 +784,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- resolution of remaining historical map uncertainties, complete terrain collision composition, and GameServer startup catalog integration;
+- resolution of remaining historical map uncertainties, canonical collision artifact publication, and GameServer startup catalog integration;
 - authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;

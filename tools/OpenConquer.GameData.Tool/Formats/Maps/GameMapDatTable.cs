@@ -2,14 +2,14 @@ using System.Buffers.Binary;
 using System.Collections.Frozen;
 using System.Text;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-public sealed record GameMapDatRecord(uint MapDataId, string RelativePath, uint ComponentLinkId);
+internal sealed record GameMapDatRecord(uint MapDataId, string RelativePath, uint ComponentLinkId);
 
 /// <summary>
 /// Native 5517 GameMap.dat index. Duplicate MapDataIds use the last record.
 /// </summary>
-public sealed class GameMapDatTable
+internal sealed class GameMapDatTable
 {
     public const int MaximumPathBytes = 0x40;
     public const int MaximumRecords = 10_000;

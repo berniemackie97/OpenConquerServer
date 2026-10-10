@@ -1,13 +1,13 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-public readonly record struct TerrainObjectCell(ushort PassabilityFlag, ushort SurfaceId, short ElevationDelta);
+internal readonly record struct TerrainObjectCell(ushort PassabilityFlag, ushort SurfaceId, short ElevationDelta);
 
-public readonly record struct TerrainObjectEntry(int Width, int Height, int AnchorTileOffsetX, int AnchorTileOffsetY, ImmutableArray<TerrainObjectCell> Cells);
+internal readonly record struct TerrainObjectEntry(int Width, int Height, int AnchorTileOffsetX, int AnchorTileOffsetY, ImmutableArray<TerrainObjectCell> Cells);
 
-public sealed class TerrainObjectList
+internal sealed class TerrainObjectList
 {
     internal TerrainObjectList(ImmutableArray<TerrainObjectEntry> entries)
     {
@@ -17,7 +17,7 @@ public sealed class TerrainObjectList
     public ImmutableArray<TerrainObjectEntry> Entries { get; }
 }
 
-public static class TerrainObjectListReader
+internal static class TerrainObjectListReader
 {
     private const int ResourcePathsLength = 0x140;
 

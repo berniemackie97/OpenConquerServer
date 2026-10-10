@@ -1,14 +1,14 @@
 using System.Buffers.Binary;
 
-namespace OpenConquer.Assets.Maps;
+namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-public readonly record struct DMapBaseCell(ushort SurfaceId, ushort PassabilityFlag, short Elevation);
-public readonly record struct DMapExitMarker(int X, int Y, uint PasswayIndex);
+internal readonly record struct DMapBaseCell(ushort SurfaceId, ushort PassabilityFlag, short Elevation);
+internal readonly record struct DMapExitMarker(int X, int Y, uint PasswayIndex);
 
 /// <summary>
 /// Verified native first-grid and exit-marker sections. Later DMap sections are not consumed.
 /// </summary>
-public sealed class DMapBaseGrid
+internal sealed class DMapBaseGrid
 {
     private readonly DMapBaseCell[] _cells;
     private readonly DMapExitMarker[] _exits;
@@ -27,7 +27,7 @@ public sealed class DMapBaseGrid
     public IReadOnlyList<DMapExitMarker> Exits => Array.AsReadOnly(_exits);
 }
 
-public static class DMapBaseGridReader
+internal static class DMapBaseGridReader
 {
     private const int PuzzlePathLength = 0x104;
 

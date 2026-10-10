@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 
-namespace OpenConquer.Assets.Items;
+namespace OpenConquer.GameData.Tool.Formats.Items;
 
-public sealed class ItemTypeDatRecord
+internal sealed class ItemTypeDatRecord
 {
     public const int RecordFieldCount = 59;
 
