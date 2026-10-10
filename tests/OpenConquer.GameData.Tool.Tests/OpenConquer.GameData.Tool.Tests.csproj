@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <None Include="..\..\content\items\item-types.json" Link="Content\Items\item-types.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\content\maps\map-definitions.json" Link="Content\Maps\map-definitions.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\docs\evidence\map-catalog-5517\map-definitions-5517-provenance.json" Link="Content\Maps\map-definitions-5517-provenance.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
