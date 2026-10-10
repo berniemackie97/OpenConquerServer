@@ -5,7 +5,7 @@ using OpenConquer.GameData.Tool.Formats.Text;
 
 namespace OpenConquer.GameData.Tool.Formats.Items;
 
-public sealed class ItemTypeDatTable
+internal sealed class ItemTypeDatTable
 {
     public const int DecodedTextSeed = 0x2537;
     public const int TextCodePage = 936;

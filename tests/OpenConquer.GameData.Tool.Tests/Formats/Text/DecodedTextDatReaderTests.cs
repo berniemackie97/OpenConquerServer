@@ -1,7 +1,7 @@
 using System.Text;
-using OpenConquer.Assets.IO;
+using OpenConquer.GameData.Tool.Formats.Text;
 
-namespace OpenConquer.Assets.Tests.IO;
+namespace OpenConquer.GameData.Tool.Tests.Formats.Text;
 
 public sealed class DecodedTextDatReaderTests
 {

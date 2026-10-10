@@ -17,7 +17,7 @@ server architecture.
 > The initial canonical map-content baseline includes 282 world-map definitions and
 > 185 distinct base-terrain artifacts, with immutable loading and integrity validation.
 > Seven historical map identities remain unresolved. Complete native-parity verification,
-> scenery collision composition, and GameServer runtime integration remain pending.
+> canonical collision release content, independent tile-level conformance, and GameServer runtime integration remain pending.
 > Account registration, the runnable GameServer host, character creation, authoritative
 > world-session integration, and gameplay are not yet implemented.
 
@@ -36,7 +36,7 @@ flowchart TD
 
     Protocol["OpenConquer.Protocol"]
     Transport["OpenConquer.Transport"]
-    Assets["OpenConquer.Assets"]
+    GameDataTool["OpenConquer.GameData.Tool (offline)"]
 
     AccountServer --> Application
     AccountServer --> Infrastructure
@@ -50,6 +50,9 @@ flowchart TD
 
     Infrastructure --> Application
     Infrastructure --> Domain
+    GameDataTool --> Application
+    GameDataTool --> Domain
+    GameDataTool --> Infrastructure
     Application --> Domain
 ```
 
@@ -64,8 +67,7 @@ flowchart TD
 | **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
 | **OpenConquer.GameServer**     | Native GameServer connection handoff and existing-character bootstrap runtime through the completed native request-sequence ownership boundary; authoritative gameplay is future. |
-| **OpenConquer.Assets**         | Native client-derived static asset formats and parsers used only by offline ingestion/tooling.                                                                      |
-| **OpenConquer.GameData.Tool**  | Optional offline import and normalization of legacy or authored content into canonical OpenConquer release data.                                                             |
+| **OpenConquer.GameData.Tool**  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                                             |
 
 ## Current AccountServer Login Flow
 
@@ -128,7 +130,6 @@ failures trigger graceful host shutdown and result in a nonzero process exit cod
 src/
 ├── OpenConquer.AccountServer/
 ├── OpenConquer.Application/
-├── OpenConquer.Assets/
 ├── OpenConquer.Domain/
 ├── OpenConquer.GameServer/
 ├── OpenConquer.Infrastructure/
@@ -138,7 +139,6 @@ src/
 tests/
 ├── OpenConquer.AccountServer.Tests/
 ├── OpenConquer.Application.Tests/
-├── OpenConquer.Assets.Tests/
 ├── OpenConquer.Domain.Tests/
 ├── OpenConquer.GameData.Tool.Tests/
 ├── OpenConquer.GameServer.Tests/

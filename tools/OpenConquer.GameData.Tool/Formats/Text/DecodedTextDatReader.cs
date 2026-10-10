@@ -2,7 +2,7 @@ using System.Text;
 
 namespace OpenConquer.GameData.Tool.Formats.Text;
 
-public static class DecodedTextDatReader
+internal static class DecodedTextDatReader
 {
     private const int SeedTableLength = 128;
 

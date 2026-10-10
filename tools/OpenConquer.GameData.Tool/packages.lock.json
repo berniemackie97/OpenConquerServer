@@ -97,9 +97,6 @@
           "OpenConquer.Domain": "[1.0.0, )"
         }
       },
-      "openconquer.assets": {
-        "type": "Project"
-      },
       "openconquer.domain": {
         "type": "Project"
       },

@@ -1,6 +1,6 @@
-using OpenConquer.Assets.Maps;
+using OpenConquer.GameData.Tool.Formats.Maps;
 
-namespace OpenConquer.Assets.Tests.Maps;
+namespace OpenConquer.GameData.Tool.Tests.Formats.Maps;
 
 public sealed class DMapBaseGridReaderTests
 {

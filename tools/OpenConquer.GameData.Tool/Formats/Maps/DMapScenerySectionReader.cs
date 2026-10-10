@@ -4,9 +4,9 @@ using System.Text;
 
 namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-public readonly record struct DMapTerrainObjectGroup(string ListPath, int AnchorTileX, int AnchorTileY);
+internal readonly record struct DMapTerrainObjectGroup(string ListPath, int AnchorTileX, int AnchorTileY);
 
-public sealed class DMapScenerySection
+internal sealed class DMapScenerySection
 {
     internal DMapScenerySection(int subcomponentCount, ImmutableArray<DMapTerrainObjectGroup> terrainObjectGroups)
     {
@@ -18,7 +18,7 @@ public sealed class DMapScenerySection
     public ImmutableArray<DMapTerrainObjectGroup> TerrainObjectGroups { get; }
 }
 
-public static class DMapScenerySectionReader
+internal static class DMapScenerySectionReader
 {
     private const int TerrainObjectGroupType = 0x01;
     private const int AnimatedSpriteType = 0x04;
