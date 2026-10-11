@@ -1,6 +1,9 @@
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.World.Execution;
+using OpenConquer.Infrastructure.Content.Items;
 using OpenConquer.Infrastructure.Content.Maps;
 
 namespace OpenConquer.GameServer.Configuration;
@@ -15,6 +18,7 @@ internal sealed class GameServerConfiguration
     private GameServerConfiguration(string accountConnectionString, string gameConnectionString,
         MapDefinitionCatalogFileOptions mapDefinitions, string terrainDirectory, string collisionDirectory,
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
+        GameNetworkOptions? network, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys)
     {
         AccountConnectionString = accountConnectionString;
@@ -25,6 +29,8 @@ internal sealed class GameServerConfiguration
         TerrainLimits = terrainLimits;
         CollisionLimits = collisionLimits;
         World = world;
+        Network = network;
+        ItemTypes = itemTypes;
         ActiveVerificationKeyId = activeVerificationKeyId;
         VerificationKeys = Array.AsReadOnly(verificationKeys);
     }
@@ -37,6 +43,8 @@ internal sealed class GameServerConfiguration
     public MapTerrainLoadLimits TerrainLimits { get; }
     public MapCollisionLoadLimits CollisionLimits { get; }
     public WorldExecutionOptions World { get; }
+    public GameNetworkOptions? Network { get; }
+    public ItemTypeCatalogFileOptions? ItemTypes { get; }
     public ushort ActiveVerificationKeyId { get; }
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
 
@@ -67,6 +75,7 @@ internal sealed class GameServerConfiguration
             GameServerSettings.ContentSettings content = settings.Content ?? throw new ArgumentException("GameServer content configuration is missing.");
             GameServerSettings.WorldSettings worldSettings = settings.World ?? throw new ArgumentException("GameServer world configuration is missing.");
             GameServerSettings.GameLoginTicketSettings ticketSettings = settings.GameLoginTickets ?? throw new ArgumentException("GameServer ticket-verification configuration is missing.");
+            GameServerSettings.NetworkSettings networkSettings = settings.Network ?? throw new ArgumentException("GameServer network configuration is missing.");
 
             MapDefinitionCatalogFileOptions definitions = new(
                 ResolvePath(content.DefinitionsPath, root, $"{SectionName}:Content:DefinitionsPath"),
@@ -92,10 +101,33 @@ internal sealed class GameServerConfiguration
             }
 
             KeyValuePair<ushort, string>[] keys = CreateVerificationKeys(ticketSettings.VerificationKeys);
+            GameNetworkOptions? network = null;
+            ItemTypeCatalogFileOptions? itemTypes = null;
+
+            if (networkSettings.Enabled)
+            {
+                if (!IPAddress.TryParse(networkSettings.BindAddress, out IPAddress? bindAddress)
+                    || bindAddress.AddressFamily != AddressFamily.InterNetwork)
+                {
+                    throw new ArgumentException($"{SectionName}:Network:BindAddress must be a valid IPv4 address.");
+                }
+
+                network = new GameNetworkOptions(new IPEndPoint(bindAddress, networkSettings.Port),
+                    networkSettings.ListenBacklog, networkSettings.AdmissionCapacity,
+                    networkSettings.MaximumConnectionsPerSource, networkSettings.WorkerCount, networkSettings.ConnectionTimeout);
+
+                GameServerSettings.ItemContentSettings itemSettings = settings.Items
+                    ?? throw new ArgumentException("GameServer item-type content configuration is missing.");
+
+                itemTypes = new ItemTypeCatalogFileOptions(
+                    ResolvePath(itemSettings.FilePath, root, $"{SectionName}:Items:FilePath"),
+                    ValidatePositive(itemSettings.MaximumFileBytes, 64 * 1024 * 1024, $"{SectionName}:Items:MaximumFileBytes"),
+                    ValidatePositive(itemSettings.MaximumDefinitions, 1_000_000, $"{SectionName}:Items:MaximumDefinitions"));
+            }
 
             return new GameServerConfiguration(accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
-                ticketSettings.ActiveVerificationKeyId, keys);
+                network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
         {

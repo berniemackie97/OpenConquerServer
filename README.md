@@ -21,8 +21,9 @@ server architecture.
 > execution, capped character residency, generation-fenced ownership, and a revocable session
 > admission/cleanup boundary. The readiness-gated GameServer Generic Host now verifies both
 > database schemas, loads canonical content, and supervises authoritative world execution.
-> Independent retail conformance and full native-parity verification remain ongoing.
-> Account registration, GameServer network admission, character creation, gameplay packet
+> The GameServer now supports bounded network ingress, authenticated existing-character
+> bootstrap, and independently supervised world-session lifetimes. Independent retail
+> conformance remains ongoing. Account registration, character creation, gameplay packet
 > routing, movement, and combat remain unimplemented.
 
 ## Architecture
@@ -70,7 +71,7 @@ flowchart TD
 | **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and verified AccountServer/GameServer packet contracts.                                |
 | **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer**     | Readiness-gated world host, authenticated bootstrap, authoritative execution, and owned world-session admission; network hosting and gameplay remain future. |
+| **OpenConquer.GameServer**     | Readiness-gated world hosting, bounded TCP ingress, authenticated existing-character bootstrap, supervised world sessions, and authoritative execution; gameplay remains future. |
 | **OpenConquer.GameData.Tool**  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                                             |
 
 ## Current AccountServer Login Flow

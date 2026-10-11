@@ -446,10 +446,11 @@ validation. Cancellation or failure closes the owned connection instead of expos
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
-The readiness-gated GameServer Generic Host now initializes authoritative world execution
-after database and canonical-content verification. Connection admission, character creation,
-network gameplay routing, and world simulation remain future boundaries. Completed-bootstrap
-world-session promotion is implemented separately and is not yet network-hosted.
+The GameServer Generic Host starts authoritative world execution after database and
+canonical-content verification. Network ingress then loads the canonical item-type catalog,
+opens bounded TCP admission, and runs the verified existing-character bootstrap pipeline.
+Completed-bootstrap connections transfer to independently supervised world sessions.
+Character creation, gameplay routing, and world simulation remain future boundaries.
 
 See:
 
@@ -519,7 +520,8 @@ position; no movement, combat, visibility, or packet routing is implemented yet.
 connection, verifies the exact canonical map object, admits the character with bounded residency,
 and returns a `WorldSession` owning the authenticated connection and world token. Its idempotent
 cleanup is triggered by disposal, presence revocation, or runtime stop. The Generic Host
-supervises world execution, but live network-session processing is not yet wired.
+supervises world execution and bounded existing-character network-session lifetimes.
+Unsupported gameplay frames are rejected without speculative protocol responses.
 
 Planned end-to-end client command routing (not yet implemented):
 
@@ -808,10 +810,8 @@ Implemented:
 Not yet implemented:
 
 - account registration;
-- GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
 - resolution of remaining historical map uncertainties;
-- runnable host integration of existing-character world sessions, including supervised connection processing;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
 - gameplay networking and simulation.

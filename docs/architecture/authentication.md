@@ -296,9 +296,9 @@ client-state-applied, item-set resolution, friend/social hydration, weapon-skill
 hydration, syndicate attributes, silent-info reporting, and the final `0x84` statistics request.
 At `ExistingCharacterBootstrapCompleteConnection`, the live connection can now be transferred
 exactly once through `WorldSessionAdmissionProcessor` into a `WorldSession` with canonical map
-identity and authoritative world ownership. GameServer world-readiness hosting is implemented,
-but network admission and gameplay dispatch remain unimplemented. Character-creation request
-processing remains an unimplemented route.
+identity and authoritative world ownership. GameServer network ingress now composes the
+verified existing-character pipeline after canonical world and item-content readiness.
+Character-creation requests and gameplay dispatch remain unimplemented routes.
 
 ## Game Character Persistence
 
@@ -586,7 +586,6 @@ Not yet implemented:
 - least-privilege production database identities;
 - authenticated self-service password changes;
 - staff/admin mutation authorization;
-- GameServer listener, admission, and worker lifecycle;
 - character creation request processing and durable creation;
-- hosting, lifetime supervision, and gameplay dispatch of admitted world sessions;
+- gameplay dispatch of admitted world sessions;
 - gameplay authorization, command routing, movement, and world replication.
