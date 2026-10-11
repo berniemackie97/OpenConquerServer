@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\src\OpenConquer.AccountServer\appsettings.json" Link="AccountServerConfiguration\appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\OpenConquer.AccountServer\appsettings.Development.json" Link="AccountServerConfiguration\appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

@@ -119,6 +119,7 @@ failures trigger graceful host shutdown and result in a nonzero process exit cod
 - [Authentication and password migration](docs/architecture/authentication.md)
 - [World execution](docs/architecture/world-execution.md)
 - [Server baseline audit](docs/audits/server-baseline.md)
+- [AccountServer operations](docs/operations/account-server.md)
 
 ### Protocol
 
