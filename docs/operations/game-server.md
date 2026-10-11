@@ -113,10 +113,18 @@ content/maps/
     └── *.ocmc
 ```
 
-Canonical content is maintained independently of the executable's build output. Building the
-GameServer does not automatically deploy the complete content tree.
+The GameServer project copies the runtime-required canonical content into both build and
+publish outputs under `content/maps/`, preserving the directory structure.
 
-For local development, configure absolute paths to the repository's content:
+The packaged runtime assets are `map-definitions.json`, `terrains/*.ocbt`, and
+`collision/*.ocmc`. Historical reconstruction metadata, documentation, and other
+non-runtime content are not included.
+
+The canonical source files remain independently maintained in the repository.
+`PreserveNewest` avoids recopying unchanged artifacts during incremental builds.
+
+To use external canonical content instead of the packaged artifacts, override the
+default paths:
 
 ```bash
 export GameServer__Content__DefinitionsPath="/absolute/path/to/content/maps/map-definitions.json"
@@ -186,8 +194,7 @@ shutdown. Normal host shutdown does not record a fatal runtime failure.
 
 ## Run
 
-From the repository root, after configuring the required databases, verification keys, and canonical
-content paths:
+From the repository root, after configuring the required databases and verification keys:
 
 ```bash
 export DOTNET_ENVIRONMENT=Development
