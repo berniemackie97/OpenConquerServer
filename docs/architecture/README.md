@@ -447,8 +447,8 @@ Secured GameServer output permits one active frame writer per connection. Overla
 rejected immediately rather than queued.
 
 The runnable GameServer host, connection admission runtime, character creation transaction,
-authoritative world-session integration, gameplay routing, and the remaining world simulation
-remain future boundaries.
+network gameplay routing, and world simulation remain future boundaries. The standalone
+completed-bootstrap to authoritative-world session transfer is implemented separately.
 
 See:
 
@@ -511,9 +511,13 @@ Clients submit requests; they do not directly mutate gameplay state.
 The implemented standalone core under `OpenConquer.GameServer/World/Execution` provides one
 `MapInstance` per canonical world map, a bounded command queue per partition, a shared fixed-worker
 scheduler with count-bounded cooperative turns, and generation-fenced character admission/removal.
-Map-local character snapshots hold the admitted identity, generation, and position; no movement,
-combat, visibility, or packet routing is implemented yet. The core is not wired to the completed
-login state machine or a runnable GameServer host.
+Map-local character snapshots hold the admitted identity, runtime instance, generation, and
+position; no movement, combat, visibility, or packet routing is implemented yet.
+`WorldSessionAdmissionProcessor` now takes exclusive ownership of a completed-bootstrap
+connection, verifies the exact canonical map object, admits the character with bounded residency,
+and returns a `WorldSession` owning the authenticated connection and world token. Its idempotent
+cleanup is triggered by disposal, presence revocation, or runtime stop. The standalone promotion
+is not yet composed into a runnable GameServer host.
 
 Planned end-to-end client command routing (not yet implemented):
 
@@ -793,6 +797,7 @@ Implemented:
 - native `0x61` syndicate-attributes hydration, packet-1106 projection, and ownership-safe handoff to silent-info reporting;
 - native `0xFB` silent-info report validation, authenticated-hero acknowledgement, and ownership-safe handoff to statistics-request processing;
 - native `0x84` statistics-request validation, no-response consumption, and ownership-safe completion of the verified client-driven bootstrap sequence;
+- standalone canonical-map-checked world-session admission with bounded residency, runtime-instance ownership fencing, and revocation-triggered cleanup;
 - offline canonical map-definition conversion with optional evidence references, immutable catalog lookup, and bounded runtime catalog loading;
 - canonical base-terrain binary generation, native base-grid import, immutable terrain catalog loading, and integrity validation;
 - MySQL account persistence;
@@ -805,7 +810,7 @@ Not yet implemented:
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
 - resolution of remaining historical map uncertainties and GameServer startup map-content readiness integration;
-- authoritative world-session integration following the verified native bootstrap request sequence;
+- runnable host integration of existing-character world sessions, including supervised connection processing;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
 - gameplay networking and simulation.

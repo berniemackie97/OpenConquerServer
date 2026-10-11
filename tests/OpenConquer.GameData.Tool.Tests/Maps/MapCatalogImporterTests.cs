@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using OpenConquer.Application.World;
+using OpenConquer.Domain.World;
 using OpenConquer.GameData.Tool.Maps;
 using OpenConquer.Infrastructure.Content.Maps;
 
@@ -75,15 +77,15 @@ public sealed class MapCatalogImporterTests
         FileMapDefinitionCatalogRepository repository = new(
             new MapDefinitionCatalogFileOptions(definitionsPath, 1024 * 1024, 10_000));
 
-        var catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
+        MapDefinitionCatalog catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, catalog.Count);
 
-        Assert.True(catalog.TryGet(1501, out var arena));
+        Assert.True(catalog.TryGet(1501, out MapDefinition? arena));
         Assert.Equal(1730u, arena.MapDataId);
         Assert.Equal(0x0030_010C_4015_0007UL, arena.Flags);
 
-        Assert.True(catalog.TryGet(1961, out var mausoleum));
+        Assert.True(catalog.TryGet(1961, out MapDefinition? mausoleum));
         Assert.Equal(0ul, mausoleum.Flags);
 
         Assert.False(catalog.TryGet(1807, out _));

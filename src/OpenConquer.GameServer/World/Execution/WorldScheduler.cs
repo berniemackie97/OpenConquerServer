@@ -1,29 +1,33 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
 using OpenConquer.Application.World;
 
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Schedules ready map partitions across a fixed worker pool without concurrent turns on one partition.
+/// Schedules exclusive map-partition turns across a fixed worker pool and preserves all terminal execution failures.
 /// </summary>
 internal sealed class WorldScheduler : IAsyncDisposable
 {
     private readonly FrozenDictionary<uint, WorldPartition> _partitions;
     private readonly Channel<WorldPartition> _ready;
+    private readonly Action<Exception>? _onWorkerFailure;
     private readonly Lock _gate = new();
     private readonly int _workerCount;
     private Task[] _workers = [];
     private Task? _stopTask;
     private int _state;
 
-    public WorldScheduler(WorldMapContentCatalog maps, WorldExecutionOptions options)
+    public WorldScheduler(WorldMapContentCatalog maps, WorldExecutionOptions options, Action<Exception>? onWorkerFailure = null)
     {
         ArgumentNullException.ThrowIfNull(maps);
         ArgumentNullException.ThrowIfNull(options);
 
         _workerCount = options.WorkerCount;
+        _onWorkerFailure = onWorkerFailure;
+
         _ready = Channel.CreateBounded<WorldPartition>(new BoundedChannelOptions(maps.Count)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -36,7 +40,8 @@ internal sealed class WorldScheduler : IAsyncDisposable
 
         foreach (WorldMapContent map in maps.Maps)
         {
-            partitions.Add(map.MapId, new WorldPartition(map, _ready.Writer, options.PartitionQueueCapacity, options.MaxCommandsPerTurn));
+            partitions.Add(map.MapId, new WorldPartition(map, _ready.Writer, options.PartitionQueueCapacity, options.MaxCommandsPerTurn,
+                options.MaxCharactersPerMap));
         }
 
         _partitions = partitions.ToFrozenDictionary();
@@ -94,34 +99,77 @@ internal sealed class WorldScheduler : IAsyncDisposable
                 partition.ExecuteTurn();
             }
         }
-        catch
+        catch (Exception exception)
         {
             _ = StopAsync();
+            _onWorkerFailure?.Invoke(exception);
             throw;
         }
     }
 
     private async Task StopCoreAsync()
     {
+        List<Exception> failures = [];
+
         foreach (WorldPartition partition in _partitions.Values)
         {
-            partition.Stop();
+            try
+            {
+                partition.Stop();
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
         }
 
         _ready.Writer.TryComplete();
 
+        Task workers = Task.WhenAll(_workers);
+
         try
         {
-            await Task.WhenAll(_workers).ConfigureAwait(false);
+            await workers.ConfigureAwait(false);
         }
-        finally
+        catch (Exception exception)
+        {
+            if (workers.Exception is { } aggregate)
+            {
+                failures.AddRange(aggregate.Flatten().InnerExceptions);
+            }
+            else
+            {
+                failures.Add(exception);
+            }
+        }
+
+        try
         {
             foreach (WorldPartition partition in _partitions.Values)
             {
-                partition.Clear();
+                try
+                {
+                    partition.Clear();
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
             }
-
+        }
+        finally
+        {
             Volatile.Write(ref _state, 3);
+        }
+
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException("World scheduler shutdown encountered multiple failures.", failures);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Text;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.World;
 using OpenConquer.GameData.Tool.Maps;
 using OpenConquer.Infrastructure.Content.Maps;
 
@@ -30,7 +31,7 @@ public sealed class NativeMapTerrainImporterTests
         FileMapBaseTerrainCatalogRepository repository = new(outputDirectory, s_limits);
         MapBaseTerrainCatalog catalog = await repository.LoadAsync(definitions, TestContext.Current.CancellationToken);
 
-        Assert.True(catalog.TryGet(900001, out var terrain));
+        Assert.True(catalog.TryGet(900001, out MapBaseTerrain? terrain));
         Assert.Equal(2, terrain.Width);
         Assert.Equal(1, terrain.Height);
         Assert.Equal((short)-15, terrain.GetCell(0, 0).Elevation);

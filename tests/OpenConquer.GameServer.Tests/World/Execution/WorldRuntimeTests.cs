@@ -1,7 +1,6 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
-using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 
 namespace OpenConquer.GameServer.Tests.World.Execution;

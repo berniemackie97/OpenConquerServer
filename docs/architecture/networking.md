@@ -587,9 +587,10 @@ responses prepare their snapshots before writing and transfer connection ownersh
 The `0x84` statistics request completes without an unsupported acknowledgement. Canonical world
 content is resolved before accepted bootstrap output and is carried across every typed state.
 
-Character creation requests and writes, and transfer into an authoritative gameplay/world session,
-remain unimplemented. A standalone partition core now exists, but it does not yet consume the
-completed bootstrap connection.
+Character creation requests and writes, and runtime hosting of ongoing gameplay packets, remain
+unimplemented. The standalone `WorldSessionAdmissionProcessor` now transfers the completed
+bootstrap connection into `WorldSession` and authoritative `WorldRuntime` ownership, including
+revocable presence and bounded cleanup, but the GameServer listener/worker host is not yet wired.
 
 ## Game Character Persistence Boundary
 
@@ -750,7 +751,8 @@ Implemented GameServer connection and character-login components:
 - native magic hydration and projection;
 - syndicate-attributes response, silent-info report, and statistics-request progression through `0x84`;
 - canonical world-map content resolution before successful bootstrap and reference-preserving handoff;
-- standalone bounded world-partition scheduler and generation-fenced character ownership core;
+- standalone bounded world-partition scheduler and runtime-instance generation-fenced character ownership core;
+- completed-bootstrap world-session promotion with capped residency and revocable cleanup;
 - coordinated cancellation and disposal.
 
 Not yet implemented:
@@ -759,7 +761,7 @@ Not yet implemented:
 - GameServer listener, admission queue, and worker runtime;
 - GameServer startup execution of Game database readiness;
 - gameplay event/replication production and connection outbound scheduling;
-- completed-bootstrap connection admission into the authoritative world runtime;
+- runtime hosting and supervision of admitted world sessions and gameplay packet processing;
 - character creation request processing and durable creation;
 - gameplay packet routing;
 - authoritative world simulation and replication.
