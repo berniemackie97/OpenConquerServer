@@ -84,6 +84,12 @@ public sealed class WorldSchedulerTests
         Assert.Same(failure, exception);
         Assert.Equal(42, await second.Completion);
         Assert.True(scheduler.IsRunning);
+
+        WorldPartitionCommand<int> subsequent = new(_ => 84);
+
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, partition.TryEnqueue(subsequent));
+        Assert.Equal(84, await subsequent.Completion.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+        Assert.True(scheduler.IsRunning);
     }
 
     [Fact]
