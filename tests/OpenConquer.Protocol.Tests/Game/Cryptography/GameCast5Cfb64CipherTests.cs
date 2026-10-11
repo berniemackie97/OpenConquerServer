@@ -7,7 +7,7 @@ public sealed class GameCast5Cfb64CipherTests
     private static ReadOnlySpan<byte> BootstrapKey => "BC234xs45nme7HU9"u8;
 
     [Fact]
-    public void Transform_MatchesVerifiedOpenConquerPublicCast5Cfb64Vector()
+    public void Transform_MatchesReferenceCast5Cfb64Vector()
     {
         byte[] plaintext = new byte[8];
         byte[] actual = new byte[plaintext.Length];
@@ -33,7 +33,7 @@ public sealed class GameCast5Cfb64CipherTests
     }
 
     [Fact]
-    public void Transform_DecryptsVerifiedCast5Cfb64Vector()
+    public void Transform_DecryptsReferenceCast5Cfb64Vector()
     {
         byte[] ciphertext = Convert.FromHexString("6A13741CE64645FCEC5A9D7A9630A3D18A9F3539C28C");
         byte[] actual = new byte[ciphertext.Length];
@@ -91,7 +91,7 @@ public sealed class GameCast5Cfb64CipherTests
     }
 
     [Fact]
-    public void Transform_TruncatesSessionKeyMaterialToNative128BitCastKey()
+    public void Transform_TruncatesSessionKeyMaterialTo128BitCastKey()
     {
         byte[] sessionKeyMaterial = Enumerable.Range(1, 64).Select(static value => (byte)value).ToArray();
         byte[] truncatedKey = sessionKeyMaterial[..16];

@@ -7,7 +7,7 @@ namespace OpenConquer.Protocol.Tests.Login.Packets;
 public sealed class LoginAccountResourceVersionReportPacketTests
 {
     [Fact]
-    public void Layout_MatchesVerifiedNativeAccount1052()
+    public void Layout_MatchesResourceVersionReport()
     {
         Assert.Equal((ushort)1052, LoginAccountResourceVersionReportPacket.PacketIdentifier);
 
@@ -25,7 +25,7 @@ public sealed class LoginAccountResourceVersionReportPacketTests
     }
 
     [Fact]
-    public void TryDecode_DecodesVerifiedNativeAccount1052Payload()
+    public void TryDecode_DecodesResourceVersionReportPayload()
     {
         byte[] payload = new byte[LoginAccountResourceVersionReportPacket.PayloadLength];
 

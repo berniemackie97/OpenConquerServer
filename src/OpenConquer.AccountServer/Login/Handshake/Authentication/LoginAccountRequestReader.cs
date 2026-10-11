@@ -19,7 +19,7 @@ internal sealed class LoginAccountRequestReader
     }
 
     /// <summary>
-    /// Reads the next login frame and classifies it as a standard 5517 account request
+    /// Reads the next login frame and classifies it as a standard account login request.
     /// </summary>
     public async ValueTask<LoginAccountRequestReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
@@ -41,7 +41,7 @@ internal sealed class LoginAccountRequestReader
 
         try
         {
-            if (!LoginAccountRequestPacket.TryDecodeStandard5517(frame.Payload.Span, _session.LoginSeed, out request))
+            if (!LoginAccountRequestPacket.TryDecodeStandard(frame.Payload.Span, _session.LoginSeed, out request))
             {
                 return LoginAccountRequestReadResult.InvalidAccountRequest();
             }

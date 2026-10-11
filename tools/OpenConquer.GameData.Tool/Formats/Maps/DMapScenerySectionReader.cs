@@ -4,20 +4,6 @@ using System.Text;
 
 namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-internal readonly record struct DMapTerrainObjectGroup(string ListPath, int AnchorTileX, int AnchorTileY);
-
-internal sealed class DMapScenerySection
-{
-    internal DMapScenerySection(int subcomponentCount, ImmutableArray<DMapTerrainObjectGroup> terrainObjectGroups)
-    {
-        SubcomponentCount = subcomponentCount;
-        TerrainObjectGroups = terrainObjectGroups;
-    }
-
-    public int SubcomponentCount { get; }
-    public ImmutableArray<DMapTerrainObjectGroup> TerrainObjectGroups { get; }
-}
-
 internal static class DMapScenerySectionReader
 {
     private const int TerrainObjectGroupType = 0x01;

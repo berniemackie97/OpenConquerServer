@@ -5,7 +5,7 @@ namespace OpenConquer.Protocol.Tests.Game.Cryptography;
 public sealed class GameHandshakeBootstrapCipherTests
 {
     [Fact]
-    public void Encrypt_UsesNative5517BootstrapKeyAndZeroInitializationVector()
+    public void Encrypt_UsesBootstrapKeyAndZeroInitializationVector()
     {
         byte[] plaintext = "OpenConquer-5517-CFB64"u8.ToArray();
         byte[] ciphertext = new byte[plaintext.Length];
@@ -16,7 +16,7 @@ public sealed class GameHandshakeBootstrapCipherTests
     }
 
     [Fact]
-    public void Decrypt_ReversesNativeBootstrapTransform()
+    public void Decrypt_ReversesBootstrapTransform()
     {
         byte[] ciphertext = Convert.FromHexString("6A13741CE64645FCEC5A9D7A9630A3D18A9F3539C28C");
         byte[] plaintext = new byte[ciphertext.Length];

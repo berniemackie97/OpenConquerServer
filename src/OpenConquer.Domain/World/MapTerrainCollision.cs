@@ -3,10 +3,6 @@ using System.Collections.Immutable;
 
 namespace OpenConquer.Domain.World;
 
-public readonly record struct MapTerrainAttachment(int X, int Y, ushort SurfaceId, ushort PassabilityFlag, short ElevationDelta);
-
-public readonly record struct MapTerrainCollisionOverride(int CellIndex, MapBaseTerrainCell Cell);
-
 public sealed class MapTerrainCollision
 {
     private readonly FrozenDictionary<int, MapBaseTerrainCell> _overrides;

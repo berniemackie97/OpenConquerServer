@@ -2,7 +2,7 @@ namespace OpenConquer.Protocol.Game.Cryptography;
 
 /// <summary>
 /// Applies the fixed one-shot CAST5 CFB-64 bootstrap transform used by the
-/// native 5517 GameServer Diffie-Hellman handshake.
+/// GameServer Diffie-Hellman handshake.
 /// </summary>
 internal static class GameHandshakeBootstrapCipher
 {

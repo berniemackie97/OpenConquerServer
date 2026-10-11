@@ -4,7 +4,7 @@ using OpenConquer.Protocol.Game.Cryptography;
 namespace OpenConquer.Protocol.Game.Framing;
 
 /// <summary>
-/// Appends the native server trailer and encrypts complete 5517 GameServer frames.
+/// Appends the server signature trailer and encrypts complete GameServer frames.
 /// </summary>
 public static class GameSecuredFrameEncoder
 {
@@ -49,7 +49,7 @@ public static class GameSecuredFrameEncoder
             header.Length != packet.Length ||
             header.Length is < WireFrameHeader.Size or > GameWireProtocol.MaximumPacketLength)
         {
-            throw new ArgumentException("Packet does not contain a valid 5517 GameServer wire-frame header.", nameof(packet));
+            throw new ArgumentException("Packet does not contain a valid GameServer frame header.", nameof(packet));
         }
 
         return header.Length;

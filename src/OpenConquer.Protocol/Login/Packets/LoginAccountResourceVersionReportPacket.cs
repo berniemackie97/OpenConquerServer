@@ -5,8 +5,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Defines and decodes the native client-to-AccountServer
-/// resource-version report packet 1052.
+/// Defines and decodes the resource version report (AccountServer form of packet 1052).
 /// </summary>
 /// <remarks>
 /// Opcode 1052 is context-sensitive. This 28-byte AccountServer form is
@@ -28,10 +27,10 @@ public static class LoginAccountResourceVersionReportPacket
     public const int FrameLength = WireFrameHeader.Size + PayloadLength;
 
     /// <summary>
-    /// Decodes the native structural AccountServer packet-1052 payload.
+    /// Decodes the packet structure.
     /// </summary>
     /// <remarks>
-    /// Expected-session correlation and the verified <c>res.dat</c> resource
+    /// Expected-session correlation and the expected <c>res.dat</c> resource
     /// name are intentionally enforced by the AccountServer handshake layer,
     /// not by this structural protocol decoder.
     /// </remarks>
@@ -50,7 +49,7 @@ public static class LoginAccountResourceVersionReportPacket
 
         int resourceVersion = unchecked((int)reader.ReadUInt32());
 
-        string resourceName = reader.ReadFixedString(ResourceNameFieldLength, TqTextEncoding.Ascii);
+        string resourceName = reader.ReadFixedString(ResourceNameFieldLength, WireTextEncoding.Ascii);
 
         report = new LoginAccountResourceVersionReport(sessionUid, resourceVersion, resourceName);
 

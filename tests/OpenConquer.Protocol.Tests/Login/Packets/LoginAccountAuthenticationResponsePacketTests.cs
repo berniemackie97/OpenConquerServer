@@ -6,7 +6,7 @@ namespace OpenConquer.Protocol.Tests.Login.Packets;
 public sealed class LoginAccountAuthenticationResponsePacketTests
 {
     [Fact]
-    public void FailureCodes_MatchVerifiedNativeValues()
+    public void FailureCodes_MatchClientValues()
     {
         Assert.Equal(1u, (uint)LoginAccountAuthenticationFailureCode.InvalidCredentials);
 
@@ -16,7 +16,7 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     }
 
     [Fact]
-    public void Success_ExposesVerifiedPacketState()
+    public void Success_ExposesPacketState()
     {
         LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Success(sessionUid: 0x1122_3344, authenticationKey: 0x5566_7788, gameServerPort: 5816, additionalSessionField: 0x99AA_BBCC, gameServerIp: "127.0.0.1");
 
@@ -38,7 +38,7 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     }
 
     [Fact]
-    public void Failure_EnforcesVerifiedFailureState()
+    public void Failure_EnforcesFailureState()
     {
         LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.Banned, gameServerPort: 5816, gameServerIp: "127.0.0.1");
 
@@ -85,7 +85,7 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     }
 
     [Fact]
-    public void WireFrameEncoder_WritesVerifiedSuccess1055Vector()
+    public void WireFrameEncoder_WritesSuccessResponseVector()
     {
         LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Success(sessionUid: 0x1122_3344, authenticationKey: 0x5566_7788, gameServerPort: 5816, additionalSessionField: 0x99AA_BBCC, gameServerIp: "127.0.0.1");
 
@@ -139,7 +139,7 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     }
 
     [Fact]
-    public void WireFrameEncoder_WritesVerifiedFailure1055Vector()
+    public void WireFrameEncoder_WritesFailureResponseVector()
     {
         LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.InvalidCredentials, gameServerPort: 5816, gameServerIp: "127.0.0.1");
 

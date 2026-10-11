@@ -5,7 +5,7 @@ using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Protocol.Login;
 using OpenConquer.Protocol.Login.Cryptography;
 using OpenConquer.Protocol.Login.Packets;
-using OpenConquer.Protocol.Packets;
+using OpenConquer.Protocol.Serialization;
 using OpenConquer.Transport.Connections;
 using OpenConquer.Transport.Pipelines;
 

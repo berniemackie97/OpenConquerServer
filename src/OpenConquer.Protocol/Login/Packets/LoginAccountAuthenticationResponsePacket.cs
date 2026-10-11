@@ -1,14 +1,12 @@
 using System.Net;
 using System.Net.Sockets;
-using OpenConquer.Protocol.Packets;
 using OpenConquer.Protocol.Serialization;
 using OpenConquer.Protocol.Text;
 
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Represents the native 5517 server-to-client account-authentication response
-/// packet 1055.
+/// Server-to-client account authentication response (packet 1055).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,7 +20,7 @@ namespace OpenConquer.Protocol.Login.Packets;
 /// +0x10 char[16] game-server IPv4 C-string
 /// </code>
 /// <para>
-/// A nonzero session token selects the native success branch. A zero session
+/// A nonzero session token selects the client's success branch. A zero session
 /// token selects the failure branch and causes the second field to be
 /// interpreted as a failure code.
 /// </para>
@@ -51,19 +49,18 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     public uint SessionUid { get; }
 
     /// <summary>
-    /// Gets the authentication key on success or the native login failure code
-    /// on failure.
+    /// Gets the authentication key on success or the failure code on failure.
     /// </summary>
     public uint AuthenticationKeyOrFailureCode { get; }
 
     public uint GameServerPort { get; }
 
     /// <summary>
-    /// Gets the additional success field copied by the native client into hero
-    /// runtime state and forwarded by the alternate game bootstrap path.
+    /// Gets the additional success field the client stores with the local
+    /// character and forwards on its alternate game bootstrap path.
     /// </summary>
     /// <remarks>
-    /// Its precise native semantics remain unresolved. It is intentionally
+    /// Its exact meaning is unknown. It is intentionally
     /// modeled independently from <see cref="AuthenticationKeyOrFailureCode"/>.
     /// </remarks>
     public uint AdditionalSessionField { get; }
@@ -71,7 +68,7 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     public string GameServerIp { get; }
 
     /// <summary>
-    /// Creates a successful native account-authentication response.
+    /// Creates a successful account authentication response.
     /// </summary>
     public static LoginAccountAuthenticationResponsePacket Success(uint sessionUid, uint authenticationKey, uint gameServerPort, uint additionalSessionField, string gameServerIp)
     {
@@ -84,7 +81,7 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     }
 
     /// <summary>
-    /// Creates a failed native account-authentication response.
+    /// Creates a failed account authentication response.
     /// </summary>
     public static LoginAccountAuthenticationResponsePacket Failure(LoginAccountAuthenticationFailureCode failureCode, uint gameServerPort, string gameServerIp)
     {
@@ -102,7 +99,7 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
         writer.WriteUInt32(AuthenticationKeyOrFailureCode);
         writer.WriteUInt32(GameServerPort);
         writer.WriteUInt32(AdditionalSessionField);
-        writer.WriteFixedString(GameServerIp, GameServerIpFieldLength, TqTextEncoding.Ascii);
+        writer.WriteFixedString(GameServerIp, GameServerIpFieldLength, WireTextEncoding.Ascii);
     }
 
     private static string NormalizeGameServerIp(string gameServerIp)

@@ -6,7 +6,7 @@ namespace OpenConquer.GameData.Tool.Tests.Formats.Text;
 public sealed class DecodedTextDatReaderTests
 {
     [Fact]
-    public void DecodeInPlace_KnownRetailSeedVector_DecodesExpectedBytes()
+    public void DecodeInPlace_KnownSeedVector_DecodesExpectedBytes()
     {
         byte[] payload = Convert.FromHexString("9C0B8F7ADEBE1E2947F942564701568D");
 

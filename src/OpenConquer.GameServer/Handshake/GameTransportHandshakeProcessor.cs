@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Game.Handshake;
 namespace OpenConquer.GameServer.Handshake;
 
 /// <summary>
-/// Performs the native 5517 Diffie-Hellman transport handshake and transfers
+/// Performs the Diffie-Hellman transport handshake and transfers
 /// the negotiated secured transport state into a live GameServer session.
 /// </summary>
 internal sealed class GameTransportHandshakeProcessor

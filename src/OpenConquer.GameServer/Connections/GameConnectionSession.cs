@@ -5,7 +5,7 @@ using OpenConquer.GameServer.Handshake;
 using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
-using OpenConquer.Protocol.Packets;
+using OpenConquer.Protocol.Serialization;
 using OpenConquer.Transport.Connections;
 using OpenConquer.Transport.Pipelines;
 

@@ -3,12 +3,12 @@ using System.Buffers;
 namespace OpenConquer.Protocol.Framing;
 
 /// <summary>
-/// Extracts and validates complete TQ wire frames from caller owned buffered input.
+/// Extracts and validates complete wire frames from caller-owned buffered input.
 /// </summary>
 public static class WireFrameDecoder
 {
     /// <summary>
-    /// Decodes the first complete frame using the full range supported by the 16 bit TQ frame length field.
+    /// Decodes the first complete frame using the full range supported by the 16-bit frame length field.
     /// </summary>
     public static WireFrameDecodeStatus Decode(ReadOnlySequence<byte> source, out WireFrameHeader header, out ReadOnlySequence<byte> frame)
     {

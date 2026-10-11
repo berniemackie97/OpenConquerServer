@@ -6,7 +6,7 @@ using OpenConquer.Infrastructure.Content.Maps;
 namespace OpenConquer.GameServer.Configuration;
 
 /// <summary>
-/// Validates GameServer deployment configuration before constructing infrastructure or starting authoritative world execution.
+/// Validates GameServer deployment configuration before constructing infrastructure or starting the world runtime.
 /// </summary>
 internal sealed class GameServerConfiguration
 {

@@ -9,7 +9,7 @@ namespace OpenConquer.Protocol.Tests.Game.Handshake;
 public sealed class GameClientKeyExchangeResponseDecoderTests
 {
     [Fact]
-    public void Decode_ParsesOpenConquerPublicCompatibleResponse()
+    public void Decode_ParsesClientResponse()
     {
         byte[] response = BuildResponse("05");
 

@@ -7,8 +7,8 @@ using OpenConquer.Protocol.Game.Packets;
 namespace OpenConquer.GameServer.Login.Authentication;
 
 /// <summary>
-/// Authenticates the first secured GameServer frame by validating the native
-/// 1052 login proof and atomically redeeming its single-use login ticket.
+/// Authenticates the first secured GameServer frame by validating the
+/// login proof (packet 1052) and atomically redeeming its single-use login ticket.
 /// </summary>
 internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticketRedeemer)
 {
@@ -58,7 +58,7 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
             ? endpoint.Address
             : throw new InvalidOperationException("GameServer authentication requires an IP network endpoint.");
 
-        GameLoginProof1052 proof;
+        GameLoginProof proof;
 
         using (GameInboundFrame? frame = await session.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -67,7 +67,7 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
                 return GameConnectionAuthenticationResult.PeerClosed();
             }
 
-            if (!GameLoginProof1052.TryParse(frame, out proof, out GameLoginProofParseError parseError))
+            if (!GameLoginProof.TryParse(frame, out proof, out GameLoginProofParseError parseError))
             {
                 throw new InvalidDataException($"The first secured GameServer frame is not a valid login proof 1052: {parseError}.");
             }

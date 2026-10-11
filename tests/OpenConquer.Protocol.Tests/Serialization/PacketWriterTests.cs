@@ -265,7 +265,7 @@ public sealed class PacketWriterTests
 
         PacketWriter writer = new(buffer);
 
-        writer.WriteFixedString("AB", 4, TqTextEncoding.Ascii);
+        writer.WriteFixedString("AB", 4, WireTextEncoding.Ascii);
 
         Assert.Equal([(byte)'A', (byte)'B', 0x00, 0x00], writer.WrittenSpan.ToArray());
     }
@@ -276,7 +276,7 @@ public sealed class PacketWriterTests
         Span<byte> buffer = stackalloc byte[2];
         PacketWriter writer = new(buffer);
 
-        writer.WriteFixedString("€", 2, TqTextEncoding.StrictAnsi);
+        writer.WriteFixedString("€", 2, WireTextEncoding.StrictAnsi);
 
         Assert.Equal([0x80, 0x00], writer.WrittenSpan.ToArray());
     }
@@ -377,7 +377,7 @@ public sealed class PacketWriterTests
             Assert.Equal("value", exception.ParamName);
 
             Assert.StartsWith(
-                "Fixed-width TQ strings must not contain embedded null characters.",
+                "Fixed-width strings must not contain embedded null characters.",
                 exception.Message
             );
         }
@@ -398,15 +398,15 @@ public sealed class PacketWriterTests
 
         try
         {
-            writer.WriteFixedString("A", 4, (TqTextEncoding)int.MaxValue);
+            writer.WriteFixedString("A", 4, (WireTextEncoding)int.MaxValue);
 
-            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+            Assert.Fail("Expected an unknown wire text encoding to be rejected.");
         }
         catch (ArgumentOutOfRangeException exception)
         {
             Assert.Equal("encoding", exception.ParamName);
 
-            Assert.StartsWith("Unknown TQ text encoding.", exception.Message);
+            Assert.StartsWith("Unknown wire text encoding.", exception.Message);
         }
 
         Assert.Equal(0, writer.Written);
@@ -450,7 +450,7 @@ public sealed class PacketWriterTests
 
         try
         {
-            writer.WriteFixedString("漢", 4, TqTextEncoding.StrictAnsi);
+            writer.WriteFixedString("漢", 4, WireTextEncoding.StrictAnsi);
 
             Assert.Fail("Expected the unsupported character to be rejected.");
         }
@@ -508,7 +508,7 @@ public sealed class PacketWriterTests
         Span<byte> buffer = stackalloc byte[3];
         PacketWriter writer = new(buffer);
 
-        writer.WriteByteString("AB", TqTextEncoding.Ascii);
+        writer.WriteByteString("AB", WireTextEncoding.Ascii);
 
         Assert.Equal([0x02, (byte)'A', (byte)'B'], writer.WrittenSpan.ToArray());
     }
@@ -519,7 +519,7 @@ public sealed class PacketWriterTests
         Span<byte> buffer = stackalloc byte[2];
         PacketWriter writer = new(buffer);
 
-        writer.WriteByteString("€", TqTextEncoding.StrictAnsi);
+        writer.WriteByteString("€", WireTextEncoding.StrictAnsi);
 
         Assert.Equal([0x01, 0x80], writer.WrittenSpan.ToArray());
     }
@@ -599,15 +599,15 @@ public sealed class PacketWriterTests
 
         try
         {
-            writer.WriteByteString("A", (TqTextEncoding)int.MaxValue);
+            writer.WriteByteString("A", (WireTextEncoding)int.MaxValue);
 
-            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+            Assert.Fail("Expected an unknown wire text encoding to be rejected.");
         }
         catch (ArgumentOutOfRangeException exception)
         {
             Assert.Equal("encoding", exception.ParamName);
 
-            Assert.StartsWith("Unknown TQ text encoding.", exception.Message);
+            Assert.StartsWith("Unknown wire text encoding.", exception.Message);
         }
 
         Assert.Equal(0, writer.Written);
@@ -651,7 +651,7 @@ public sealed class PacketWriterTests
 
         try
         {
-            writer.WriteByteString("漢", TqTextEncoding.StrictAnsi);
+            writer.WriteByteString("漢", WireTextEncoding.StrictAnsi);
 
             Assert.Fail("Expected the unsupported character to be rejected.");
         }
@@ -722,7 +722,7 @@ public sealed class PacketWriterTests
         Span<byte> buffer = stackalloc byte[3];
         PacketWriter writer = new(buffer);
 
-        writer.WriteNullTerminatedString("AB", TqTextEncoding.Ascii);
+        writer.WriteNullTerminatedString("AB", WireTextEncoding.Ascii);
 
         Assert.Equal([(byte)'A', (byte)'B', 0x00], writer.WrittenSpan.ToArray());
     }
@@ -733,7 +733,7 @@ public sealed class PacketWriterTests
         Span<byte> buffer = stackalloc byte[2];
         PacketWriter writer = new(buffer);
 
-        writer.WriteNullTerminatedString("€", TqTextEncoding.StrictAnsi);
+        writer.WriteNullTerminatedString("€", WireTextEncoding.StrictAnsi);
 
         Assert.Equal([0x80, 0x00], writer.WrittenSpan.ToArray());
     }
@@ -810,7 +810,7 @@ public sealed class PacketWriterTests
             Assert.Equal("value", exception.ParamName);
 
             Assert.StartsWith(
-                "Null-terminated TQ strings must not contain embedded null characters.",
+                "Null-terminated strings must not contain embedded null characters.",
                 exception.Message
             );
         }
@@ -830,14 +830,14 @@ public sealed class PacketWriterTests
 
         try
         {
-            writer.WriteNullTerminatedString("A", (TqTextEncoding)int.MaxValue);
+            writer.WriteNullTerminatedString("A", (WireTextEncoding)int.MaxValue);
 
-            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+            Assert.Fail("Expected an unknown wire text encoding to be rejected.");
         }
         catch (ArgumentOutOfRangeException exception)
         {
             Assert.Equal("encoding", exception.ParamName);
-            Assert.StartsWith("Unknown TQ text encoding.", exception.Message);
+            Assert.StartsWith("Unknown wire text encoding.", exception.Message);
         }
 
         Assert.Equal(0, writer.Written);
@@ -855,7 +855,7 @@ public sealed class PacketWriterTests
 
         try
         {
-            writer.WriteNullTerminatedString("A漢", TqTextEncoding.StrictAnsi);
+            writer.WriteNullTerminatedString("A漢", WireTextEncoding.StrictAnsi);
 
             Assert.Fail("Expected the unsupported character to be rejected.");
         }

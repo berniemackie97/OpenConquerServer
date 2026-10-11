@@ -12,7 +12,7 @@ namespace OpenConquer.Protocol.Tests.Game.Handshake;
 public sealed class GameHandshakeExchangeTests
 {
     [Fact]
-    public void Create_EmitsOpenConquerPublicCompatibleServerChallenge()
+    public void Create_EmitsClientCompatibleServerChallenge()
     {
         using GameHandshakeExchange exchange = GameHandshakeExchange.Create();
 
@@ -32,7 +32,7 @@ public sealed class GameHandshakeExchangeTests
     }
 
     [Fact]
-    public void Complete_DerivesNativeOpenSslSharedSecretLayoutAndDirectionalState()
+    public void Complete_DerivesOpenSslSharedSecretLayoutAndDirectionalState()
     {
         using GameHandshakeExchange exchange = GameHandshakeExchange.Create();
         DecodedChallenge challenge = DecodeChallenge(exchange.EncryptedChallenge.Span);

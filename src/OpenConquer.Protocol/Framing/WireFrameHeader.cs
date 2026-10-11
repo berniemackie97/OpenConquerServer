@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace OpenConquer.Protocol.Framing;
 
 /// <summary>
-/// Represents the raw 4 byte TQ protocol frame header.
+/// Represents the raw four-byte frame header.
 /// </summary>
 public readonly struct WireFrameHeader(ushort length, ushort packetId)
 {

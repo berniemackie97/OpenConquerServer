@@ -10,9 +10,9 @@ For the protocol documentation index, see [README](README.md).
 The shared protocol foundation currently supports three explicit text modes:
 
 ```text
-TqTextEncoding.Ansi
-TqTextEncoding.StrictAnsi
-TqTextEncoding.Ascii
+WireTextEncoding.Ansi
+WireTextEncoding.StrictAnsi
+WireTextEncoding.Ascii
 ```
 
 They are mapped internally to the corresponding .NET encodings.
@@ -23,9 +23,9 @@ encoding objects are not part of the public protocol API.
 This keeps the shared wire API limited to encodings established by current Conquer Online 5517
 protocol evidence.
 
-## TqTextEncoding
+## WireTextEncoding
 
-`TqTextEncoding` identifies the text encodings supported by the shared protocol serializer.
+`WireTextEncoding` identifies the text encodings supported by the shared protocol serializer.
 
 ```text
 Ansi
@@ -40,25 +40,25 @@ requires another shared wire encoding.
 
 ## Runtime Encoding Mapping
 
-The serializer internally maps each `TqTextEncoding` value to its corresponding runtime encoding.
+The serializer internally maps each `WireTextEncoding` value to its corresponding runtime encoding.
 
 The current mappings are:
 
 ```text
-TqTextEncoding.Ansi
+WireTextEncoding.Ansi
     -> Windows-1252 with the runtime's default code-page fallback
 
-TqTextEncoding.StrictAnsi
+WireTextEncoding.StrictAnsi
     -> Windows-1252 with exception fallbacks
 
-TqTextEncoding.Ascii
+WireTextEncoding.Ascii
     -> seven-bit ASCII
 ```
 
 The concrete encoding objects and resolver are internal implementation details of
 `OpenConquer.Protocol`.
 
-Callers select only `TqTextEncoding`.
+Callers select only `WireTextEncoding`.
 
 ## Windows-1252
 
@@ -74,7 +74,7 @@ For example:
 € -> 80
 ```
 
-`TqTextEncoding.Ansi` uses the runtime's default .NET Windows-1252 code-page fallback behavior.
+`WireTextEncoding.Ansi` uses the runtime's default .NET Windows-1252 code-page fallback behavior.
 
 An unsupported outbound character is therefore handled according to the runtime's default
 Windows-1252 fallback policy. The protocol layer does not strengthen that behavior into a
@@ -99,7 +99,7 @@ unrepresentable character is always handled by simple replacement.
 
 ## Strict Windows-1252
 
-`TqTextEncoding.StrictAnsi` uses Windows-1252 with exception fallbacks.
+`WireTextEncoding.StrictAnsi` uses Windows-1252 with exception fallbacks.
 
 Supported characters encode normally:
 
@@ -115,7 +115,7 @@ Strict encoding is appropriate for fields whose wire contract must reject unrepr
 
 ## ASCII
 
-`TqTextEncoding.Ascii` selects seven-bit ASCII using the runtime's standard ASCII fallback behavior.
+`WireTextEncoding.Ascii` selects seven-bit ASCII using the runtime's standard ASCII fallback behavior.
 
 ASCII is used only where protocol evidence establishes ASCII semantics.
 
@@ -127,7 +127,7 @@ characters.
 The shared string helpers default to:
 
 ```text
-TqTextEncoding.Ansi
+WireTextEncoding.Ansi
 ```
 
 Therefore these are equivalent:
@@ -138,7 +138,7 @@ writer.WriteFixedString(value, width);
 writer.WriteFixedString(
     value,
     width,
-    TqTextEncoding.Ansi
+    WireTextEncoding.Ansi
 );
 ```
 
@@ -148,7 +148,7 @@ and:
 reader.ReadByteString();
 
 reader.ReadByteString(
-    TqTextEncoding.Ansi
+    WireTextEncoding.Ansi
 );
 ```
 
@@ -344,7 +344,7 @@ ReadFixedString
 ReadByteString
 ```
 
-Both accept a `TqTextEncoding` selector.
+Both accept a `WireTextEncoding` selector.
 
 The selector is resolved before field bytes are consumed.
 
@@ -385,7 +385,7 @@ WriteFixedString
 WriteByteString
 ```
 
-Both accept a `TqTextEncoding` selector and default to `Ansi`.
+Both accept a `WireTextEncoding` selector and default to `Ansi`.
 
 Validation that can reject the operation is performed before the writer commits the field.
 
@@ -459,7 +459,7 @@ Adding another protocol encoding requires evidence that a 5517 wire field actual
 
 The required change would include:
 
-1. adding an explicit `TqTextEncoding` value;
+1. adding an explicit `WireTextEncoding` value;
 2. adding its canonical internal runtime mapping;
 3. establishing the field semantics from protocol evidence;
 4. adding reader/writer tests for its observable wire behavior.
@@ -472,7 +472,7 @@ extensibility.
 The public text selector is:
 
 ```text
-TqTextEncoding
+WireTextEncoding
 ```
 
 `PacketReader` and `PacketWriter` consume that selector at the serialization boundary.
@@ -500,8 +500,8 @@ The current tests verify:
 - observable default ANSI fallback behavior
 - strict Windows-1252 behavior
 - ASCII behavior
-- observable mapping of each supported `TqTextEncoding`
-- rejection of unknown `TqTextEncoding` values
+- observable mapping of each supported `WireTextEncoding`
+- rejection of unknown `WireTextEncoding` values
 - default ANSI behavior
 - fixed-width zero padding
 - complete fixed-width field consumption

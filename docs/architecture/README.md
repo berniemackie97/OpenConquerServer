@@ -350,7 +350,7 @@ validate native checksum/version report shape
     ↓
 MsgAction 0xFB acknowledgement with authenticated hero ID
     ↓
-AwaitingStatisticRequestConnection
+AwaitingStatisticsRequestConnection
     ↓
 client MsgAction 0x84 GetStatistic
     ↓
@@ -422,7 +422,7 @@ character ID, not the request's zero entity ID, because the native client requir
 hero identity to advance. The acknowledgement preserves the reported values as compatible
 server policy. No client-content distribution or checksum enforcement is implemented.
 
-`AwaitingStatisticRequestConnection` takes exclusive ownership after the acknowledgement and
+`AwaitingStatisticsRequestConnection` takes exclusive ownership after the acknowledgement and
 preserves the accumulated character snapshots and untrusted report values. The following native
 request is `10010 / 0x84` GetStatistic, carrying the authenticated hero ID and an ordinary
 client timestamp. All other non-action fields are zero.

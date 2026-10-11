@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Owns the decoded fields of one native account-login request.
+/// Owns the decoded fields of one account login request.
 /// </summary>
 /// <remarks>
 /// The password is intentionally retained in mutable storage rather than an

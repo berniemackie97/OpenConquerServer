@@ -91,7 +91,7 @@ public sealed class LoginHandshakeProcessorTests
     [InlineData((ushort)1084, LoginAccountAuthenticationFailureCode.InvalidCredentials)]
     [InlineData((ushort)1098, LoginAccountAuthenticationFailureCode.InvalidCredentials)]
     [InlineData((ushort)7777, LoginAccountAuthenticationFailureCode.InvalidAccount)]
-    public async Task ProcessAsync_InvalidOrUnsupportedRequestReturnsVerifiedFailure(ushort packetId, LoginAccountAuthenticationFailureCode expectedFailure)
+    public async Task ProcessAsync_InvalidOrUnsupportedRequestReturnsExpectedFailure(ushort packetId, LoginAccountAuthenticationFailureCode expectedFailure)
     {
         TestTransportConnection connection = new();
         ClientCipher clientCipher = new();
@@ -119,7 +119,7 @@ public sealed class LoginHandshakeProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_InvalidCredentialsReturnsNativeFailureWithoutGrant()
+    public async Task ProcessAsync_InvalidCredentialsReturnsFailureWithoutGrant()
     {
         TestTransportConnection connection = new();
         ClientCipher clientCipher = new();
@@ -143,7 +143,7 @@ public sealed class LoginHandshakeProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_BannedAccountReturnsNativeBannedFailureWithoutGrant()
+    public async Task ProcessAsync_BannedAccountReturnsBannedFailureWithoutGrant()
     {
         TestTransportConnection connection = new();
         ClientCipher clientCipher = new();

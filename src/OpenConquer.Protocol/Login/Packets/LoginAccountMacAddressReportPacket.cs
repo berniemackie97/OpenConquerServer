@@ -5,8 +5,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Defines and decodes the native client-to-AccountServer
-/// post-authentication MAC-address report packet 1100.
+/// Defines and decodes the post-authentication MAC address report (packet 1100).
 /// </summary>
 public static class LoginAccountMacAddressReportPacket
 {
@@ -19,9 +18,8 @@ public static class LoginAccountMacAddressReportPacket
     public const int MacAddressFieldLength = 40;
 
     /// <summary>
-    /// Offset of the four trailing bytes present in the verified 52-byte
-    /// packet-1100 frame but not assigned a protocol meaning by current native
-    /// evidence.
+    /// Offset of the four trailing bytes in the 52-byte frame. They have no
+    /// known meaning.
     /// </summary>
     public const int TrailingBytesOffset = MacAddressOffset + MacAddressFieldLength;
 
@@ -32,7 +30,7 @@ public static class LoginAccountMacAddressReportPacket
     public const int FrameLength = WireFrameHeader.Size + PayloadLength;
 
     /// <summary>
-    /// Decodes the native structural packet-1100 payload.
+    /// Decodes the packet structure.
     /// </summary>
     /// <remarks>
     /// MAC-address formatting, expected-session correlation, and the contents
@@ -55,7 +53,7 @@ public static class LoginAccountMacAddressReportPacket
 
         uint sessionUid = reader.ReadUInt32();
 
-        string macAddress = reader.ReadFixedString(MacAddressFieldLength, TqTextEncoding.Ascii);
+        string macAddress = reader.ReadFixedString(MacAddressFieldLength, WireTextEncoding.Ascii);
 
         _ = reader.ReadBytes(TrailingBytesLength);
 

@@ -4,10 +4,8 @@ using System.Text;
 
 namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-internal sealed record GameMapDatRecord(uint MapDataId, string RelativePath, uint ComponentLinkId);
-
 /// <summary>
-/// Native 5517 GameMap.dat index. Duplicate MapDataIds use the last record.
+/// Client <c>GameMap.dat</c> index. Duplicate MapDataIds use the last record.
 /// </summary>
 internal sealed class GameMapDatTable
 {

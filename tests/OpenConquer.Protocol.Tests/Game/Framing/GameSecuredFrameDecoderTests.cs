@@ -12,7 +12,7 @@ public sealed class GameSecuredFrameDecoderTests
     private static ReadOnlySpan<byte> Key => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
     [Fact]
-    public void Decode_DecryptsAndParsesNative1052LoginProof()
+    public void Decode_DecryptsAndParsesLoginProof()
     {
         byte[] inboundInitializationVector = Convert.FromHexString("0102030405060708");
         byte[] packet = BuildLoginProof();
@@ -29,11 +29,11 @@ public sealed class GameSecuredFrameDecoderTests
         using GameInboundFrame frame = result.Frame!;
 
         Assert.Equal(packet, frame.Packet.ToArray());
-        Assert.True(GameLoginProof1052.TryParse(frame, out GameLoginProof1052 proof, out GameLoginProofParseError error));
+        Assert.True(GameLoginProof.TryParse(frame, out GameLoginProof proof, out GameLoginProofParseError error));
         Assert.Equal(GameLoginProofParseError.None, error);
         Assert.Equal(0x10203040U, proof.SessionUid);
         Assert.Equal(0x50607080U, proof.AuthenticationKey);
-        Assert.Equal(GameLoginProof1052.ExpectedMode, proof.Mode);
+        Assert.Equal(GameLoginProof.ExpectedMode, proof.Mode);
         Assert.Equal((ushort)0x6E45, proof.LocaleTag);
         Assert.Equal(0x0000_6655_4433_2211UL, proof.HardwareAddress);
         Assert.Equal(5517, proof.ResourceVersion);
@@ -107,7 +107,7 @@ public sealed class GameSecuredFrameDecoderTests
     }
 
     [Fact]
-    public void Decode_AllowsNativeMaximumPacketLength()
+    public void Decode_AllowsMaximumPacketLength()
     {
         byte[] inboundInitializationVector = Convert.FromHexString("0102030405060708");
         byte[] packet = new byte[GameWireProtocol.MaximumPacketLength];
@@ -200,12 +200,12 @@ public sealed class GameSecuredFrameDecoderTests
 
     private static byte[] BuildLoginProof()
     {
-        byte[] packet = new byte[GameLoginProof1052.PacketLength];
+        byte[] packet = new byte[GameLoginProof.PacketLength];
 
-        WireFrameHeader.Write(packet, GameLoginProof1052.PacketLength, GameLoginProof1052.PacketId);
+        WireFrameHeader.Write(packet, GameLoginProof.PacketLength, GameLoginProof.PacketId);
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), 0x10203040);
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(8), 0x50607080);
-        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(12), GameLoginProof1052.ExpectedMode);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(12), GameLoginProof.ExpectedMode);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(14), 0x6E45);
 
         packet[16] = 0x11;

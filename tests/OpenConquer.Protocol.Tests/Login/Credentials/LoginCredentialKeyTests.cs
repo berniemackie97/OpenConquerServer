@@ -8,7 +8,7 @@ public sealed class LoginCredentialKeyTests
     [InlineData(0L, "2627F6859715AD1DD294DDC476193931")]
     [InlineData(0x0012_34ABL, "EE84B012303A60D0C8394C8F3DFDD1C9")]
     [InlineData(0xFFFF_FFFFL, "232B2E854CBE858D52987198FB778977")]
-    public void Derive_WritesVerifiedMsvcrtSequence(long seedValue, string expectedHex)
+    public void Derive_WritesMsvcrtSequence(long seedValue, string expectedHex)
     {
         uint seed = checked((uint)seedValue);
 

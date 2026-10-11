@@ -454,7 +454,7 @@ enforcement, gameplay routing, and authoritative world-session handling remain f
 
 Implemented protocol text modes are:
 
-| `TqTextEncoding` | Runtime encoding                     |
+| `WireTextEncoding` | Runtime encoding                     |
 | ---------------- | ------------------------------------ |
 | `Ansi`           | Windows-1252                         |
 | `StrictAnsi`     | Windows-1252 with exception fallback |

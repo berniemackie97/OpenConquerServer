@@ -5,7 +5,9 @@ using OpenConquer.Domain.World;
 using OpenConquer.GameData.Tool.Formats.Items;
 using OpenConquer.GameData.Tool.IO;
 using OpenConquer.GameData.Tool.Items;
-using OpenConquer.GameData.Tool.Maps;
+using OpenConquer.GameData.Tool.Maps.Collision;
+using OpenConquer.GameData.Tool.Maps.Definitions;
+using OpenConquer.GameData.Tool.Maps.Terrain;
 
 namespace OpenConquer.GameData.Tool;
 
@@ -36,7 +38,7 @@ internal static class Program
 
             if (args[0] == "generate-map-terrains")
             {
-                int count = NativeMapTerrainImporter.Generate(sourcePath, destinationPath,
+                int count = MapTerrainImporter.Generate(sourcePath, destinationPath,
                     Path.GetFullPath(args[3]), MapTerrainLoadLimits.CreateDefault());
 
                 Console.WriteLine($"Generated {count} canonical base-terrain artifacts.");

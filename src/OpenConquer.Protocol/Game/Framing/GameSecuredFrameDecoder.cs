@@ -4,21 +4,8 @@ using OpenConquer.Protocol.Game.Cryptography;
 
 namespace OpenConquer.Protocol.Game.Framing;
 
-public enum GameSecuredFrameDecodeStatus
-{
-    Success = 0,
-    NeedMoreData,
-    InvalidPacketLength,
-    InvalidSignature,
-}
-
-public readonly record struct GameSecuredFrameDecodeResult(GameSecuredFrameDecodeStatus Status, int BytesConsumed, GameInboundFrame? Frame)
-{
-    public bool Succeeded => Status == GameSecuredFrameDecodeStatus.Success;
-}
-
 /// <summary>
-/// Incrementally decrypts one 5517 client GameServer frame while preserving
+/// Incrementally decrypts one client GameServer frame while preserving
 /// directional CAST5 CFB-64 state across arbitrary TCP fragmentation.
 /// </summary>
 public sealed class GameSecuredFrameDecoder : IDisposable

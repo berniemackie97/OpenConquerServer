@@ -1,9 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.GameServer.Configuration;
-using OpenConquer.Infrastructure.Accounts.Extensions;
-using OpenConquer.Infrastructure.Content.Maps;
-using OpenConquer.Infrastructure.Persistence.Game.Extensions;
+using OpenConquer.Infrastructure.DependencyInjection;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
 namespace OpenConquer.GameServer.Hosting;

@@ -17,7 +17,7 @@ public sealed class LoginAccountRequestPacketTests
         "22DB42ACB82F421D" + "AEF13F7A611D5A03" + "2F45309A4D0DDC65" + "2F45309A4D0DDC65";
 
     [Fact]
-    public void Layout_MatchesVerifiedNative1060()
+    public void Layout_MatchesAccountRequest()
     {
         Assert.Equal((ushort)1060, LoginAccountRequestPacket.PacketIdentifier);
 
@@ -41,13 +41,13 @@ public sealed class LoginAccountRequestPacketTests
     }
 
     [Fact]
-    public void TryDecodeStandard5517_DecodesVerifiedEnvelope()
+    public void TryDecodeStandard_DecodesEnvelope()
     {
         byte[] payload = CreateValidPayload();
 
         byte[] original = payload.ToArray();
 
-        bool decoded = LoginAccountRequestPacket.TryDecodeStandard5517(
+        bool decoded = LoginAccountRequestPacket.TryDecodeStandard(
             payload,
             LoginSeed,
             out LoginAccountRequest? request
@@ -69,11 +69,11 @@ public sealed class LoginAccountRequestPacketTests
     [Theory]
     [InlineData(LoginAccountRequestPacket.PayloadLength - 1)]
     [InlineData(LoginAccountRequestPacket.PayloadLength + 1)]
-    public void TryDecodeStandard5517_RejectsWrongPayloadLength(int payloadLength)
+    public void TryDecodeStandard_RejectsWrongPayloadLength(int payloadLength)
     {
         byte[] payload = new byte[payloadLength];
 
-        bool decoded = LoginAccountRequestPacket.TryDecodeStandard5517(
+        bool decoded = LoginAccountRequestPacket.TryDecodeStandard(
             payload,
             LoginSeed,
             out LoginAccountRequest? request
@@ -85,7 +85,7 @@ public sealed class LoginAccountRequestPacketTests
     }
 
     [Fact]
-    public void TryDecodeStandard5517_IgnoresUnusedCredentialTail()
+    public void TryDecodeStandard_IgnoresUnusedCredentialTail()
     {
         byte[] payload = CreateValidPayload();
 
@@ -98,7 +98,7 @@ public sealed class LoginAccountRequestPacketTests
             )
             .Fill(0xA5);
 
-        bool decoded = LoginAccountRequestPacket.TryDecodeStandard5517(
+        bool decoded = LoginAccountRequestPacket.TryDecodeStandard(
             payload,
             LoginSeed,
             out LoginAccountRequest? request
@@ -112,13 +112,13 @@ public sealed class LoginAccountRequestPacketTests
     }
 
     [Fact]
-    public void TryDecodeStandard5517_UsesAccountBytesOnlyThroughFirstNull()
+    public void TryDecodeStandard_UsesAccountBytesOnlyThroughFirstNull()
     {
         byte[] payload = CreateValidPayload();
 
         payload[AccountName.Length + 1] = 0xE9;
 
-        bool decoded = LoginAccountRequestPacket.TryDecodeStandard5517(
+        bool decoded = LoginAccountRequestPacket.TryDecodeStandard(
             payload,
             LoginSeed,
             out LoginAccountRequest? request
@@ -134,7 +134,7 @@ public sealed class LoginAccountRequestPacketTests
     }
 
     [Fact]
-    public void TryDecodeStandard5517_PreservesSignedNativeAccountByteSeed()
+    public void TryDecodeStandard_PreservesSignedAccountByteSeed()
     {
         byte[] payload = new byte[LoginAccountRequestPacket.PayloadLength];
 
@@ -159,7 +159,7 @@ public sealed class LoginAccountRequestPacketTests
             )
         );
 
-        bool decoded = LoginAccountRequestPacket.TryDecodeStandard5517(
+        bool decoded = LoginAccountRequestPacket.TryDecodeStandard(
             payload,
             LoginSeed,
             out LoginAccountRequest? request
@@ -175,11 +175,11 @@ public sealed class LoginAccountRequestPacketTests
     }
 
     [Fact]
-    public void TryDecodeStandard5517_WrongLoginSeedDoesNotRecoverPassword()
+    public void TryDecodeStandard_WrongLoginSeedDoesNotRecoverPassword()
     {
         byte[] payload = CreateValidPayload();
 
-        bool decoded = LoginAccountRequestPacket.TryDecodeStandard5517(
+        bool decoded = LoginAccountRequestPacket.TryDecodeStandard(
             payload,
             LoginSeed + 1,
             out LoginAccountRequest? request
@@ -198,7 +198,7 @@ public sealed class LoginAccountRequestPacketTests
         byte[] payload = CreateValidPayload();
 
         Assert.True(
-            LoginAccountRequestPacket.TryDecodeStandard5517(
+            LoginAccountRequestPacket.TryDecodeStandard(
                 payload,
                 LoginSeed,
                 out LoginAccountRequest? request
@@ -226,7 +226,7 @@ public sealed class LoginAccountRequestPacketTests
         byte[] payload = CreateValidPayload();
 
         Assert.True(
-            LoginAccountRequestPacket.TryDecodeStandard5517(
+            LoginAccountRequestPacket.TryDecodeStandard(
                 payload,
                 LoginSeed,
                 out LoginAccountRequest? request

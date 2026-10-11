@@ -4,7 +4,6 @@ using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Handshake;
-using OpenConquer.Protocol.Packets;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.Tests.Connections;

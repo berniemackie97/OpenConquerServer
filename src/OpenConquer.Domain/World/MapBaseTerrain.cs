@@ -3,16 +3,6 @@ using System.Collections.Immutable;
 namespace OpenConquer.Domain.World;
 
 /// <summary>
-/// One verified DMap base-grid cell. PassabilityFlag is source data, not final authoritative collision.
-/// </summary>
-public readonly record struct MapBaseTerrainCell(ushort SurfaceId, ushort PassabilityFlag, short Elevation);
-
-/// <summary>
-/// One native ground-layer exit marker, including markers outside the base grid.
-/// </summary>
-public readonly record struct MapTerrainExit(int X, int Y, uint PasswayIndex);
-
-/// <summary>
 /// Immutable base terrain identified by MapDataId. Does not include scenery collision composition.
 /// </summary>
 public sealed class MapBaseTerrain

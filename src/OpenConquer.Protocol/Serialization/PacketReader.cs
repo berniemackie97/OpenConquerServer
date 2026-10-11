@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Serialization;
 
 /// <summary>
-/// Reads primitive values and TQ protocol strings sequentially from packet data.
+/// Reads primitive values and protocol strings sequentially from packet data.
 /// </summary>
 public ref struct PacketReader(ReadOnlySpan<byte> buffer)
 {
@@ -37,13 +37,13 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
     }
 
     /// <summary>
-    /// Reads a fixed width, zero padded string using the selected TQ text encoding.
+    /// Reads a fixed width, zero padded string using the selected text encoding.
     /// </summary>
-    public string ReadFixedString(int width, TqTextEncoding encoding = TqTextEncoding.Ansi)
+    public string ReadFixedString(int width, WireTextEncoding encoding = WireTextEncoding.Ansi)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(width);
 
-        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        Encoding selectedEncoding = WireTextEncodingResolver.Resolve(encoding);
         ReadOnlySpan<byte> field = PeekSpan(width);
         int terminatorIndex = field.IndexOf((byte)0);
 
@@ -55,11 +55,11 @@ public ref struct PacketReader(ReadOnlySpan<byte> buffer)
     }
 
     /// <summary>
-    /// Reads a TQ byte length prefixed string using the selected TQ text encoding.
+    /// Reads a byte-length-prefixed string using the selected text encoding.
     /// </summary>
-    public string ReadByteString(TqTextEncoding encoding = TqTextEncoding.Ansi)
+    public string ReadByteString(WireTextEncoding encoding = WireTextEncoding.Ansi)
     {
-        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        Encoding selectedEncoding = WireTextEncodingResolver.Resolve(encoding);
 
         ReadOnlySpan<byte> lengthField = PeekSpan(count: sizeof(byte));
         byte length = lengthField[0];

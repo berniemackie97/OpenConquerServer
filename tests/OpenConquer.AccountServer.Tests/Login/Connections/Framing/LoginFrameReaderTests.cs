@@ -36,7 +36,7 @@ public sealed class LoginFrameReaderTests
     }
 
     [Fact]
-    public async Task ReadAsync_DecryptsVerifiedNativeFrame()
+    public async Task ReadAsync_DecryptsClientFrame()
     {
         Pipe pipe = new();
 

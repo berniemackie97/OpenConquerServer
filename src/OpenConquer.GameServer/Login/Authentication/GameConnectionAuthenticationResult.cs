@@ -1,12 +1,5 @@
 namespace OpenConquer.GameServer.Login.Authentication;
 
-internal enum GameConnectionAuthenticationStatus
-{
-    PeerClosed = 0,
-    AuthorizationRejected,
-    Authenticated,
-}
-
 internal sealed class GameConnectionAuthenticationResult : IAsyncDisposable
 {
     private AuthenticatedGameConnection? _connection;
