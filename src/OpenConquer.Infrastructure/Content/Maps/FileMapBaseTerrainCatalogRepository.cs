@@ -34,19 +34,36 @@ public sealed class FileMapBaseTerrainCatalogRepository : IMapBaseTerrainCatalog
             throw new IOException($"Canonical terrain directory '{_rootPath}' cannot be a symbolic link.");
         }
 
-        uint[] requiredMapDataIds = definitions.Definitions.Select(definition => definition.MapDataId)
-            .Distinct().Order().ToArray();
+        uint[] requiredIds = definitions.Definitions.Select(definition => definition.MapDataId).Distinct().Order().ToArray();
+        HashSet<string> expectedFiles = requiredIds.Select(id => $"{id}{MapBaseTerrainBinaryReader.FileExtension}").ToHashSet(StringComparer.Ordinal);
 
-        List<MapBaseTerrain> terrains = new(requiredMapDataIds.Length);
+        foreach (string entry in Directory.EnumerateFileSystemEntries(_rootPath))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string fileName = Path.GetFileName(entry);
+
+            if (!expectedFiles.Remove(fileName))
+            {
+                throw new InvalidDataException($"Canonical terrain directory contains unexpected entry '{fileName}'.");
+            }
+        }
+
+        if (expectedFiles.Count != 0)
+        {
+            string missing = expectedFiles.Order(StringComparer.Ordinal).First();
+            throw new FileNotFoundException($"Canonical terrain directory is missing required artifact '{missing}'.", Path.Combine(_rootPath, missing));
+        }
+
+        List<MapBaseTerrain> terrains = new(requiredIds.Length);
         long totalCells = 0;
 
-        foreach (uint mapDataId in requiredMapDataIds)
+        foreach (uint mapDataId in requiredIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             string path = Path.Combine(_rootPath, $"{mapDataId}{MapBaseTerrainBinaryReader.FileExtension}");
-            MapBaseTerrain terrain = await MapBaseTerrainBinaryReader.ReadAsync(path, mapDataId, _limits, cancellationToken)
-                .ConfigureAwait(false);
+            MapBaseTerrain terrain = await MapBaseTerrainBinaryReader.ReadAsync(path, mapDataId, _limits, cancellationToken).ConfigureAwait(false);
 
             totalCells = checked(totalCells + terrain.CellCount);
 
