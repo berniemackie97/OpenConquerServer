@@ -18,8 +18,8 @@ The initial authoritative execution core is implemented in
 `src/OpenConquer.GameServer/World/Execution/` and tested in
 `tests/OpenConquer.GameServer.Tests/World/Execution/`. The GameServer Generic Host now
 verifies the required database schemas and canonical content before constructing and publishing
-the runtime. World-session admission from completed existing-character bootstrap is implemented,
-but no network listener or ongoing gameplay dispatcher is wired to it yet.
+the runtime. Bounded network ingress connects the verified existing-character bootstrap to
+world-session admission, while ongoing gameplay dispatch remains unimplemented.
 
 `WorldRuntime` constructs a `WorldScheduler` from the validated immutable
 `WorldMapContentCatalog`. Each world `MapId` receives one `WorldPartition` containing one
@@ -77,9 +77,10 @@ A `WorldSession` owns the live `ExistingCharacterGameConnection` (including its 
 presence lease) and the runtime-scoped `WorldCharacterOwnership`. Concurrent disposal is
 idempotent. Revocation and runtime stopping initiate the same teardown. `Completion` exposes the
 terminal cleanup result for runtime shutdown to supervise; connection-disposal and
-world-release failures are preserved. The running world host does not install a game-session
-processing loop or automatically retry conflicting new logins while an old owner is still being
-released; admission fails closed until the previous ownership has actually ended.
+world-release failures are preserved. Network hosting supervises the admitted connection
+lifetime independently of login workers, but does not implement gameplay dispatch or
+automatically retry conflicting new logins while an old owner is being released.
+Admission fails closed until previous ownership has actually ended.
 
 Ordinary partition commands are still bounded by `PartitionQueueCapacity`, but cleanup is admitted
 through a separate **bounded high-priority removal lane**. Its capacity equals the per-map resident

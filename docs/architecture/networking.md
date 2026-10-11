@@ -587,11 +587,13 @@ responses prepare their snapshots before writing and transfer connection ownersh
 The `0x84` statistics request completes without an unsupported acknowledgement. Canonical world
 content is resolved before accepted bootstrap output and is carried across every typed state.
 
-Character creation requests and writes, and runtime hosting of ongoing gameplay packets, remain
-unimplemented. `WorldSessionAdmissionProcessor` transfers completed-bootstrap connections into
-`WorldSession` and authoritative `WorldRuntime` ownership, including revocable presence and bounded
-cleanup. The GameServer Generic Host now owns world startup and shutdown, but the listener and
-connection-worker runtime remain unimplemented.
+Character creation requests and writes, and gameplay packet routing remain unimplemented.
+The GameServer Generic Host starts bounded TCP ingress only after world and item-content
+readiness. Fixed login workers advance connections through authentication and the verified
+existing-character bootstrap sequence. Completed-bootstrap connections transfer into
+`WorldSession` and authoritative `WorldRuntime` ownership. Their I/O lifetimes are supervised
+independently of the login workers, with revocable presence and bounded cleanup.
+Unsupported gameplay frames close the session without invented protocol responses.
 
 ## Game Character Persistence Boundary
 
@@ -633,7 +635,8 @@ and gameplay mutation are intentionally not introduced through these boundaries 
 version, and migration identity.
 
 The GameServer Generic Host verifies Accounts and Game database readiness, then canonical
-world content, before publishing authoritative execution. Network ingress remains unimplemented.
+world content, before publishing authoritative execution. With ingress enabled, it then
+loads and validates canonical item types before binding the GameServer TCP listener.
 
 ## Game-Login Redemption
 
@@ -668,8 +671,9 @@ Game-login redemption has independent bounded attempt protection:
 - per-session failure tracking and lockout;
 - bounded tracked state.
 
-The GameServer connection handoff uses this protection boundary. Runnable GameServer ingress and
-worker composition are not yet implemented.
+The GameServer connection handoff uses this protection boundary. Bounded GameServer ingress
+enforces per-source occupancy across queued, authenticating, and admitted world connections,
+and fixed login workers apply a whole-login timeout independently of world-session lifetime.
 
 ## Ticket Revocation
 
@@ -758,9 +762,8 @@ Implemented GameServer connection and character-login components:
 
 Not yet implemented:
 
-- GameServer listener, admission queue, and worker runtime;
 - gameplay event/replication production and connection outbound scheduling;
-- runtime hosting and supervision of admitted world sessions and gameplay packet processing;
+- ongoing gameplay packet processing and command authorization;
 - character creation request processing and durable creation;
 - gameplay packet routing;
 - authoritative world simulation and replication.

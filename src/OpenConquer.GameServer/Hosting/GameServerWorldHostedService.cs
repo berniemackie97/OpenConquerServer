@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -45,6 +46,8 @@ internal sealed partial class GameServerWorldHostedService(
         {
             throw new InvalidOperationException("The GameServer world host can only be started once.");
         }
+
+        long started = Stopwatch.GetTimestamp();
 
         await _accountReadiness.VerifyAsync(cancellationToken).ConfigureAwait(false);
         LogAccountDatabaseReady(_logger);
@@ -97,6 +100,11 @@ internal sealed partial class GameServerWorldHostedService(
         }
 
         LogWorldReady(_logger, maps.Count);
+
+        using Process process = Process.GetCurrentProcess();
+
+        LogWorldStartupMeasurements(_logger, Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            GC.GetTotalMemory(forceFullCollection: false), process.WorkingSet64);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -217,4 +225,6 @@ internal sealed partial class GameServerWorldHostedService(
     private static partial void LogWorldStopped(ILogger logger);
     [LoggerMessage(EventId = 6004, Level = LogLevel.Critical, Message = "Authoritative GameServer world terminated unexpectedly.")]
     private static partial void LogUnexpectedWorldStop(ILogger logger, Exception exception);
+    [LoggerMessage(EventId = 6005, Level = LogLevel.Information, Message = "GameServer world startup measurements: {DurationMilliseconds} ms; managed heap {ManagedHeapBytes} bytes; working set {WorkingSetBytes} bytes.")]
+    private static partial void LogWorldStartupMeasurements(ILogger logger, double durationMilliseconds, long managedHeapBytes, long workingSetBytes);
 }

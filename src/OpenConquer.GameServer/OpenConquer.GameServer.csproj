@@ -25,6 +25,11 @@
              Link="content\maps\collision\%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
+
+    <Content Include="..\..\content\items\item-types.json"
+             Link="content\items\item-types.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
