@@ -16,10 +16,10 @@ partition owned state.
 
 The initial authoritative execution core is implemented in
 `src/OpenConquer.GameServer/World/Execution/` and tested in
-`tests/OpenConquer.GameServer.Tests/World/Execution/`. It is currently a standalone runtime:
-`OpenConquer.GameServer/Program.cs` is not a runnable GameServer host. Standalone world-session
-admission from completed existing-character bootstrap is implemented, but no listener or ongoing
-gameplay dispatcher is wired to it yet.
+`tests/OpenConquer.GameServer.Tests/World/Execution/`. The GameServer Generic Host now
+verifies the required database schemas and canonical content before constructing and publishing
+the runtime. World-session admission from completed existing-character bootstrap is implemented,
+but no network listener or ongoing gameplay dispatcher is wired to it yet.
 
 `WorldRuntime` constructs a `WorldScheduler` from the validated immutable
 `WorldMapContentCatalog`. Each world `MapId` receives one `WorldPartition` containing one
@@ -76,8 +76,8 @@ through the new `WorldSession`; no new client packets are emitted by promotion.
 A `WorldSession` owns the live `ExistingCharacterGameConnection` (including its revocable realm
 presence lease) and the runtime-scoped `WorldCharacterOwnership`. Concurrent disposal is
 idempotent. Revocation and runtime stopping initiate the same teardown. `Completion` exposes the
-terminal cleanup result for the future host to supervise; connection-disposal and world-release
-failures are both preserved. The currently standalone runtime does not install a game-session
+terminal cleanup result for runtime shutdown to supervise; connection-disposal and
+world-release failures are preserved. The running world host does not install a game-session
 processing loop or automatically retry conflicting new logins while an old owner is still being
 released; admission fails closed until the previous ownership has actually ended.
 
@@ -86,8 +86,8 @@ through a separate **bounded high-priority removal lane**. Its capacity equals t
 character limit, and at most one removal may be outstanding for each active character. Therefore a
 full ordinary mailbox cannot strand a disconnect. Session teardown never abandons an accepted
 removal due to caller cancellation. If the world is stopping, cleanup waits for partition shutdown
-and authoritative state clearing. The GameServer host will eventually have to await active session
-`Completion` tasks before final process exit; it is not implemented by this slice.
+and authoritative state clearing. Runtime shutdown awaits registered session and admission
+completion. The Generic Host owns that shutdown and propagates its failures.
 
 ## World Partitions
 
