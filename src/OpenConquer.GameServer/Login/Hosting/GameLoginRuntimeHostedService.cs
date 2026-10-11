@@ -7,14 +7,13 @@ using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Admission;
 using OpenConquer.GameServer.Login.Observability;
-using OpenConquer.Infrastructure.Content.Items;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.GameServer.Login.Hosting;
 
 /// <summary>
-/// Starts bounded network ingress after canonical content readiness and owns all connection-processing work.
+/// Starts network ingress once the world content is ready and owns all connection-processing work.
 /// </summary>
 internal sealed partial class GameLoginRuntimeHostedService(
     Func<ITransportConnectionListener> listenerFactory,

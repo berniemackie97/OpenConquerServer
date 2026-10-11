@@ -7,7 +7,7 @@ namespace OpenConquer.Protocol.Tests.Login.Packets;
 public sealed class LoginAccountMacAddressReportPacketTests
 {
     [Fact]
-    public void Layout_MatchesVerifiedNative1100()
+    public void Layout_MatchesMacAddressReport()
     {
         Assert.Equal((ushort)1100, LoginAccountMacAddressReportPacket.PacketIdentifier);
 
@@ -27,7 +27,7 @@ public sealed class LoginAccountMacAddressReportPacketTests
     }
 
     [Fact]
-    public void TryDecode_DecodesVerifiedNative1100Payload()
+    public void TryDecode_DecodesMacAddressReportPayload()
     {
         byte[] payload = new byte[LoginAccountMacAddressReportPacket.PayloadLength];
 
@@ -56,7 +56,7 @@ public sealed class LoginAccountMacAddressReportPacketTests
     }
 
     [Fact]
-    public void TryDecode_AcceptsNativeEmptyMacAddress()
+    public void TryDecode_AcceptsEmptyMacAddress()
     {
         byte[] payload = new byte[LoginAccountMacAddressReportPacket.PayloadLength];
 

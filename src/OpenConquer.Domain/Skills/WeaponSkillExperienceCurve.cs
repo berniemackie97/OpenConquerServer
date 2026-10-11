@@ -1,7 +1,7 @@
 namespace OpenConquer.Domain.Skills;
 
 /// <summary>
-/// Provides the verified 5517 weapon-proficiency experience requirements sent to the client.
+/// Weapon proficiency experience requirements per level, as displayed by the client.
 /// </summary>
 public static class WeaponSkillExperienceCurve
 {

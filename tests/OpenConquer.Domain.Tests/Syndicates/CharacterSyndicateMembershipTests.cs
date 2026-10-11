@@ -50,7 +50,7 @@ public sealed class CharacterSyndicateMembershipTests
     [InlineData(long.MinValue)]
     [InlineData(4_294_967_296L)]
     [InlineData(long.MaxValue)]
-    public void Create_ProfferOutsideNativeUInt32Range_ThrowsArgumentOutOfRangeException(long proffer)
+    public void Create_ProfferOutsideUInt32Range_ThrowsArgumentOutOfRangeException(long proffer)
     {
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
             CharacterSyndicateMembership.Create(

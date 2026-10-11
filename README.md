@@ -2,233 +2,72 @@
 
 [![CI](https://github.com/berniemackie97/OpenConquerServer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/berniemackie97/OpenConquerServer/actions/workflows/ci.yml)
 
-OpenConquer Server is an open-source **Conquer Online 5517** server emulator rebuilt in C# on **.NET
-10**.
+OpenConquer is a game server for the Conquer Online client, written in C# on .NET 10. It targets
+client version 5517 and is built as a modular monolith with two executable hosts: an AccountServer
+that authenticates players and a GameServer that runs the world.
 
-The project targets accurate 5517 client compatibility while using maintainable, production-grade
-server architecture.
+The project is in early development. Players can log in, receive a GameServer ticket, and load an
+existing character into the world. Character creation and gameplay are not implemented yet. See
+[Implementation status](docs/status.md) for details.
 
-> **Status:** Early development. Transport, the runnable AccountServer host, the standard 5517
-> AccountServer login transaction, account authentication, abuse protection, password persistence
-> and migration, account security mutations, durable GameServer login tickets, ticket
-> revocation/redemption, bounded expired-ticket maintenance, GameServer authenticated connection
-> handoff, the verified existing-character bootstrap request sequence through `0x84`, and
-> Game schema v9 syndicate persistence and read hydration are implemented.
-> The initial canonical map-content baseline includes 282 world-map definitions and
-> 185 distinct base-terrain artifacts, with immutable loading and integrity validation.
-> Seven historical map identities remain unresolved. Canonical static collision is released,
-> and the standalone authoritative world-partition core now supports bounded map-local command
-> execution, capped character residency, generation-fenced ownership, and a revocable session
-> admission/cleanup boundary. The readiness-gated GameServer Generic Host now verifies both
-> database schemas, loads canonical content, and supervises authoritative world execution.
-> The GameServer now supports bounded network ingress, authenticated existing-character
-> bootstrap, and independently supervised world-session lifetimes. Independent retail
-> conformance remains ongoing. Account registration, character creation, gameplay packet
-> routing, movement, and combat remain unimplemented.
+## Projects
 
-## Architecture
+| Project                      | Responsibility                                                                     |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| `OpenConquer.Domain`         | Game rules, value types, and invariants.                                           |
+| `OpenConquer.Application`    | Use cases and the persistence and content contracts they depend on.                |
+| `OpenConquer.Infrastructure` | MySQL persistence, security primitives, rate limiting, and content loading.        |
+| `OpenConquer.Protocol`       | Wire formats: framing, serialization, text encoding, cryptography, and packets.    |
+| `OpenConquer.Transport`      | TCP connections, buffering, admission, and backpressure.                           |
+| `OpenConquer.AccountServer`  | Account login host.                                                                |
+| `OpenConquer.GameServer`     | Game host: connection handling, character login, and world execution.              |
+| `OpenConquer.GameData.Tool`  | Offline tool that imports client data files and generates the server's content.    |
 
-OpenConquer is a modular monolith with two executable host boundaries.
+Dependencies point inward: hosts compose Application, Infrastructure, Protocol, and Transport;
+Infrastructure implements Application contracts; Application depends only on Domain. See the
+[architecture overview](docs/architecture/README.md).
 
-```mermaid
-flowchart TD
-    AccountServer["OpenConquer.AccountServer"]
-    GameServer["OpenConquer.GameServer"]
+## Getting started
 
-    Application["OpenConquer.Application"]
-    Domain["OpenConquer.Domain"]
-    Infrastructure["OpenConquer.Infrastructure"]
+Requirements:
 
-    Protocol["OpenConquer.Protocol"]
-    Transport["OpenConquer.Transport"]
-    GameDataTool["OpenConquer.GameData.Tool (offline)"]
-
-    AccountServer --> Application
-    AccountServer --> Infrastructure
-    AccountServer --> Protocol
-    AccountServer --> Transport
-
-    GameServer --> Application
-    GameServer --> Infrastructure
-    GameServer --> Protocol
-    GameServer --> Transport
-
-    Infrastructure --> Application
-    Infrastructure --> Domain
-    GameDataTool --> Application
-    GameDataTool --> Domain
-    GameDataTool --> Infrastructure
-    Application --> Domain
-```
-
-### Projects
-
-| Project                        | Responsibility                                                                                                                                                       |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OpenConquer.Domain**         | Account, character, item, social, skill, and syndicate rules, state, value objects, and invariants.                                                                  |
-| **OpenConquer.Application**    | Authentication, account security, GameServer login-ticket orchestration, character-login resolution, and gameplay persistence/hydration contracts.                  |
-| **OpenConquer.Infrastructure** | Accounts/Game MySQL persistence, password/security infrastructure, abuse protection, database readiness, and canonical static-content loading.                      |
-| **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and verified AccountServer/GameServer packet contracts.                                |
-| **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
-| **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer**     | Readiness-gated world hosting, bounded TCP ingress, authenticated existing-character bootstrap, supervised world sessions, and authoritative execution; gameplay remains future. |
-| **OpenConquer.GameData.Tool**  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                                             |
-
-## Current AccountServer Login Flow
-
-```text
-validated host configuration
-    ↓
-database/schema readiness
-    ↓
-TCP listener
-    ↓
-per-source connection admission
-    ↓
-bounded global admission
-    ↓
-fixed login workers
-    ↓
-LoginConnectionSession
-    ↓
-1059 login seed
-    ↓
-1060 standard credential request
-    ↓
-AccountAuthenticator
-    ↓
-durable GameLoginTicket grant
-    ↓
-1055 authentication response
-    ↓
-1100 MAC report
-    ↓
-1052 res.dat version report
-```
-
-A successful `1055` is not sent until the GameServer login ticket has been durably granted.
-
-The AccountServer supports the standard 5517 `1060` credential path. Protected/mobile login variants
-are recognized as unsupported and fail closed.
-
-The login listener is not exposed until account database readiness succeeds. Pre-authentication
-connection admission and authentication work are bounded independently. Fatal background-service
-failures trigger graceful host shutdown and result in a nonzero process exit code.
-
-## Documentation
-
-### Architecture
-
-- [Architecture overview](docs/architecture/README.md)
-- [Networking architecture](docs/architecture/networking.md)
-- [Authentication and password migration](docs/architecture/authentication.md)
-- [World execution](docs/architecture/world-execution.md)
-- [Server baseline audit](docs/audits/server-baseline.md)
-- [AccountServer operations](docs/operations/account-server.md)
-- [GameServer operations](docs/operations/game-server.md)
-
-### Protocol
-
-- [Conquer Online 5517 protocol reference](docs/protocol/README.md)
-
-## Repository Layout
-
-```text
-src/
-├── OpenConquer.AccountServer/
-├── OpenConquer.Application/
-├── OpenConquer.Domain/
-├── OpenConquer.GameServer/
-├── OpenConquer.Infrastructure/
-├── OpenConquer.Protocol/
-└── OpenConquer.Transport/
-
-tests/
-├── OpenConquer.AccountServer.Tests/
-├── OpenConquer.Application.Tests/
-├── OpenConquer.Domain.Tests/
-├── OpenConquer.GameData.Tool.Tests/
-├── OpenConquer.GameServer.Tests/
-├── OpenConquer.Infrastructure.Tests/
-├── OpenConquer.Protocol.Tests/
-└── OpenConquer.Transport.Tests/
-
-tools/
-└── OpenConquer.GameData.Tool/
-
-content/
-├── items/
-└── maps/
-
-docs/
-├── architecture/
-├── audits/
-└── protocol/
-```
-
-Database schema changes are versioned through EF Core migrations in `OpenConquer.Infrastructure`.
-
-Integration tests provision temporary MySQL 8.4 databases with Testcontainers and apply the
-repository migrations before exercising persistence code.
-
-## Requirements
-
-- .NET SDK 10.0.400
-- Docker for MySQL integration tests
-
-## Build
+- .NET SDK 10.0.400 (pinned in `global.json`)
+- MySQL 8.4 for running the servers
+- Docker for the database integration tests
 
 ```bash
-dotnet restore OpenConquer.Server.slnx
+dotnet restore OpenConquer.Server.slnx --locked-mode
 dotnet build OpenConquer.Server.slnx -c Release --no-restore
-```
-
-## Tests
-
-Run the complete suite:
-
-```bash
 dotnet test OpenConquer.Server.slnx -c Release --no-build
-```
-
-Run the protocol suite:
-
-```bash
-dotnet test tests/OpenConquer.Protocol.Tests/OpenConquer.Protocol.Tests.csproj -c Release --no-build
-```
-
-Tests use **xUnit v3** on **Microsoft Testing Platform**.
-
-Coverage is available through `coverlet.MTP`:
-
-```bash
-dotnet test tests/OpenConquer.Protocol.Tests/OpenConquer.Protocol.Tests.csproj -c Release --no-build --coverlet
-```
-
-## Formatting
-
-```bash
 dotnet format OpenConquer.Server.slnx --verify-no-changes --no-restore
 ```
 
-## Continuous Integration
+Tests use xUnit v3 on Microsoft Testing Platform. Database tests start temporary MySQL containers
+with Testcontainers and apply the repository migrations. Add `--coverlet` to a test command for
+coverage.
 
-GitHub Actions runs on pull requests targeting `main` and pushes to `main`.
+To run the servers, follow the [AccountServer](docs/operations/account-server.md) and
+[GameServer](docs/operations/game-server.md) operations guides.
 
-CI verifies:
+## Repository layout
 
-- locked dependency restore;
-- formatting;
-- Release build;
-- account and game EF Core model/migration consistency;
-- complete test suite;
-- pull-request dependency vulnerability review.
+```text
+src/        Production projects
+tests/      One test project per production project, mirroring its folder structure
+tools/      Offline content tooling
+content/    Content shipped with the GameServer (item types, maps)
+docs/       Architecture, protocol, content, and operations documentation
+```
 
-Dependabot monitors NuGet packages, the pinned .NET SDK, and GitHub Actions dependencies.
+## Continuous integration
+
+GitHub Actions runs on every pull request to `main` and every push to `main`. It restores with
+locked dependencies, checks formatting, builds in Release with warnings as errors, verifies that
+both EF Core models match their migrations, runs the full test suite, and reviews dependency
+changes. Dependabot tracks NuGet packages, the .NET SDK, and GitHub Actions.
 
 ## Disclaimer
 
-OpenConquer Server is an independent open-source project and is not affiliated with or endorsed by
-the original game publisher or developers.
-
-Conquer Online and related names and assets belong to their respective owners.
+OpenConquer is an independent project and is not affiliated with or endorsed by the publisher or
+developers of Conquer Online. Conquer Online and related names and assets belong to their
+respective owners.

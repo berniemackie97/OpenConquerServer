@@ -6,7 +6,7 @@ using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Hosting;
 using OpenConquer.AccountServer.Login.Observability;
 using OpenConquer.AccountServer.Maintenance;
-using OpenConquer.Infrastructure.Accounts.Extensions;
+using OpenConquer.Infrastructure.DependencyInjection;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Sockets;
 

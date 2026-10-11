@@ -1,12 +1,17 @@
-using OpenConquer.GameServer.Login.Character.Bootstrap;
-using OpenConquer.GameServer.Login.Character.Resolution;
-using OpenConquer.GameServer.Login.WorldEntry;
+using OpenConquer.GameServer.Login.Bootstrap;
+using OpenConquer.GameServer.Login.Bootstrap.Items;
+using OpenConquer.GameServer.Login.Bootstrap.Maps;
+using OpenConquer.GameServer.Login.Bootstrap.Reports;
+using OpenConquer.GameServer.Login.Bootstrap.Skills;
+using OpenConquer.GameServer.Login.Bootstrap.Social;
+using OpenConquer.GameServer.Login.Bootstrap.Syndicates;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Sessions;
 
 namespace OpenConquer.GameServer.Login.Hosting;
 
 /// <summary>
-/// Advances one authenticated existing-character connection through the verified native bootstrap sequence.
+/// Advances one authenticated existing-character connection through the client bootstrap sequence.
 /// </summary>
 internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBootstrapProcessor bootstrap, ExistingCharacterEnterMapProcessor enterMap, ExistingCharacterMapStateAppliedProcessor mapStateApplied, ExistingCharacterItemSetProcessor itemSet, ExistingCharacterFriendListProcessor friendList, ExistingCharacterWeaponSkillSetProcessor weaponSkills, ExistingCharacterMagicSetProcessor magic, ExistingCharacterSyndicateAttributesProcessor syndicate, ExistingCharacterSilentInfoReportProcessor silentInfo, ExistingCharacterStatisticsRequestProcessor statistics, WorldSessionAdmissionProcessor admission)
 {
@@ -34,7 +39,7 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
         AwaitingMagicSetConnection awaitingMagic = await _weaponSkills.ProcessAsync(awaitingWeaponSkills, cancellationToken).ConfigureAwait(false);
         AwaitingSyndicateAttributesConnection awaitingSyndicate = await _magic.ProcessAsync(awaitingMagic, cancellationToken).ConfigureAwait(false);
         AwaitingSilentInfoReportConnection awaitingSilentInfo = await _syndicate.ProcessAsync(awaitingSyndicate, cancellationToken).ConfigureAwait(false);
-        AwaitingStatisticRequestConnection awaitingStatistics = await _silentInfo.ProcessAsync(awaitingSilentInfo, cancellationToken).ConfigureAwait(false);
+        AwaitingStatisticsRequestConnection awaitingStatistics = await _silentInfo.ProcessAsync(awaitingSilentInfo, cancellationToken).ConfigureAwait(false);
         ExistingCharacterBootstrapCompleteConnection completed = await _statistics.ProcessAsync(awaitingStatistics, cancellationToken).ConfigureAwait(false);
 
         return await _admission.ProcessAsync(completed, cancellationToken).ConfigureAwait(false);

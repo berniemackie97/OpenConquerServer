@@ -1,8 +1,7 @@
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Represents the decoded fields of the native client-to-AccountServer
-/// post-authentication MAC-address report packet 1100.
+/// Decoded post-authentication MAC address report (packet 1100).
 /// </summary>
 /// <remarks>
 /// The reported hardware address is client-controlled telemetry and must not be
@@ -21,8 +20,7 @@ public sealed class LoginAccountMacAddressReport
     public uint SessionUid { get; }
 
     /// <summary>
-    /// Gets the client-reported hardware address text. The verified native
-    /// client normally sends twelve uppercase hexadecimal characters or an
+    /// Gets the client-reported hardware address text. The client normally sends twelve uppercase hexadecimal characters or an
     /// empty value when hardware discovery fails.
     /// </summary>
     public string MacAddress { get; }

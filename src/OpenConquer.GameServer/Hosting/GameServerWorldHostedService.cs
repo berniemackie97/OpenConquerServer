@@ -10,7 +10,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Readiness;
 namespace OpenConquer.GameServer.Hosting;
 
 /// <summary>
-/// Verifies required databases and canonical content before publishing and supervising authoritative world execution.
+/// Verifies both databases and the map content, then publishes and supervises the world runtime.
 /// </summary>
 internal sealed partial class GameServerWorldHostedService(
     IAccountDatabaseReadinessVerifier accountReadiness,

@@ -1,6 +1,6 @@
 using OpenConquer.Application.World;
+using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
-using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.World.Execution;
 
 namespace OpenConquer.GameServer.World.Sessions;

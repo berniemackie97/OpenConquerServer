@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Serialization;
 
 /// <summary>
-/// Writes primitive values and TQ protocol strings sequentially into caller owned memory.
+/// Writes primitive values and protocol strings sequentially into caller-owned memory.
 /// </summary>
 public ref struct PacketWriter(Span<byte> buffer)
 {
@@ -74,17 +74,17 @@ public ref struct PacketWriter(Span<byte> buffer)
         _written += sizeof(ulong);
     }
 
-    public void WriteFixedString(string value, int width, TqTextEncoding encoding = TqTextEncoding.Ansi)
+    public void WriteFixedString(string value, int width, WireTextEncoding encoding = WireTextEncoding.Ansi)
     {
         ArgumentNullException.ThrowIfNull(value);
         ArgumentOutOfRangeException.ThrowIfNegative(width);
 
         if (value.Contains('\0'))
         {
-            throw new ArgumentException("Fixed-width TQ strings must not contain embedded null characters.", nameof(value));
+            throw new ArgumentException("Fixed-width strings must not contain embedded null characters.", nameof(value));
         }
 
-        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        Encoding selectedEncoding = WireTextEncodingResolver.Resolve(encoding);
         int byteCount = selectedEncoding.GetByteCount(value);
 
         if (byteCount > width)
@@ -103,11 +103,11 @@ public ref struct PacketWriter(Span<byte> buffer)
         _written += width;
     }
 
-    public void WriteByteString(string value, TqTextEncoding encoding = TqTextEncoding.Ansi)
+    public void WriteByteString(string value, WireTextEncoding encoding = WireTextEncoding.Ansi)
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        Encoding selectedEncoding = WireTextEncodingResolver.Resolve(encoding);
         int byteCount = selectedEncoding.GetByteCount(value);
 
         if (byteCount > byte.MaxValue)
@@ -127,16 +127,16 @@ public ref struct PacketWriter(Span<byte> buffer)
         _written += fieldLength;
     }
 
-    public void WriteNullTerminatedString(string value, TqTextEncoding encoding = TqTextEncoding.Ansi)
+    public void WriteNullTerminatedString(string value, WireTextEncoding encoding = WireTextEncoding.Ansi)
     {
         ArgumentNullException.ThrowIfNull(value);
 
         if (value.Contains('\0'))
         {
-            throw new ArgumentException("Null-terminated TQ strings must not contain embedded null characters.", nameof(value));
+            throw new ArgumentException("Null-terminated strings must not contain embedded null characters.", nameof(value));
         }
 
-        Encoding selectedEncoding = TqEncoding.Resolve(encoding);
+        Encoding selectedEncoding = WireTextEncodingResolver.Resolve(encoding);
         int byteCount = selectedEncoding.GetByteCount(value);
         int fieldLength = checked(byteCount + sizeof(byte));
         Span<byte> destination = GetWritableSpan(fieldLength);

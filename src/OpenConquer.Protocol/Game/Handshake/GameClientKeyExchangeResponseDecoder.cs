@@ -4,22 +4,8 @@ using OpenConquer.Protocol.Game.Cryptography;
 
 namespace OpenConquer.Protocol.Game.Handshake;
 
-public enum GameClientKeyExchangeDecodeStatus
-{
-    Success = 0,
-    NeedMoreData,
-    InvalidDeclaredLength,
-    InvalidSignature,
-    InvalidPayload,
-}
-
-public readonly record struct GameClientKeyExchangeDecodeResult(GameClientKeyExchangeDecodeStatus Status, int BytesConsumed, int RequiredBytes, string? ClientPublicKeyHex)
-{
-    public bool Succeeded => Status == GameClientKeyExchangeDecodeStatus.Success;
-}
-
 /// <summary>
-/// Incrementally identifies and decodes the bootstrap-encrypted 5517 client
+/// Incrementally identifies and decodes the bootstrap-encrypted client
 /// Diffie-Hellman response without consuming bytes from a following secured packet.
 /// </summary>
 public static class GameClientKeyExchangeResponseDecoder

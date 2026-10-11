@@ -1,8 +1,7 @@
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Represents the decoded fields of the native client-to-AccountServer
-/// resource-version report packet 1052.
+/// Decoded resource version report (AccountServer form of packet 1052).
 /// </summary>
 public sealed class LoginAccountResourceVersionReport
 {
@@ -26,7 +25,7 @@ public sealed class LoginAccountResourceVersionReport
     /// Gets the client-reported resource file name.
     /// </summary>
     /// <remarks>
-    /// The verified retail client sends <c>res.dat</c>. Whether another value
+    /// The client sends <c>res.dat</c>. Whether another value
     /// is accepted is AccountServer policy rather than packet structure.
     /// </remarks>
     public string ResourceName { get; }

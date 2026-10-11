@@ -5,7 +5,7 @@ namespace OpenConquer.Protocol.Tests.Game;
 public sealed class GameWireProtocolTests
 {
     [Fact]
-    public void Constants_Match5517GameTransport()
+    public void Constants_MatchGameTransport()
     {
         Assert.Equal(0x400, GameWireProtocol.MaximumPacketLength);
         Assert.Equal(8, GameWireProtocol.SignatureLength);

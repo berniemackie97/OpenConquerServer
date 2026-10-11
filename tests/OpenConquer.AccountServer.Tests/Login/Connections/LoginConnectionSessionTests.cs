@@ -42,7 +42,7 @@ public sealed class LoginConnectionSessionTests
     }
 
     [Fact]
-    public async Task OpenAsync_SendsVerifiedEncryptedSeedBeforeReturning()
+    public async Task OpenAsync_SendsEncryptedSeedBeforeReturning()
     {
         TestTransportConnection connection = new();
 

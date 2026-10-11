@@ -3,20 +3,6 @@ using System.Collections.Immutable;
 
 namespace OpenConquer.GameData.Tool.Formats.Maps;
 
-internal readonly record struct TerrainObjectCell(ushort PassabilityFlag, ushort SurfaceId, short ElevationDelta);
-
-internal readonly record struct TerrainObjectEntry(int Width, int Height, int AnchorTileOffsetX, int AnchorTileOffsetY, ImmutableArray<TerrainObjectCell> Cells);
-
-internal sealed class TerrainObjectList
-{
-    internal TerrainObjectList(ImmutableArray<TerrainObjectEntry> entries)
-    {
-        Entries = entries;
-    }
-
-    public ImmutableArray<TerrainObjectEntry> Entries { get; }
-}
-
 internal static class TerrainObjectListReader
 {
     private const int ResourcePathsLength = 0x140;

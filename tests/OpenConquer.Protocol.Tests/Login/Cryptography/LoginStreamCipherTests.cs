@@ -5,7 +5,7 @@ namespace OpenConquer.Protocol.Tests.Login.Cryptography;
 public sealed class LoginStreamCipherTests
 {
     [Fact]
-    public void EncryptOutbound_MatchesVerifiedLoginSeedFrameVector()
+    public void EncryptOutbound_MatchesLoginSeedFrameVector()
     {
         LoginStreamCipher cipher = new();
 
@@ -17,7 +17,7 @@ public sealed class LoginStreamCipherTests
     }
 
     [Fact]
-    public void DecryptInbound_MatchesVerifiedNativeEndpointVector()
+    public void DecryptInbound_MatchesClientVector()
     {
         LoginStreamCipher cipher = new();
 

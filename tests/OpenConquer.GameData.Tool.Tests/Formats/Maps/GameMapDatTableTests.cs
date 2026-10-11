@@ -46,7 +46,7 @@ public sealed class GameMapDatTableTests
     }
 
     [Fact]
-    public void Parse_PathExceedingNativeSlot_IsRejected()
+    public void Parse_PathExceedingFieldWidth_IsRejected()
     {
         string path = new string('a', GameMapDatTable.MaximumPathBytes) + ".7z";
 

@@ -8,7 +8,7 @@ using OpenConquer.Protocol.Game.Cryptography;
 namespace OpenConquer.Protocol.Game.Handshake;
 
 /// <summary>
-/// Owns one server-side Diffie-Hellman exchange for the 5517 GameServer transport.
+/// Owns one server-side Diffie-Hellman exchange for the GameServer transport.
 /// </summary>
 public sealed class GameHandshakeExchange : IDisposable
 {
@@ -135,7 +135,7 @@ public sealed class GameHandshakeExchange : IDisposable
                         throw new CryptographicException("The Diffie-Hellman shared secret exceeded the negotiated group size.");
                     }
 
-                    // Native OpenSSL DH_compute_key writes the minimal big-endian
+                    // OpenSSL DH_compute_key, as used by the client, writes the minimal big-endian
                     // secret at the beginning of a zeroed DH_size-sized buffer.
                     sharedSecretBytes.CopyTo(sessionKeyMaterial, 0);
                 }

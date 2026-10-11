@@ -13,17 +13,16 @@ using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Login.Observability;
-using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Transport.Admission;
-using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.GameServer.Tests.Login.Hosting;
 

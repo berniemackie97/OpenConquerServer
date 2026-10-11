@@ -1,591 +1,123 @@
-# Account Authentication
+# Authentication
 
-This document defines authentication and game-login security invariants.
+A player authenticates with the AccountServer, which issues a short-lived, single-use ticket. The
+GameServer redeems that ticket to establish who the connection belongs to. This document covers
+the rules behind each step. The connection flow is in [Networking](networking.md) and the packet
+layouts are in the [protocol documentation](../protocol/README.md).
 
-General architecture is documented in [Architecture](README.md). Network/session behavior is
-documented in [Networking](networking.md). Wire behavior is documented in the
-[Protocol Reference](../protocol/README.md).
+## Credentials
 
-## Credential Contract
+| Field    | Rule                                                                                  |
+| -------- | ------------------------------------------------------------------------------------- |
+| Username | Surrounding whitespace trimmed; 1–32 characters; case and inner whitespace preserved  |
+| Password | 1–128 characters; never trimmed or normalized; never retained after verification      |
 
-| Field    | Contract                                                                             |
-| -------- | ------------------------------------------------------------------------------------ |
-| Username | Trim surrounding whitespace; 1–32 characters; preserve case and internal whitespace  |
-| Password | 1–128 characters; never trim or normalize; never retain caller-owned password memory |
+Credentials that break these rules fail as `InvalidCredentials` before any database or password
+work. The wire fields are larger (128 bytes each). The client's password keypad transform is keyed
+on the raw account bytes, so it runs before the username is trimmed.
 
-Invalid credential shape returns `InvalidCredentials` before persistence or password derivation.
+`AccountAuthenticator` returns `Success`, `InvalidCredentials`, or `Banned`. A success carries the
+account ID, the stored username, and the current account-state and password revisions. The
+revisions let the ticket grant detect that the account changed after authentication.
 
-Native packet limits are separate from application limits:
+Unknown accounts still run a decoy password verification, and the password is checked before a
+ban is revealed, so response timing and content do not disclose which accounts exist.
 
-| Field              | Wire limit |
-| ------------------ | ---------: |
-| Account            |  128 bytes |
-| Credential         |  128 bytes |
-| Transformed secret |   32 bytes |
+## Rate limiting
 
-The native keypad transform uses the original account bytes before application username trimming.
-
-## Authentication
-
-`AccountAuthenticator` returns:
-
-```text
-Success
-InvalidCredentials
-Banned
-```
-
-Successful authentication includes:
-
-- account ID;
-- canonical username;
-- account-state revision;
-- password-credential revision.
-
-The revisions prevent a stale authentication result from receiving a game-login ticket after an
-authentication-invalidating state change.
-
-Authentication alone does not authorize GameServer access.
-
-## Authentication Protection
-
-Default production limits:
-
-| Control                                       |   Default |
+| Limit                                         |   Default |
 | --------------------------------------------- | --------: |
 | Requests per source                           | 30/minute |
 | Concurrent requests per source                |         4 |
-| Global concurrent requests                    |        32 |
-| Concurrent password attempts per account      |         2 |
-| Failed attempts before source/account lockout |         8 |
-| Failure window                                | 5 minutes |
-| Lockout                                       | 5 minutes |
-| Tracked-state limit                           |   100,000 |
-
-Additional invariants:
-
-- IPv4-mapped IPv6 normalizes to IPv4;
-- native IPv6 is grouped by `/64`;
-- protection uses monotonic `TimeProvider` time;
-- tracked state is bounded and fails closed under unrecoverable capacity pressure;
-- account misses perform decoy password verification;
-- password verification occurs before banned status is exposed.
-
-## Password Storage
-
-Supported formats:
-
-| Format                            | Purpose   | KDF                                    |
-| --------------------------------- | --------- | -------------------------------------- |
-| `$openconquer$pbkdf2-sha256$v=1$` | Current   | PBKDF2-HMAC-SHA256, 600,000 iterations |
-| `$openconquer$identity-v3$`       | Migration | PBKDF2-HMAC-SHA512, 220,000 iterations |
-
-Both use a 16-byte salt and 32-byte derived key.
-
-Unsupported or malformed password records fail closed.
-
-A successful Identity V3 login may migrate to the current format using compare-and-swap.
-
-Transparent migration:
-
-```text
-password credential Revision++
-password_changed_at_utc unchanged
-outstanding game-login tickets preserved
-```
-
-Explicit password reset changes the secret and revokes outstanding tickets.
-
-## Game-Login Ticket Grant
-
-`GameLoginTicketIssuer` creates a durable five-minute ticket after successful authentication.
-
-Client-visible ticket credentials remain:
-
-```text
-SessionUid
-AuthenticationKey
-```
-
-Both values are nonzero.
-
-MySQL is authoritative for ticket issue and expiration timestamps.
-
-Ticket grant transaction lock order:
-
-```text
-accounts
-    ↓
-account_password_credentials
-    ↓
-game_login_tickets
-```
-
-Grant requires the authenticated account identity and both authentication revisions to still match
-durable state.
-
-Therefore:
-
-```text
-security mutation commits first
-    -> stale authentication cannot receive a ticket
-
-ticket grant commits first
-    -> later invalidating mutation revokes the ticket
-```
-
-A successful AccountServer `1055` is not sent until the ticket grant commits.
-
-See [Networking](networking.md) for the complete AccountServer transaction.
-
-## Authentication-Key Protection
-
-The raw 32-bit `AuthenticationKey` is required by the native client but is not stored directly.
-
-Persistence stores:
-
-- `SessionUid`;
-- account identity;
-- issue/expiration timestamps;
-- HMAC-SHA256 authentication-key verifier;
-- verifier key ID.
-
-The verifier binds `SessionUid` and `AuthenticationKey`.
-
-Verification uses fixed-time comparison.
-
-Verification keys are externally supplied server secrets. Historical keys may remain configured
-during rotation. Unknown key IDs fail closed.
-
-AccountServer configuration supplies the active verification-key ID and encoded verification-key set
-during startup.
-
-The encoded configuration is decoded when the authentication infrastructure is composed. The
-resulting key ring owns the decoded key bytes and clears them when the service provider is disposed.
-
-Cross-host secret deployment and key-rotation orchestration remain deployment responsibilities and
-are not yet implemented.
-
-## Security Mutations
-
-Supported durable account-security operations include:
-
-- access-status changes;
-- authority-role changes;
-- soft delete and restore;
-- explicit password reset.
-
-Account `StateRevision` advances for access-status, authority-role, deletion, and restoration
-changes.
-
-Password credential `Revision` advances for explicit password reset and transparent password
-migration.
-
-Outstanding game-login tickets are revoked when a committed mutation invalidates previously
-authenticated credentials:
-
-| Mutation                       | Revoke tickets |
-| ------------------------------ | -------------- |
-| Explicit password reset        | Yes            |
-| Active → Suspended             | Yes            |
-| Active → Banned                | Yes            |
-| Suspended → Banned             | Yes            |
-| Soft delete                    | Yes            |
-| Reactivation / unban           | No             |
-| Restore                        | No             |
-| Authority-role change          | No             |
-| Transparent password migration | No             |
-
-Mutation and ticket-grant persistence use compatible lock ordering.
-
-## Ticket Redemption
-
-`GameLoginTicketRedeemer` requires:
-
-- nonzero `SessionUid`;
-- nonzero `AuthenticationKey`;
-- remote source address for attempt protection.
-
-Redemption locks the ticket, checks database-authoritative expiration, verifies the authentication
-key, deletes the exact ticket, and commits before authorization succeeds.
-
-| Ticket state | Result                    |
-| ------------ | ------------------------- |
-| Missing      | Deny                      |
-| Expired      | Deny; leave for cleanup   |
-| Wrong key    | Deny; preserve ticket     |
-| Valid        | Delete, commit, authorize |
-
-Concurrent valid redemption attempts serialize on the ticket row. At most one succeeds.
-
-The authorized identity contains account ID, canonical username, and `SessionUid`; the raw
-authentication key is not retained.
-
-## GameServer Authentication
-
-The GameServer native compatibility-channel handoff validates the first protected frame as the
-native `1052` login proof before ticket redemption.
-
-`GameConnectionAuthenticator` supplies the login proof's `SessionUid`, `AuthenticationKey`, and the
-connection's remote IP address to `GameLoginTicketRedeemer`.
-
-A missing, expired, incorrect, or already-consumed ticket is an authorization rejection. Malformed
-protocol data, infrastructure failure, and cancellation remain distinct failures.
-
-Successful redemption transfers the authenticated identity and live protected session into
-`AuthenticatedGameConnection`. The raw `AuthenticationKey` is not retained.
-
-The native compatibility channel provides stock 5517 encrypted transport compatibility. It is not
-modern authenticated transport and does not establish server endpoint identity.
-
-See [Networking](networking.md) for connection ownership and compatibility-channel handoff behavior.
-
-## Character Login Resolution
-
-Successful GameServer authentication establishes the canonical account identity used for character
-lookup.
-
-```text
-AuthenticatedGameConnection
-    ↓
-account ID
-    ↓
-ICharacterLoginResolver
-    ↓
-CharacterCreation | ExistingCharacter
-```
-
-`CharacterLoginResolver` queries the character-login persistence contract using the authenticated
-account ID.
-
-Resolution returns:
-
-| Durable character state | Route               |
-| ----------------------- | ------------------- |
-| No character            | `CharacterCreation` |
-| Existing character      | `ExistingCharacter` |
-
-An existing-character result includes a validated `CharacterLoginProfile` containing the persisted
-state required by the implemented bootstrap path.
-
-The returned profile must belong to the authenticated account. A mismatched persisted account
-identity is an invariant failure rather than a usable login result.
-
-`CharacterLoginHandoffProcessor` owns the authenticated connection while resolution is in progress.
-
-```text
-resolution succeeds
-    -> transfer the same authenticated connection with the resolved route
-
-resolution fails
-    -> dispose the owned authenticated connection
-
-caller already canceled
-    -> do not invoke character resolution; dispose the owned connection
-
-resolution fails and cleanup also fails
-    -> preserve both failures
-```
-
-The connection is not replaced, parked, or converted into a separate transport session between
-ticket redemption and character resolution.
-
-Existing-character results continue on the same owned authenticated connection through the
-implemented bootstrap progression: canonical map-content resolution, map entry,
-client-state-applied, item-set resolution, friend/social hydration, weapon-skill hydration, magic
-hydration, syndicate attributes, silent-info reporting, and the final `0x84` statistics request.
-At `ExistingCharacterBootstrapCompleteConnection`, the live connection can now be transferred
-exactly once through `WorldSessionAdmissionProcessor` into a `WorldSession` with canonical map
-identity and authoritative world ownership. GameServer network ingress now composes the
-verified existing-character pipeline after canonical world and item-content readiness.
-Character-creation requests and gameplay dispatch remain unimplemented routes.
-
-## Game Character Persistence
-
-Accounts and characters are separate persistence boundaries.
-
-The Accounts database owns:
-
-- account identity;
-- password credentials;
-- account security state;
-- durable game-login tickets.
-
-The Game database owns the persisted character-login profile together with character-owned item,
-social-relation, weapon-skill, and magic state required by the implemented login bootstrap.
-
-The Game database does not use a cross-database foreign key to the Accounts database. Successful
-single-use ticket redemption establishes the trusted account identity supplied to character
-resolution.
-
-The initial Game character schema enforces:
-
-- one character per account;
-- unique character names;
-- nonzero account IDs;
-- character-name structural length of 4–15 characters;
-- nonzero appearance;
-- level range 1–140;
-- nonzero profession;
-- nonzero map ID.
-
-Player entity IDs begin at `1,000,000`. The initial migration seeds the character identity sequence
-at that boundary. Runtime application validation rejects persisted identities outside the player
-entity range.
-
-Persisted character-login state includes:
-
-- character and account identity;
-- character name;
-- appearance and hair;
-- level and experience;
-- current, first, and previous profession;
-- rebirth count;
-- attributes and unspent attribute points;
-- current life and mana;
-- silver, Conquer Points, and bound Conquer Points;
-- PK points;
-- title and enlightenment points;
-- map ID and position.
-
-Character-login reads are no-tracking bounded persistence operations and map persistence records
-into validated application models.
-
-Character creation writes, gameplay mutation, checkpointing, and world-state durability semantics
-remain separate future boundaries.
-
-## Game Database Readiness
-
-Game persistence has an explicit schema compatibility contract.
-
-`GameDatabaseReadinessVerifier` validates:
-
-- database character set;
-- database collation;
-- schema compatibility marker;
-- expected schema version;
-- expected migration identity.
-
-A database query failure remains distinguishable from a schema compatibility failure.
-
-The initial character schema uses `utf8mb4` database defaults and binary collation for character
-names so uniqueness remains case-sensitive and preserves the intended legacy name-comparison
-behavior.
-
-The Game persistence registration exposes:
-
-- pooled `GameDbContext` creation;
-- `ICharacterLoginProfileRepository`;
-- `ICharacterItemSetRepository`;
-- `ICharacterSocialRelationSetRepository`;
-- `ICharacterWeaponSkillSetRepository`;
-- `ICharacterMagicSetRepository`;
-- `IGameDatabaseReadinessVerifier`.
-
-The GameServer Generic Host executes Accounts and Game database schema-readiness checks before
-loading canonical world content and publishing its running authoritative world.
-
-CI independently verifies that both `AccountDbContext` and `GameDbContext` have no pending EF Core
-model changes relative to their committed migrations.
-
-## Redemption Protection
-
-Default production limits:
-
-| Control                                |   Default |
-| -------------------------------------- | --------: |
-| Attempts per source                    | 30/minute |
-| Concurrent attempts per source         |         4 |
-| Concurrent attempts per `SessionUid`   |         1 |
-| Failed attempts before session lockout |         8 |
-| Failure window                         | 5 minutes |
-| Lockout                                | 5 minutes |
-| Global concurrent attempts             |       512 |
-| Tracked-state limit                    |   100,000 |
-
-Protection uses monotonic time and bounded state.
-
-## Expired-Ticket Cleanup
-
-Cleanup is bounded maintenance; it does not determine authorization.
-
-Infrastructure owns expiration eligibility and bounded deletion:
-
-| Property                   |   Default |
-| -------------------------- | --------: |
-| Expiration grace           | 5 minutes |
-| Maximum rows per batch     |     1,000 |
-| Maximum configurable batch |    10,000 |
-
-Eligibility uses MySQL time.
-
-AccountServer owns scheduling and the maximum number of batches processed per maintenance run.
-
-Cleanup runs immediately when its hosted service starts and then on the configured interval.
-
-A partial batch ends the current run early. The configured maximum batch count prevents an
-accumulated cleanup backlog from monopolizing the process.
-
-Transient cleanup failures are logged and retried on the next scheduled run.
-
-A violated cleaner invariant faults the maintenance background service so the host can terminate
-rather than continue in an unknown state.
-
-## Durable Operation Rule
-
-Ticket grant, account-security mutation, and ticket redemption follow the same durability rule:
-
-```text
-before commit
-    -> cancellation may rollback
-
-commit phase entered
-    -> commit is non-cancelable
-
-success
-    -> returned only after commit succeeds
-```
-
-Ambiguous commit outcomes are not blindly retried.
-
-Character-login resolution is read-only and does not participate in this commit rule.
-
-Future character creation and consequential gameplay mutations must define their own durability and
-acknowledgement boundaries before writes are introduced.
-
-## Production Login Composition
-
-`AddAccountLoginInfrastructure` composes the AccountServer authentication graph:
-
-- account persistence;
-- authentication protection;
-- password hashing;
-- `AccountAuthenticator`;
-- game-login ticket grant persistence;
-- cryptographic ticket token generation;
-- `GameLoginTicketIssuer`;
-- container-owned verification-key ring.
-
-The host supplies:
-
-- account database connection string;
-- `AccountAuthenticationProtectionOptions`;
-- active verification-key ID;
-- encoded verification-key set.
-
-`TimeProvider.System` is used only when the host has not supplied another `TimeProvider`.
-
-This infrastructure boundary does not own:
-
-- database readiness execution;
-- expired-ticket cleanup scheduling;
-- listener or admission lifecycle;
-- login workers;
-- host observability.
-
-Those responsibilities belong to `OpenConquer.AccountServer`.
-
-## Production Redemption Composition
-
-`AddGameLoginTicketRedemptionInfrastructure` composes the GameServer ticket-redemption graph:
-
-- account persistence;
-- redemption attempt protection;
-- container-owned verification-key ring;
-- game-login ticket redemption persistence;
-- `GameLoginTicketRedeemer`.
-
-Verification-key configuration is validated before service registration. The caller-provided encoded
-key sequence is snapshotted before validation and later singleton construction.
-
-`TimeProvider.System` is used only when the host has not supplied another `TimeProvider`.
-
-This infrastructure boundary does not own GameServer listener, admission, worker,
-connection-session, character-login, or gameplay lifecycle.
-
-## Game Persistence Composition
-
-`AddGamePersistence` composes the Game persistence boundary:
-
-- pooled `GameDbContext` creation;
-- character-login profile persistence;
-- bounded character-item persistence hydration;
-- bounded social-relation persistence hydration;
-- bounded weapon-skill persistence hydration;
-- bounded magic persistence hydration;
-- Game database readiness verification.
-
-The persistence registration does not own character-login orchestration, GameServer connection
-ownership, listener lifecycle, character creation processing, or gameplay runtime behavior.
-
-`CharacterLoginResolver` remains an application service over `ICharacterLoginProfileRepository`. The
-future runnable GameServer composition root must connect these boundaries only when it also has a
-legitimate runtime owner for the resolved authenticated connection.
-
-## AccountServer Host Security Boundary
-
-The runnable AccountServer host fails closed during startup.
-
-```text
-load strict deployment configuration
-    ↓
-construct authentication infrastructure
-    ↓
-verify database/schema readiness
-    ↓
-start bounded maintenance
-    ↓
-create login listener
-    ↓
-accept authentication traffic
-```
-
-Invalid configuration, invalid verification-key configuration, or failed database readiness prevents
-the login listener from being exposed.
-
-Login ingress remains bounded independently at transport admission, worker concurrency, and
-authentication-protection boundaries.
-
-Fatal listener or worker failure terminates the supervised login runtime and requests host shutdown.
-
-## Current Status
-
-Implemented:
-
-- runnable AccountServer Generic Host composition;
-- readiness-gated AccountServer startup;
-- bounded admission and fixed login-worker lifecycle;
-- AccountServer runtime observability;
-- AccountServer authentication transaction through durable `1055`;
-- authentication protection and password migration;
-- durable ticket grant and revocation;
-- single-use ticket redemption;
-- bounded redemption protection;
-- GameServer `1052` login-proof authentication;
-- GameServer ticket-redemption infrastructure composition;
-- GameServer authenticated connection handoff;
-- Game character, item, social-relation, weapon-skill, and magic persistence with schema-readiness verification;
-- persisted character-login profile resolution;
-- authenticated account routing to character creation or existing-character login;
-- ownership-safe post-authentication character-login handoff;
-- existing-character bootstrap packet sequence and map entry;
-- bounded item hydration and catalog-aware runtime resolution;
-- native friend/social bootstrap;
-- native weapon-skill bootstrap;
-- native magic, syndicate-attributes, silent-info, and statistics-request bootstrap through `0x84`;
-- canonical world-map resolution before successful bootstrap and ownership-safe map propagation;
-- standalone world-partition execution, bounded character residency, and runtime-instance generation-fenced admission;
-- completed-bootstrap world-session promotion with revocable presence and idempotent cleanup;
-- CI migration-drift verification for Accounts and Game persistence;
-- scheduled bounded expired-ticket cleanup;
-- production AccountServer authentication/game-login dependency composition.
-
-Not yet implemented:
-
-- verification-key deployment and rotation orchestration;
-- least-privilege production database identities;
-- authenticated self-service password changes;
-- staff/admin mutation authorization;
-- character creation request processing and durable creation;
-- gameplay dispatch of admitted world sessions;
-- gameplay authorization, command routing, movement, and world replication.
+| Concurrent requests overall                   |        32 |
+| Concurrent password checks per account        |         2 |
+| Failures per account and source before lockout |         8 |
+| Failure window / lockout                      | 5 minutes |
+| Tracked entries                               |   100,000 |
+
+Sources are normalized the same way as for connection admission (IPv6 grouped by `/64`). Limits use
+monotonic time. If the tracking table is full and cannot be pruned, new requests are refused.
+
+## Password storage
+
+| Format                            | Use       | Algorithm                               |
+| --------------------------------- | --------- | --------------------------------------- |
+| `$openconquer$pbkdf2-sha256$v=1$` | Current   | PBKDF2-HMAC-SHA256, 600,000 iterations  |
+| `$openconquer$identity-v3$`       | Migration | PBKDF2-HMAC-SHA512, 220,000 iterations  |
+
+Both use a 16-byte salt and a 32-byte key. Malformed or unknown records are rejected. A successful
+login with an Identity V3 hash rewrites it in the current format using a compare-and-swap update.
+That migration increments the password revision but keeps the password-changed time and does not
+revoke existing tickets. An explicit password reset does revoke them.
+
+## GameServer tickets
+
+After a successful login, `GameLoginTicketIssuer` creates a ticket that is valid for five minutes.
+The client receives a session ID and an authentication key, both nonzero. The ticket grant locks
+`accounts`, then `account_password_credentials`, then `game_login_tickets`, and succeeds only if the
+account and password revisions still match the authentication result. Combined with ticket
+revocation below, this means:
+
+- if a security change commits first, the stale login cannot receive a ticket;
+- if the ticket commits first, the later security change revokes it.
+
+The database clock decides issue and expiry times. The authentication key is not stored; the
+database keeps an HMAC-SHA256 of the session ID and key together with the ID of the server key
+that produced it. Verification uses a fixed-time comparison. Several server keys can be configured
+at once so keys can be rotated; an unknown key ID is rejected.
+
+### Revocation
+
+Security changes revoke outstanding tickets in the same transaction:
+
+| Change                                      | Revokes tickets |
+| ------------------------------------------- | --------------- |
+| Password reset                              | Yes             |
+| Suspension, ban, or soft delete             | Yes             |
+| Reactivation, unban, or restore             | No              |
+| Authority role change                       | No              |
+| Password hash migration                     | No              |
+
+### Redemption
+
+`GameLoginTicketRedeemer` locks the ticket row, checks expiry against the database clock, verifies
+the key, deletes the ticket, and commits before reporting success. Concurrent redemptions of one
+ticket serialize on the row, so at most one succeeds. A wrong key leaves the ticket in place; an
+expired ticket is left for cleanup. The result carries the account ID, username, and session ID.
+
+| Redemption limit                        |   Default |
+| --------------------------------------- | --------: |
+| Attempts per source                     | 30/minute |
+| Concurrent attempts per source          |         4 |
+| Concurrent attempts per session ID      |         1 |
+| Failures per session ID before lockout  |         8 |
+| Failure window / lockout                | 5 minutes |
+| Concurrent attempts overall             |       512 |
+| Tracked entries                         |   100,000 |
+
+### Cleanup
+
+The AccountServer deletes expired tickets on a schedule, starting immediately and then at the
+configured interval. Each run deletes in batches of up to 1,000 rows (configurable up to 10,000)
+after a five-minute grace period, stops at the first partial batch, and processes at most a
+configured number of batches. Transient failures are retried on the next run. Cleanup never
+decides whether a ticket is valid; redemption does that.
+
+## Commit rule
+
+Ticket grants, security changes, and redemptions follow the same rule: before commit, cancellation
+rolls back; once the commit starts it cannot be cancelled; success is reported only after the
+commit succeeds. Future writes such as character creation must define the same boundary before
+they are added.
+
+## Service registration
+
+| Extension                                     | Registers                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `AddAccountLoginInfrastructure`               | Account persistence, rate limiting, password hashing, authenticator, ticket issuance, key ring |
+| `AddGameLoginTicketRedemptionInfrastructure`  | Account persistence, redemption limits, key ring, ticket redeemer |
+
+Both live in `OpenConquer.Infrastructure.DependencyInjection`. The key ring decodes the configured
+keys once and clears them when the service provider is disposed. Both use `TimeProvider.System`
+unless the host registers another. Listeners, workers, readiness checks, and cleanup scheduling
+belong to the hosts.

@@ -13,7 +13,7 @@ public sealed class LoginPasswordKeypadDecoderTests
     [InlineData("Alice", "C4", "1")]
     [InlineData("Alice", "17", "-")]
     [InlineData("Alice", "97", "_")]
-    public void Decode_MatchesVerifiedNativeVectors(
+    public void Decode_MatchesReferenceVectors(
         string accountName,
         string encodedHex,
         string expectedPassword
@@ -59,7 +59,7 @@ public sealed class LoginPasswordKeypadDecoderTests
     }
 
     [Fact]
-    public void Decode_StopsAtUnmappedNativeValue()
+    public void Decode_StopsAtUnmappedValue()
     {
         byte[] accountNameBytes = Encoding.ASCII.GetBytes("testacc");
 

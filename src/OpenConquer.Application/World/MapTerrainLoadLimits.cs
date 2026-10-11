@@ -1,7 +1,7 @@
 namespace OpenConquer.Application.World;
 
 /// <summary>
-/// Resource limits shared by offline terrain conversion and canonical runtime loading.
+/// Resource limits shared by offline terrain conversion and runtime loading.
 /// </summary>
 public sealed class MapTerrainLoadLimits
 {

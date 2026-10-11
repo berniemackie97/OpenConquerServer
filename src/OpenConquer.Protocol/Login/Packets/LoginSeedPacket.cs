@@ -1,10 +1,9 @@
-using OpenConquer.Protocol.Packets;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Represents the server -> client 5517 login seed packet.
+/// Server-to-client login seed (packet 1059).
 /// </summary>
 public sealed class LoginSeedPacket(uint seed) : IPacket
 {

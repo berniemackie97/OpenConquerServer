@@ -3,13 +3,6 @@ using OpenConquer.Application.World;
 
 namespace OpenConquer.GameServer.World.Execution;
 
-internal enum WorldPartitionEnqueueResult
-{
-    Accepted,
-    CapacityExhausted,
-    Stopped,
-}
-
 /// <summary>
 /// Owns exclusive map-local execution, a bounded ordinary FIFO, and a separate bounded character-removal lane.
 /// </summary>

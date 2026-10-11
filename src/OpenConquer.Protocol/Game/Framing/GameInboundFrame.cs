@@ -4,7 +4,7 @@ using OpenConquer.Protocol.Framing;
 namespace OpenConquer.Protocol.Game.Framing;
 
 /// <summary>
-/// Owns one decrypted 5517 GameServer packet buffer.
+/// Owns one decrypted GameServer packet buffer.
 /// </summary>
 public sealed class GameInboundFrame : IDisposable
 {

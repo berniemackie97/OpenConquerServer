@@ -5,7 +5,7 @@ namespace OpenConquer.Domain.Tests.Skills;
 public sealed class WeaponSkillExperienceCurveTests
 {
     [Fact]
-    public void MaximumLevel_MatchesVerifiedNativeLimit()
+    public void MaximumLevel_MatchesClientLimit()
     {
         Assert.Equal((byte)20, WeaponSkillExperienceCurve.MaximumLevel);
     }
@@ -32,7 +32,7 @@ public sealed class WeaponSkillExperienceCurveTests
     [InlineData((byte)18, 1_623_164_063u)]
     [InlineData((byte)19, 2_100_000_000u)]
     [InlineData((byte)20, 0u)]
-    public void GetNextLevelExperienceRequirement_ValidLevel_ReturnsVerifiedRequirement(byte currentLevel, uint expected)
+    public void GetNextLevelExperienceRequirement_ValidLevel_ReturnsExpectedRequirement(byte currentLevel, uint expected)
     {
         Assert.Equal(expected, WeaponSkillExperienceCurve.GetNextLevelExperienceRequirement(currentLevel));
     }

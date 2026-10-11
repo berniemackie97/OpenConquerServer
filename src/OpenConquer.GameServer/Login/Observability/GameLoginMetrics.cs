@@ -19,15 +19,15 @@ internal sealed class GameLoginMetrics : IDisposable
 
     public GameLoginMetrics()
     {
-        _accepted = _meter.CreateCounter<long>("game.login.accepted");
-        _sourceRejected = _meter.CreateCounter<long>("game.login.source_rejected");
-        _capacityRejected = _meter.CreateCounter<long>("game.login.capacity_rejected");
-        _completed = _meter.CreateCounter<long>("game.login.completed");
-        _notAdmitted = _meter.CreateCounter<long>("game.login.not_admitted");
-        _failed = _meter.CreateCounter<long>("game.login.failed");
-        _timedOut = _meter.CreateCounter<long>("game.login.timed_out");
-        _worldSessions = _meter.CreateUpDownCounter<long>("game.login.world_sessions");
-        _loginDuration = _meter.CreateHistogram<double>("game.login.duration", "ms");
+        _accepted = _meter.CreateCounter<long>("openconquer.game_server.login.admission.accepted");
+        _sourceRejected = _meter.CreateCounter<long>("openconquer.game_server.login.admission.source_rejections");
+        _capacityRejected = _meter.CreateCounter<long>("openconquer.game_server.login.admission.capacity_rejections");
+        _completed = _meter.CreateCounter<long>("openconquer.game_server.login.connection.completions");
+        _notAdmitted = _meter.CreateCounter<long>("openconquer.game_server.login.connection.not_admitted");
+        _failed = _meter.CreateCounter<long>("openconquer.game_server.login.connection.failures");
+        _timedOut = _meter.CreateCounter<long>("openconquer.game_server.login.connection.timeouts");
+        _worldSessions = _meter.CreateUpDownCounter<long>("openconquer.game_server.world_sessions.active");
+        _loginDuration = _meter.CreateHistogram<double>("openconquer.game_server.login.connection.duration", "ms");
     }
 
     public void RecordAccepted() => _accepted.Add(1);

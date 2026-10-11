@@ -1,7 +1,7 @@
 namespace OpenConquer.Domain.World;
 
 /// <summary>
-/// Defines one server world-map identity, its client terrain identity, and its complete native map flags.
+/// Defines one server world-map identity, its client terrain identity, and its complete 64-bit map flags.
 /// </summary>
 public sealed record MapDefinition
 {

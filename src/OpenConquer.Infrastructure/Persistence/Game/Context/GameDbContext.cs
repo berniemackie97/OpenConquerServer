@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OpenConquer.Infrastructure.Persistence.Game.Characters;
 using OpenConquer.Infrastructure.Persistence.Game.Items;
 using OpenConquer.Infrastructure.Persistence.Game.Skills;
 using OpenConquer.Infrastructure.Persistence.Game.Social;

@@ -1,6 +1,6 @@
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.GameServer.Login.Authentication;
-using OpenConquer.GameServer.Login.Character.Resolution;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Transport.Connections;
 

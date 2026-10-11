@@ -10,7 +10,7 @@ public sealed class GameSecuredFrameEncoderTests
     private static ReadOnlySpan<byte> Key => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
     [Fact]
-    public void WriteFrame_AppendsAndEncryptsNativeServerSignature()
+    public void WriteFrame_AppendsAndEncryptsServerSignature()
     {
         byte[] outboundInitializationVector = Convert.FromHexString("1112131415161718");
         byte[] packet = BuildPacket(1004, [0x11, 0x22, 0x33]);
@@ -68,7 +68,7 @@ public sealed class GameSecuredFrameEncoderTests
     }
 
     [Fact]
-    public void GetWireLength_AllowsNativeMaximumPacketLength()
+    public void GetWireLength_AllowsMaximumPacketLength()
     {
         byte[] packet = new byte[GameWireProtocol.MaximumPacketLength];
         WireFrameHeader.Write(packet, GameWireProtocol.MaximumPacketLength, 1052);

@@ -1,5 +1,4 @@
 using OpenConquer.Protocol.Framing;
-using OpenConquer.Protocol.Packets;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.Protocol.Tests.Framing;

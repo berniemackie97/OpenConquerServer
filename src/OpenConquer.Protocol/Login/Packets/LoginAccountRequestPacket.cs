@@ -7,7 +7,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Defines and decodes the native standard account-login packet 1060.
+/// Defines and decodes the standard account login request (packet 1060).
 /// </summary>
 public static class LoginAccountRequestPacket
 {
@@ -24,14 +24,13 @@ public static class LoginAccountRequestPacket
     public const int FrameLength = WireFrameHeader.Size + PayloadLength;
 
     /// <summary>
-    /// Decodes the default retail 5517 packet-1060 credential envelope.
+    /// Decodes the standard credential envelope.
     /// </summary>
     /// <remarks>
-    /// Only the first 32 credential bytes are transformed by the default
-    /// shipped 5517 path. The remaining 96 bytes are intentionally ignored
-    /// rather than treated as a validity condition.
+    /// Only the first 32 credential bytes are encrypted by the client. The
+    /// remaining 96 bytes are ignored rather than treated as a validity condition.
     /// </remarks>
-    public static bool TryDecodeStandard5517(ReadOnlySpan<byte> payload, uint loginSeed, out LoginAccountRequest? request)
+    public static bool TryDecodeStandard(ReadOnlySpan<byte> payload, uint loginSeed, out LoginAccountRequest? request)
     {
         request = null;
 
@@ -94,6 +93,6 @@ public static class LoginAccountRequestPacket
 
     private static string DecodeAnsi(ReadOnlySpan<byte> value)
     {
-        return TqEncoding.Resolve(TqTextEncoding.Ansi).GetString(value);
+        return WireTextEncodingResolver.Resolve(WireTextEncoding.Ansi).GetString(value);
     }
 }

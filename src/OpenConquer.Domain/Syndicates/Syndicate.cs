@@ -3,7 +3,7 @@ using OpenConquer.Domain.Characters;
 namespace OpenConquer.Domain.Syndicates;
 
 /// <summary>
-/// Represents the persisted syndicate-wide state required by the native 5517 syndicate bootstrap.
+/// Persisted syndicate-wide state required by the login syndicate bootstrap.
 /// </summary>
 public sealed class Syndicate
 {

@@ -1,11 +1,10 @@
 namespace OpenConquer.Protocol.Login.Cryptography;
 
 /// <summary>
-/// Implements the stateful stream transform used by the 5517 account
-/// login connection.
+/// Implements the stateful stream transform used by the account login connection.
 /// </summary>
 /// <remarks>
-/// The native client transform applies the generated keystream before the
+/// The client transform applies the generated keystream before the
 /// nibble swap and 0xAB mask. The server endpoint therefore applies the
 /// inverse ordering for both outbound encryption and inbound decryption.
 ///

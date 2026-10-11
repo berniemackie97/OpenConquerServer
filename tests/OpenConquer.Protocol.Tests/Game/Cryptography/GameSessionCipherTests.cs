@@ -5,7 +5,7 @@ namespace OpenConquer.Protocol.Tests.Game.Cryptography;
 public sealed class GameSessionCipherTests
 {
     [Fact]
-    public void DirectionalStreams_MatchNativeServerIvAssignment()
+    public void DirectionalStreams_MatchServerIvAssignment()
     {
         byte[] key = Enumerable.Range(1, 64).Select(static value => (byte)value).ToArray();
         byte[] inboundInitializationVector = Convert.FromHexString("0102030405060708");

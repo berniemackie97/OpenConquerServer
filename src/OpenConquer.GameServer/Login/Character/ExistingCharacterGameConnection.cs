@@ -3,12 +3,12 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Game.Framing;
-using OpenConquer.Protocol.Packets;
+using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.Login.Character;
 
 /// <summary>
-/// Owns one authenticated existing-character connection together with its canonical profile and authoritative realm-presence lifetime.
+/// Owns one authenticated existing-character connection together with its login profile and realm presence lease.
 /// </summary>
 internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
 {

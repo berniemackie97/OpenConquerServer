@@ -6,7 +6,7 @@ namespace OpenConquer.Protocol.Tests.Login.Packets;
 public sealed class LoginSeedPacketTests
 {
     [Fact]
-    public void Packet_ExposesVerifiedIdentifierAndPayloadLength()
+    public void Packet_ExposesIdentifierAndPayloadLength()
     {
         LoginSeedPacket packet = new(seed: 0x1234_5678);
 
@@ -18,7 +18,7 @@ public sealed class LoginSeedPacketTests
     }
 
     [Fact]
-    public void WireFrameEncoder_WritesVerifiedSeedFrame()
+    public void WireFrameEncoder_WritesSeedFrame()
     {
         LoginSeedPacket packet = new(seed: 0x1234_5678);
 

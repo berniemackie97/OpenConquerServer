@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.World;
 using OpenConquer.Infrastructure.Content.Maps;
+using OpenConquer.Infrastructure.DependencyInjection;
 
 namespace OpenConquer.Infrastructure.Tests.Content.Maps;
 

@@ -7,7 +7,7 @@ using OpenConquer.Domain.Characters;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Coordinates bounded authoritative character ownership, exclusive partition execution, and supervised world-session shutdown.
+/// Coordinates character residency, exclusive partition execution, and world-session shutdown.
 /// </summary>
 internal sealed class WorldRuntime : IAsyncDisposable
 {

@@ -259,7 +259,7 @@ public sealed class ItemTypeDatTableTests
     [InlineData(ItemTypeDatRecord.StaticLifetimeMinutesFieldIndex, "-2147483649", "static lifetime minutes")]
     [InlineData(ItemTypeDatRecord.StackCapacityFieldIndex, "2147483648", "stack capacity")]
     [InlineData(ItemTypeDatRecord.StackCapacityFieldIndex, "-2147483649", "stack capacity")]
-    public void Parse_InvalidVerifiedNumericField_ThrowsWithFieldDiagnostics(int fieldIndex, string fieldValue, string fieldName)
+    public void Parse_InvalidNumericField_ThrowsWithFieldDiagnostics(int fieldIndex, string fieldValue, string fieldName)
     {
         string[] fields = CreateFields(100001, "TestItem");
         fields[fieldIndex] = fieldValue;

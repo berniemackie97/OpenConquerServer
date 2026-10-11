@@ -1,777 +1,152 @@
-# Networking Architecture
+# Networking
 
-OpenConquer separates transport, protocol, server-session behavior, and application rules.
-
-```text
-Transport
-    moves bytes and owns network resources
-
-Protocol
-    interprets Conquer wire data
-
-Server adapter
-    owns connection/session behavior
-
-Application
-    owns use cases and authorization
-```
-
-## Transport Ownership
-
-`OpenConquer.Transport` owns:
-
-- TCP listeners and accepted connections;
-- asynchronous receive/send operations;
-- connection lifetime;
-- input/output buffering;
-- bounded admission;
-- backpressure;
-- cancellation;
-- transport resource limits.
-
-Transport does not interpret Conquer packet identifiers or gameplay semantics.
-
-## Runtime Flow
+Both servers share the same connection pipeline:
 
 ```text
-client
-    ↓
-TCP
-    ↓
-Transport
-    ↓
-Protocol
-    ↓
-server session / adapter
-    ↓
-Application
-    ↓
-authoritative runtime
+TCP accept → per-source admission → global admission queue → fixed worker pool → connection session
 ```
 
-Outbound traffic follows the reverse path.
+`OpenConquer.Transport` owns sockets, pipelines, buffering, and backpressure. It treats TCP as a
+byte stream: a receive can contain part of a frame, one frame, or several, and frame boundaries
+are found by the protocol layer. `OpenConquer.Protocol` decodes from caller-owned
+`ReadOnlySequence<byte>` input and never advances transport buffers itself. Wire formats are in the
+[protocol documentation](../protocol/README.md).
 
-## Stream Model
+## Admission
 
-TCP is an ordered byte stream.
+Each server limits connections in two stages before any login work starts.
 
-A receive operation may contain:
+1. **Per source.** Immediately after accept, the connection takes a lease against its source
+   address. The lease travels with the connection through the queue and the worker and is
+   released when the connection is disposed, so queued and active connections both count toward
+   the limit. IPv4 addresses are tracked individually, IPv4-mapped IPv6 addresses count as their
+   IPv4 address, and other IPv6 addresses are grouped by `/64`.
+2. **Global.** `TransportConnectionAdmissionQueue` holds admitted connections until a worker takes
+   them. When it is full, the new connection is rejected.
+
+Rejected connections are disposed before the listener accepts another. Rejections are counted in
+metrics, never logged individually, and never tagged with an address, so a flood of connections
+cannot amplify logging or create unbounded metric series.
+
+Admission protects runtime capacity. It is separate from the authentication rate limits described
+in [Authentication](authentication.md); each guards a different resource.
+
+## Workers and timeouts
+
+A fixed pool of workers drains the admission queue. There is no task per connection. Each worker
+opens a session for the connection, runs the login sequence, disposes the session, and takes the
+next connection. A whole-connection timeout bounds every login. The AccountServer also applies a
+fresh per-read timeout to each expected client packet; caller cancellation and timeout expiry are
+reported separately. A failure or timeout affects only that connection, while a failure in the
+worker pool itself is fatal to the runtime.
+
+## Runtime supervision
+
+A hosted service owns the listener, the accept loop, and the worker pool as one failure domain. If
+the accept loop or the pool stops unexpectedly, even without an exception, the service completes
+admission, cancels the sibling, waits for it, closes the listener, and faults. The host then shuts
+down and exits with a nonzero code. Shutdown runs in reverse startup order, so ingress stops
+before maintenance or the world.
+
+## Output ordering
+
+Each connection has a single ordered send path. Frames are written one at a time, which preserves
+packet order and stream-cipher state. On the GameServer, a write that overlaps an active write is
+rejected immediately instead of queued, so a slow client cannot accumulate waiting writers.
+Scheduling and coalescing gameplay output belong to the future gameplay runtime, not to the frame
+writer.
+
+## AccountServer
+
+Startup runs in order: validate configuration, compose services, verify the Accounts database,
+start ticket cleanup, then create the listener and start the workers. The listener does not exist
+until the database check passes.
+
+`LoginConnectionSession` owns one connection's pipelines, stream cipher state, frame reader and
+writer, and transport pumps. Opening a session sends the login seed. The frame reader handles
+fragmented and coalesced input, decrypts incrementally, enforces the 524-byte login frame limit,
+allows one read at a time, and becomes unusable after any failure that may have advanced the
+cipher. The writer has its own cipher state and becomes unusable after a partial write.
+
+`LoginHandshakeProcessor` then runs the login sequence:
 
 ```text
-partial frame
-one frame
-multiple frames
+seed (1059) → credentials (1060) → authenticate → grant ticket → response (1055)
+            → MAC address report (1100) → resource version report (1052)
 ```
 
-Transport therefore does not treat socket receives as packet boundaries.
+The success response is sent only after the GameServer ticket has been committed. The two reports
+after it are telemetry: their order, session ID, MAC format, and resource name are validated, but
+a missing or malformed report does not revoke the ticket.
 
-Protocol framing accepts segmented `ReadOnlySequence<byte>` input where appropriate.
+| Condition                                        | Failure code |
+| ------------------------------------------------ | -----------: |
+| Wrong credentials                                |          `1` |
+| Protected or mobile login request (unsupported)  |          `1` |
+| Account state changed before the ticket grant    |          `1` |
+| Banned account                                   |         `12` |
+| Malformed credential request or unknown packet   |         `57` |
 
-Protocol does not own or advance transport buffers.
+Transport, database, and application exceptions close the connection; they are never turned into
+a failure response.
 
-## Output Ordering
+| Metric (`OpenConquer.AccountServer.Login`)                           | Meaning                          |
+| -------------------------------------------------------------------- | -------------------------------- |
+| `openconquer.account_server.login.admission.source_rejections`      | Per-source limit reached          |
+| `openconquer.account_server.login.admission.capacity_rejections`    | Admission queue full              |
+| `openconquer.account_server.login.admission.rejection_disposal_failures` | Rejected connection failed to close |
+| `openconquer.account_server.login.connection.timeouts`              | Whole-connection timeout          |
+| `openconquer.account_server.login.connection.failures`              | Processing or cleanup failure     |
 
-Each connection has one logical outbound progression.
+## GameServer
+
+The GameServer opens its listener only after both databases, the world content, and the item
+catalog have been verified, and only when `GameServer:Network:Enabled` is true. Per-source
+occupancy covers the connection from accept until it is fully disposed, including while it is
+queued, logging in, and resident in the world.
+
+A login worker takes each connection through these stages:
 
 ```text
-Frame A
-Frame B
-Frame C
-    ↓
-single ordered send progression
-    ↓
-TCP
+GameConnectionSession          key exchange, then encrypted framing on the same stream
+GameConnectionAuthenticator    login proof (1052) and single-use ticket redemption
+CharacterLoginHandoffProcessor character lookup by the authenticated account
+ExistingCharacterBootstrapProcessor and the Login/Bootstrap stages
+WorldSessionAdmissionProcessor admission into the world runtime
 ```
 
-Independent writers must not race on one connection.
-
-Protected GameServer output permits exactly one active frame write per connection. An overlapping
-write is rejected immediately rather than queued, so the connection layer cannot accumulate an
-unbounded set of waiting writers.
-
-Higher-level gameplay output scheduling, including any bounded mailbox, priority, coalescing, or
-drop policy, belongs to the future gameplay runtime rather than the protected frame writer.
-
-This preserves packet ordering, stream-cipher state, partial-write handling, shutdown semantics,
-backpressure, and bounded connection-level resource usage.
-
-## AccountServer Admission
-
-AccountServer ingress is explicitly bounded before authentication begins:
-
-```text
-kernel backlog
-    ↓
-TCP accept
-    ↓
-per-source connection admission
-    ↓
-bounded global admission queue
-    ↓
-fixed worker pool
-    ↓
-bounded authentication protection
-    ↓
-database
-```
-
-Per-source connection admission executes immediately after TCP accept and before the connection can
-consume global admission-queue or worker capacity.
-
-Source identity is normalized consistently across connection admission and authentication
-protection:
-
-- IPv4 addresses are tracked individually;
-- IPv4-mapped IPv6 addresses share the corresponding IPv4 source;
-- native IPv6 addresses are grouped by `/64`.
-
-An admitted connection carries its per-source admission lease through the global queue and login
-worker. The lease is released when the connection is disposed, so queued and actively processed
-connections both count toward the source concurrency limit.
-
-When the per-source connection limit is exhausted:
-
-- the new connection is rejected before entering the global admission queue;
-- the rejected connection is disposed before the listener accepts another connection;
-- source rejection is recorded as a metric;
-- no source address or endpoint is attached as a metric dimension.
-
-`TransportConnectionAdmissionQueue` owns globally admitted connections until a worker receives them.
-
-When global admission capacity is exhausted:
-
-- the new connection is rejected;
-- the rejected connection is disposed before rejection reporting;
-- capacity rejection is recorded independently from source rejection;
-- no per-rejection warning or error log is emitted.
-
-Connection-level admission protects pre-authentication runtime capacity. It does not replace the
-separate authentication request, concurrency, failure, and lockout controls applied once a login
-request arrives.
-
-This prevents slow pre-authentication peers and reconnect storms from becoming unbounded queued
-work, worker exhaustion, or attacker-controlled log amplification.
-
-## AccountServer Host Lifecycle
-
-The AccountServer runs as a Generic Host with sequential hosted-service startup.
-
-Startup order:
-
-```text
-load and validate configuration
-    ↓
-compose dependencies
-    ↓
-verify account database/schema readiness
-    ↓
-start expired-ticket maintenance
-    ↓
-construct TCP listener
-    ↓
-start accept loop and fixed workers
-```
-
-The TCP listener is not constructed until database readiness succeeds.
-
-A failed readiness check therefore fails startup without exposing the public login socket.
-
-Hosted-service shutdown occurs in reverse order, so the login runtime stops before maintenance.
-
-Host startup and shutdown are bounded by explicit timeouts.
-
-Unexpected background-service failure requests graceful host shutdown.
-
-Fatal background-service failures are recorded before they escape their service. After the host
-finishes shutting down, the AccountServer returns a nonzero process exit code when such a failure
-was recorded. Normal host shutdown returns success.
-
-Startup or shutdown failures that escape the host lifecycle continue to propagate normally.
-
-## Login Runtime Supervision
-
-`LoginRuntimeHostedService` owns:
-
-- the login listener;
-- the login runtime cancellation boundary;
-- accept-loop lifetime;
-- worker-pool lifetime;
-- admission completion during shutdown/failure.
-
-The AccountServer-specific admission listener decorates the raw TCP listener before the generic
-transport accept loop begins. The generic accept loop therefore receives only connections that have
-already passed per-source admission.
-
-The accept loop and worker pool form one failure domain.
-
-```text
-accept loop fails
-    ↓
-complete admission
-    ↓
-cancel worker pool
-    ↓
-observe sibling task
-    ↓
-dispose listener
-    ↓
-fault runtime
-
-worker pool fails
-    ↓
-complete admission
-    ↓
-cancel accept loop
-    ↓
-observe sibling task
-    ↓
-dispose listener
-    ↓
-fault runtime
-```
-
-A child task that terminates unexpectedly is fatal even if it returns successfully.
-
-Fatal runtime failure does not leave the TCP listener bound while the host is shutting down.
-
-## Login Session
-
-`LoginConnectionSession` owns one opened AccountServer login connection.
-
-It owns:
-
-- the transferred transport connection;
-- input and output pipelines;
-- login stream cipher state;
-- frame reader and writer;
-- transport pumps;
-- connection-scope cancellation.
-
-Opening the session sends encrypted packet `1059`.
-
-Input uses the AccountServer 524-byte complete-frame limit.
-
-Disposal terminates owned connection resources and observes transport pumps.
-
-## Login Workers
-
-`LoginConnectionWorkerPool` consumes `TransportConnectionAdmissionQueue` with fixed concurrency.
-
-Each worker:
-
-```text
-receive admitted connection
-    ↓
-open LoginConnectionSession
-    ↓
-run LoginHandshakeProcessor
-    ↓
-dispose session
-    ↓
-receive next connection
-```
-
-A whole-connection timeout bounds each admitted login.
-
-Client processing failures and timeouts are isolated to that connection.
-
-Reporter failures are worker-pool fatal.
-
-There is no task-per-connection worker model and no duplicate AccountServer-specific admission
-queue.
-
-## Login Framing
-
-`LoginFrameReader`:
-
-- handles fragmented and coalesced TCP input;
-- decrypts incrementally;
-- validates the AccountServer frame limit;
-- returns owned plaintext frames;
-- permits only one active read;
-- becomes terminal when a failure may have advanced cipher state.
-
-`LoginFrameWriter`:
-
-- serializes one frame at a time;
-- encrypts using independent outbound cipher state;
-- preserves ordered writes;
-- becomes unusable after a potentially partial failed write.
-
-Inbound and outbound cipher positions are independent.
-
-## Standard 5517 AccountServer Transaction
-
-```text
-connection opened
-    ↓
-1059 seed
-    ↓
-1060 credentials
-    ↓
-AccountAuthenticator
-    ↓
-durable GameLoginTicket grant
-    ↓
-1055 authentication result
-    ↓
-1100 MAC report
-    ↓
-1052 res.dat report
-```
-
-`LoginHandshakeProcessor` owns this orchestration for an already-open `LoginConnectionSession`.
-
-A successful `1055` is not written until durable ticket persistence succeeds.
-
-## Credential Request
-
-`LoginAccountRequestReader` accepts standard packet `1060`.
-
-Outcomes:
-
-```text
-Success
-EndOfStream
-UnexpectedPacket
-InvalidAccountRequest
-```
-
-Decoded password memory is mutable and disposable.
-
-Only the standard 5517 credential format is implemented.
-
-Known protected/mobile variants are recognized but fail closed rather than entering standard
-decoding.
-
-## Authentication Failure Mapping
-
-| Condition                                        | Native failure |
-| ------------------------------------------------ | -------------: |
-| Invalid credentials                              |            `1` |
-| Unsupported protected/mobile login               |            `1` |
-| Authentication state changed before ticket grant |            `1` |
-| Banned account                                   |           `12` |
-| Malformed standard credential request            |           `57` |
-| Unknown login packet                             |           `57` |
-
-Transport, database, and application exceptions are not converted into fake authentication
-responses.
-
-## AccountServer Game Handoff
-
-Successful authentication is followed by durable ticket issuance.
-
-The AccountServer sends `1055` only after the ticket grant commits.
-
-The success response contains:
-
-```text
-SessionUid
-AuthenticationKey
-GameServerPort
-AuthenticationKey as AdditionalSessionField
-GameServer IPv4 address
-```
-
-Ticket issuance transactionally revalidates the authenticated account and credential revisions.
-
-A stale authentication snapshot cannot receive a successful handoff.
-
-## Post-Authentication Reports
-
-After successful `1055`, the native client sends:
-
-```text
-1100 MAC report
-    ↓
-1052 res.dat report
-```
-
-`LoginPostAuthenticationReportReader` enforces packet ordering, expected session UID, MAC format,
-and the exact `res.dat` resource name.
-
-Each report receives its own bounded read timeout.
-
-These reports are telemetry, not authorization.
-
-Failure, timeout, or absence of this telemetry does not revoke the already-issued GameServer ticket.
-
-## Login Timeouts
-
-Two timeout scopes apply:
-
-| Scope            | Boundary                                           |
-| ---------------- | -------------------------------------------------- |
-| Whole connection | Session open through complete handshake processing |
-| Handshake phase  | Individual `1060`, `1100`, and `1052` reads        |
-
-Phase deadlines are fresh per expected frame.
-
-Authentication and durable ticket persistence remain inside the whole-connection deadline but are
-not limited by a phase deadline.
-
-Caller cancellation remains distinct from timeout expiration.
-
-## Authentication Protection
-
-Authentication work is bounded independently of connection admission.
-
-Implemented controls:
-
-- global authentication concurrency;
-- per-source request rate;
-- per-source concurrency;
-- per-account password concurrency;
-- account/source failure tracking;
-- lockout;
-- bounded protection state.
-
-Pre-authentication connection admission and authentication protection defend different resource
-boundaries. Neither replaces the other.
-
-See [Authentication](authentication.md).
-
-## Runtime Observability
-
-`LoginRuntimeMetrics` records low-cardinality counters for:
-
-- per-source connection admission rejection;
-- global admission-capacity rejection;
-- rejected-connection disposal failure;
-- whole-connection timeout;
-- connection processing failure.
-
-Source rejection and global capacity rejection remain distinct so pre-authentication source pressure
-can be distinguished from exhaustion of total AccountServer admission capacity.
-
-No account, player, session, endpoint, or IP value is used as a metric dimension.
-
-Logging policy:
-
-| Event                                | Level       |
-| ------------------------------------ | ----------- |
-| Database readiness succeeded         | Information |
-| Login runtime started/stopped        | Information |
-| Connection timeout                   | Debug       |
-| Connection processing failure        | Error       |
-| Rejected-connection disposal failure | Error       |
-| Per-source admission rejection       | Metric only |
-| Global admission capacity rejection  | Metric only |
-
-## GameServer Connection Handoff
-
-`GameConnectionHandoffProcessor` owns the transition from an accepted transport connection to an
-authenticated GameServer connection over the native compatibility-protected channel.
-
-```text
-accepted transport
-    ↓
-GameConnectionSession
-    ↓
-Diffie-Hellman handshake
-    ↓
-protected CAST5 framing
-    ↓
-1052 login proof
-    ↓
-single-use ticket redemption
-    ↓
-AuthenticatedGameConnection
-```
-
-`GameConnectionSession` owns the transferred connection, transport pumps, pipelines, handshake
-transition, protected framing, and connection-scope lifetime.
-
-The same input pipeline is preserved across the handshake transition. Fragmented key exchange is
-reassembled, while protected bytes coalesced with the key-exchange response remain available for the
-first protected frame.
-
-The native GameServer channel is compatibility encryption, not modern authenticated transport and
-not server endpoint authentication.
-
-Successful ticket redemption establishes application identity and transfers the live session to
-`AuthenticatedGameConnection`. Expected rejection and failed handoff paths dispose the owned
-session.
-
-The raw `AuthenticationKey` is used for ticket redemption and is not retained by the authenticated
-connection.
-
-## Post-Authentication Character Handoff
-
-Character resolution follows successful GameServer authentication on the same live connection.
-
-```text
-AuthenticatedGameConnection
-    ↓
-canonical AccountId
-    ↓
-CharacterLoginHandoffProcessor
-    ↓
-ICharacterLoginResolver
-    ↓
-Game character persistence
-    ↓
-CharacterCreation | ExistingCharacter
-```
-
-`CharacterLoginHandoffProcessor` owns the authenticated connection while character resolution is in
-progress.
-
-The authenticated account ID is the lookup key. Client-supplied character identity is not used to
-select the persisted character.
-
-Successful resolution transfers the exact same live `AuthenticatedGameConnection` together with the
-resolved character route.
-
-Failure behavior is explicit:
-
-```text
-pre-canceled operation
-    -> resolver is not invoked
-    -> authenticated connection is disposed
-
-resolution failure
-    -> authenticated connection is disposed
-
-invalid/default resolution
-    -> authenticated connection is disposed
-
-existing profile belongs to another account
-    -> authenticated connection is disposed
-
-resolution failure + disposal failure
-    -> both failures are preserved
-```
-
-No connection is parked or replaced between ticket redemption and character resolution.
-
-An account without a persisted character routes to `CharacterCreation`.
-
-An account with a persisted character routes to `ExistingCharacter` with a validated
-`CharacterLoginProfile`.
-
-The profile contains the durable state required by existing-character bootstrap, including identity,
-appearance, progression, attributes, vitals, economy, PK/title/enlightenment state, map ID, and
-position.
-
-The implemented existing-character connection then advances through explicit ownership states for
-the native bootstrap sequence:
-
-```text
-initial bootstrap
-    ↓
-0x4A EnterMap
-    ↓
-0x198 client-state-applied
-    ↓
-0x4B item set
-    ↓
-0x4C friend/social set
-    ↓
-0x4D weapon-skill set
-    ↓
-0x4E magic set
-    ↓
-0x61 syndicate attributes
-    ↓
-0xFB silent-info report
-    ↓
-0x84 statistics request (no invented response)
-    ↓
-ExistingCharacterBootstrapCompleteConnection
-```
-
-Each rung validates its expected client action and relevant authenticated identity. Stages with
-responses prepare their snapshots before writing and transfer connection ownership only on success.
-The `0x84` statistics request completes without an unsupported acknowledgement. Canonical world
-content is resolved before accepted bootstrap output and is carried across every typed state.
-
-Character creation requests and writes, and gameplay packet routing remain unimplemented.
-The GameServer Generic Host starts bounded TCP ingress only after world and item-content
-readiness. Fixed login workers advance connections through authentication and the verified
-existing-character bootstrap sequence. Completed-bootstrap connections transfer into
-`WorldSession` and authoritative `WorldRuntime` ownership. Their I/O lifetimes are supervised
-independently of the login workers, with revocable presence and bounded cleanup.
-Unsupported gameplay frames close the session without invented protocol responses.
-
-## Game Character Persistence Boundary
-
-Game character persistence is separate from Accounts persistence.
-
-```text
-Accounts database
-    -> account identity
-    -> credentials/security state
-    -> game-login tickets
-
-Game database
-    -> character identity and login profile
-    -> persisted login location
-    -> character-owned item state
-    -> social-relation state
-    -> weapon-skill state
-    -> magic state
-```
-
-There is no cross-database foreign key from the Game database to the Accounts database.
-
-Successful single-use ticket redemption is the trust boundary that establishes the canonical account
-ID used for Game character lookup.
-
-The Game schema enforces one character per account and unique character names.
-
-Player entity IDs begin at `1,000,000`. The initial migration seeds the auto-increment sequence at
-that boundary, while application validation prevents a persisted non-player identity from crossing
-into the character-login profile.
-
-Character-login, item-set, social-relation, weapon-skill, and magic repository reads are bounded,
-no-tracking persistence operations.
-
-The currently implemented GameServer bootstrap persistence paths are read-only. Character creation
-and gameplay mutation are intentionally not introduced through these boundaries yet.
-
-`GameDatabaseReadinessVerifier` validates the Game database character set, collation, schema
-version, and migration identity.
-
-The GameServer Generic Host verifies Accounts and Game database readiness, then canonical
-world content, before publishing authoritative execution. With ingress enabled, it then
-loads and validates canonical item types before binding the GameServer TCP listener.
-
-## Game-Login Redemption
-
-Durable GameServer login tickets support atomic single-use redemption.
-
-```text
-lock ticket
-    ↓
-check database-authoritative expiration
-    ↓
-verify AuthenticationKey
-    ↓
-delete exact ticket
-    ↓
-commit
-    ↓
-return authorized identity
-```
-
-Concurrent successful redemption of the same ticket is impossible.
-
-GameServer authentication invokes this boundary after validating the first protected `1052` login
-proof and supplies the remote IP address for redemption protection.
-
-## Redemption Protection
-
-Game-login redemption has independent bounded attempt protection:
-
-- global concurrency;
-- per-source rate and concurrency;
-- per-session concurrency;
-- per-session failure tracking and lockout;
-- bounded tracked state.
-
-The GameServer connection handoff uses this protection boundary. Bounded GameServer ingress
-enforces per-source occupancy across queued, authenticating, and admitted world connections,
-and fixed login workers apply a whole-login timeout independently of world-session lifetime.
-
-## Ticket Revocation
-
-Authentication-invalidating account mutations revoke outstanding GameServer login tickets in the
-same transaction as the security mutation.
-
-Examples:
-
-```text
-password reset
-suspension
-ban
-soft delete
-```
-
-Grant and mutation persistence share compatible lock ordering so a stale authentication result
-cannot race past a committed invalidating mutation.
-
-## Expired-Ticket Cleanup
-
-Expired-ticket cleanup runs as bounded AccountServer maintenance.
-
-Each maintenance run:
-
-- uses database-authoritative expiration;
-- deletes bounded batches;
-- has a bounded maximum number of batches;
-- stops early when a partial batch is returned.
-
-Transient cleanup failures are logged and retried on the next scheduled run.
-
-An impossible cleaner result is treated as an invariant failure and faults the background service.
-
-Cleanup does not participate in authorization correctness.
-
-## Current Status
-
-Implemented AccountServer network/runtime components:
-
-- TCP transport;
-- per-source pre-authentication connection admission;
-- bounded global connection admission;
-- lease-coupled admission lifetime;
-- login pipelines and connection session;
-- login framing and stream cryptography;
-- standard credential decoding;
-- authentication orchestration;
-- durable `1055` handoff;
-- post-authentication telemetry;
-- handshake and whole-connection timeouts;
-- fixed login worker pool;
-- database-readiness startup gate;
-- delayed listener construction;
-- runtime supervision;
-- fatal background-service failure exit propagation;
-- bounded expired-ticket maintenance;
-- low-cardinality runtime metrics;
-- runnable AccountServer Generic Host composition.
-
-Implemented GameServer connection and character-login components:
-
-- accepted-connection session ownership;
-- native Diffie-Hellman handshake;
-- compatibility-protected CAST5 framing;
-- single-owner protected outbound frame writes;
-- immediate rejection of overlapping protected writes;
-- fragmented and coalesced stream handling;
-- first protected `1052` login-proof validation;
-- protected single-use ticket redemption;
-- authenticated live-session handoff;
-- Game character, item, social-relation, weapon-skill, and magic persistence with schema-readiness verification;
-- persisted character-login profile lookup;
-- authenticated account routing to character creation or existing-character login;
-- ownership-safe post-authentication character handoff;
-- existing-character bootstrap packet sequence;
-- native EnterMap and client-state-applied progression;
-- bounded item hydration and canonical item resolution;
-- native friend/social hydration and projection;
-- native weapon-skill hydration and projection;
-- native magic hydration and projection;
-- syndicate-attributes response, silent-info report, and statistics-request progression through `0x84`;
-- canonical world-map content resolution before successful bootstrap and reference-preserving handoff;
-- standalone bounded world-partition scheduler and runtime-instance generation-fenced character ownership core;
-- completed-bootstrap world-session promotion with capped residency and revocable cleanup;
-- coordinated cancellation and disposal.
-
-Not yet implemented:
-
-- gameplay event/replication production and connection outbound scheduling;
-- ongoing gameplay packet processing and command authorization;
-- character creation request processing and durable creation;
-- gameplay packet routing;
-- authoritative world simulation and replication.
-
-## Related Documentation
-
-- [Architecture Overview](README.md)
-- [Authentication](authentication.md)
-- [World Execution](world-execution.md)
-- [Protocol Reference](../protocol/README.md)
-- [TQ Framing](../protocol/framing.md)
+`GameConnectionSession` keeps one input pipeline across the key exchange and the switch to
+encryption, so encrypted bytes that arrive in the same read as the key-exchange response are not
+lost. The encryption is what the client supports; it does not authenticate the server or protect
+message integrity. Identity comes from redeeming the ticket, and the raw authentication key is not
+kept after redemption.
+
+Character lookup uses only the account ID established by the ticket; nothing the client sends
+selects which character is loaded. An account without a character is routed to character
+creation, which is not implemented yet. An existing character goes through the bootstrap
+sequence described in the [protocol documentation](../protocol/README.md#gameserver-login).
+Each stage is a separate connection type. A stage takes exclusive ownership of the previous one,
+validates the client's request against the authenticated character, writes its response, and
+hands the same connection to the next stage. Any failure closes the connection.
+
+When the sequence completes, the worker hands the connection to a `WorldSession` and becomes free
+immediately. The world session's I/O and cleanup are supervised separately from the workers.
+Gameplay packets are not handled yet, so the session closes on the first unsupported frame without
+sending a response.
+
+A source's admission slot is released only after its connection has been fully disposed. If a
+connection, including a rejected one, cannot be closed, the slot stays occupied, the failure is
+recorded as fatal, and the host shuts down rather than keep running with sockets it cannot close.
+Session cleanup failures are handled the same way.
+
+| Metric (`OpenConquer.GameServer.Login`)                           | Meaning                         |
+| ----------------------------------------------------------------- | ------------------------------- |
+| `openconquer.game_server.login.admission.accepted`               | Connection admitted              |
+| `openconquer.game_server.login.admission.source_rejections`      | Per-source limit reached         |
+| `openconquer.game_server.login.admission.capacity_rejections`    | Admission queue full             |
+| `openconquer.game_server.login.connection.completions`           | Login reached the world          |
+| `openconquer.game_server.login.connection.not_admitted`          | Login ended without reaching the world (disconnect, rejected ticket, no character) |
+| `openconquer.game_server.login.connection.failures`              | Login failed                     |
+| `openconquer.game_server.login.connection.timeouts`              | Login exceeded its timeout       |
+| `openconquer.game_server.login.connection.duration`              | Login duration in milliseconds   |
+| `openconquer.game_server.world_sessions.active`                  | World sessions currently open    |

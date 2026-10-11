@@ -64,7 +64,7 @@ public sealed class DMapBaseGridReaderTests
     }
 
     [Fact]
-    public void Read_LaterNativeSections_AreNotMistakenForGridData()
+    public void Read_LaterSections_AreNotMistakenForGridData()
     {
         byte[] payload = [.. CreateValidDMap(), 0xAA, 0xBB, 0xCC, 0xDD];
 

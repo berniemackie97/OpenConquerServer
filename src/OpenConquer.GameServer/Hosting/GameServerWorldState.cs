@@ -4,7 +4,7 @@ using OpenConquer.GameServer.World.Execution;
 namespace OpenConquer.GameServer.Hosting;
 
 /// <summary>
-/// Publishes one validated canonical content snapshot together with its running authoritative world.
+/// Publishes the validated map content together with the running world runtime.
 /// </summary>
 internal sealed class GameServerWorldState
 {

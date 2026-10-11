@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Social;
+using OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 namespace OpenConquer.Infrastructure.Persistence.Game.Social;
 

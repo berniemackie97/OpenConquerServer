@@ -1,18 +1,18 @@
-using OpenConquer.Protocol.Compatibility;
+
 
 namespace OpenConquer.Protocol.Login.Credentials;
 
 /// <summary>
-/// Reverses the per-account password keypad permutation used by the native
-/// Conquer Online 5517 login client before RC5 credential encryption.
+/// Reverses the per-account password keypad permutation the client applies
+/// before RC5 credential encryption.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The permutation is seeded from the signed byte sum of the account name,
-/// matching the native sign-extension behavior.
+/// matching the client's sign extension.
 /// </para>
 /// <para>
-/// The supplied account-name bytes must be the native account value itself,
+/// The supplied account-name bytes must be the raw account field value,
 /// excluding any trailing fixed-field NUL padding.
 /// </para>
 /// </remarks>
@@ -25,7 +25,7 @@ public static class LoginPasswordKeypadDecoder
     private readonly record struct KeypadRow(byte ScanCode, char Shifted, char Plain);
 
     /// <summary>
-    /// The 48 native rows at 0x936768 in their original order.
+    /// The 48 keypad rows in client order.
     /// Character lookup in the client tests the shifted column before the
     /// plain column, while decoding maps the resulting scan-code value back
     /// through the same row table.
@@ -83,11 +83,11 @@ public static class LoginPasswordKeypadDecoder
     ];
 
     /// <summary>
-    /// Decodes the native keypad bytes into password characters.
+    /// Decodes keypad bytes into password characters.
     /// </summary>
     /// <returns>
     /// The number of characters written. A zero byte or a value not represented
-    /// by the native keypad table terminates decoding.
+    /// by the keypad table terminates decoding.
     /// </returns>
     public static int Decode(ReadOnlySpan<byte> accountNameBytes, ReadOnlySpan<byte> source, Span<char> destination)
     {
@@ -149,7 +149,7 @@ public static class LoginPasswordKeypadDecoder
             weights[index] = (byte)(index ^ salt[index & (SaltLength - 1)]);
         }
 
-        // Native behavior is a descending selection sort over entries
+        // The client performs a descending selection sort over entries
         // 1 through 255. Preserve the exact comparison/swap behavior because
         // equal-weight ordering contributes to the resulting permutation.
         for (int index = 1; index < KeyEntryCount; index++)

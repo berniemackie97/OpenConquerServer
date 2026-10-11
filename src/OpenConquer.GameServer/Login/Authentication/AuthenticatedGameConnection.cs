@@ -1,7 +1,7 @@
 using System.Net;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.Protocol.Game.Framing;
-using OpenConquer.Protocol.Packets;
+using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.Login.Authentication;
 

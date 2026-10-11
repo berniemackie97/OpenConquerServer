@@ -1,15 +1,14 @@
-using OpenConquer.Protocol.Packets;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.Protocol.Framing;
 
 /// <summary>
-/// Encodes protocol packets into complete TQ wire frames.
+/// Encodes protocol packets into complete wire frames.
 /// </summary>
 public static class WireFrameEncoder
 {
     /// <summary>
-    /// Gets the complete encoded frame length using the full range supported by the 16 bit TQ frame length field.
+    /// Gets the complete encoded frame length using the full range supported by the 16-bit frame length field.
     /// </summary>
     public static int GetFrameLength(IPacket packet)
     {
@@ -33,7 +32,7 @@ public static class WireFrameEncoder
     }
 
     /// <summary>
-    /// Writes a complete TQ wire frame using the full range supported by the 16 bit TQ frame length field.
+    /// Writes a complete wire frame using the full range supported by the 16-bit frame length field.
     /// </summary>
     /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination)
@@ -42,7 +41,7 @@ public static class WireFrameEncoder
     }
 
     /// <summary>
-    /// Writes a complete TQ wire frame, rejecting frames larger than <paramref name="maximumFrameLength"/>.
+    /// Writes a complete wire frame, rejecting frames larger than <paramref name="maximumFrameLength"/>.
     /// </summary>
     /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public static int WriteFrame(IPacket packet, Span<byte> destination, int maximumFrameLength)

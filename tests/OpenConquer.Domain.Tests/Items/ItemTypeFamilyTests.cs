@@ -16,7 +16,7 @@ public sealed class ItemTypeFamilyTests
     [InlineData(360_000u, 0x0F)]
     [InlineData(370_000u, 0x11)]
     [InlineData(380_000u, 0x12)]
-    public void ResolveCategory_LeadingThousandsGroup_ReturnsNativeCategory(uint itemTypeId, int expected)
+    public void ResolveCategory_LeadingThousandsGroup_ReturnsCategory(uint itemTypeId, int expected)
     {
         Assert.Equal(expected, ItemTypeFamily.ResolveCategory(itemTypeId));
     }
@@ -42,7 +42,7 @@ public sealed class ItemTypeFamilyTests
     [InlineData(2_000_000u, 0x0A)]
     [InlineData(2_900_000u, 0x0A)]
     [InlineData(3_000_000u, ItemTypeFamily.NotEquipment)]
-    public void ResolveCategory_HundredThousandsGroup_ReturnsNativeCategory(uint itemTypeId, int expected)
+    public void ResolveCategory_HundredThousandsGroup_ReturnsCategory(uint itemTypeId, int expected)
     {
         Assert.Equal(expected, ItemTypeFamily.ResolveCategory(itemTypeId));
     }
@@ -58,7 +58,7 @@ public sealed class ItemTypeFamilyTests
     [InlineData(180_000u, 0x0B)]
     [InlineData(190_000u, 0x0B)]
     [InlineData(100_000u, ItemTypeFamily.NotEquipment)]
-    public void ResolveCategory_OneHundredThousandsGroup_UsesNativeSecondaryDivision(uint itemTypeId, int expected)
+    public void ResolveCategory_OneHundredThousandsGroup_UsesSecondaryDivision(uint itemTypeId, int expected)
     {
         Assert.Equal(expected, ItemTypeFamily.ResolveCategory(itemTypeId));
     }
@@ -133,7 +133,7 @@ public sealed class ItemTypeFamilyTests
     [InlineData(510_129u, false)]
     [InlineData(400_000u, false)]
     [InlineData(1_000_000u, false)]
-    public void IsBow_ReturnsNativeBowClassification(uint itemTypeId, bool expected)
+    public void IsBow_ReturnsBowClassification(uint itemTypeId, bool expected)
     {
         Assert.Equal(expected, ItemTypeFamily.IsBow(itemTypeId));
     }
@@ -146,7 +146,7 @@ public sealed class ItemTypeFamilyTests
     [InlineData(1_060_000u, false)]
     [InlineData(750_000u, false)]
     [InlineData(500_000u, false)]
-    public void IsArrow_ReturnsNativeArrowClassification(uint itemTypeId, bool expected)
+    public void IsArrow_ReturnsArrowClassification(uint itemTypeId, bool expected)
     {
         Assert.Equal(expected, ItemTypeFamily.IsArrow(itemTypeId));
     }

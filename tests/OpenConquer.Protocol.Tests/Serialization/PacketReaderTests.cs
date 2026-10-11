@@ -148,7 +148,7 @@ public sealed class PacketReaderTests
     {
         PacketReader reader = new([(byte)'A', (byte)'B', 0x00]);
 
-        string value = reader.ReadFixedString(3, TqTextEncoding.Ascii);
+        string value = reader.ReadFixedString(3, WireTextEncoding.Ascii);
 
         Assert.Equal("AB", value);
         Assert.True(reader.ConsumedAll);
@@ -161,7 +161,7 @@ public sealed class PacketReaderTests
         PacketReader asciiReader = new([0x80]);
 
         string ansi = ansiReader.ReadFixedString(1);
-        string ascii = asciiReader.ReadFixedString(1, TqTextEncoding.Ascii);
+        string ascii = asciiReader.ReadFixedString(1, WireTextEncoding.Ascii);
 
         Assert.Equal("€", ansi);
         Assert.Equal("?", ascii);
@@ -175,7 +175,7 @@ public sealed class PacketReaderTests
     {
         PacketReader reader = new([0x80, 0x00]);
 
-        string value = reader.ReadFixedString(2, TqTextEncoding.StrictAnsi);
+        string value = reader.ReadFixedString(2, WireTextEncoding.StrictAnsi);
 
         Assert.Equal("€", value);
         Assert.True(reader.ConsumedAll);
@@ -220,14 +220,14 @@ public sealed class PacketReaderTests
 
         try
         {
-            reader.ReadFixedString(2, (TqTextEncoding)int.MaxValue);
+            reader.ReadFixedString(2, (WireTextEncoding)int.MaxValue);
 
-            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+            Assert.Fail("Expected an unknown wire text encoding to be rejected.");
         }
         catch (ArgumentOutOfRangeException exception)
         {
             Assert.Equal("encoding", exception.ParamName);
-            Assert.StartsWith("Unknown TQ text encoding.", exception.Message);
+            Assert.StartsWith("Unknown wire text encoding.", exception.Message);
         }
 
         Assert.Equal(0, reader.Position);
@@ -284,7 +284,7 @@ public sealed class PacketReaderTests
     {
         PacketReader reader = new([0x02, (byte)'A', (byte)'B']);
 
-        string value = reader.ReadByteString(TqTextEncoding.Ascii);
+        string value = reader.ReadByteString(WireTextEncoding.Ascii);
 
         Assert.Equal("AB", value);
         Assert.True(reader.ConsumedAll);
@@ -295,7 +295,7 @@ public sealed class PacketReaderTests
     {
         PacketReader reader = new([0x01, 0x80]);
 
-        string value = reader.ReadByteString(TqTextEncoding.StrictAnsi);
+        string value = reader.ReadByteString(WireTextEncoding.StrictAnsi);
 
         Assert.Equal("€", value);
         Assert.True(reader.ConsumedAll);
@@ -321,14 +321,14 @@ public sealed class PacketReaderTests
 
         try
         {
-            reader.ReadByteString((TqTextEncoding)int.MaxValue);
+            reader.ReadByteString((WireTextEncoding)int.MaxValue);
 
-            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+            Assert.Fail("Expected an unknown wire text encoding to be rejected.");
         }
         catch (ArgumentOutOfRangeException exception)
         {
             Assert.Equal("encoding", exception.ParamName);
-            Assert.StartsWith("Unknown TQ text encoding.", exception.Message);
+            Assert.StartsWith("Unknown wire text encoding.", exception.Message);
         }
 
         Assert.Equal(0, reader.Position);
@@ -342,9 +342,9 @@ public sealed class PacketReaderTests
 
         try
         {
-            reader.ReadByteString((TqTextEncoding)int.MaxValue);
+            reader.ReadByteString((WireTextEncoding)int.MaxValue);
 
-            Assert.Fail("Expected an unknown TQ text encoding to be rejected.");
+            Assert.Fail("Expected an unknown wire text encoding to be rejected.");
         }
         catch (ArgumentOutOfRangeException exception)
         {
