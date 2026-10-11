@@ -5,13 +5,15 @@
 The GameServer is a runnable .NET Generic Host responsible for database readiness, canonical
 world-content loading, authoritative world initialization, supervision, and shutdown.
 
-The host does not yet open a TCP listener, accept game connections, execute the existing-character
-bootstrap pipeline, or process gameplay packets.
+With network ingress enabled, the host accepts bounded TCP connections, performs the verified
+native 5517 secure handshake and single-use ticket redemption, resolves existing characters,
+and transfers completed bootstrap connections into supervised authoritative world sessions.
+Character creation and gameplay packet dispatch remain unimplemented.
 
 Successful process startup means the required databases and canonical world content have passed
 readiness checks and the world scheduler has started.
 
-**World readiness does not mean the server is accepting game connections.**
+**Network ingress begins only after world and item-content readiness have completed.**
 
 ## Configuration
 
@@ -41,6 +43,17 @@ Deployment configuration is validated before constructing the host.
 | `GameServer:World:MaxCommandsPerTurn`                 | Maximum commands executed per partition turn.                      |
 | `GameServer:World:MaxCharacters`                      | Global authoritative character capacity.                           |
 | `GameServer:World:MaxCharactersPerMap`                | Per-map authoritative character capacity.                          |
+| `GameServer:Network:Enabled`                          | Enables bounded GameServer TCP ingress; false retains world-only hosting. |
+| `GameServer:Network:BindAddress`                      | IPv4 listener binding. |
+| `GameServer:Network:Port`                             | GameServer TCP port. |
+| `GameServer:Network:ListenBacklog`                    | Kernel listener backlog limit. |
+| `GameServer:Network:AdmissionCapacity`                | Bounded waiting-connection capacity. |
+| `GameServer:Network:MaximumConnectionsPerSource`     | Per-source occupancy across queued, processing, and world connections. |
+| `GameServer:Network:WorkerCount`                      | Fixed simultaneous login/bootstrap workers. |
+| `GameServer:Network:ConnectionTimeout`                | Whole pre-world login/bootstrap timeout. |
+| `GameServer:Items:FilePath`                           | Canonical item-type catalog. |
+| `GameServer:Items:MaximumFileBytes`                   | Maximum item-type catalog file size. |
+| `GameServer:Items:MaximumDefinitions`                 | Maximum number of item-type definitions. |
 
 The GameServer and AccountServer must use compatible ticket verification keys. Retain verification
 keys needed for outstanding tickets during rotation.
@@ -121,7 +134,8 @@ The packaged runtime assets are `map-definitions.json`, `terrains/*.ocbt`, and
 non-runtime content are not included.
 
 The canonical source files remain independently maintained in the repository.
-`PreserveNewest` avoids recopying unchanged artifacts during incremental builds.
+The runtime-required `content/items/item-types.json` is also packaged for network-enabled
+GameServer startup. `PreserveNewest` avoids recopying unchanged artifacts during incremental builds.
 
 To use external canonical content instead of the packaged artifacts, override the
 default paths:
@@ -130,6 +144,7 @@ default paths:
 export GameServer__Content__DefinitionsPath="/absolute/path/to/content/maps/map-definitions.json"
 export GameServer__Content__TerrainDirectory="/absolute/path/to/content/maps/terrains"
 export GameServer__Content__CollisionDirectory="/absolute/path/to/content/maps/collision"
+export GameServer__Items__FilePath="/absolute/path/to/content/items/item-types.json"
 ```
 
 The canonical loader validates map definitions, base-terrain identities, collision coverage,
@@ -148,13 +163,15 @@ The startup sequence is:
 5. Load and validate canonical map definitions, terrain, and collision content.
 6. Construct and start the authoritative `WorldRuntime`.
 7. Publish the validated canonical catalog and running runtime together.
-8. Supervise world execution for unexpected termination.
+8. When ingress is enabled, load and validate the canonical item-type catalog.
+9. Bind the GameServer TCP listener and start fixed connection workers.
+10. Supervise world execution, network ingress, and independently owned world sessions.
 
 A failure in an earlier stage prevents execution of later stages.
 
 Database migrations are not applied automatically at startup.
 
-No game-network listener is created.
+The TCP listener is created only after the preceding readiness stages succeed and ingress is enabled.
 
 The configured Generic Host startup timeout is two minutes.
 
@@ -169,14 +186,15 @@ Its publication contains:
 
 A caller cannot acquire an unpublished or stopped world through this boundary.
 
-World-session admission, connection ownership, and revocation are already implemented as standalone
-components. They are not yet connected to this host through a network listener or
-connection-processing runtime.
+Existing-character bootstrap now transfers ownership into the authoritative world through
+the hosted connection-processing pipeline. A login worker becomes available immediately
+after transferring a completed `WorldSession`; the world session retains its own
+supervised I/O and cleanup lifetime.
 
 ## Shutdown
 
-Shutdown first unpublishes the world, preventing new consumers from acquiring it through
-`GameServerWorldState`.
+Shutdown first stops GameServer ingress, prevents additional admission, drains workers,
+and closes supervised sessions. It then unpublishes the world through `GameServerWorldState`.
 
 It then stops authoritative execution, rejects pending commands, joins world workers, clears
 map-local state, and awaits registered admission and session lifetimes.
@@ -206,7 +224,9 @@ dotnet run \
 
 A successfully started GameServer remains running with authoritative world execution initialized.
 
-It does not accept client connections in this slice.
+With ingress enabled, it accepts 5517 connections and supports existing-character
+bootstrap through authoritative world admission. It deliberately does not implement
+gameplay dispatch or character creation.
 
 Use `Ctrl+C` for normal shutdown.
 
@@ -236,12 +256,10 @@ security analysis.
 
 ## Not Yet Implemented
 
-- GameServer TCP listener and connection admission.
-- Bounded connection-worker processing.
-- Hosted authentication and existing-character bootstrap orchestration.
-- Hosted world-session processing and ongoing gameplay packet routing.
 - Character creation.
-- Authoritative movement, combat, visibility, and replication.
+- Gameplay request routing, command authorization, and replication.
+- Authoritative movement, combat, visibility, and NPC simulation.
+- Account registration and remaining retail compatibility verification.
 
 Future network integration must preserve readiness gating, canonical map identity, bounded
 admission, exclusive world ownership, and supervised cleanup.
