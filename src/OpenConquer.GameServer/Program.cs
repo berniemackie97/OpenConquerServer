@@ -15,10 +15,17 @@ internal static class Program
     {
         ArgumentNullException.ThrowIfNull(host);
 
-        FatalBackgroundServiceFailureState fatalFailureState = host.Services.GetRequiredService<FatalBackgroundServiceFailureState>();
+        GameServerFailureState failureState = host.Services.GetRequiredService<GameServerFailureState>();
 
-        await host.RunAsync().ConfigureAwait(false);
+        try
+        {
+            await host.RunAsync().ConfigureAwait(false);
+        }
+        catch (Exception) when (failureState.Failure is not null)
+        {
+            return 1;
+        }
 
-        return fatalFailureState.Failure is null ? 0 : 1;
+        return failureState.Failure is null ? 0 : 1;
     }
 }

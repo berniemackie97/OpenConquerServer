@@ -18,7 +18,7 @@ internal sealed partial class GameServerWorldHostedService(
     WorldExecutionOptions options,
     GameServerWorldState worldState,
     IHostApplicationLifetime applicationLifetime,
-    FatalBackgroundServiceFailureState fatalFailureState,
+    GameServerFailureState failureState,
     ILogger<GameServerWorldHostedService> logger) : IHostedService, IAsyncDisposable
 {
     private readonly IAccountDatabaseReadinessVerifier _accountReadiness = accountReadiness ?? throw new ArgumentNullException(nameof(accountReadiness));
@@ -27,7 +27,7 @@ internal sealed partial class GameServerWorldHostedService(
     private readonly WorldExecutionOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly GameServerWorldState _worldState = worldState ?? throw new ArgumentNullException(nameof(worldState));
     private readonly IHostApplicationLifetime _applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));
-    private readonly FatalBackgroundServiceFailureState _fatalFailureState = fatalFailureState ?? throw new ArgumentNullException(nameof(fatalFailureState));
+    private readonly GameServerFailureState _failureState = failureState ?? throw new ArgumentNullException(nameof(failureState));
     private readonly ILogger<GameServerWorldHostedService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly Lock _gate = new();
 
@@ -183,11 +183,28 @@ internal sealed partial class GameServerWorldHostedService(
             return;
         }
 
-        InvalidOperationException failure = new("The authoritative world runtime stopped unexpectedly.");
+        Exception? cause = null;
 
-        _fatalFailureState.Record(failure);
-        LogUnexpectedWorldStop(_logger, failure);
-        _applicationLifetime.StopApplication();
+        try
+        {
+            await runtime.StopAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            cause = exception;
+        }
+
+        InvalidOperationException failure = new("The authoritative world runtime stopped unexpectedly.", cause);
+
+        try
+        {
+            _failureState.Record(failure);
+            LogUnexpectedWorldStop(_logger, failure);
+        }
+        finally
+        {
+            _applicationLifetime.StopApplication();
+        }
     }
 
     [LoggerMessage(EventId = 6000, Level = LogLevel.Information, Message = "GameServer account database readiness verified.")]

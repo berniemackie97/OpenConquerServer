@@ -54,7 +54,7 @@ internal static class GameServerHost
         services.AddWorldMapContent(configuration.MapDefinitions, configuration.TerrainDirectory, configuration.TerrainLimits, configuration.CollisionDirectory, configuration.CollisionLimits);
 
         services.AddSingleton(configuration.World);
-        services.AddSingleton<FatalBackgroundServiceFailureState>();
+        services.AddSingleton<GameServerFailureState>();
         services.AddSingleton<GameServerWorldState>();
         services.AddSingleton<GameServerWorldHostedService>();
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<GameServerWorldHostedService>());

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Configuration;
@@ -196,7 +197,7 @@ public sealed class GameServerHostTests
         {
             await host.StartAsync(TestContext.Current.CancellationToken);
 
-            FatalBackgroundServiceFailureState fatal = host.Services.GetRequiredService<FatalBackgroundServiceFailureState>();
+            GameServerFailureState fatal = host.Services.GetRequiredService<GameServerFailureState>();
             GameServerWorldState state = host.Services.GetRequiredService<GameServerWorldState>();
             IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
             WorldRuntime runtime = state.GetRequiredWorld().Runtime;
@@ -210,6 +211,7 @@ public sealed class GameServerHostTests
 
             InvalidOperationException failure = Assert.IsType<InvalidOperationException>(fatal.Failure);
             Assert.Contains("stopped unexpectedly", failure.Message, StringComparison.Ordinal);
+            Assert.Null(failure.InnerException);
 
             await host.StopAsync(TestContext.Current.CancellationToken);
 
@@ -218,6 +220,94 @@ public sealed class GameServerHostTests
         finally
         {
             await DisposeHostAsync(host);
+        }
+    }
+
+    [Fact]
+    public async Task Host_FaultedWorldShutdownPreservesCauseAndReturnsFailureExitCode()
+    {
+        IHost host = CreateHost(new ControlledReadiness(), new ControlledReadiness(), new ControlledContentRepositories());
+        IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+        GameServerFailureState failureState = host.Services.GetRequiredService<GameServerFailureState>();
+        GameServerWorldState worldState = host.Services.GetRequiredService<GameServerWorldState>();
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using CancellationTokenRegistration registration = lifetime.ApplicationStarted.Register(() => started.TrySetResult());
+
+        Task<int> running = OpenConquer.GameServer.Program.RunAsync(host);
+
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            WorldRuntime runtime = worldState.GetRequiredWorld().Runtime;
+            IOException cause = new("world admission lifetime failed");
+
+            runtime.TrackAdmission(Task.FromException(cause));
+
+            IOException runtimeFailure = await Assert.ThrowsAsync<IOException>(
+                () => runtime.StopAsync().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+            Assert.Same(cause, runtimeFailure);
+            Assert.Equal(1, await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+            InvalidOperationException failure = Assert.IsType<InvalidOperationException>(failureState.Failure);
+
+            Assert.Contains("stopped unexpectedly", failure.Message, StringComparison.Ordinal);
+            Assert.Same(cause, failure.InnerException);
+            Assert.Throws<InvalidOperationException>(() => worldState.GetRequiredWorld());
+        }
+        finally
+        {
+            if (!running.IsCompleted)
+            {
+                lifetime.StopApplication();
+            }
+
+            await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Host_UnexpectedWorldStopRequestsShutdownWhenFatalLoggingFails()
+    {
+        IOException loggingFailure = new("fatal log sink failed");
+        ThrowingFatalLogger logger = new(loggingFailure);
+        IHost host = CreateHost(new ControlledReadiness(), new ControlledReadiness(), new ControlledContentRepositories(), logger);
+        IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+        GameServerFailureState failureState = host.Services.GetRequiredService<GameServerFailureState>();
+        GameServerWorldState worldState = host.Services.GetRequiredService<GameServerWorldState>();
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using CancellationTokenRegistration registration = lifetime.ApplicationStarted.Register(() => started.TrySetResult());
+
+        Task<int> running = OpenConquer.GameServer.Program.RunAsync(host);
+
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            WorldRuntime runtime = worldState.GetRequiredWorld().Runtime;
+
+            await runtime.StopAsync().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+            Assert.Equal(1, logger.Calls);
+
+            InvalidOperationException failure = Assert.IsType<InvalidOperationException>(failureState.Failure);
+
+            Assert.Contains("stopped unexpectedly", failure.Message, StringComparison.Ordinal);
+            Assert.Null(failure.InnerException);
+            Assert.Throws<InvalidOperationException>(() => worldState.GetRequiredWorld());
+        }
+        finally
+        {
+            if (!running.IsCompleted)
+            {
+                lifetime.StopApplication();
+            }
+
+            await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
         }
     }
 
@@ -250,7 +340,8 @@ public sealed class GameServerHostTests
         }
     }
 
-    private static IHost CreateHost(ControlledReadiness account, ControlledReadiness game, ControlledContentRepositories content)
+    private static IHost CreateHost(ControlledReadiness account, ControlledReadiness game, ControlledContentRepositories content,
+        ILogger<GameServerWorldHostedService>? logger = null)
     {
         GameServerConfiguration configuration = GameServerConfiguration.Load(GameServerConfigurationTests.CreateConfiguration(), Path.GetTempPath());
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
@@ -262,6 +353,11 @@ public sealed class GameServerHostTests
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(content);
         builder.Services.AddSingleton<IMapBaseTerrainCatalogRepository>(content);
         builder.Services.AddSingleton<IMapTerrainCollisionCatalogRepository>(content);
+
+        if (logger is not null)
+        {
+            builder.Services.AddSingleton(logger);
+        }
 
         return builder.Build();
     }
@@ -365,5 +461,23 @@ public sealed class GameServerHostTests
         }
 
         public void Release() => _release.TrySetResult();
+    }
+
+    private sealed class ThrowingFatalLogger(Exception failure) : ILogger<GameServerWorldHostedService>
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Critical;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Interlocked.Increment(ref _calls);
+            throw failure;
+        }
     }
 }

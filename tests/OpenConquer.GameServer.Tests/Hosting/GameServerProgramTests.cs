@@ -12,11 +12,11 @@ public sealed class GameServerProgramTests
     public async Task RunAsync_ReportsFatalRuntimeStateThroughProcessExitCode(bool fatal, int expectedExitCode)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
-        builder.Services.AddSingleton<FatalBackgroundServiceFailureState>();
+        builder.Services.AddSingleton<GameServerFailureState>();
 
         IHost host = builder.Build();
         IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-        FatalBackgroundServiceFailureState failureState = host.Services.GetRequiredService<FatalBackgroundServiceFailureState>();
+        GameServerFailureState failureState = host.Services.GetRequiredService<GameServerFailureState>();
         TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using CancellationTokenRegistration registration = lifetime.ApplicationStarted.Register(() => started.TrySetResult());
@@ -33,5 +33,18 @@ public sealed class GameServerProgramTests
         lifetime.StopApplication();
 
         Assert.Equal(expectedExitCode, await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void GameServerFailureState_PreservesFirstFatalFailure()
+    {
+        GameServerFailureState state = new();
+        IOException first = new("world execution failed");
+        InvalidOperationException second = new("connection worker failed");
+
+        state.Record(first);
+        state.Record(second);
+
+        Assert.Same(first, state.Failure);
     }
 }

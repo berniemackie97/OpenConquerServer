@@ -1,6 +1,6 @@
 namespace OpenConquer.GameServer.Hosting;
 
-internal sealed class FatalBackgroundServiceFailureState
+internal sealed class GameServerFailureState
 {
     private Exception? _failure;
 
