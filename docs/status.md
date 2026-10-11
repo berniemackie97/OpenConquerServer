@@ -1,0 +1,45 @@
+# Implementation status
+
+This is the single source for what is and is not implemented. Other documents describe how the
+implemented parts work and link here rather than repeating this list.
+
+## Implemented
+
+### AccountServer
+
+- Runnable host with validated configuration, database readiness gating, and supervised shutdown.
+- Per-source and global connection admission, a fixed worker pool, and a whole-connection timeout.
+- The standard account login sequence: seed, credential request, authentication, durable
+  GameServer ticket grant, response, and the two post-login client reports.
+- Authentication rate limiting and lockout, password storage with transparent migration, and
+  account security mutations that revoke outstanding tickets.
+- Scheduled cleanup of expired tickets and low-cardinality login metrics.
+
+### GameServer
+
+- Runnable host that verifies both databases, loads map and item content, and starts the world.
+- TCP ingress with per-source and global admission, fixed login workers, and a login timeout.
+- Diffie-Hellman key exchange, CAST5 encrypted framing, and single-use ticket redemption.
+- Existing-character login: character resolution, the initial bootstrap packets, and the full
+  client request sequence (map entry, items, friends, weapon skills, magic, syndicate, client
+  reports).
+- World runtime: one partition per map, a shared scheduler, bounded command queues, and
+  generation-fenced character admission and removal.
+- Hand-off from a completed login into a supervised world session with revocable realm presence.
+
+### Persistence and content
+
+- Accounts schema version 2 and Game schema version 9, both checked at startup.
+- Characters, items (with lifetimes), friends and enemies, weapon skills, magic, and syndicates.
+- Item type catalog (14,981 types), 282 map definitions, 185 base terrains, and static collision
+  for every terrain, all validated before the GameServer starts.
+
+## Not yet implemented
+
+- Account registration and staff tooling.
+- Character creation.
+- Gameplay packet routing after login: movement, combat, NPCs, trading, chat, and replication.
+- World simulation: monsters, timers, visibility, and map transfers.
+- Seven map identities from the original data that could not be resolved (see
+  [content](content/README.md)).
+- Verification-key rotation tooling and least-privilege production database accounts.

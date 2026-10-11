@@ -1,552 +1,148 @@
-# Conquer Online 5517 Protocol
+# Protocol
 
-This directory documents client-visible **Conquer Online 5517** wire behavior implemented or
-verified by OpenConquer.
+This section describes what goes over the wire between the client and the two servers. The
+supported client is Conquer Online version 5517. Server internals are covered in the
+[architecture documentation](../architecture/README.md).
 
-Internal server architecture belongs under [`docs/architecture`](../architecture/README.md).
+- [Framing](framing.md): frame header, size limits, and encoder and decoder behavior.
+- [Text encoding](text-encoding.md): string fields and supported encodings.
 
-## Current Coverage
+## Frames
 
-| Area                                      | Status                  |
-| ----------------------------------------- | ----------------------- |
-| TQ framing                                | Implemented             |
-| Binary serialization                      | Implemented             |
-| Windows-1252 / ASCII text encoding        | Implemented             |
-| AccountServer login stream cipher         | Implemented             |
-| Standard 5517 credential decoding         | Implemented             |
-| AccountServer authentication response     | Implemented             |
-| AccountServer post-authentication reports | Implemented             |
-| Standard AccountServer login transaction  | Implemented             |
-| Protected/mobile login variants           | Recognized, unsupported |
-| GameServer Diffie-Hellman handshake       | Implemented             |
-| GameServer CAST5 compatibility encryption | Implemented             |
-| GameServer packet signatures              | Implemented             |
-| GameServer login proof                    | Implemented                             |
-| Existing-character bootstrap protocol     | Implemented through `0x84`             |
-| Syndicate bootstrap protocol foundation   | Implemented                             |
-| General gameplay/world-session packets    | Not implemented                         |
+Every packet starts with a four-byte little-endian header: a `UInt16` total length (including the
+header) and a nonzero `UInt16` packet ID.
 
-Detailed shared contracts:
+| Path               | Maximum frame length                                     |
+| ------------------ | -------------------------------------------------------- |
+| Framing primitives | 65,535 bytes                                             |
+| AccountServer      | 524 bytes                                                |
+| GameServer         | 1,024 bytes, plus an 8-byte signature after each frame   |
 
-- [TQ Framing](framing.md)
-- [TQ Text Encoding](encoding.md)
+The owning server passes its limit to the framing layer; the framing primitives hard-code neither.
 
-## Common TQ Frame
+## AccountServer login
 
-All currently implemented TQ packets use a four-byte little-endian header:
-
-| Offset | Size | Field              |
-| -----: | ---: | ------------------ |
-| `0x00` |    2 | Total frame length |
-| `0x02` |    2 | Packet identifier  |
-
-The declared length includes the header:
+All AccountServer traffic is encrypted with a stream cipher. Each direction has its own cipher
+state.
 
 ```text
-FrameLength = 4 + PayloadLength
+1059 seed → 1060 credentials → 1055 response → 1100 MAC address report → 1052 resource version report
 ```
 
-Packet identifier `0` is invalid for a complete TQ packet.
+| ID     | Direction | Size | Contents                                                      |
+| -----: | --------- | ---: | ------------------------------------------------------------- |
+| `1059` | S → C     |    8 | Login seed (`UInt32`)                                         |
+| `1060` | C → S     |  276 | Account name, credential field, server name                   |
+| `1055` | S → C     |   36 | Session ID, key or failure code, GameServer port and address  |
+| `1100` | C → S     |   52 | Session ID, MAC address text, four unused bytes               |
+| `1052` | C → S     |   28 | Session ID, resource version, resource name (`res.dat`)       |
 
-The generic length field is `UInt16`, giving a maximum representable complete frame of:
+The success response in `1055` is sent only after the GameServer ticket has been committed. The two
+reports that follow are telemetry and never affect the ticket.
 
-```text
-65535 bytes
-```
+### Credential request (1060)
 
-Protocol-specific paths may impose lower limits.
-
-## Frame Limits
-
-| Path                    | Complete TQ frame limit |
-| ----------------------- | ----------------------: |
-| Generic framing         |             65535 bytes |
-| AccountServer login     |               524 bytes |
-| 5517 GameServer traffic |    `0x400` / 1024 bytes |
-
-The GameServer session boundary enforces the verified native `0x400` complete-frame limit.
-
-GameServer traffic also uses a separate eight-byte signature trailer. That trailer is outside the
-header-declared `0x400` TQ frame:
-
-```text
-0x400 TQ frame
-+ 0x008 signature
-= 0x408 stream bytes
-```
-
-Generic framing does not hard-code either AccountServer or GameServer limits. The owning protocol
-path supplies its limit.
-
-## AccountServer Login Packets
-
-| Packet | Direction       | Complete size | Purpose                                    |
-| -----: | --------------- | ------------: | ------------------------------------------ |
-| `1059` | Server → Client |       8 bytes | Login seed                                 |
-| `1060` | Client → Server |     276 bytes | Standard account credentials               |
-| `1055` | Server → Client |      36 bytes | Authentication result / GameServer handoff |
-| `1100` | Client → Server |      52 bytes | MAC-address report                         |
-| `1052` | Client → Server |      28 bytes | `res.dat` version report                   |
-
-Packet `1052` is context-sensitive. The 28-byte AccountServer report is distinct from the later
-GameServer login-proof packet using the same identifier.
-
-## Standard AccountServer Transaction
-
-The implemented standard 5517 flow is:
-
-```text
-connection established
-    ↓
-1059 login seed
-    ↓
-1060 credential request
-    ↓
-credential authentication
-    ↓
-durable GameServer login-ticket grant
-    ↓
-1055 authentication response
-    ↓
-1100 MAC report
-    ↓
-1052 res.dat version report
-    ↓
-AccountServer transaction complete
-```
-
-A successful `1055` is never sent before the GameServer login ticket has been durably granted.
-
-The AccountServer transaction is wired into the runnable AccountServer host with bounded
-pre-authentication admission, fixed workers, and bounded authentication protection.
-
-## Login Seed and Stream Cipher
-
-The AccountServer sends packet `1059` immediately after the login connection is opened.
-
-Its payload is one `UInt32` login seed.
-
-AccountServer traffic uses the legacy TQ stream transform with independent state for:
-
-```text
-client → server
-server → client
-```
-
-Inbound and outbound byte positions must not share state.
-
-The seed is also used to derive the standard `1060` credential decryption key.
-
-## Standard Credential Request — 1060
-
-The standard retail 5517 credential payload is 272 bytes:
-
-|  Offset | Size | Field            |
+| Offset  | Size | Field            |
 | ------: | ---: | ---------------- |
 |  `0x00` |  128 | Account name     |
 |  `0x80` |  128 | Credential field |
 | `0x100` |   16 | Server name      |
 
-Complete frame size:
+The client encrypts only the first 32 bytes of the credential field. To recover the password, the
+server derives an RC5-32/12/16 key from the login seed, decrypts those 32 bytes, and reverses the
+client's keypad permutation, which is keyed on the raw account name bytes. The remaining 96 bytes
+are ignored. Username and password rules are applied only after decoding.
 
-```text
-4-byte header
-+ 272-byte payload
-= 276 bytes
-```
+Packets `1084` (protected login) and `1098` (mobile login) are recognized but not supported and
+receive failure code `1`. The 524-byte frame limit exists because `1084` is the largest login
+packet.
 
-Only the first 32 bytes of the 128-byte credential field are transformed by the standard 5517 path.
-
-Credential decoding uses:
-
-```text
-login seed
-    ↓
-seed-derived RC5-32/12/16 key
-    ↓
-decrypt first 32 credential bytes
-    ↓
-account-dependent keypad permutation
-    ↓
-password characters
-```
-
-The keypad permutation uses the original account bytes from the packet. The account name must not be
-trimmed or normalized before that step.
-
-The remaining 96 credential bytes are not treated as a validity condition by the standard path.
-
-Decoded password memory is mutable and explicitly disposable.
-
-Application-level username and password policy is applied only after wire decoding.
-
-## Unsupported Credential Variants
-
-Only packet `1060` is implemented as an authentication request.
-
-Known alternate login packet identifiers include:
-
-| Packet | Current handling                                |
-| -----: | ----------------------------------------------- |
-| `1084` | Recognized protected-login variant; unsupported |
-| `1098` | Recognized mobile-login variant; unsupported    |
-
-These variants fail closed and do not enter standard credential decoding.
-
-Unknown login request packet identifiers are also rejected.
-
-The 524-byte AccountServer frame ceiling accommodates verified login traffic including packet
-`1084`; it does not imply support for that packet.
-
-OEM, Facebook, custom registration, and other non-standard login paths are not implemented.
-
-## Authentication Response — 1055
-
-Packet `1055` has a 32-byte payload:
-
-| Offset | Size | Field                              |
-| -----: | ---: | ---------------------------------- |
-| `0x00` |    4 | Session UID                        |
-| `0x04` |    4 | Authentication key or failure code |
-| `0x08` |    4 | GameServer port                    |
-| `0x0C` |    4 | Additional session field           |
-| `0x10` |   16 | GameServer IPv4 address            |
-
-### Success
-
-A nonzero session UID selects the native success path.
-
-The implemented standard handoff sends:
-
-```text
-SessionUid               = durable ticket SessionUid
-AuthenticationKey        = durable ticket AuthenticationKey
-GameServerPort           = configured GameServer port
-AdditionalSessionField   = AuthenticationKey
-GameServerIp             = configured IPv4 address
-```
-
-The authentication key is intentionally written into both `0x04` and `0x0C` for the standard
-AccountServer handoff, matching preserved server behavior.
-
-The protocol model keeps the fields separate because the complete native meaning of `0x0C` remains
-unresolved.
-
-### Failure
-
-A zero session UID selects the failure path. The field at `0x04` becomes the native failure code.
-
-Verified codes:
-
-| Code | Meaning                 |
-| ---: | ----------------------- |
-|  `1` | Invalid credentials     |
-| `12` | Banned account          |
-| `57` | Invalid account/request |
-
-Current AccountServer mappings include:
-
-```text
-wrong credentials                -> 1
-unsupported 1084 / 1098 request -> 1
-stale authentication snapshot    -> 1
-banned account                   -> 12
-malformed standard 1060          -> 57
-unknown login packet             -> 57
-```
-
-If account state changes between successful credential authentication and durable ticket grant, the
-grant fails closed and the client receives generic failure `1`.
-
-## Durable GameServer Handoff
-
-`1055` success represents more than successful password verification.
-
-Before success is sent:
-
-1. credentials must authenticate;
-2. current account/password revisions must still match;
-3. a nonzero session UID and authentication key must be allocated;
-4. the GameServer login ticket must be durably committed.
-
-This prevents a stale authentication result from producing a usable GameServer bearer credential
-after an authentication-invalidating account mutation.
-
-Ticket persistence and account security semantics are documented in
-[Authentication](../architecture/authentication.md).
-
-## MAC Report — 1100
-
-Packet `1100` has a 48-byte payload:
+### Response (1055)
 
 | Offset | Size | Field                                  |
 | -----: | ---: | -------------------------------------- |
-| `0x00` |    4 | Session UID                            |
-| `0x04` |   40 | MAC-address field                      |
-| `0x2C` |    4 | Semantically unresolved trailing bytes |
-
-Complete frame size:
-
-```text
-52 bytes
-```
-
-AccountServer validation requires:
-
-- session UID matches the issued ticket;
-- MAC address is empty or exactly 12 uppercase hexadecimal characters.
-
-The four trailing bytes are structurally consumed but have no assigned semantic meaning in current
-evidence.
-
-## Resource-Version Report — 1052
-
-The AccountServer form of packet `1052` has a 24-byte payload:
-
-| Offset | Size | Field            |
-| -----: | ---: | ---------------- |
-| `0x00` |    4 | Session UID      |
-| `0x04` |    4 | Resource version |
-| `0x08` |   16 | Resource name    |
-
-Complete frame size:
-
-```text
-28 bytes
-```
-
-AccountServer validation requires:
-
-- session UID matches the issued ticket;
-- resource name is exactly `res.dat`.
-
-The resource-version value is accepted as client telemetry.
-
-## Post-Authentication Reports
-
-The standard client sends:
-
-```text
-1100 MAC report
-    ↓
-1052 res.dat version report
-```
-
-The order is enforced.
-
-Each report read receives an independent bounded phase timeout.
-
-Report failures are non-authoritative telemetry failures. They do **not** revoke an already-issued
-GameServer login ticket.
-
-This includes:
-
-- missing report;
-- timeout;
-- unexpected packet;
-- malformed report;
-- session mismatch;
-- invalid MAC format;
-- unexpected resource name.
-
-Authentication authorization was already established by the durable ticket grant before these
-reports are consumed.
-
-## GameServer Compatibility Channel
-
-The standard 5517 GameServer connection performs the native Diffie-Hellman exchange and then uses
-CAST5-CFB64 encrypted framing on the same TCP stream.
-
-The compatibility channel preserves stock client behavior. It is not modern authenticated transport:
-the handshake does not authenticate server endpoint identity and the legacy trailers are not
-message-authentication codes.
-
-GameServer frames use the verified `0x400` complete-frame limit plus the separate eight-byte
-signature trailer.
-
-The first protected login packet is `1052`. The connection handoff validates that proof and
-atomically redeems the single-use GameServer login ticket before exposing an authenticated live
-connection.
-
-Secured outbound framing permits one active writer. Overlapping writes are rejected immediately
-rather than queued.
-
-## Existing-Character Bootstrap
-
-The implemented existing-character bootstrap protocol currently covers the verified native
-client-driven request sequence through `0x84` GetStatistic. Runtime processing reaches
-`ExistingCharacterBootstrapCompleteConnection`; authoritative world-session integration remains future work.
-
-Initial bootstrap emits:
-
-| Packet | Purpose                       |
-| -----: | ----------------------------- |
-| `1004` | Game-entry acceptance message |
-| `2078` | Login-history state           |
-| `2079` | Server-state information      |
-| `1006` | Local character information   |
-
-Map entry uses:
-
-| Packet / action | Purpose                              |
-| --------------- | ------------------------------------ |
-| `10010 / 0x4A`  | EnterMap request and acknowledgement |
-| `1110`          | Map information                      |
-| `1016`          | Weather state                        |
-| `10010 / 0x198` | Client-state-applied transition      |
-
-Character bootstrap then advances through:
-
-| Request                               | Response surface                                                                             | Runtime status          |
-| ------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------- |
-| `10010 / 0x4B` GetItemSet             | `1008` item snapshots, optional `1009` subtype-46 equipment snapshot, then acknowledgement   | Implemented             |
-| `10010 / 0x4C` GetGoodFriend          | `1019` social-relation snapshots, then acknowledgement                                       | Implemented             |
-| `10010 / 0x4D` GetWeaponSkillSet      | `1025` weapon-skill snapshots, then acknowledgement                                          | Implemented             |
-| `10010 / 0x4E` GetMagicSet            | `1103` magic snapshots, optional `1104` persisted-experience snapshots, then acknowledgement | Implemented             |
-| `10010 / 0x61` GetSyndicateAttributes | `1106` member snapshot when applicable, then acknowledgement                                | Implemented             |
-| `10010 / 0xFB` ReportSilentInfo      | Authenticated-hero acknowledgement preserving client-reported checksum and version           | Implemented             |
-| `10010 / 0x84` GetStatistic          | No response; transfers ownership after canonical request validation                           | Implemented             |
-
-Each identity-bearing bootstrap request validates the client-supplied character identity against
-the authenticated character before persisted state is queried or exposed. The native `0xFB`
-report instead requires entity ID zero and does not authorize a new character identity.
-
-Native `0x61` processing uses the implemented read-only character-syndicate hydration contract.
-A character with membership receives one packet `1106` before the `0x61` acknowledgement.
-A character without membership receives only the acknowledgement. The acknowledgement advances
-the native 5517 client to action `0xFB`, which reports the silent-data checksum and version.
-Packet `1106` alone does not complete this bootstrap step.
-
-Packet `1106` preserves the existing fixed 92-byte server encoding. Position-expiration and
-join dates are projected from persisted Unix seconds to UTC `yyyyMMdd` values; expired position
-dates become zero. Syndicate level and mantle remain zero without authoritative persisted data.
-The unidentified four-byte field at offset `+71` remains zero. This packet ordering is a
-compatible server policy, not a verified retail-server packet capture.
-
-Native `0xFB` ReportSilentInfo is a fixed 38-byte `10010` request. The client sends entity ID
-zero, its `ini/Slient.dat` checksum at offset `+8`, and its silent-data version at offset
-`+16`. These values are client reports, not authenticated server data. Other non-action fields
-must be zero. The server accepts arbitrary unsigned checksum and version values without
-inventing an unavailable authoritative content policy.
-
-The `0xFB` acknowledgement uses the authenticated character ID so the native client can resolve
-the hero and advance to `0x84` GetStatistic. The acknowledgement preserves the reported checksum
-and version as server compatibility policy; the native consumer's progression depends on the
-action and resolvable entity identity. OpenConquerPublic's zero-entity acknowledgement is not
-copied because it does not satisfy that native identity-resolution gate. LongV6270's
-`LoginComplete = 251` is a later-version implementation and does not establish 5517 behavior.
-
-Native `0x84` GetStatistic is a fixed 38-byte `10010` request carrying the authenticated
-hero ID at offset `+4`, the client-supplied `timeGetTime()` timestamp at offset `+16`, and
-action `0x84` at offset `+20`. All other body fields are zero, including the string count.
-The server validates the request against the authenticated character and consumes it without
-sending a response. The native request builder and action are verified; the absence of a
-required retail-server response is not established by a retail server capture. The current
-no-response policy agrees with the OpenConquerPublic reference implementation.
-
-Runtime processing advances to `ExistingCharacterBootstrapCompleteConnection`, retaining the
-authenticated connection, accumulated character snapshots, and untrusted client-reported
-silent-data values. This marks completion of the verified client-driven request sequence,
-not authoritative gameplay-session activation. Client-content distribution, checksum
-enforcement, gameplay routing, and authoritative world-session handling remain future work.
-
-## Text Encoding
-
-Implemented protocol text modes are:
-
-| `WireTextEncoding` | Runtime encoding                     |
-| ---------------- | ------------------------------------ |
-| `Ansi`           | Windows-1252                         |
-| `StrictAnsi`     | Windows-1252 with exception fallback |
-| `Ascii`          | ASCII                                |
-
-Shared packet APIs do not accept arbitrary runtime `Encoding` instances.
-
-Fixed-width strings:
-
-- consume their full field width;
-- terminate logically at the first null byte;
-- zero-fill unused outbound bytes;
-- reject outbound embedded null characters;
-- are not silently truncated by generic serializers.
-
-Byte-length-prefixed strings use one byte for encoded length and therefore support at most 255
-encoded bytes.
-
-See [TQ Text Encoding](encoding.md) for the complete contract.
-
-## Serialization and Memory Ownership
-
-Protocol serializers operate on caller-owned memory.
-
-`PacketReader` is a non-owning cursor over inbound bytes.
-
-`PacketWriter` is a non-owning fixed-capacity writer over outbound memory.
-
-`WireFrameDecoder` accepts caller-owned `ReadOnlySequence<byte>` input and does not advance the
-transport buffer itself.
-
-`WireFrameEncoder` serializes payload before committing the common frame header.
-
-Important failure guarantees are documented in:
-
-- [TQ Framing](framing.md)
-- [TQ Text Encoding](encoding.md)
-
-## Protocol / Transport Boundary
-
-`OpenConquer.Protocol` owns:
-
-```text
-packet identifiers
-packet layouts
-framing
-serialization
-text encoding
-protocol cryptography
-wire compatibility
-```
-
-`OpenConquer.Transport` owns:
-
-```text
-TCP
-connection lifetime
-buffer movement
-I/O
-backpressure
-admission
-```
-
-Protocol does not own sockets or transport queues.
-
-Transport does not interpret Conquer packet semantics.
-
-See [Networking Architecture](../architecture/networking.md).
-
-## Evidence Policy
-
-Client-visible behavior is derived from:
-
-- reconstructed/native 5517 client behavior;
-- preserved OpenConquerPublic server behavior;
-- packet captures when available;
-- verified protocol vectors and tests.
-
-Native 5517 client behavior has final authority for compatibility.
-
-Legacy server code is behavioral evidence, not an architecture template. Its class layout,
-threading, socket abstractions, and ownership patterns are not automatically carried into the
-rewrite.
-
-Protocol APIs are added only when supported by concrete wire requirements.
-
-## Not Yet Implemented
-
-The current protocol/runtime surface does not include:
-
-- AccountServer registration variants;
-- protected/mobile credential decoding;
-- authoritative world-session integration following the verified client-driven bootstrap sequence;
-- character creation protocol flow;
-- general gameplay/world-session packet handling.
+| `0x00` |    4 | Session ID                             |
+| `0x04` |    4 | Authentication key, or failure code    |
+| `0x08` |    4 | GameServer port                        |
+| `0x0C` |    4 | Additional session field               |
+| `0x10` |   16 | GameServer IPv4 address (C string)     |
+
+A nonzero session ID means success; a zero session ID makes `0x04` a failure code (`1` invalid
+credentials, `12` banned, `57` invalid request). On success the server writes the authentication
+key into both `0x04` and `0x0C`. The meaning of `0x0C` is not fully known, so the packet model keeps
+it as a separate field.
+
+## GameServer connection
+
+The GameServer performs a Diffie-Hellman key exchange, then switches the same TCP stream to
+CAST5-CFB64 encryption. After the switch, every frame is followed by an eight-byte signature,
+`TQServer` from the server and `TQClient` from the client. This encryption matches what the client
+supports; it does not authenticate the server or protect message integrity.
+
+The first encrypted packet is the login proof, `1052` (28 bytes): session ID, authentication key,
+mode, locale, hardware address, and resource version. It reuses the ID of the AccountServer
+resource report but has a different layout. The server redeems the ticket before doing anything
+else with the connection.
+
+## GameServer login
+
+After authentication, an existing character is loaded in a fixed order driven by the client.
+Requests other than `1052` are action packets (`10010`), a 38-byte general-purpose message
+identified by its action code. Every request is checked against the authenticated character
+before any data is read.
+
+| Step                     | Client request          | Server response                                                       |
+| ------------------------ | ----------------------- | --------------------------------------------------------------------- |
+| Initial                  | (after `1052`)          | `1004` entry accepted, `2078` login history, `2079` server state, `1006` character info |
+| Enter map                | `10010` / `0x4A`        | `1110` map info, `1016` weather, action acknowledgement               |
+| Map state applied        | `10010` / `0x198`       | None                                                                  |
+| Items                    | `10010` / `0x4B`        | `1008` per item, `1009` subtype 46 if main-set equipment is worn, acknowledgement |
+| Friends                  | `10010` / `0x4C`        | `1019` per relation, acknowledgement                                  |
+| Weapon skills            | `10010` / `0x4D`        | `1025` per skill, acknowledgement                                     |
+| Magic                    | `10010` / `0x4E`        | `1103` per spell, `1104` for spells with experience, acknowledgement  |
+| Syndicate                | `10010` / `0x61`        | `1106` if the character is a member, acknowledgement                  |
+| Client report            | `10010` / `0xFB`        | Acknowledgement carrying the character ID                             |
+| Statistics               | `10010` / `0x84`        | None                                                                  |
+
+Notes on individual steps:
+
+- **Items.** Items are written in ascending item ID order. Item lifetimes are converted to the
+  client's signed 32-bit range using one UTC instant per request.
+- **Syndicate.** `1106` is a fixed 92-byte layout. Dates are sent as UTC `yyyyMMdd`, and an expired
+  position date is sent as zero. Level, mantle, and the unused field at offset `+71` are zero.
+- **Client report.** The client sends entity ID zero with a checksum at `+8` and a data version at
+  `+16`. Both are untrusted. The acknowledgement uses the authenticated character ID because the
+  client needs it to continue; the reported values are echoed back.
+- **Statistics.** The request carries the character ID and a client timestamp. It has no response.
+
+After the last step the connection becomes a world session. Gameplay packets are not handled yet.
+
+## Packet types
+
+| ID      | Type                                | Direction |
+| ------: | ----------------------------------- | --------- |
+|  `1004` | `GameChatPacket`                    | S → C     |
+|  `1006` | `GameCharacterInfoPacket`           | S → C     |
+|  `1008` | `GameLocalItemSnapshotPacket`       | S → C     |
+|  `1009` | `GameActiveEquipmentSnapshotPacket` | S → C     |
+|  `1016` | `GameWeatherUpdatePacket`           | S → C     |
+|  `1019` | `GameSocialRelation`, `GameSocialRelationPacket` | Both |
+|  `1025` | `GameWeaponSkillPacket`             | S → C     |
+|  `1052` | `GameLoginProof`                    | C → S     |
+|  `1103` | `GameMagicPacket`                   | S → C     |
+|  `1104` | `GameSkillExperiencePacket`         | S → C     |
+|  `1106` | `GameSyndicateAttributesPacket`     | S → C     |
+|  `1110` | `GameMapInfoPacket`                 | S → C     |
+|  `2078` | `GameLoginHistoryPacket`            | S → C     |
+|  `2079` | `GameServerStatePacket`             | S → C     |
+| `10010` | `GameAction`, `GameActionPacket`    | Both      |
+
+Login packet types live in `OpenConquer.Protocol.Login.Packets` and are named after their purpose
+(`LoginSeedPacket`, `LoginAccountRequestPacket`, and so on). Each type exposes its packet ID as a
+constant; type names describe the message, not its number.
+
+## Adding protocol support
+
+A packet type is added when a server feature needs it, together with tests that pin its exact
+byte layout. Unknown fields are preserved as raw values or written as zero, never given an
+invented meaning.
