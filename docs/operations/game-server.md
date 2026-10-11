@@ -270,6 +270,19 @@ git diff --check
 CI additionally verifies the Account and Game EF Core migration models, dependency changes, and
 security analysis.
 
+GameServer login instrumentation uses the `OpenConquer.GameServer.Login` meter.
+
+- `game.login.accepted`: source-admitted transports.
+- `game.login.source_rejected`: per-source capacity rejections.
+- `game.login.capacity_rejected`: bounded admission-queue rejections.
+- `game.login.completed`: successful transfers into authoritative world sessions.
+- `game.login.not_admitted`: connections that ended without world-session admission, including
+  peer disconnects, authentication rejection, and the unsupported character-creation route.
+- `game.login.failed`: login-processing exceptions.
+- `game.login.timed_out`: expired login-processing deadlines.
+- `game.login.world_sessions`: current supervised world-session count.
+- `game.login.duration`: pre-world processing duration in milliseconds.
+
 The admission concurrency test reports completed-operation throughput and p50, p95, and
 p99 latency for 256 concurrent simulated source connections. These measurements are
 diagnostic, not machine-independent performance acceptance thresholds.

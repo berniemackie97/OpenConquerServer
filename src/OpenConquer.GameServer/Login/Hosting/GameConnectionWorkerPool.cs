@@ -109,11 +109,14 @@ internal sealed partial class GameConnectionWorkerPool(
                     WorldSession? session = await _processConnection(connection, timeout.Token).ConfigureAwait(false);
                     double duration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 
-                    _metrics.RecordCompleted(duration);
-
-                    if (session is not null)
+                    if (session is null)
+                    {
+                        _metrics.RecordNotAdmitted(duration);
+                    }
+                    else
                     {
                         StartSession(session, cancellationToken);
+                        _metrics.RecordCompleted(duration);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

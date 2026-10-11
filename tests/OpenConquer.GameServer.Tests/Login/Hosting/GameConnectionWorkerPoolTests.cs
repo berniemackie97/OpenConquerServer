@@ -10,6 +10,7 @@ using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Connections;
+using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
@@ -22,6 +23,7 @@ using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Transport.Admission;
+using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.GameServer.Tests.Login.Hosting;
 
@@ -43,6 +45,8 @@ public sealed class GameConnectionWorkerPoolTests
         CharacterPresenceDirectory presence = new();
         WorldSession session = await CreateSessionAsync(runtime, transport, presence, map);
 
+        transport.QueueEndOfStream();
+
         await using TransportConnectionAdmissionQueue queue = new(8);
         using GameLoginMetrics metrics = new();
         using RecordingApplicationLifetime lifetime = new();
@@ -62,6 +66,7 @@ public sealed class GameConnectionWorkerPoolTests
             await transport.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
 
             Assert.False(running.IsCompleted);
+            Assert.False(session.Completion.IsCompleted);
             Assert.Null(failureState.Failure);
             Assert.False(lifetime.ApplicationStopping.IsCancellationRequested);
 
@@ -84,7 +89,7 @@ public sealed class GameConnectionWorkerPoolTests
     }
 
     [Fact]
-    public async Task RunAsync_SuccessfulSessionCleanupDoesNotRequestHostShutdown()
+    public async Task RunAsync_CleanSecuredPeerDisconnectReleasesSessionWithoutFatalShutdown()
     {
         WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
         await using WorldRuntime runtime = CreateRuntime(map);
@@ -93,6 +98,8 @@ public sealed class GameConnectionWorkerPoolTests
         FakeGameTransportConnection transport = new();
         CharacterPresenceDirectory presence = new();
         WorldSession session = await CreateSessionAsync(runtime, transport, presence, map);
+
+        transport.QueueEndOfStream();
 
         await using TransportConnectionAdmissionQueue queue = new(8);
         using GameLoginMetrics metrics = new();
@@ -114,6 +121,41 @@ public sealed class GameConnectionWorkerPoolTests
         Assert.Equal(1, transport.DisposeCount);
         Assert.True(session.Completion.IsCompletedSuccessfully);
         Assert.False(presence.IsOnline(CharacterId));
+        Assert.Null(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RunAsync_NotAdmittedConnectionDoesNotCreateWorldSessionOrRequestFatalShutdown()
+    {
+        FakeGameTransportConnection transport = new();
+
+        await using TransportConnectionAdmissionQueue queue = new(8);
+        using GameLoginMetrics metrics = new();
+        using RecordingApplicationLifetime lifetime = new();
+        GameServerFailureState failureState = new();
+
+        int processed = 0;
+
+        GameConnectionWorkerPool workers = new(queue,
+            async (connection, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Interlocked.Increment(ref processed);
+                await connection.DisposeAsync();
+                return null;
+            },
+            CreateOptions(), metrics, failureState, lifetime, NullLogger<GameConnectionWorkerPool>.Instance);
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(transport));
+        queue.Complete();
+
+        await workers.RunAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, processed);
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.Null(failureState.Failure);
+        Assert.False(lifetime.ApplicationStopping.IsCancellationRequested);
     }
 
     private static GameNetworkOptions CreateOptions()
@@ -132,23 +174,44 @@ public sealed class GameConnectionWorkerPoolTests
     private static async Task<WorldSession> CreateSessionAsync(WorldRuntime runtime, FakeGameTransportConnection transport,
         ICharacterPresenceRegistrar presence, WorldMapContent map)
     {
-        GameConnectionSession connectionSession = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
-        AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,
-            localeTag: 0x6E45, hardwareAddress: 0x0000665544332211, resourceVersion: 5517, session: connectionSession);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        GameConnectionSession connectionSession = await GameConnectionSession.OpenAsync(transport, cancellationToken);
 
-        CharacterLoginProfile profile = CreateProfile();
-        ExistingCharacterGameConnection character = new(authenticated, profile, presence.Register(CharacterId));
+        try
+        {
+            GameTransportHandshakeProcessor handshakeProcessor = new();
+            Task<bool> handshake = handshakeProcessor.TryCompleteAsync(connectionSession, cancellationToken).AsTask();
 
-        ExistingCharacterBootstrapCompleteConnection bootstrap = new(character, map,
-            new CharacterItemSet(CharacterId, []),
-            new CharacterSocialRelationSet(CharacterId, []),
-            new CharacterWeaponSkillSet(CharacterId, []),
-            new CharacterMagicSet(CharacterId, []),
-            new CharacterSyndicateState(CharacterId, membership: null, syndicate: null),
-            0x12345678, 17);
+            await transport.SendCompleted.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken);
 
-        return await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
-            bootstrap, TestContext.Current.CancellationToken);
+            using (GameClientTestPeer client = GameClientTestPeer.Create(transport.SentBytes))
+            {
+                transport.QueueReceive(client.EncryptedKeyExchangeResponse);
+
+                Assert.True(await handshake.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken));
+            }
+
+            AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,
+                localeTag: 0x6E45, hardwareAddress: 0x0000665544332211, resourceVersion: 5517, session: connectionSession);
+
+            CharacterLoginProfile profile = CreateProfile();
+            ExistingCharacterGameConnection character = new(authenticated, profile, presence.Register(CharacterId));
+
+            ExistingCharacterBootstrapCompleteConnection bootstrap = new(character, map,
+                new CharacterItemSet(CharacterId, []),
+                new CharacterSocialRelationSet(CharacterId, []),
+                new CharacterWeaponSkillSet(CharacterId, []),
+                new CharacterMagicSet(CharacterId, []),
+                new CharacterSyndicateState(CharacterId, membership: null, syndicate: null),
+                0x12345678, 17);
+
+            return await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, cancellationToken);
+        }
+        catch
+        {
+            await connectionSession.DisposeAsync();
+            throw;
+        }
     }
 
     private static CharacterLoginProfile CreateProfile()
