@@ -23,11 +23,7 @@ public sealed class MapTerrainCollisionCatalogTests
     [Fact]
     public void Constructor_DuplicateMapDataId_IsRejected()
     {
-        Assert.Throws<ArgumentException>(() => new MapTerrainCollisionCatalog(
-        [
-            CreateCollision(1000),
-            CreateCollision(1000)
-        ]));
+        Assert.Throws<ArgumentException>(() => new MapTerrainCollisionCatalog([CreateCollision(1000), CreateCollision(1000)]));
     }
 
     [Fact]
@@ -39,11 +35,7 @@ public sealed class MapTerrainCollisionCatalogTests
     [Fact]
     public void Constructor_NullCollision_IsRejected()
     {
-        Assert.Throws<ArgumentException>(() => new MapTerrainCollisionCatalog(
-        [
-            CreateCollision(1000),
-            null!
-        ]));
+        Assert.Throws<ArgumentException>(() => new MapTerrainCollisionCatalog([CreateCollision(1000), null!]));
     }
 
     [Fact]
@@ -63,11 +55,7 @@ public sealed class MapTerrainCollisionCatalogTests
 
     private static MapTerrainCollision CreateCollision(uint mapDataId)
     {
-        MapBaseTerrain terrain = new(mapDataId, 1, 1,
-        [
-            new MapBaseTerrainCell(10, 0, 100)
-        ], []);
-
+        MapBaseTerrain terrain = new(mapDataId, 1, 1, [new MapBaseTerrainCell(10, 0, 100)], []);
         return new MapTerrainCollision(terrain, []);
     }
 }

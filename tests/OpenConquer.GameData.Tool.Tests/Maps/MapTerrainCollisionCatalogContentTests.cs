@@ -12,27 +12,23 @@ public sealed class MapTerrainCollisionCatalogContentTests
         string contentDirectory = FindContentDirectory();
 
         FileMapDefinitionCatalogRepository definitionsRepository = new(
-            new MapDefinitionCatalogFileOptions(
-                Path.Combine(contentDirectory, "map-definitions.json"), 1024 * 1024, 10_000));
+            new MapDefinitionCatalogFileOptions(Path.Combine(contentDirectory, "map-definitions.json"), 1024 * 1024, 10_000));
 
-        MapDefinitionCatalog definitions = await definitionsRepository.LoadAsync(
-            TestContext.Current.CancellationToken);
+        MapDefinitionCatalog definitions = await definitionsRepository.LoadAsync(TestContext.Current.CancellationToken);
 
         FileMapBaseTerrainCatalogRepository terrainRepository = new(
             Path.Combine(contentDirectory, "terrains"), MapTerrainLoadLimits.CreateDefault());
 
-        MapBaseTerrainCatalog terrains = await terrainRepository.LoadAsync(
-            definitions, TestContext.Current.CancellationToken);
+        MapBaseTerrainCatalog terrains = await terrainRepository.LoadAsync(definitions, TestContext.Current.CancellationToken);
 
         FileMapTerrainCollisionCatalogRepository collisionRepository = new(
             Path.Combine(contentDirectory, "collision"), MapCollisionLoadLimits.CreateDefault());
 
-        MapTerrainCollisionCatalog collisions = await collisionRepository.LoadAsync(
-            definitions, terrains, TestContext.Current.CancellationToken);
+        MapTerrainCollisionCatalog collisions = await collisionRepository.LoadAsync(definitions, terrains, TestContext.Current.CancellationToken);
 
-        uint[] requiredIds = definitions.Definitions.Select(definition => definition.MapDataId)
-            .Distinct().Order().ToArray();
+        uint[] requiredIds = definitions.Definitions.Select(definition => definition.MapDataId).Distinct().Order().ToArray();
 
+        Assert.Equal(requiredIds.Length, terrains.Count);
         Assert.Equal(requiredIds.Length, collisions.Count);
 
         long totalOverrides = 0;
@@ -64,9 +60,9 @@ public sealed class MapTerrainCollisionCatalogContentTests
         {
             string candidate = Path.Combine(directory.FullName, "content", "maps");
 
-            if (File.Exists(Path.Combine(candidate, "map-definitions.json"))
-                && Directory.Exists(Path.Combine(candidate, "terrains"))
-                && Directory.Exists(Path.Combine(candidate, "collision")))
+            if (File.Exists(Path.Combine(candidate, "map-definitions.json")) &&
+                Directory.Exists(Path.Combine(candidate, "terrains")) &&
+                Directory.Exists(Path.Combine(candidate, "collision")))
             {
                 return candidate;
             }

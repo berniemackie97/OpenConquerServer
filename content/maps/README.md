@@ -115,8 +115,8 @@ The following are not completed by this catalog slice:
 
 - resolution of the remaining historical map-definition uncertainties;
 - independent retail conversion and behavioral conformance verification;
-- canonical static collision catalog loading and runtime readiness;
-- complete world-map-to-terrain readiness integration;
+- GameServer startup readiness for the combined map-definition, base-terrain,
+  and static-collision catalogs;
 - GameServer startup publication and readiness gating;
 - authoritative map instances and world-session integration.
 

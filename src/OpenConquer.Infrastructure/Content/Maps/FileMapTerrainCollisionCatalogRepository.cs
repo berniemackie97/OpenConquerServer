@@ -23,6 +23,28 @@ public sealed class FileMapTerrainCollisionCatalogRepository : IMapTerrainCollis
         ArgumentNullException.ThrowIfNull(terrains);
         cancellationToken.ThrowIfCancellationRequested();
 
+        uint[] requiredIds = definitions.Definitions.Select(definition => definition.MapDataId).Distinct().Order().ToArray();
+        MapBaseTerrain[] requiredTerrains = new MapBaseTerrain[requiredIds.Length];
+
+        for (int index = 0; index < requiredIds.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            uint mapDataId = requiredIds[index];
+
+            if (!terrains.TryGet(mapDataId, out MapBaseTerrain? terrain))
+            {
+                throw new InvalidDataException($"Required canonical base terrain {mapDataId} is missing.");
+            }
+
+            requiredTerrains[index] = terrain;
+        }
+
+        if (terrains.Count != requiredIds.Length)
+        {
+            throw new InvalidDataException($"Canonical base-terrain catalog contains {terrains.Count} identities; {requiredIds.Length} are required by the map definitions.");
+        }
+
         DirectoryInfo directory = new(_rootPath);
 
         if (!directory.Exists)
@@ -35,9 +57,7 @@ public sealed class FileMapTerrainCollisionCatalogRepository : IMapTerrainCollis
             throw new IOException($"Canonical collision directory '{_rootPath}' cannot be a symbolic link.");
         }
 
-        uint[] requiredIds = definitions.Definitions.Select(definition => definition.MapDataId).Distinct().Order().ToArray();
-
-        HashSet<string> expectedFiles = requiredIds.Select(mapDataId => $"{mapDataId}{MapCollisionBinaryFormat.FileExtension}").ToHashSet(StringComparer.Ordinal);
+        HashSet<string> expectedFiles = requiredIds.Select(id => $"{id}{MapCollisionBinaryFormat.FileExtension}").ToHashSet(StringComparer.Ordinal);
 
         foreach (string entry in Directory.EnumerateFileSystemEntries(_rootPath))
         {
@@ -54,25 +74,20 @@ public sealed class FileMapTerrainCollisionCatalogRepository : IMapTerrainCollis
         if (expectedFiles.Count != 0)
         {
             string missing = expectedFiles.Order(StringComparer.Ordinal).First();
-
             throw new FileNotFoundException($"Canonical collision directory is missing required artifact '{missing}'.", Path.Combine(_rootPath, missing));
         }
 
         List<MapTerrainCollision> collisions = new(requiredIds.Length);
         long totalOverrides = 0;
 
-        foreach (uint mapDataId in requiredIds)
+        for (int index = 0; index < requiredIds.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!terrains.TryGet(mapDataId, out MapBaseTerrain? terrain))
-            {
-                throw new InvalidDataException($"Required canonical base terrain {mapDataId} is missing.");
-            }
-
+            uint mapDataId = requiredIds[index];
             string path = Path.Combine(_rootPath, $"{mapDataId}{MapCollisionBinaryFormat.FileExtension}");
 
-            MapTerrainCollision collision = await MapCollisionBinaryReader.ReadAsync(path, terrain, _limits, cancellationToken).ConfigureAwait(false);
+            MapTerrainCollision collision = await MapCollisionBinaryReader.ReadAsync(path, requiredTerrains[index], _limits, cancellationToken).ConfigureAwait(false);
 
             totalOverrides = checked(totalOverrides + collision.OverrideCount);
 

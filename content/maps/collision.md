@@ -101,9 +101,12 @@ canonical collision artifacts plus their matching immutable base terrain.
 The GameServer must never load retail `.dat`, `.DMap`, `.7z`, or terrain-object
 source files to obtain static collision.
 
-An immutable collision catalog, startup readiness, authoritative movement,
-dynamic occupancy, and gameplay movement restrictions remain separate
-implementation boundaries.
+The immutable runtime collision catalog validates complete artifact
+coverage, base-terrain compatibility, and aggregate resource limits
+before publishing a snapshot.
+
+GameServer startup readiness, authoritative movement, dynamic occupancy,
+and gameplay movement restrictions remain separate boundaries.
 
 Static terrain passability is not a complete gameplay movement policy.
 

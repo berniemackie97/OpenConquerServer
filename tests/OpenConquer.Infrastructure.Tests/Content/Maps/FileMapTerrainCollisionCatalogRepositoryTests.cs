@@ -9,35 +9,26 @@ namespace OpenConquer.Infrastructure.Tests.Content.Maps;
 
 public sealed class FileMapTerrainCollisionCatalogRepositoryTests
 {
-    private static readonly MapCollisionLoadLimits s_limits = new(
-        maximumOverridesPerTerrain: 100, maximumTotalOverrides: 100,
-        maximumArtifactBytes: 1024 * 1024);
+    private static readonly MapCollisionLoadLimits s_limits = new(maximumOverridesPerTerrain: 100, maximumTotalOverrides: 100, maximumArtifactBytes: 1024 * 1024);
 
     [Fact]
     public async Task LoadAsync_CompleteContent_PublishesImmutableCatalog()
     {
         using Fixture fixture = new();
 
-        MapTerrainCollisionCatalog catalog = await fixture.CreateRepository()
-            .LoadAsync(fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
+        MapTerrainCollisionCatalog catalog = await LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, catalog.Count);
-
         Assert.True(catalog.TryGet(501, out MapTerrainCollision? first));
         Assert.True(catalog.TryGet(502, out MapTerrainCollision? second));
-
         Assert.Same(fixture.FirstTerrain, first.BaseTerrain);
         Assert.Same(fixture.SecondTerrain, second.BaseTerrain);
-
         Assert.Equal(1, first.OverrideCount);
         Assert.Equal(new MapBaseTerrainCell(44, 0, 25), first.GetEffectiveCell(1, 0));
         Assert.Equal(new MapBaseTerrainCell(10, 0, -15), first.GetEffectiveCell(0, 0));
-
         Assert.Equal(0, second.OverrideCount);
         Assert.Equal(fixture.SecondTerrain.GetCell(1, 0), second.GetEffectiveCell(1, 0));
-
         Assert.False(catalog.TryGet(1000, out _));
-        Assert.False(catalog.TryGet(999999, out _));
     }
 
     [Fact]
@@ -45,15 +36,28 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
     {
         using Fixture fixture = new();
 
-        MapTerrainCollisionCatalog catalog = await fixture.CreateRepository()
-            .LoadAsync(fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
+        MapTerrainCollisionCatalog catalog = await LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(3, fixture.Definitions.Count);
         Assert.Equal(2, catalog.Count);
-
         Assert.True(fixture.Definitions.TryGet(1000, out MapDefinition? first));
         Assert.True(fixture.Definitions.TryGet(1001, out MapDefinition? second));
         Assert.Equal(first.MapDataId, second.MapDataId);
+    }
+
+    [Fact]
+    public async Task LoadAsync_CompletedSnapshot_DoesNotDependOnSourceFiles()
+    {
+        using Fixture fixture = new();
+
+        MapTerrainCollisionCatalog catalog = await LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken);
+
+        File.Delete(fixture.ArtifactPath(501));
+        File.Delete(fixture.ArtifactPath(502));
+
+        Assert.True(catalog.TryGet(501, out MapTerrainCollision? collision));
+        Assert.Same(fixture.FirstTerrain, collision.BaseTerrain);
+        Assert.Equal(new MapBaseTerrainCell(44, 0, 25), collision.GetEffectiveCell(1, 0));
     }
 
     [Fact]
@@ -61,14 +65,10 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
     {
         using Fixture fixture = new();
 
-        FileMapTerrainCollisionCatalogRepository repository = new(
-            Path.Combine(fixture.RootPath, "missing"), s_limits);
+        FileMapTerrainCollisionCatalogRepository repository = new(Path.Combine(fixture.WorkspacePath, "missing"), s_limits);
 
-        await Assert.ThrowsAsync<DirectoryNotFoundException>(async () =>
-        {
-            _ = await repository.LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
+            repository.LoadAsync(fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken).AsTask());
     }
 
     [Fact]
@@ -77,11 +77,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         using Fixture fixture = new();
         File.Delete(fixture.ArtifactPath(502));
 
-        FileNotFoundException exception = await Assert.ThrowsAsync<FileNotFoundException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        FileNotFoundException exception = await Assert.ThrowsAsync<FileNotFoundException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("502.ocmc", exception.Message, StringComparison.Ordinal);
     }
@@ -92,11 +88,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         using Fixture fixture = new();
         File.WriteAllBytes(Path.Combine(fixture.RootPath, "999.ocmc"), []);
 
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -105,11 +97,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         using Fixture fixture = new();
         File.WriteAllText(Path.Combine(fixture.RootPath, "unexpected.txt"), "unexpected");
 
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -118,11 +106,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         using Fixture fixture = new();
         Directory.CreateDirectory(Path.Combine(fixture.RootPath, "nested"));
 
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -130,33 +114,37 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
     {
         using Fixture fixture = new();
 
-        string path = fixture.ArtifactPath(501);
-        byte[] payload = File.ReadAllBytes(path);
+        string original = fixture.ArtifactPath(501);
+        byte[] payload = File.ReadAllBytes(original);
 
-        File.Delete(path);
+        File.Delete(original);
         File.WriteAllBytes(Path.Combine(fixture.RootPath, "501.OCMC"), payload);
 
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task LoadAsync_MissingRequiredBaseTerrain_IsRejected()
     {
         using Fixture fixture = new();
-
         MapBaseTerrainCatalog incomplete = new([fixture.FirstTerrain]);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, incomplete, TestContext.Current.CancellationToken);
-        });
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, terrains: incomplete, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("502", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LoadAsync_UnexpectedBaseTerrain_IsRejected()
+    {
+        using Fixture fixture = new();
+
+        MapBaseTerrain extra = CreateTerrain(503);
+        MapBaseTerrainCatalog expanded = new([fixture.FirstTerrain, fixture.SecondTerrain, extra]);
+
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, terrains: expanded, cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Contains("3 identities", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -167,11 +155,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         MapBaseTerrain changed = CreateTerrain(501, firstSurface: 99);
         MapBaseTerrainCatalog incompatible = new([changed, fixture.SecondTerrain]);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, incompatible, TestContext.Current.CancellationToken);
-        });
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, terrains: incompatible, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("different canonical base-terrain content", exception.Message, StringComparison.Ordinal);
     }
@@ -186,11 +170,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         payload[60] ^= 1;
         File.WriteAllBytes(path, payload);
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("SHA-256 integrity check", exception.Message, StringComparison.Ordinal);
     }
@@ -201,16 +181,9 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         using Fixture fixture = new();
 
         fixture.WriteArtifact(502, CreateCollision(fixture.SecondTerrain, withOverride: true));
+        MapCollisionLoadLimits limits = new(maximumOverridesPerTerrain: 100, maximumTotalOverrides: 1, maximumArtifactBytes: 1024 * 1024);
 
-        MapCollisionLoadLimits limits = new(
-            maximumOverridesPerTerrain: 100, maximumTotalOverrides: 1,
-            maximumArtifactBytes: 1024 * 1024);
-
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository(limits).LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, limits: limits, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("configured maximum", exception.Message, StringComparison.Ordinal);
     }
@@ -220,15 +193,9 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
     {
         using Fixture fixture = new();
 
-        MapCollisionLoadLimits limits = new(
-            maximumOverridesPerTerrain: 100, maximumTotalOverrides: 100,
-            maximumArtifactBytes: MapCollisionBinaryFormat.MinimumLength);
+        MapCollisionLoadLimits limits = new(maximumOverridesPerTerrain: 100, maximumTotalOverrides: 100, maximumArtifactBytes: MapCollisionBinaryFormat.MinimumLength);
 
-        await Assert.ThrowsAsync<InvalidDataException>(async () =>
-        {
-            _ = await fixture.CreateRepository(limits).LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<InvalidDataException>(() => LoadAsync(fixture, limits: limits, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -236,14 +203,9 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
     {
         using Fixture fixture = new();
         using CancellationTokenSource cancellation = new();
-
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, cancellation.Token);
-        });
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => LoadAsync(fixture, cancellationToken: cancellation.Token));
     }
 
     [Fact]
@@ -256,11 +218,8 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
 
         FileMapTerrainCollisionCatalogRepository repository = new(linkPath, s_limits);
 
-        await Assert.ThrowsAsync<IOException>(async () =>
-        {
-            _ = await repository.LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<IOException>(() =>
+            repository.LoadAsync(fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken).AsTask());
     }
 
     [Fact]
@@ -272,11 +231,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         File.Delete(path);
         File.CreateSymbolicLink(path, fixture.ArtifactPath(502));
 
-        await Assert.ThrowsAsync<IOException>(async () =>
-        {
-            _ = await fixture.CreateRepository().LoadAsync(
-                fixture.Definitions, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<IOException>(() => LoadAsync(fixture, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -292,15 +247,11 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         using Fixture fixture = new();
         FileMapTerrainCollisionCatalogRepository repository = fixture.CreateRepository();
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-        {
-            _ = await repository.LoadAsync(null!, fixture.Terrains, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            repository.LoadAsync(null!, fixture.Terrains, TestContext.Current.CancellationToken).AsTask());
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-        {
-            _ = await repository.LoadAsync(fixture.Definitions, null!, TestContext.Current.CancellationToken);
-        });
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            repository.LoadAsync(fixture.Definitions, null!, TestContext.Current.CancellationToken).AsTask());
     }
 
     [Fact]
@@ -313,33 +264,29 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
 
         using ServiceProvider provider = services.BuildServiceProvider();
 
-        IMapTerrainCollisionCatalogRepository first =
-            provider.GetRequiredService<IMapTerrainCollisionCatalogRepository>();
-
-        IMapTerrainCollisionCatalogRepository second =
-            provider.GetRequiredService<IMapTerrainCollisionCatalogRepository>();
+        IMapTerrainCollisionCatalogRepository first = provider.GetRequiredService<IMapTerrainCollisionCatalogRepository>();
+        IMapTerrainCollisionCatalogRepository second = provider.GetRequiredService<IMapTerrainCollisionCatalogRepository>();
 
         Assert.IsType<FileMapTerrainCollisionCatalogRepository>(first);
         Assert.Same(first, second);
     }
 
+    private static Task<MapTerrainCollisionCatalog> LoadAsync(Fixture fixture, MapBaseTerrainCatalog? terrains = null,
+        MapCollisionLoadLimits? limits = null, CancellationToken cancellationToken = default)
+    {
+        return fixture.CreateRepository(limits).LoadAsync(fixture.Definitions, terrains ?? fixture.Terrains,
+            cancellationToken == default ? TestContext.Current.CancellationToken : cancellationToken).AsTask();
+    }
+
     private static MapBaseTerrain CreateTerrain(uint mapDataId, ushort firstSurface = 10)
     {
-        return new MapBaseTerrain(mapDataId, 2, 1,
-        [
-            new MapBaseTerrainCell(firstSurface, 0, -15),
-            new MapBaseTerrainCell(20, 1, 30)
-        ],
-        [
-            new MapTerrainExit(1, 0, 7)
-        ]);
+        return new MapBaseTerrain(mapDataId, 2, 1, [new MapBaseTerrainCell(firstSurface, 0, -15), new MapBaseTerrainCell(20, 1, 30)],
+            [new MapTerrainExit(1, 0, 7)]);
     }
 
     private static MapTerrainCollision CreateCollision(MapBaseTerrain terrain, bool withOverride)
     {
-        return new MapTerrainCollision(terrain, withOverride
-            ? [new MapTerrainCollisionOverride(1, new MapBaseTerrainCell(44, 0, 25))]
-            : []);
+        return new MapTerrainCollision(terrain, withOverride ? [new MapTerrainCollisionOverride(1, new MapBaseTerrainCell(44, 0, 25))] : []);
     }
 
     private static void WriteArtifact(string path, MapTerrainCollision collision)
@@ -380,14 +327,12 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         {
             WorkspacePath = Path.Combine(Path.GetTempPath(), $"openconquer-collision-catalog-{Guid.NewGuid():N}");
             RootPath = Path.Combine(WorkspacePath, "collision");
-
             Directory.CreateDirectory(RootPath);
 
             FirstTerrain = CreateTerrain(501);
             SecondTerrain = CreateTerrain(502);
 
-            Definitions = new MapDefinitionCatalog(
-            [
+            Definitions = new MapDefinitionCatalog([
                 new MapDefinition(1000, 501, 0),
                 new MapDefinition(1001, 501, 1),
                 new MapDefinition(1002, 502, 0)
@@ -406,10 +351,7 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
         public MapDefinitionCatalog Definitions { get; }
         public MapBaseTerrainCatalog Terrains { get; }
 
-        public string ArtifactPath(uint mapDataId)
-        {
-            return Path.Combine(RootPath, $"{mapDataId}.ocmc");
-        }
+        public string ArtifactPath(uint mapDataId) => Path.Combine(RootPath, $"{mapDataId}.ocmc");
 
         public FileMapTerrainCollisionCatalogRepository CreateRepository(MapCollisionLoadLimits? limits = null)
         {
