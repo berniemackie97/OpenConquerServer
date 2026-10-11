@@ -6,6 +6,8 @@ supported client is Conquer Online version 5517. Server internals are covered in
 
 - [Framing](framing.md): frame header, size limits, and encoder and decoder behavior.
 - [Text encoding](text-encoding.md): string fields and supported encodings.
+- [Character creation](character-creation.md): version-matched 5517 registration request
+  evidence, parsing boundaries, and outstanding native verification.
 
 ## Frames
 
