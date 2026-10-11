@@ -491,6 +491,16 @@ the immutable base terrain. Runtime loading verifies identity, integrity,
 and required content coverage. Authoritative movement rules and validation
 of uninterpreted source sections remain separate boundaries.
 
+`WorldMapContentLoader` composes the three immutable catalogs into
+`WorldMapContentCatalog`, indexed by world `MapId`. Each entry preserves its
+definition and references the effective static collision for its `MapDataId`.
+Shared terrain identities resolve to the same collision and base-terrain
+objects. Loading rejects incomplete or incompatible catalog snapshots.
+
+The unified catalog is an application-level content snapshot, not a live
+world instance. GameServer startup readiness and authoritative world
+execution remain separate boundaries.
+
 See [`content/maps`](../../content/maps/README.md) for the source and canonical formats.
 
 ## Authoritative World

@@ -109,6 +109,30 @@ from authored JSON without a retail client or historical provenance.
 
 See [Base Terrain](base-terrain.md) for the exact format and generation commands.
 
+## Unified world-map content
+
+The application-level `WorldMapContentLoader` assembles the canonical
+map-definition, base-terrain, and collision catalogs in dependency order.
+
+Each resolved `WorldMapContent` preserves the complete `MapDefinition`
+and references its validated effective static collision. The collision
+references its immutable base terrain.
+
+`WorldMapContentCatalog` is indexed by world `MapId`. Multiple world maps
+may reference the same `MapDataId` and share one immutable collision result
+without sharing their world identity or flags.
+
+Loading fails when required terrain or collision content is missing,
+incompatible, or incomplete. Both artifact directories require exact
+canonical file inventories.
+
+A complete immutable world-map content catalog is returned only after
+all required content passes validation.
+
+GameServer host initialization, readiness publication, admission gating,
+authoritative world instances, and gameplay movement remain separate
+implementation boundaries.
+
 ## Remaining map-system boundaries
 
 The following are not completed by this catalog slice:
