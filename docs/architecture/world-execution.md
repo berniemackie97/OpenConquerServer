@@ -12,12 +12,63 @@ For spatial gameplay, that owner is a `WorldPartition`.
 Network connections, persistence workers, timers, and unrelated partitions do not directly mutate
 partition owned state.
 
+## Implemented Core and Current Boundary
+
+The initial authoritative execution core is implemented in
+`src/OpenConquer.GameServer/World/Execution/` and tested in
+`tests/OpenConquer.GameServer.Tests/World/Execution/`. It is currently a standalone runtime:
+`OpenConquer.GameServer/Program.cs` is not a runnable GameServer host, and the completed
+existing-character bootstrap connection is not yet admitted into an active world session.
+
+`WorldRuntime` constructs a `WorldScheduler` from the validated immutable
+`WorldMapContentCatalog`. Each world `MapId` receives one `WorldPartition` containing one
+`MapInstance`, which retains the **same** canonical `WorldMapContent`, effective static collision,
+and base terrain references. `MapId`, `MapDataId`, and 64-bit map flags remain distinct and intact.
+There is no fallback map or synthetic terrain.
+
+`WorldExecutionOptions` explicitly configures worker count, pending commands per partition, and
+maximum commands per execution turn. Each partition has a finite FIFO command queue. Once a
+command is accepted, the partition is placed on the shared bounded ready channel at most once
+until it finishes its turn; additional accepted work uses the existing readiness claim. Workers
+execute synchronous, exclusive turns and requeue a busy partition after its command-count quantum.
+Different partitions can progress concurrently. No per-map thread or general-purpose actor
+framework is introduced. A full command queue rejects admission immediately rather than silently
+dropping accepted commands.
+
+`WorldRuntime.AdmitCharacterAsync` reserves a player identity across **all** partitions before
+submitting its map-local admission command. Duplicate or concurrent admission is rejected. The
+persisted map must exist in the canonical catalog, and the supplied coordinates must fall within
+the validated static collision grid dimensions. **Bounds validation is not walkability, occupancy,
+or movement authorization.** The partition-owned `MapInstance` currently stores only a character
+ownership record and the admitted coordinates; monsters, NPCs, timers, visibility, and combat state
+remain future gameplay features.
+
+Each admission returns a `WorldCharacterOwnership` containing character ID, world map ID, and a
+monotonically increasing nonzero generation. `RemoveCharacterAsync` and `ReadCharacterAsync` accept
+that complete ownership token, so stale generations cannot remove or read a replacement character.
+Successful removal releases the global reservation, allowing a later admission with a new
+generation. This is not yet a map-transfer or network-session ownership protocol.
+
+Caller cancellation is checked **before** command acceptance. After acceptance, caller cancellation
+does not discard or roll back the submitted command: its result must be observed by the owner.
+Failure callbacks release or restore admission/removal reservations as appropriate. On shutdown,
+new work is rejected, queued commands are failed explicitly, executing turns are allowed to
+finish, workers are joined, and the remaining map-local character state and global reservations
+are cleared. Runtime instances cannot be restarted after shutdown.
+
+There is no tick loop, gameplay command router, durable world transaction, event replication,
+world-session handoff, or production load-tuned capacity policy in this core. Those remain
+separate slices, governed by the design requirements below.
+
 ## World Partitions
 
 A `WorldPartition` is the unit of authoritative world execution.
 
 A partition is not permanently defined as a map. The initial placement policy assigns one map
 instance to one partition because maps are the natural locality boundary for Conquer gameplay.
+
+The initial implemented map-local state is a character roster containing ownership tokens and
+admitted coordinates. The broader target state (not yet implemented) is:
 
 ```text
 WorldPartition
@@ -91,8 +142,8 @@ A busy partition must not monopolize execution resources.
 
 Each scheduled partition receives a bounded execution turn.
 
-A turn may process work until a configured command count, execution time budget, or another measured
-scheduling limit is reached.
+The current scheduler uses the configured `MaxCommandsPerTurn` count. A time-budget quantum or
+other scheduling limits require separate implementation and measurement.
 
 ```text
 Runnable
@@ -106,10 +157,8 @@ Work remaining?
    └── No  -> idle
 ```
 
-The exact execution quantum is a runtime tuning value and will be established through benchmarks and
-load testing.
-
-It is not an architectural constant.
+The command-count quantum is configurable rather than an architectural constant. Production
+values still require benchmarking and load testing.
 
 A partition must only appear once in the runnable queue while it is already queued or executing.
 

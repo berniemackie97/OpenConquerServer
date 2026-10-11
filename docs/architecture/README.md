@@ -473,11 +473,11 @@ Native 5517 evidence establishes the initial compatibility baseline; it is not a
 requirement for later OpenConquer content. The GameServer never loads retail `.dat`
 files at runtime.
 
-The existing EnterMap contract can project a canonical definition into
-`GameMapEntryDefinition`. GameServer startup publication and readiness of the
-combined map-definition, terrain, and collision catalogs, resolution of remaining
-historical map uncertainties, and authoritative world instances remain future
-boundaries.
+`ExistingCharacterBootstrapProcessor` resolves the persisted world `MapId` through
+`WorldMapContentCatalog` before sending successful bootstrap packets or registering realm presence.
+The exact immutable `WorldMapContent` reference survives EnterMap and every subsequent bootstrap
+state; callers cannot substitute independently constructed map metadata. GameServer host readiness
+and resolution of the remaining historical map uncertainties remain separate boundaries.
 
 Canonical base-terrain files are versioned, checksummed binary content keyed by
 `MapDataId`. The offline tool accepts authored terrain or imports the verified
@@ -497,9 +497,10 @@ definition and references the effective static collision for its `MapDataId`.
 Shared terrain identities resolve to the same collision and base-terrain
 objects. Loading rejects incomplete or incompatible catalog snapshots.
 
-The unified catalog is an application-level content snapshot, not a live
-world instance. GameServer startup readiness and authoritative world
-execution remain separate boundaries.
+The unified catalog is an application-level content snapshot, not mutable gameplay state.
+The standalone `WorldRuntime` now builds one `WorldPartition` and `MapInstance` for each resolved
+world map, retaining the exact canonical content reference. Runnable GameServer startup/readiness,
+connection-to-world admission, and gameplay execution remain separate integration boundaries.
 
 See [`content/maps`](../../content/maps/README.md) for the source and canonical formats.
 
@@ -507,7 +508,14 @@ See [`content/maps`](../../content/maps/README.md) for the source and canonical 
 
 Clients submit requests; they do not directly mutate gameplay state.
 
-Planned world execution:
+The implemented standalone core under `OpenConquer.GameServer/World/Execution` provides one
+`MapInstance` per canonical world map, a bounded command queue per partition, a shared fixed-worker
+scheduler with count-bounded cooperative turns, and generation-fenced character admission/removal.
+Map-local character snapshots hold the admitted identity, generation, and position; no movement,
+combat, visibility, or packet routing is implemented yet. The core is not wired to the completed
+login state machine or a runnable GameServer host.
+
+Planned end-to-end client command routing (not yet implemented):
 
 ```mermaid
 flowchart LR

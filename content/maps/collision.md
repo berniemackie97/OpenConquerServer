@@ -105,8 +105,10 @@ The immutable runtime collision catalog validates complete artifact
 coverage, base-terrain compatibility, and aggregate resource limits
 before publishing a snapshot.
 
-GameServer startup readiness, authoritative movement, dynamic occupancy,
-and gameplay movement restrictions remain separate boundaries.
+The standalone GameServer world-partition core retains the immutable effective collision snapshot
+and checks initial character coordinates against its dimensions. It does not derive passability or
+movement authorization. GameServer startup readiness, dynamic occupancy, and gameplay movement
+restrictions remain separate boundaries.
 
 Static terrain passability is not a complete gameplay movement policy.
 

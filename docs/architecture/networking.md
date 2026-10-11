@@ -573,16 +573,23 @@ initial bootstrap
     ↓
 0x4E magic set
     ↓
-AwaitingSyndicateAttributesConnection
+0x61 syndicate attributes
+    ↓
+0xFB silent-info report
+    ↓
+0x84 statistics request (no invented response)
+    ↓
+ExistingCharacterBootstrapCompleteConnection
 ```
 
-Each rung validates the client request against the authenticated character identity, performs any
-required bounded persistence read before response emission, writes the complete deterministic
-snapshot and acknowledgement, and transfers the same live connection exactly once only after the
-boundary succeeds.
+Each rung validates its expected client action and relevant authenticated identity. Stages with
+responses prepare their snapshots before writing and transfer connection ownership only on success.
+The `0x84` statistics request completes without an unsupported acknowledgement. Canonical world
+content is resolved before accepted bootstrap output and is carried across every typed state.
 
-Character creation requests and writes, syndicate-attributes and later bootstrap rungs, and transfer
-into an authoritative gameplay/world session remain unimplemented.
+Character creation requests and writes, and transfer into an authoritative gameplay/world session,
+remain unimplemented. A standalone partition core now exists, but it does not yet consume the
+completed bootstrap connection.
 
 ## Game Character Persistence Boundary
 
@@ -741,7 +748,9 @@ Implemented GameServer connection and character-login components:
 - native friend/social hydration and projection;
 - native weapon-skill hydration and projection;
 - native magic hydration and projection;
-- ownership-safe handoff to the syndicate-attributes bootstrap stage;
+- syndicate-attributes response, silent-info report, and statistics-request progression through `0x84`;
+- canonical world-map content resolution before successful bootstrap and reference-preserving handoff;
+- standalone bounded world-partition scheduler and generation-fenced character ownership core;
 - coordinated cancellation and disposal.
 
 Not yet implemented:
@@ -749,8 +758,8 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - GameServer startup execution of Game database readiness;
-- gameplay outbound scheduling and bounded mailbox policy;
-- syndicate-attributes and later native bootstrap rungs;
+- gameplay event/replication production and connection outbound scheduling;
+- completed-bootstrap connection admission into the authoritative world runtime;
 - character creation request processing and durable creation;
 - gameplay packet routing;
 - authoritative world simulation and replication.
