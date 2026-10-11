@@ -11,6 +11,7 @@ internal sealed class GameLoginMetrics : IDisposable
     private readonly Counter<long> _sourceRejected;
     private readonly Counter<long> _capacityRejected;
     private readonly Counter<long> _completed;
+    private readonly Counter<long> _notAdmitted;
     private readonly Counter<long> _failed;
     private readonly Counter<long> _timedOut;
     private readonly UpDownCounter<long> _worldSessions;
@@ -22,6 +23,7 @@ internal sealed class GameLoginMetrics : IDisposable
         _sourceRejected = _meter.CreateCounter<long>("openconquer.game_server.login.admission.source_rejections");
         _capacityRejected = _meter.CreateCounter<long>("openconquer.game_server.login.admission.capacity_rejections");
         _completed = _meter.CreateCounter<long>("openconquer.game_server.login.connection.completions");
+        _notAdmitted = _meter.CreateCounter<long>("openconquer.game_server.login.connection.not_admitted");
         _failed = _meter.CreateCounter<long>("openconquer.game_server.login.connection.failures");
         _timedOut = _meter.CreateCounter<long>("openconquer.game_server.login.connection.timeouts");
         _worldSessions = _meter.CreateUpDownCounter<long>("openconquer.game_server.world_sessions.active");
@@ -35,6 +37,12 @@ internal sealed class GameLoginMetrics : IDisposable
     public void RecordCompleted(double durationMilliseconds)
     {
         _completed.Add(1);
+        _loginDuration.Record(durationMilliseconds);
+    }
+
+    public void RecordNotAdmitted(double durationMilliseconds)
+    {
+        _notAdmitted.Add(1);
         _loginDuration.Record(durationMilliseconds);
     }
 

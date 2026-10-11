@@ -134,12 +134,18 @@ immediately. The world session's I/O and cleanup are supervised separately from 
 Gameplay packets are not handled yet, so the session closes on the first unsupported frame without
 sending a response.
 
+A source's admission slot is released only after its connection has been fully disposed. If a
+connection, including a rejected one, cannot be closed, the slot stays occupied, the failure is
+recorded as fatal, and the host shuts down rather than keep running with sockets it cannot close.
+Session cleanup failures are handled the same way.
+
 | Metric (`OpenConquer.GameServer.Login`)                           | Meaning                         |
 | ----------------------------------------------------------------- | ------------------------------- |
 | `openconquer.game_server.login.admission.accepted`               | Connection admitted              |
 | `openconquer.game_server.login.admission.source_rejections`      | Per-source limit reached         |
 | `openconquer.game_server.login.admission.capacity_rejections`    | Admission queue full             |
 | `openconquer.game_server.login.connection.completions`           | Login reached the world          |
+| `openconquer.game_server.login.connection.not_admitted`          | Login ended without reaching the world (disconnect, rejected ticket, no character) |
 | `openconquer.game_server.login.connection.failures`              | Login failed                     |
 | `openconquer.game_server.login.connection.timeouts`              | Login exceeded its timeout       |
 | `openconquer.game_server.login.connection.duration`              | Login duration in milliseconds   |

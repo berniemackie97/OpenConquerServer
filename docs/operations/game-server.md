@@ -60,11 +60,22 @@ connection. World sessions have their own supervised lifetime.
 
 ## Shutdown
 
-Shutdown stops ingress, drains the admission queue and workers, and closes world sessions. It then
-unpublishes the world, stops the runtime, fails pending commands, joins the scheduler threads, and
-clears map state. Cleanup completes even if the host stops waiting. The host's one-minute shutdown
-limit bounds how long it waits, not how long cleanup runs. An unexpected stop of the world runtime
-or the network runtime shuts the host down with a nonzero exit code.
+Shutdown cancels ingress, closes the listener, drains the admission queue and workers, and closes
+world sessions. It then unpublishes the world, stops the runtime, fails pending commands, joins the
+scheduler threads, and clears map state. Cleanup completes even if the host stops waiting. The
+host's one-minute shutdown limit bounds how long it waits, not how long cleanup runs.
+
+The host exits with a nonzero code if the world runtime or the network runtime stops unexpectedly,
+or if a connection or world session cannot be cleaned up. Connections that close normally during
+shutdown are not failures.
+
+## Performance
+
+The admission concurrency test reports throughput and p50/p95/p99 latency for 256 simulated
+concurrent sources. Treat these numbers as diagnostics, not as targets. Production sizing still
+needs measurements of startup time, memory, live connections, real TCP throughput, and end-to-end
+login latency under representative load. Login metrics are listed in
+[Networking](../architecture/networking.md#gameserver).
 
 ## Running
 

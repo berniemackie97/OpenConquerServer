@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Items.Catalog;
@@ -7,6 +8,7 @@ using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Tests.Configuration;
+using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
@@ -77,8 +79,40 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
             await host.StopAsync(TestContext.Current.CancellationToken);
 
-            Assert.True(listener.DisposeCount >= 1);
+            Assert.Equal(1, listener.DisposeCount);
             Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld());
+            Assert.Null(host.Services.GetRequiredService<GameServerFailureState>().Failure);
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
+    [Fact]
+    public async Task Host_PeerDisconnectDuringHandshakeDisposesConnectionWithoutFatalShutdown()
+    {
+        ItemRepository items = new();
+        TestListener listener = new();
+        IHost host = CreateHost(items, listener, static () => { });
+
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+
+            FakeGameTransportConnection connection = new();
+            connection.QueueEndOfStream();
+
+            listener.Queue(connection);
+
+            await connection.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, connection.DisposeCount);
+            Assert.Null(host.Services.GetRequiredService<GameServerFailureState>().Failure);
+
+            await host.StopAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, listener.DisposeCount);
             Assert.Null(host.Services.GetRequiredService<GameServerFailureState>().Failure);
         }
         finally
@@ -201,19 +235,28 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
     private sealed class TestListener : ITransportConnectionListener
     {
+        private readonly Channel<ITransportConnection> _connections = Channel.CreateUnbounded<ITransportConnection>();
         private int _disposals;
 
         public int DisposeCount => Volatile.Read(ref _disposals);
 
-        public async ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
+        public void Queue(ITransportConnection connection)
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            throw new InvalidOperationException("The test listener completed without accepting a connection.");
+            if (!_connections.Writer.TryWrite(connection))
+            {
+                throw new InvalidOperationException("Test listener is not accepting connections.");
+            }
+        }
+
+        public ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
+        {
+            return _connections.Reader.ReadAsync(cancellationToken);
         }
 
         public ValueTask DisposeAsync()
         {
             Interlocked.Increment(ref _disposals);
+            _connections.Writer.TryComplete();
             return ValueTask.CompletedTask;
         }
     }

@@ -13,11 +13,11 @@ using OpenConquer.Transport.Connections;
 namespace OpenConquer.GameServer.Login.Hosting;
 
 /// <summary>
-/// Runs bounded pre-world login work and independently supervises admitted world-session I/O.
+/// Runs bounded login work and supervises completed world-session lifetimes independently of login workers.
 /// </summary>
 internal sealed partial class GameConnectionWorkerPool(
     TransportConnectionAdmissionQueue queue,
-    GameLoginConnectionProcessor processor,
+    Func<ITransportConnection, CancellationToken, ValueTask<WorldSession?>> processConnection,
     GameNetworkOptions options,
     GameLoginMetrics metrics,
     GameServerFailureState failureState,
@@ -25,7 +25,7 @@ internal sealed partial class GameConnectionWorkerPool(
     ILogger<GameConnectionWorkerPool> logger)
 {
     private readonly TransportConnectionAdmissionQueue _queue = queue ?? throw new ArgumentNullException(nameof(queue));
-    private readonly GameLoginConnectionProcessor _processor = processor ?? throw new ArgumentNullException(nameof(processor));
+    private readonly Func<ITransportConnection, CancellationToken, ValueTask<WorldSession?>> _processConnection = processConnection ?? throw new ArgumentNullException(nameof(processConnection));
     private readonly GameNetworkOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     private readonly GameServerFailureState _failureState = failureState ?? throw new ArgumentNullException(nameof(failureState));
@@ -93,41 +93,65 @@ internal sealed partial class GameConnectionWorkerPool(
 
     private async Task RunWorkerAsync(int workerIndex, CancellationToken cancellationToken)
     {
-        await foreach (ITransportConnection connection in _queue.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        try
         {
-            EndPoint local = connection.LocalEndPoint;
-            EndPoint remote = connection.RemoteEndPoint;
-            long started = Stopwatch.GetTimestamp();
+            await foreach (ITransportConnection connection in _queue.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                EndPoint local = connection.LocalEndPoint;
+                EndPoint remote = connection.RemoteEndPoint;
+                long started = Stopwatch.GetTimestamp();
 
-            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(_options.ConnectionTimeout);
+                using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(_options.ConnectionTimeout);
+
+                try
+                {
+                    WorldSession? session = await _processConnection(connection, timeout.Token).ConfigureAwait(false);
+                    double duration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+                    if (session is null)
+                    {
+                        _metrics.RecordNotAdmitted(duration);
+                    }
+                    else
+                    {
+                        StartSession(session, cancellationToken);
+                        _metrics.RecordCompleted(duration);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+                {
+                    _metrics.RecordTimeout(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    LogConnectionTimeout(_logger, workerIndex, local, remote, _options.ConnectionTimeout);
+                }
+                catch (Exception exception)
+                {
+                    _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    LogConnectionFailure(_logger, workerIndex, local, remote, exception);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception failure)
+        {
+            _failureState.Record(failure);
 
             try
             {
-                WorldSession? session = await _processor.ProcessAsync(connection, timeout.Token).ConfigureAwait(false);
-                double duration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                LogFatalWorkerFailure(_logger, workerIndex, failure);
+            }
+            finally
+            {
+                _applicationLifetime.StopApplication();
+            }
 
-                _metrics.RecordCompleted(duration);
-
-                if (session is not null)
-                {
-                    StartSession(session, cancellationToken);
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-            {
-                _metrics.RecordTimeout(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                LogConnectionTimeout(_logger, workerIndex, local, remote, _options.ConnectionTimeout);
-            }
-            catch (Exception exception)
-            {
-                _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                LogConnectionFailure(_logger, workerIndex, local, remote, exception);
-            }
+            throw;
         }
     }
 
@@ -152,35 +176,51 @@ internal sealed partial class GameConnectionWorkerPool(
     {
         try
         {
-            while (true)
+            try
             {
-                using GameInboundFrame? frame = await session.ReadAsync(cancellationToken).ConfigureAwait(false);
-
-                if (frame is null)
+                while (true)
                 {
-                    return;
-                }
+                    using GameInboundFrame? frame = await session.ReadAsync(cancellationToken).ConfigureAwait(false);
 
-                throw new InvalidDataException("The GameServer received a gameplay frame before gameplay dispatch is available.");
+                    if (frame is null)
+                    {
+                        return;
+                    }
+
+                    throw new InvalidDataException("The GameServer received a gameplay frame before gameplay dispatch is available.");
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || session.IsStopping)
+            {
+            }
+            catch (ObjectDisposedException) when (session.IsStopping)
+            {
+            }
+            catch (InvalidDataException exception)
+            {
+                LogUnsupportedGameplay(_logger, session.Ownership.CharacterId, exception);
+            }
+            catch (Exception exception)
+            {
+                LogWorldSessionFailure(_logger, session.Ownership.CharacterId, exception);
+            }
+            finally
+            {
+                await session.DisposeAsync().ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || session.IsStopping)
+        catch (Exception failure)
         {
-        }
-        catch (ObjectDisposedException) when (session.IsStopping)
-        {
-        }
-        catch (InvalidDataException exception)
-        {
-            LogUnsupportedGameplay(_logger, session.Ownership.CharacterId, exception);
-        }
-        catch (Exception exception)
-        {
-            LogWorldSessionFailure(_logger, session.Ownership.CharacterId, exception);
-        }
-        finally
-        {
-            await session.DisposeAsync().ConfigureAwait(false);
+            _failureState.Record(failure);
+
+            try
+            {
+                LogFatalSessionCleanup(_logger, failure);
+            }
+            finally
+            {
+                _applicationLifetime.StopApplication();
+            }
         }
     }
 
@@ -192,23 +232,6 @@ internal sealed partial class GameConnectionWorkerPool(
         }
 
         _metrics.RecordSessionEnded();
-
-        if (!task.IsFaulted)
-        {
-            return;
-        }
-
-        Exception failure = task.Exception?.Flatten() ?? throw new InvalidOperationException("The GameServer world-session supervisor faulted without reporting an exception.");
-
-        try
-        {
-            _failureState.Record(failure);
-            LogFatalSessionCleanup(_logger, failure);
-        }
-        finally
-        {
-            _applicationLifetime.StopApplication();
-        }
     }
 
     [LoggerMessage(EventId = 6200, Level = LogLevel.Debug, Message = "GameServer login processing timed out after {Timeout} on worker {WorkerIndex}. Local: {LocalEndPoint}; remote: {RemoteEndPoint}.")]
@@ -225,4 +248,7 @@ internal sealed partial class GameConnectionWorkerPool(
 
     [LoggerMessage(EventId = 6204, Level = LogLevel.Critical, Message = "Supervised GameServer world-session cleanup failed.")]
     private static partial void LogFatalSessionCleanup(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 6205, Level = LogLevel.Critical, Message = "GameServer login worker {WorkerIndex} terminated unexpectedly.")]
+    private static partial void LogFatalWorkerFailure(ILogger logger, int workerIndex, Exception exception);
 }

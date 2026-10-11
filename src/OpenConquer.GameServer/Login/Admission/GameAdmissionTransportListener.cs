@@ -5,15 +5,17 @@ using OpenConquer.Transport.Connections;
 namespace OpenConquer.GameServer.Login.Admission;
 
 /// <summary>
-/// Limits each source's connection occupancy from TCP acceptance until the owned transport finishes disposal.
+/// Limits per-source connection occupancy from TCP acceptance through successful transport disposal.
 /// </summary>
 internal sealed class GameAdmissionTransportListener(
     ITransportConnectionListener listener,
     int maximumConnectionsPerSource,
-    GameLoginMetrics metrics) : ITransportConnectionListener
+    GameLoginMetrics metrics,
+    Action<Exception> reportFatalDisposalFailure) : ITransportConnectionListener
 {
     private readonly ITransportConnectionListener _listener = listener ?? throw new ArgumentNullException(nameof(listener));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+    private readonly Action<Exception> _reportFatalDisposalFailure = reportFatalDisposalFailure ?? throw new ArgumentNullException(nameof(reportFatalDisposalFailure));
     private readonly Lock _gate = new();
     private readonly Dictionary<IPAddress, int> _connections = [];
     private readonly int _maximumConnectionsPerSource = ValidateLimit(maximumConnectionsPerSource);
@@ -42,7 +44,7 @@ internal sealed class GameAdmissionTransportListener(
             {
                 try
                 {
-                    await connection.DisposeAsync().ConfigureAwait(false);
+                    await DisposeTransportAsync(connection).ConfigureAwait(false);
                 }
                 catch (Exception cleanupFailure)
                 {
@@ -54,7 +56,7 @@ internal sealed class GameAdmissionTransportListener(
 
             if (!reserved)
             {
-                await connection.DisposeAsync().ConfigureAwait(false);
+                await DisposeTransportAsync(connection).ConfigureAwait(false);
                 _metrics.RecordSourceRejected();
                 continue;
             }
@@ -67,22 +69,12 @@ internal sealed class GameAdmissionTransportListener(
             }
             catch (Exception admissionFailure)
             {
-                Exception? cleanupFailure = null;
-
                 try
                 {
-                    await connection.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    cleanupFailure = exception;
-                }
-                finally
-                {
+                    await DisposeTransportAsync(connection).ConfigureAwait(false);
                     Release(address);
                 }
-
-                if (cleanupFailure is not null)
+                catch (Exception cleanupFailure)
                 {
                     throw new AggregateException("GameServer source admission and transport cleanup both failed.", admissionFailure, cleanupFailure);
                 }
@@ -93,6 +85,27 @@ internal sealed class GameAdmissionTransportListener(
     }
 
     public ValueTask DisposeAsync() => _listener.DisposeAsync();
+
+    private async ValueTask DisposeTransportAsync(ITransportConnection connection)
+    {
+        try
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception disposalFailure)
+        {
+            try
+            {
+                _reportFatalDisposalFailure(disposalFailure);
+            }
+            catch (Exception reportingFailure)
+            {
+                throw new AggregateException("GameServer transport disposal and fatal-failure reporting both failed.", disposalFailure, reportingFailure);
+            }
+
+            throw;
+        }
+    }
 
     private bool TryReserve(IPAddress address)
     {
@@ -174,14 +187,8 @@ internal sealed class GameAdmissionTransportListener(
 
         private async Task DisposeCoreAsync()
         {
-            try
-            {
-                await _connection.DisposeAsync().ConfigureAwait(false);
-            }
-            finally
-            {
-                _owner.Release(_address);
-            }
+            await _owner.DisposeTransportAsync(_connection).ConfigureAwait(false);
+            _owner.Release(_address);
         }
     }
 }
