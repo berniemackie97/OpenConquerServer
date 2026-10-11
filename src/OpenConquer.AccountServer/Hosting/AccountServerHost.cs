@@ -9,7 +9,6 @@ using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.Infrastructure.Accounts.Extensions;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Sockets;
-using LoginRuntimeHostedService = OpenConquer.AccountServer.Login.Hosting.LoginRuntimeHostedService;
 
 namespace OpenConquer.AccountServer.Hosting;
 
@@ -22,7 +21,12 @@ internal static class AccountServerHost
     {
         ArgumentNullException.ThrowIfNull(args);
 
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory
+        });
+
         AccountServerConfiguration configuration = AccountServerConfiguration.Load(builder.Configuration);
 
         ConfigureServices(builder.Services, configuration);
