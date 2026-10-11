@@ -1,4 +1,5 @@
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -8,7 +9,7 @@ namespace OpenConquer.GameServer.Login.WorldEntry;
 internal sealed class ExistingCharacterMapStateAppliedProcessor
 {
     /// <summary>
-    /// Takes ownership of <paramref name="enteredMap"/> and transfers its connection only after the native client-state-applied notification is validated.
+    /// Takes ownership of the entered-map connection and transfers it only after the client-state-applied notification is validated.
     /// </summary>
     public async ValueTask<AwaitingItemSetConnection> ProcessAsync(EnteredMapConnection enteredMap, CancellationToken cancellationToken = default)
     {
@@ -16,7 +17,7 @@ internal sealed class ExistingCharacterMapStateAppliedProcessor
 
         ExistingCharacterGameConnection connection = enteredMap.TakeConnection();
         CharacterLoginProfile profile = enteredMap.Profile;
-        GameMapEntryDefinition map = enteredMap.Map;
+        WorldMapContent map = enteredMap.Map;
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
         CancellationToken operationToken = operationCancellation.Token;
 
@@ -40,7 +41,7 @@ internal sealed class ExistingCharacterMapStateAppliedProcessor
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || clientStateApplied.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native client-state-applied notification must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The client-state-applied notification must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -54,7 +55,7 @@ internal sealed class ExistingCharacterMapStateAppliedProcessor
                 || clientStateApplied.PositionY != 0 || clientStateApplied.Data1 != 0 || clientStateApplied.Data2 != 0
                 || clientStateApplied.Flag != 0)
             {
-                throw new InvalidDataException("The native client-state-applied notification requires all non-action MsgAction fields to be zero.");
+                throw new InvalidDataException("The client-state-applied notification requires all non-action MsgAction fields to be zero.");
             }
 
             operationToken.ThrowIfCancellationRequested();

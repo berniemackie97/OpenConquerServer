@@ -4,6 +4,7 @@ using System.Net;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login.Authentication;
@@ -12,6 +13,7 @@ using OpenConquer.GameServer.Login.Character.Bootstrap;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
@@ -28,23 +30,30 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     private const ushort LocaleTag = 0x6E45;
     private const ulong HardwareAddress = 0x0000_6655_4433_2211;
     private const int ResourceVersion = 5517;
+    private const uint MapId = 1002;
+    private const uint MapDataId = 1015;
+    private const ulong MapFlags = 0x1122334455667788;
 
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
 
     [Fact]
-    public void Constructor_NullPresenceRegistrar_IsRejected()
+    public void Constructor_NullDependencies_AreRejected()
     {
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(null!));
+        WorldMapContentCatalog catalog = CreateCatalog();
+
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(null!, catalog));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), null!));
     }
 
     [Fact]
-    public async Task ProcessAsync_ExistingCharacter_WritesVerifiedBootstrapOrderAndTransfersAwaitingEnterMapConnectionExactlyOnce()
+    public async Task ProcessAsync_ExistingCharacter_WritesVerifiedBootstrapOrderAndTransfersCanonicalMapExactlyOnce()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginProfile profile = CreateProfile(rebirthCount: 2, preRebirthLevel: 130);
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
         CharacterPresenceDirectory presence = new();
-        ExistingCharacterBootstrapProcessor processor = new(presence);
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
+        ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(map));
         int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
 
         AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
@@ -53,6 +62,11 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         Assert.Same(profile, transferredConnection.Profile);
         Assert.True(presence.IsOnline(profile.Identity.CharacterId));
         Assert.Same(profile, result.Profile);
+        Assert.Same(map, result.Map);
+        Assert.Equal(MapId, result.Map.MapId);
+        Assert.Equal(MapDataId, result.Map.MapDataId);
+        Assert.Equal(MapFlags, result.Map.Flags);
+        Assert.Same(map.BaseTerrain, result.Map.Collision.BaseTerrain);
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.Equal(receiveCallCountBeforeBootstrap, fixture.Transport.ReceiveCallCount);
         Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
@@ -82,11 +96,54 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_UnavailableWorldMap_RejectsBeforeBootstrapAndDisposesConnection()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        CharacterPresenceDirectory presence = new();
+        WorldMapContent unavailableMap = WorldMapTestContent.Create(MapId + 1, MapDataId, MapFlags);
+        ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(unavailableMap));
+        int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
+
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains($"unavailable world map {MapId}", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
+        Assert.Equal(receiveCallCountBeforeBootstrap, fixture.Transport.ReceiveCallCount);
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(presence.IsOnline(profile.Identity.CharacterId));
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
+    }
+
+    [Fact]
+    public async Task ProcessAsync_UnavailableWorldMapAndCleanupFailure_AreAggregated()
+    {
+        IOException cleanupFailure = new("transport dispose failed");
+        await using AuthenticatedFixture fixture = await AuthenticateAsync(disposeFailure: cleanupFailure);
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        CharacterPresenceDirectory presence = new();
+        WorldMapContent unavailableMap = WorldMapTestContent.Create(MapId + 1, MapDataId, MapFlags);
+        ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(unavailableMap));
+
+        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(2, exception.InnerExceptions.Count);
+        Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
+        Assert.Same(cleanupFailure, exception.InnerExceptions[1]);
+        Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(presence.IsOnline(profile.Identity.CharacterId));
+        Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
+    }
+
+    [Fact]
     public async Task ProcessAsync_SequentialReuseOfHandoffIsRejectedBeforeSecondBootstrapWrite()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
         await using AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
@@ -103,7 +160,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
         fixture.Transport.BlockSends();
 
@@ -144,7 +201,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
         await handoff.DisposeAsync();
 
@@ -160,7 +217,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
         CharacterPresenceDirectory presence = new();
-        ExistingCharacterBootstrapProcessor processor = new(presence);
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(presence);
 
         AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
@@ -179,7 +236,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
         ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
@@ -194,7 +251,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         cancellation.Cancel();
@@ -211,7 +268,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         fixture.Transport.BlockSends();
@@ -236,7 +293,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         IOException cleanupFailure = new("transport dispose failed");
         await using AuthenticatedFixture fixture = await AuthenticateAsync(disposeFailure: cleanupFailure);
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
-        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory());
+        ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
@@ -246,6 +303,16 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
         Assert.Equal(1, fixture.Transport.DisposeCount);
         Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
+    }
+
+    private static ExistingCharacterBootstrapProcessor CreateProcessor(ICharacterPresenceRegistrar presence)
+    {
+        return new ExistingCharacterBootstrapProcessor(presence, CreateCatalog());
+    }
+
+    private static WorldMapContentCatalog CreateCatalog()
+    {
+        return WorldMapTestContent.CreateCatalog(WorldMapTestContent.Create(MapId, MapDataId, MapFlags));
     }
 
     private static async Task<AuthenticatedFixture> AuthenticateAsync(Exception? disposeFailure = null)
@@ -297,7 +364,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterAttributes attributes = new(101, 102, 103, 104, 105);
         CharacterVitals vitals = new(Life: 1234, Mana: 567);
         CharacterEconomy economy = new(Silver: 1_234_567, ConquerPoints: 2_345, BoundConquerPoints: 678);
-        CharacterLocation location = new(mapId: 1002, x: 430, y: 378);
+        CharacterLocation location = new(mapId: MapId, x: 430, y: 378);
 
         return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: -25, titleId: 321, enlightenmentPoints: 1234, location);
     }

@@ -3,6 +3,7 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -15,7 +16,7 @@ internal sealed class ExistingCharacterSyndicateAttributesProcessor(ICharacterSy
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingSyndicateAttributes"/> and transfers its connection only after the native syndicate-attributes request is validated and the complete response is sent.
+    /// Takes ownership of the awaiting connection and transfers it only after the syndicate-attributes request and complete response succeed.
     /// </summary>
     public async ValueTask<AwaitingSilentInfoReportConnection> ProcessAsync(AwaitingSyndicateAttributesConnection awaitingSyndicateAttributes,
         CancellationToken cancellationToken = default)
@@ -24,7 +25,7 @@ internal sealed class ExistingCharacterSyndicateAttributesProcessor(ICharacterSy
 
         ExistingCharacterGameConnection connection = awaitingSyndicateAttributes.TakeConnection();
         CharacterLoginProfile profile = awaitingSyndicateAttributes.Profile;
-        GameMapEntryDefinition map = awaitingSyndicateAttributes.Map;
+        WorldMapContent map = awaitingSyndicateAttributes.Map;
         CharacterItemSet itemSet = awaitingSyndicateAttributes.ItemSet;
         CharacterSocialRelationSet socialRelationSet = awaitingSyndicateAttributes.SocialRelationSet;
         CharacterWeaponSkillSet weaponSkillSet = awaitingSyndicateAttributes.WeaponSkillSet;
@@ -52,7 +53,7 @@ internal sealed class ExistingCharacterSyndicateAttributesProcessor(ICharacterSy
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || request.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native syndicate-attributes request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The syndicate-attributes request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -70,7 +71,7 @@ internal sealed class ExistingCharacterSyndicateAttributesProcessor(ICharacterSy
                 || request.PositionX != 0 || request.PositionY != 0 || request.Data1 != 0
                 || request.Data2 != 0 || request.Flag != 0)
             {
-                throw new InvalidDataException("The native syndicate-attributes request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
+                throw new InvalidDataException("The syndicate-attributes request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
             CharacterSyndicateState persistedState = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);

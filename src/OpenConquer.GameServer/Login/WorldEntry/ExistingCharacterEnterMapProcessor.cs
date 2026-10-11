@@ -1,4 +1,5 @@
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -6,22 +7,22 @@ using OpenConquer.Protocol.Game.Packets;
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Completes the verified native 5517 existing-character EnterMap exchange and transfers the live connection to the post-EnterMap stage.
+/// Completes the existing-character EnterMap exchange using previously resolved canonical world content.
 /// </summary>
 internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSource)
 {
     private readonly IGameTickSource _tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
 
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingEnterMap"/> and transfers its connection only after the complete EnterMap exchange succeeds.
+    /// Takes ownership of the awaiting connection and transfers it only after the complete EnterMap exchange succeeds.
     /// </summary>
-    public async ValueTask<EnteredMapConnection> ProcessAsync(AwaitingEnterMapConnection awaitingEnterMap, GameMapEntryDefinition map, CancellationToken cancellationToken = default)
+    public async ValueTask<EnteredMapConnection> ProcessAsync(AwaitingEnterMapConnection awaitingEnterMap, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(awaitingEnterMap);
-        ArgumentNullException.ThrowIfNull(map);
 
         ExistingCharacterGameConnection connection = awaitingEnterMap.TakeConnection();
         CharacterLoginProfile profile = awaitingEnterMap.Profile;
+        WorldMapContent map = awaitingEnterMap.Map;
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
         CancellationToken operationToken = operationCancellation.Token;
 
@@ -31,7 +32,7 @@ internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSou
 
             if (profile.Location.MapId != map.MapId)
             {
-                throw new ArgumentException("EnterMap metadata does not match the character's persisted map.", nameof(map));
+                throw new InvalidDataException("The resolved EnterMap content does not match the character's persisted map.");
             }
 
             GameAction10010 enterMapRequest;
@@ -50,7 +51,7 @@ internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSou
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || enterMapRequest.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native EnterMap request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The EnterMap request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 

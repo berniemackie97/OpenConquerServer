@@ -5,12 +5,14 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
@@ -428,6 +430,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         AwaitingStatisticRequestConnection result = await first;
 
         Assert.Same(fixture.Profile, result.Profile);
+        Assert.Same(fixture.Map, result.Map);
         Assert.Single(ReadPackets(fixture.DecryptResponse()));
         Assert.True(fixture.Presence.IsOnline(CharacterId));
 
@@ -472,7 +475,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
             CharacterPresenceDirectory presence = new();
             connection = new ExistingCharacterGameConnection(authenticatedConnection, profile, presence.Register(CharacterId));
 
-            GameMapEntryDefinition map = new(MapId, MapDataId, MapFlags);
+            WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
             CharacterItemSet itemSet = new(CharacterId, []);
             CharacterSocialRelationSet socialRelationSet = new(CharacterId, []);
             CharacterWeaponSkillSet weaponSkillSet = new(CharacterId, []);
@@ -612,7 +615,6 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         Assert.Equal(GameAction10010.FixedPacketLength, packet.Length);
         Assert.Equal(GameAction10010.PacketIdentifier, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(2)));
 
-        // Unlike the native request, the acknowledgement must resolve to the local hero.
         Assert.Equal(CharacterId, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)));
         Assert.NotEqual(0u, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)));
 
@@ -650,7 +652,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
     }
 
     private sealed class SilentInfoFixture(FakeGameTransportConnection transport, GameClientTestPeer client,
-        CharacterPresenceDirectory presence, CharacterLoginProfile profile, GameMapEntryDefinition map,
+        CharacterPresenceDirectory presence, CharacterLoginProfile profile, WorldMapContent map,
         CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet, CharacterWeaponSkillSet weaponSkillSet,
         CharacterMagicSet magicSet, CharacterSyndicateState syndicateState,
         AwaitingSilentInfoReportConnection awaitingSilentInfoReport, int responseBoundary) : IAsyncDisposable
@@ -659,7 +661,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         public GameClientTestPeer Client { get; } = client;
         public CharacterPresenceDirectory Presence { get; } = presence;
         public CharacterLoginProfile Profile { get; } = profile;
-        public GameMapEntryDefinition Map { get; } = map;
+        public WorldMapContent Map { get; } = map;
         public CharacterItemSet ItemSet { get; } = itemSet;
         public CharacterSocialRelationSet SocialRelationSet { get; } = socialRelationSet;
         public CharacterWeaponSkillSet WeaponSkillSet { get; } = weaponSkillSet;

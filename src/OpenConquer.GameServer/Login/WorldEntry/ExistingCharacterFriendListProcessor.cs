@@ -1,6 +1,7 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Game.Framing;
@@ -14,7 +15,7 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
     private readonly ICharacterPresenceReader _presenceReader = presenceReader ?? throw new ArgumentNullException(nameof(presenceReader));
 
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingFriendList"/> and transfers its connection only after the native friend-list request is validated and the complete social-relation snapshot is sent.
+    /// Takes ownership of the awaiting connection and transfers it only after the friend-list request and complete social-relation response succeed.
     /// </summary>
     public async ValueTask<AwaitingWeaponSkillSetConnection> ProcessAsync(AwaitingFriendListConnection awaitingFriendList, CancellationToken cancellationToken = default)
     {
@@ -22,7 +23,7 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
 
         ExistingCharacterGameConnection connection = awaitingFriendList.TakeConnection();
         CharacterLoginProfile profile = awaitingFriendList.Profile;
-        GameMapEntryDefinition map = awaitingFriendList.Map;
+        WorldMapContent map = awaitingFriendList.Map;
         CharacterItemSet itemSet = awaitingFriendList.ItemSet;
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
         CancellationToken operationToken = operationCancellation.Token;
@@ -47,7 +48,7 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || friendListRequest.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native friend-list request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The friend-list request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -65,7 +66,7 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
                 || friendListRequest.PositionX != 0 || friendListRequest.PositionY != 0 || friendListRequest.Data1 != 0
                 || friendListRequest.Data2 != 0 || friendListRequest.Flag != 0)
             {
-                throw new InvalidDataException("The native friend-list request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
+                throw new InvalidDataException("The friend-list request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
             CharacterSocialRelationSet persistedRelationSet = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);

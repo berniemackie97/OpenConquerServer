@@ -3,12 +3,14 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 
 namespace OpenConquer.GameServer.Tests.Login;
@@ -22,7 +24,6 @@ public sealed class AwaitingStatisticRequestConnectionTests
     private const ulong HardwareAddress = 0x0000_6655_4433_2211;
     private const int ResourceVersion = 5517;
     private const uint CharacterId = CharacterIdentityPolicy.FirstPlayerEntityId;
-
     private const uint ClientChecksum = 0xAABB_CCDD;
     private const uint ClientVersion = 17;
 
@@ -32,7 +33,7 @@ public sealed class AwaitingStatisticRequestConnectionTests
         FakeGameTransportConnection transport = new();
         await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(transport);
 
-        GameMapEntryDefinition map = CreateMap();
+        WorldMapContent map = CreateMap();
         CharacterItemSet items = CreateItemSet();
         CharacterSocialRelationSet relations = CreateSocialRelationSet();
         CharacterWeaponSkillSet weaponSkills = CreateWeaponSkillSet();
@@ -60,7 +61,7 @@ public sealed class AwaitingStatisticRequestConnectionTests
     {
         FakeGameTransportConnection transport = new();
         await using ExistingCharacterGameConnection connection = await CreateConnectionAsync(transport);
-        GameMapEntryDefinition wrongMap = new(1003, 1015, 0);
+        WorldMapContent wrongMap = WorldMapTestContent.Create(1003, 1015, 0);
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
             new AwaitingStatisticRequestConnection(connection, wrongMap, CreateItemSet(), CreateSocialRelationSet(), CreateWeaponSkillSet(), CreateMagicSet(), CreateSyndicateState(), ClientChecksum, ClientVersion));
@@ -99,7 +100,7 @@ public sealed class AwaitingStatisticRequestConnectionTests
         FakeGameTransportConnection transport = new();
         ExistingCharacterGameConnection connection = await CreateConnectionAsync(transport);
 
-        GameMapEntryDefinition map = CreateMap();
+        WorldMapContent map = CreateMap();
         CharacterItemSet items = CreateItemSet();
         CharacterSocialRelationSet relations = CreateSocialRelationSet();
         CharacterWeaponSkillSet weaponSkills = CreateWeaponSkillSet();
@@ -254,7 +255,7 @@ public sealed class AwaitingStatisticRequestConnectionTests
         return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: 0, titleId: 0, enlightenmentPoints: 0, location);
     }
 
-    private static GameMapEntryDefinition CreateMap() => new(1002, 1015, 0);
+    private static WorldMapContent CreateMap() => WorldMapTestContent.Create(1002, 1015, 0);
     private static CharacterItemSet CreateItemSet(uint characterId = CharacterId) => new(characterId, []);
     private static CharacterSocialRelationSet CreateSocialRelationSet(uint characterId = CharacterId) => new(characterId, []);
     private static CharacterWeaponSkillSet CreateWeaponSkillSet(uint characterId = CharacterId) => new(characterId, []);

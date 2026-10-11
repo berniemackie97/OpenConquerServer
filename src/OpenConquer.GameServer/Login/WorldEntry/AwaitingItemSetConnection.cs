@@ -1,4 +1,5 @@
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
@@ -10,7 +11,7 @@ internal sealed class AwaitingItemSetConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public AwaitingItemSetConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map)
+    public AwaitingItemSetConnection(ExistingCharacterGameConnection connection, WorldMapContent map)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(map);
@@ -25,8 +26,15 @@ internal sealed class AwaitingItemSetConnection : IAsyncDisposable
         Map = map;
     }
 
-    public CharacterLoginProfile Profile { get; }
-    public GameMapEntryDefinition Map { get; }
+    public CharacterLoginProfile Profile
+    {
+        get;
+    }
+
+    public WorldMapContent Map
+    {
+        get;
+    }
 
     public ExistingCharacterGameConnection TakeConnection()
     {

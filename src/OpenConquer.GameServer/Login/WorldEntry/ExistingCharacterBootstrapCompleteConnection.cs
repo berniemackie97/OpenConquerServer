@@ -3,19 +3,20 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Owns an existing-character connection after the verified native bootstrap request sequence.
+/// Owns an existing-character connection after the verified bootstrap request sequence.
 /// Authoritative world-session integration remains a separate boundary.
 /// </summary>
 internal sealed class ExistingCharacterBootstrapCompleteConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public ExistingCharacterBootstrapCompleteConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map,
+    public ExistingCharacterBootstrapCompleteConnection(ExistingCharacterGameConnection connection, WorldMapContent map,
         CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet, CharacterWeaponSkillSet weaponSkillSet,
         CharacterMagicSet magicSet, CharacterSyndicateState syndicateState, uint clientReportedSilentDataChecksum,
         uint clientReportedSilentDataVersion)
@@ -77,7 +78,7 @@ internal sealed class ExistingCharacterBootstrapCompleteConnection : IAsyncDispo
         get;
     }
 
-    public GameMapEntryDefinition Map
+    public WorldMapContent Map
     {
         get;
     }

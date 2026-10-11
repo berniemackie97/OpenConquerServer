@@ -4,6 +4,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Skills;
 using OpenConquer.GameServer.Connections;
@@ -11,6 +12,7 @@ using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
@@ -566,7 +568,7 @@ public sealed class ExistingCharacterMagicSetProcessorTests
             CharacterLoginProfile profile = CreateProfile();
             CharacterPresenceDirectory presence = new();
             connection = new ExistingCharacterGameConnection(authenticatedConnection, profile, presence.Register(CharacterId));
-            GameMapEntryDefinition map = new(MapId, MapDataId, MapFlags);
+            WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
             CharacterItemSet itemSet = new(CharacterId, []);
             CharacterSocialRelationSet socialRelationSet = new(CharacterId, []);
             CharacterWeaponSkillSet weaponSkillSet = new(CharacterId, []);
@@ -750,14 +752,14 @@ public sealed class ExistingCharacterMagicSetProcessorTests
     }
 
     private sealed class MagicSetFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence,
-        CharacterLoginProfile profile, GameMapEntryDefinition map, CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet,
+        CharacterLoginProfile profile, WorldMapContent map, CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet,
         CharacterWeaponSkillSet weaponSkillSet, AwaitingMagicSetConnection awaitingMagicSet, int responseBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
         public CharacterPresenceDirectory Presence { get; } = presence;
         public CharacterLoginProfile Profile { get; } = profile;
-        public GameMapEntryDefinition Map { get; } = map;
+        public WorldMapContent Map { get; } = map;
         public CharacterItemSet ItemSet { get; } = itemSet;
         public CharacterSocialRelationSet SocialRelationSet { get; } = socialRelationSet;
         public CharacterWeaponSkillSet WeaponSkillSet { get; } = weaponSkillSet;
@@ -829,7 +831,6 @@ public sealed class ExistingCharacterMagicSetProcessorTests
     private sealed class CancelingMagicRepository(CharacterMagicSet result, CancellationTokenSource cancellation) : ICharacterMagicSetRepository
     {
         private int _loadCount;
-
         public int LoadCount => Volatile.Read(ref _loadCount);
         public uint? CharacterId { get; private set; }
 

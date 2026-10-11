@@ -2,12 +2,14 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 
 namespace OpenConquer.GameServer.Tests.Login;
@@ -27,7 +29,7 @@ public sealed class AwaitingSyndicateAttributesConnectionTests
     {
         FakeGameTransportConnection transport = new();
         await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
-        GameMapEntryDefinition map = CreateMap();
+        WorldMapContent map = CreateMap();
         CharacterItemSet itemSet = CreateItemSet();
         CharacterSocialRelationSet socialRelationSet = CreateSocialRelationSet();
         CharacterWeaponSkillSet weaponSkillSet = CreateWeaponSkillSet();
@@ -46,7 +48,7 @@ public sealed class AwaitingSyndicateAttributesConnectionTests
     {
         FakeGameTransportConnection transport = new();
         await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
-        GameMapEntryDefinition map = new(mapId: 1003, mapDataId: 1015, flags: 0);
+        WorldMapContent map = WorldMapTestContent.Create(1003, 1015, 0);
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
             new AwaitingSyndicateAttributesConnection(connection, map, CreateItemSet(), CreateSocialRelationSet(), CreateWeaponSkillSet(), CreateMagicSet()));
@@ -224,5 +226,5 @@ public sealed class AwaitingSyndicateAttributesConnectionTests
 
     private static CharacterMagicSet CreateMagicSet(uint characterId = CharacterId) => new(characterId, []);
 
-    private static GameMapEntryDefinition CreateMap() => new(mapId: 1002, mapDataId: 1015, flags: 0);
+    private static WorldMapContent CreateMap() => WorldMapTestContent.Create(1002, 1015, 0);
 }

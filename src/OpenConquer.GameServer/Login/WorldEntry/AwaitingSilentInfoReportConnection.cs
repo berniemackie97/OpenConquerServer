@@ -3,18 +3,19 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Owns an existing-character connection after syndicate-attributes bootstrap and before the silent-info report.
+/// Owns an existing-character connection after syndicate-attributes processing and before the silent-info report.
 /// </summary>
 internal sealed class AwaitingSilentInfoReportConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public AwaitingSilentInfoReportConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map, CharacterItemSet itemSet,
+    public AwaitingSilentInfoReportConnection(ExistingCharacterGameConnection connection, WorldMapContent map, CharacterItemSet itemSet,
         CharacterSocialRelationSet socialRelationSet, CharacterWeaponSkillSet weaponSkillSet, CharacterMagicSet magicSet,
         CharacterSyndicateState syndicateState)
     {
@@ -73,7 +74,7 @@ internal sealed class AwaitingSilentInfoReportConnection : IAsyncDisposable
         get;
     }
 
-    public GameMapEntryDefinition Map
+    public WorldMapContent Map
     {
         get;
     }

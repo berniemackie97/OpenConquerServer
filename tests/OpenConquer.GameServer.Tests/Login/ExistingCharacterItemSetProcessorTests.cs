@@ -6,6 +6,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Items.Resolution;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Items;
 using OpenConquer.GameServer.Handshake;
@@ -15,6 +16,7 @@ using OpenConquer.GameServer.Login.Character.Bootstrap;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
@@ -70,6 +72,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
         Assert.True(fixture.Presence.IsOnline(fixture.Profile.Identity.CharacterId));
         Assert.Same(fixture.Profile, result.Profile);
         Assert.Same(fixture.Map, result.Map);
+        Assert.Same(fixture.Map.Collision, result.Map.Collision);
         Assert.Equal([10u, 20u], result.ItemSet.Items.Select(static item => item.ItemId));
         Assert.Equal(1, resolver.ResolveCount);
         Assert.Equal(fixture.Profile.Identity.CharacterId, resolver.CharacterId);
@@ -508,18 +511,19 @@ public sealed class ExistingCharacterItemSetProcessorTests
             CharacterLoginProfile profile = CreateProfile();
             CharacterLoginHandoffResult handoff = new(authentication.TakeConnection(), CharacterLoginResolution.ExistingCharacter(profile));
             CharacterPresenceDirectory presence = new();
-            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor(presence)
+            WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
+            WorldMapContentCatalog catalog = WorldMapTestContent.CreateCatalog(map);
+            AwaitingEnterMapConnection awaitingEnterMap = await new ExistingCharacterBootstrapProcessor(presence, catalog)
                 .ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
             _ = client.DecryptServerBytes(transport.SentBytes[authenticationBoundary..]);
 
-            GameMapEntryDefinition map = new(MapId, MapDataId, MapFlags);
             int enterMapBoundary = transport.SentBytes.Length;
 
             transport.QueueReceive(client.EncryptClientFrame(BuildActionPacket(GameAction10010.EnterMapAction, profile.Identity.CharacterId, timestamp: 0x01020304)));
 
             EnteredMapConnection enteredMap = await new ExistingCharacterEnterMapProcessor(new FixedGameTickSource(ServerTick))
-                .ProcessAsync(awaitingEnterMap, map, TestContext.Current.CancellationToken);
+                .ProcessAsync(awaitingEnterMap, TestContext.Current.CancellationToken);
 
             _ = client.DecryptServerBytes(transport.SentBytes[enterMapBoundary..]);
             transport.QueueReceive(client.EncryptClientFrame(BuildActionPacket(GameAction10010.ClientStateAppliedAction)));
@@ -634,13 +638,13 @@ public sealed class ExistingCharacterItemSetProcessorTests
     }
 
     private sealed class ItemSetFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence,
-        CharacterLoginProfile profile, GameMapEntryDefinition map, AwaitingItemSetConnection awaitingItemSet, int itemSetBoundary) : IAsyncDisposable
+        CharacterLoginProfile profile, WorldMapContent map, AwaitingItemSetConnection awaitingItemSet, int itemSetBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
         public CharacterPresenceDirectory Presence { get; } = presence;
         public CharacterLoginProfile Profile { get; } = profile;
-        public GameMapEntryDefinition Map { get; } = map;
+        public WorldMapContent Map { get; } = map;
         public AwaitingItemSetConnection AwaitingItemSet { get; } = awaitingItemSet;
         public int ItemSetBoundary { get; } = itemSetBoundary;
 

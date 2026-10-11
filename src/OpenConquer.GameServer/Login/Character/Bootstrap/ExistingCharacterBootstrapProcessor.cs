@@ -1,5 +1,6 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
@@ -9,14 +10,15 @@ using OpenConquer.Protocol.Game.Packets;
 namespace OpenConquer.GameServer.Login.Character.Bootstrap;
 
 /// <summary>
-/// Sends the verified native 5517 existing-character bootstrap sequence, establishes authoritative realm presence, and transfers the live connection to the EnterMap stage.
+/// Sends the verified existing-character bootstrap sequence, establishes authoritative realm presence, and transfers the connection to the EnterMap stage.
 /// </summary>
-internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegistrar presenceRegistrar)
+internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegistrar presenceRegistrar, WorldMapContentCatalog maps)
 {
     private readonly ICharacterPresenceRegistrar _presenceRegistrar = presenceRegistrar ?? throw new ArgumentNullException(nameof(presenceRegistrar));
+    private readonly WorldMapContentCatalog _maps = maps ?? throw new ArgumentNullException(nameof(maps));
 
     /// <summary>
-    /// Takes ownership of <paramref name="handoff"/> and transfers the character connection only after the complete bootstrap sequence is written successfully and realm presence is established.
+    /// Takes ownership of the handoff and transfers the connection only after canonical map resolution, bootstrap output, and presence registration succeed.
     /// </summary>
     public async ValueTask<AwaitingEnterMapConnection> ProcessAsync(CharacterLoginHandoffResult handoff, CancellationToken cancellationToken = default)
     {
@@ -36,6 +38,12 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
             }
 
             CharacterLoginProfile profile = handoff.Resolution.Profile ?? throw new ArgumentException("Existing-character bootstrap requires a resolved character profile.", nameof(handoff));
+
+            if (!_maps.TryGet(profile.Location.MapId, out WorldMapContent? map))
+            {
+                throw new InvalidDataException($"Character {profile.Identity.CharacterId} references unavailable world map {profile.Location.MapId}.");
+            }
+
             GameUserInfoPacket1006 userInfo = ExistingCharacterBootstrapPacketFactory.CreateUserInfo(profile);
 
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.Accepted, cancellationToken).ConfigureAwait(false);
@@ -49,7 +57,7 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
             characterConnection = new ExistingCharacterGameConnection(connection, profile, presenceLease);
             presenceLease = null;
 
-            return new AwaitingEnterMapConnection(characterConnection);
+            return new AwaitingEnterMapConnection(characterConnection, map);
         }
         catch (Exception processingException)
         {
