@@ -2,6 +2,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Skills;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
@@ -14,7 +15,7 @@ internal sealed class ExistingCharacterWeaponSkillSetProcessor(ICharacterWeaponS
     private readonly ICharacterWeaponSkillSetRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
 
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingWeaponSkillSet"/> and transfers its connection only after the native weapon-skill request is validated and the complete weapon-skill snapshot is sent.
+    /// Takes ownership of the awaiting connection and transfers it only after the weapon-skill request and complete weapon-skill response succeed.
     /// </summary>
     public async ValueTask<AwaitingMagicSetConnection> ProcessAsync(AwaitingWeaponSkillSetConnection awaitingWeaponSkillSet, CancellationToken cancellationToken = default)
     {
@@ -22,7 +23,7 @@ internal sealed class ExistingCharacterWeaponSkillSetProcessor(ICharacterWeaponS
 
         ExistingCharacterGameConnection connection = awaitingWeaponSkillSet.TakeConnection();
         CharacterLoginProfile profile = awaitingWeaponSkillSet.Profile;
-        GameMapEntryDefinition map = awaitingWeaponSkillSet.Map;
+        WorldMapContent map = awaitingWeaponSkillSet.Map;
         CharacterItemSet itemSet = awaitingWeaponSkillSet.ItemSet;
         CharacterSocialRelationSet socialRelationSet = awaitingWeaponSkillSet.SocialRelationSet;
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
@@ -48,7 +49,7 @@ internal sealed class ExistingCharacterWeaponSkillSetProcessor(ICharacterWeaponS
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || weaponSkillSetRequest.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native weapon-skill-set request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The weapon-skill-set request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -66,7 +67,7 @@ internal sealed class ExistingCharacterWeaponSkillSetProcessor(ICharacterWeaponS
                 || weaponSkillSetRequest.PositionX != 0 || weaponSkillSetRequest.PositionY != 0 || weaponSkillSetRequest.Data1 != 0
                 || weaponSkillSetRequest.Data2 != 0 || weaponSkillSetRequest.Flag != 0)
             {
-                throw new InvalidDataException("The native weapon-skill-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
+                throw new InvalidDataException("The weapon-skill-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
             CharacterWeaponSkillSet persistedWeaponSkillSet = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);

@@ -2,18 +2,19 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Owns an existing-character connection after magic hydration and before the syndicate-attributes bootstrap rung.
+/// Owns an existing-character connection after magic hydration and before syndicate-attributes processing.
 /// </summary>
 internal sealed class AwaitingSyndicateAttributesConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public AwaitingSyndicateAttributesConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map, CharacterItemSet itemSet,
+    public AwaitingSyndicateAttributesConnection(ExistingCharacterGameConnection connection, WorldMapContent map, CharacterItemSet itemSet,
         CharacterSocialRelationSet socialRelationSet, CharacterWeaponSkillSet weaponSkillSet, CharacterMagicSet magicSet)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -64,7 +65,7 @@ internal sealed class AwaitingSyndicateAttributesConnection : IAsyncDisposable
         get;
     }
 
-    public GameMapEntryDefinition Map
+    public WorldMapContent Map
     {
         get;
     }

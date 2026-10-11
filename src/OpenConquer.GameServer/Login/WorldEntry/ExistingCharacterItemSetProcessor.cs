@@ -1,6 +1,7 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Items.Resolution;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -13,7 +14,7 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetResolve
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingItemSet"/> and transfers its connection only after the native item-set request is validated and the complete item state is sent.
+    /// Takes ownership of the awaiting connection and transfers it only after the item-set request and complete item-state response succeed.
     /// </summary>
     public async ValueTask<AwaitingFriendListConnection> ProcessAsync(AwaitingItemSetConnection awaitingItemSet, CancellationToken cancellationToken = default)
     {
@@ -21,7 +22,7 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetResolve
 
         ExistingCharacterGameConnection connection = awaitingItemSet.TakeConnection();
         CharacterLoginProfile profile = awaitingItemSet.Profile;
-        GameMapEntryDefinition map = awaitingItemSet.Map;
+        WorldMapContent map = awaitingItemSet.Map;
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
         CancellationToken operationToken = operationCancellation.Token;
 
@@ -45,7 +46,7 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetResolve
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || itemSetRequest.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native item-set request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The item-set request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -63,7 +64,7 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetResolve
                 || itemSetRequest.PositionX != 0 || itemSetRequest.PositionY != 0 || itemSetRequest.Data1 != 0
                 || itemSetRequest.Data2 != 0 || itemSetRequest.Flag != 0)
             {
-                throw new InvalidDataException("The native item-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
+                throw new InvalidDataException("The item-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
             DateTimeOffset utcNow = _timeProvider.GetUtcNow();

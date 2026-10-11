@@ -2,6 +2,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Skills;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
@@ -14,7 +15,7 @@ internal sealed class ExistingCharacterMagicSetProcessor(ICharacterMagicSetRepos
     private readonly ICharacterMagicSetRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
 
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingMagicSet"/> and transfers its connection only after the native magic-set request is validated and the complete magic snapshot is sent.
+    /// Takes ownership of the awaiting connection and transfers it only after the magic-set request and complete magic response succeed.
     /// </summary>
     public async ValueTask<AwaitingSyndicateAttributesConnection> ProcessAsync(AwaitingMagicSetConnection awaitingMagicSet, CancellationToken cancellationToken = default)
     {
@@ -22,7 +23,7 @@ internal sealed class ExistingCharacterMagicSetProcessor(ICharacterMagicSetRepos
 
         ExistingCharacterGameConnection connection = awaitingMagicSet.TakeConnection();
         CharacterLoginProfile profile = awaitingMagicSet.Profile;
-        GameMapEntryDefinition map = awaitingMagicSet.Map;
+        WorldMapContent map = awaitingMagicSet.Map;
         CharacterItemSet itemSet = awaitingMagicSet.ItemSet;
         CharacterSocialRelationSet socialRelationSet = awaitingMagicSet.SocialRelationSet;
         CharacterWeaponSkillSet weaponSkillSet = awaitingMagicSet.WeaponSkillSet;
@@ -49,7 +50,7 @@ internal sealed class ExistingCharacterMagicSetProcessor(ICharacterMagicSetRepos
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || magicSetRequest.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native magic-set request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The magic-set request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -67,7 +68,7 @@ internal sealed class ExistingCharacterMagicSetProcessor(ICharacterMagicSetRepos
                 || magicSetRequest.PositionX != 0 || magicSetRequest.PositionY != 0 || magicSetRequest.Data1 != 0
                 || magicSetRequest.Data2 != 0 || magicSetRequest.Flag != 0)
             {
-                throw new InvalidDataException("The native magic-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
+                throw new InvalidDataException("The magic-set request requires all non-identity, non-timestamp and non-action MsgAction fields to be zero.");
             }
 
             CharacterMagicSet persistedMagicSet = await _repository.LoadAsync(profile.Identity.CharacterId, operationToken).ConfigureAwait(false);

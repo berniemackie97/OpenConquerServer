@@ -2,6 +2,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login.Authentication;
@@ -9,6 +10,7 @@ using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Character.Resolution;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 
 namespace OpenConquer.GameServer.Tests.Login;
@@ -163,7 +165,7 @@ public sealed class GameConnectionOwnershipTests
     {
         FakeGameTransportConnection transport = new();
         ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
-        AwaitingEnterMapConnection owner = new(connection);
+        AwaitingEnterMapConnection owner = new(connection, CreateMap());
 
         await owner.DisposeAsync();
 
@@ -176,7 +178,10 @@ public sealed class GameConnectionOwnershipTests
     {
         FakeGameTransportConnection transport = new();
         ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
-        AwaitingEnterMapConnection owner = new(connection);
+        WorldMapContent map = CreateMap();
+        AwaitingEnterMapConnection owner = new(connection, map);
+
+        Assert.Same(map, owner.Map);
 
         ExistingCharacterGameConnection? first = null;
         ExistingCharacterGameConnection? second = null;
@@ -200,7 +205,7 @@ public sealed class GameConnectionOwnershipTests
     {
         FakeGameTransportConnection transport = new();
         ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
-        AwaitingEnterMapConnection owner = new(connection);
+        AwaitingEnterMapConnection owner = new(connection, CreateMap());
 
         ExistingCharacterGameConnection? transferred = null;
         Exception? takeFailure = null;
@@ -514,7 +519,7 @@ public sealed class GameConnectionOwnershipTests
     {
         FakeGameTransportConnection transport = new();
         await using ExistingCharacterGameConnection connection = await CreateExistingCharacterConnectionAsync(transport);
-        GameMapEntryDefinition map = new(mapId: 1003, mapDataId: 1015, flags: 0);
+        WorldMapContent map = WorldMapTestContent.Create(1003, 1015, 0);
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() => new AwaitingWeaponSkillSetConnection(connection, map, CreateItemSet(), CreateSocialRelationSet()));
 
@@ -636,5 +641,5 @@ public sealed class GameConnectionOwnershipTests
 
     private static CharacterSocialRelationSet CreateSocialRelationSet(uint characterId = CharacterIdentityPolicy.FirstPlayerEntityId) => new(characterId, []);
 
-    private static GameMapEntryDefinition CreateMap() => new(mapId: 1002, mapDataId: 1015, flags: 0);
+    private static WorldMapContent CreateMap() => WorldMapTestContent.Create(1002, 1015, 0);
 }

@@ -4,6 +4,7 @@ using System.Text;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Social;
 using OpenConquer.GameServer.Connections;
@@ -11,6 +12,7 @@ using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.WorldEntry;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
@@ -590,7 +592,7 @@ public sealed class ExistingCharacterFriendListProcessorTests
             CharacterLoginProfile profile = CreateProfile();
             CharacterPresenceDirectory presence = new();
             connection = new ExistingCharacterGameConnection(authenticatedConnection, profile, presence.Register(CharacterId));
-            GameMapEntryDefinition map = new(MapId, MapDataId, MapFlags);
+            WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
             CharacterItemSet itemSet = new(CharacterId, []);
             AwaitingFriendListConnection awaitingFriendList = new(connection, map, itemSet);
 
@@ -768,13 +770,13 @@ public sealed class ExistingCharacterFriendListProcessorTests
         }
     }
 
-    private sealed class FriendListFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, GameMapEntryDefinition map, CharacterItemSet itemSet, AwaitingFriendListConnection awaitingFriendList, int responseBoundary) : IAsyncDisposable
+    private sealed class FriendListFixture(FakeGameTransportConnection transport, GameClientTestPeer client, CharacterPresenceDirectory presence, CharacterLoginProfile profile, WorldMapContent map, CharacterItemSet itemSet, AwaitingFriendListConnection awaitingFriendList, int responseBoundary) : IAsyncDisposable
     {
         public FakeGameTransportConnection Transport { get; } = transport;
         public GameClientTestPeer Client { get; } = client;
         public CharacterPresenceDirectory Presence { get; } = presence;
         public CharacterLoginProfile Profile { get; } = profile;
-        public GameMapEntryDefinition Map { get; } = map;
+        public WorldMapContent Map { get; } = map;
         public CharacterItemSet ItemSet { get; } = itemSet;
         public AwaitingFriendListConnection AwaitingFriendList { get; } = awaitingFriendList;
         public int ResponseBoundary { get; } = responseBoundary;

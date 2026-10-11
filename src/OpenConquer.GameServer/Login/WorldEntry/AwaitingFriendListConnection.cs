@@ -1,17 +1,18 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Owns an existing-character connection after item-set hydration and before the friend-list bootstrap rung.
+/// Owns an existing-character connection after item-set hydration and before the friend-list bootstrap stage.
 /// </summary>
 internal sealed class AwaitingFriendListConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public AwaitingFriendListConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map, CharacterItemSet itemSet)
+    public AwaitingFriendListConnection(ExistingCharacterGameConnection connection, WorldMapContent map, CharacterItemSet itemSet)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(map);
@@ -33,9 +34,20 @@ internal sealed class AwaitingFriendListConnection : IAsyncDisposable
         ItemSet = itemSet;
     }
 
-    public CharacterLoginProfile Profile { get; }
-    public GameMapEntryDefinition Map { get; }
-    public CharacterItemSet ItemSet { get; }
+    public CharacterLoginProfile Profile
+    {
+        get;
+    }
+
+    public WorldMapContent Map
+    {
+        get;
+    }
+
+    public CharacterItemSet ItemSet
+    {
+        get;
+    }
 
     public ExistingCharacterGameConnection TakeConnection()
     {

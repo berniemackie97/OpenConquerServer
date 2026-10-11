@@ -1,18 +1,19 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Social.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Owns an existing-character connection after social-relation hydration and before the weapon-skill bootstrap rung.
+/// Owns an existing-character connection after social-relation hydration and before weapon-skill hydration.
 /// </summary>
 internal sealed class AwaitingWeaponSkillSetConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public AwaitingWeaponSkillSetConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map, CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet)
+    public AwaitingWeaponSkillSetConnection(ExistingCharacterGameConnection connection, WorldMapContent map, CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(map);
@@ -41,10 +42,25 @@ internal sealed class AwaitingWeaponSkillSetConnection : IAsyncDisposable
         SocialRelationSet = socialRelationSet;
     }
 
-    public CharacterLoginProfile Profile { get; }
-    public GameMapEntryDefinition Map { get; }
-    public CharacterItemSet ItemSet { get; }
-    public CharacterSocialRelationSet SocialRelationSet { get; }
+    public CharacterLoginProfile Profile
+    {
+        get;
+    }
+
+    public WorldMapContent Map
+    {
+        get;
+    }
+
+    public CharacterItemSet ItemSet
+    {
+        get;
+    }
+
+    public CharacterSocialRelationSet SocialRelationSet
+    {
+        get;
+    }
 
     public ExistingCharacterGameConnection TakeConnection()
     {

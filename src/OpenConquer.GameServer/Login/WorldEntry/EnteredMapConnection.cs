@@ -1,16 +1,17 @@
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.WorldEntry;
 
 /// <summary>
-/// Owns an existing-character connection after the native EnterMap exchange completes.
+/// Owns an existing-character connection and its canonical world content after the EnterMap exchange.
 /// </summary>
 internal sealed class EnteredMapConnection : IAsyncDisposable
 {
     private ExistingCharacterGameConnection? _connection;
 
-    public EnteredMapConnection(ExistingCharacterGameConnection connection, GameMapEntryDefinition map)
+    public EnteredMapConnection(ExistingCharacterGameConnection connection, WorldMapContent map)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(map);
@@ -25,8 +26,15 @@ internal sealed class EnteredMapConnection : IAsyncDisposable
         Map = map;
     }
 
-    public CharacterLoginProfile Profile { get; }
-    public GameMapEntryDefinition Map { get; }
+    public CharacterLoginProfile Profile
+    {
+        get;
+    }
+
+    public WorldMapContent Map
+    {
+        get;
+    }
 
     public ExistingCharacterGameConnection TakeConnection()
     {

@@ -3,6 +3,7 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -12,7 +13,7 @@ namespace OpenConquer.GameServer.Login.WorldEntry;
 internal sealed class ExistingCharacterStatisticsRequestProcessor
 {
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingStatisticRequest"/> and completes the verified native bootstrap request sequence without sending an unsupported response.
+    /// Takes ownership of the awaiting connection and completes the verified bootstrap request sequence without sending an unsupported response.
     /// </summary>
     public async ValueTask<ExistingCharacterBootstrapCompleteConnection> ProcessAsync(AwaitingStatisticRequestConnection awaitingStatisticRequest,
         CancellationToken cancellationToken = default)
@@ -21,7 +22,7 @@ internal sealed class ExistingCharacterStatisticsRequestProcessor
 
         ExistingCharacterGameConnection connection = awaitingStatisticRequest.TakeConnection();
         CharacterLoginProfile profile = awaitingStatisticRequest.Profile;
-        GameMapEntryDefinition map = awaitingStatisticRequest.Map;
+        WorldMapContent map = awaitingStatisticRequest.Map;
         CharacterItemSet itemSet = awaitingStatisticRequest.ItemSet;
         CharacterSocialRelationSet socialRelationSet = awaitingStatisticRequest.SocialRelationSet;
         CharacterWeaponSkillSet weaponSkillSet = awaitingStatisticRequest.WeaponSkillSet;
@@ -52,7 +53,7 @@ internal sealed class ExistingCharacterStatisticsRequestProcessor
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || request.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native statistics request must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The statistics request must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -70,7 +71,7 @@ internal sealed class ExistingCharacterStatisticsRequestProcessor
                 || request.PositionX != 0 || request.PositionY != 0 || request.Data1 != 0
                 || request.Data2 != 0 || request.Flag != 0)
             {
-                throw new InvalidDataException("The native statistics request requires all non-identity, non-timestamp and non-action fields to be zero.");
+                throw new InvalidDataException("The statistics request requires all non-identity, non-timestamp and non-action fields to be zero.");
             }
 
             operationToken.ThrowIfCancellationRequested();

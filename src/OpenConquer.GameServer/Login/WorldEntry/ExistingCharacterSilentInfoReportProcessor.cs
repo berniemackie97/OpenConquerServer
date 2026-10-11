@@ -3,6 +3,7 @@ using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -12,7 +13,7 @@ namespace OpenConquer.GameServer.Login.WorldEntry;
 internal sealed class ExistingCharacterSilentInfoReportProcessor
 {
     /// <summary>
-    /// Takes ownership of <paramref name="awaitingSilentInfoReport"/> and transfers its connection only after the native silent-info request is validated and acknowledged.
+    /// Takes ownership of the awaiting connection and transfers it only after the silent-info report is validated and acknowledged.
     /// </summary>
     public async ValueTask<AwaitingStatisticRequestConnection> ProcessAsync(AwaitingSilentInfoReportConnection awaitingSilentInfoReport,
         CancellationToken cancellationToken = default)
@@ -21,7 +22,7 @@ internal sealed class ExistingCharacterSilentInfoReportProcessor
 
         ExistingCharacterGameConnection connection = awaitingSilentInfoReport.TakeConnection();
         CharacterLoginProfile profile = awaitingSilentInfoReport.Profile;
-        GameMapEntryDefinition map = awaitingSilentInfoReport.Map;
+        WorldMapContent map = awaitingSilentInfoReport.Map;
         CharacterItemSet itemSet = awaitingSilentInfoReport.ItemSet;
         CharacterSocialRelationSet socialRelationSet = awaitingSilentInfoReport.SocialRelationSet;
         CharacterWeaponSkillSet weaponSkillSet = awaitingSilentInfoReport.WeaponSkillSet;
@@ -50,7 +51,7 @@ internal sealed class ExistingCharacterSilentInfoReportProcessor
 
                 if (frame.Header.Length != GameAction10010.FixedPacketLength || request.StringCount != 0)
                 {
-                    throw new InvalidDataException("The native silent-info report must contain the fixed MsgAction body without trailing strings.");
+                    throw new InvalidDataException("The silent-info report must contain the fixed MsgAction body without trailing strings.");
                 }
             }
 
@@ -61,13 +62,13 @@ internal sealed class ExistingCharacterSilentInfoReportProcessor
 
             if (request.EntityId != 0)
             {
-                throw new InvalidDataException("The native silent-info report requires a zero entity ID.");
+                throw new InvalidDataException("The silent-info report requires a zero entity ID.");
             }
 
             if (request.ActionParameter != 0 || request.Direction != 0 || request.PositionX != 0
                 || request.PositionY != 0 || request.Data1 != 0 || request.Data2 != 0 || request.Flag != 0)
             {
-                throw new InvalidDataException("The native silent-info report requires all fields other than its checksum, version, and action to be zero.");
+                throw new InvalidDataException("The silent-info report requires all fields other than its checksum, version, and action to be zero.");
             }
 
             operationToken.ThrowIfCancellationRequested();
