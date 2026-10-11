@@ -132,8 +132,9 @@ all required content passes validation.
 The standalone GameServer `WorldRuntime` now creates one partition-owned `MapInstance` per resolved
 world map, retaining the exact immutable `WorldMapContent` reference and validating initial
 character coordinates against the collision grid bounds. It does not implement walkability,
-movement, or network-session admission. GameServer host initialization, readiness publication,
-and admission gating remain separate integration boundaries.
+movement, or gameplay packet routing. Standalone completed-bootstrap admission now verifies that
+its map is the exact canonical runtime snapshot. GameServer host initialization, readiness
+publication, and network admission gating remain separate integration boundaries.
 
 ## Remaining map-system boundaries
 
@@ -144,7 +145,7 @@ The following are not completed by this catalog slice:
 - GameServer startup readiness for the combined map-definition, base-terrain,
   and static-collision catalogs;
 - GameServer startup publication and readiness gating;
-- authoritative world-session integration, movement rules, and gameplay replication.
+- runnable GameServer world-session hosting, movement rules, and gameplay replication.
 
 The GameServer must not assume a map exists or substitute MapId for MapDataId
 when canonical content is absent.

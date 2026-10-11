@@ -1,3 +1,4 @@
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 
@@ -93,6 +94,60 @@ public sealed class WorldSchedulerTests
     }
 
     [Fact]
+    public async Task Scheduler_UnexpectedWorkerFailureNotifiesOwnerAndStopsExecution()
+    {
+        TaskCompletionSource<Exception> notified = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        WorldScheduler scheduler = CreateScheduler(workerCount: 1, onWorkerFailure: exception => notified.TrySetResult(exception));
+
+        Assert.True(scheduler.TryGetPartition(1002, out WorldPartition? partition));
+
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ManualResetEventSlim release = new(false);
+
+        WorldPartitionCommand<int> command = new(_ =>
+        {
+            started.TrySetResult();
+
+            if (!release.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken))
+            {
+                throw new TimeoutException("The executing partition was not released.");
+            }
+
+            return 1;
+        });
+
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, partition.TryEnqueue(command));
+
+        Task executing = Task.Run(partition.ExecuteTurn, TestContext.Current.CancellationToken);
+
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            scheduler.Start();
+
+            Exception failure = await notified.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+            InvalidOperationException exception = Assert.IsType<InvalidOperationException>(failure);
+
+            Assert.Contains("already executing", exception.Message, StringComparison.Ordinal);
+            Assert.False(scheduler.IsRunning);
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await executing;
+        Assert.Equal(1, await command.Completion);
+
+        InvalidOperationException shutdownFailure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => scheduler.StopAsync().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+        Assert.Contains("already executing", shutdownFailure.Message, StringComparison.Ordinal);
+        Assert.False(scheduler.IsRunning);
+    }
+
+    [Fact]
     public async Task StopAsync_RejectsQueuedWorkButWaitsForExecutingTurn()
     {
         await using WorldScheduler scheduler = CreateScheduler(workerCount: 1, maxCommandsPerTurn: 1);
@@ -175,12 +230,12 @@ public sealed class WorldSchedulerTests
         Assert.Throws<InvalidOperationException>(scheduler.Start);
     }
 
-    private static WorldScheduler CreateScheduler(int workerCount, int maxCommandsPerTurn = 8)
+    private static WorldScheduler CreateScheduler(int workerCount, int maxCommandsPerTurn = 8, Action<Exception>? onWorkerFailure = null)
     {
-        var first = WorldMapTestContent.Create(1002, 1015, 0);
-        var second = WorldMapTestContent.Create(1011, 1016, 0);
-        var catalog = WorldMapTestContent.CreateCatalog(first, second);
+        WorldMapContent first = WorldMapTestContent.Create(1002, 1015, 0);
+        WorldMapContent second = WorldMapTestContent.Create(1011, 1016, 0);
+        WorldMapContentCatalog catalog = WorldMapTestContent.CreateCatalog(first, second);
 
-        return new WorldScheduler(catalog, new WorldExecutionOptions(workerCount, partitionQueueCapacity: 16, maxCommandsPerTurn));
+        return new WorldScheduler(catalog, new WorldExecutionOptions(workerCount, partitionQueueCapacity: 16, maxCommandsPerTurn), onWorkerFailure);
     }
 }

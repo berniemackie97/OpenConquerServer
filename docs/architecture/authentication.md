@@ -294,8 +294,10 @@ Existing-character results continue on the same owned authenticated connection t
 implemented bootstrap progression: canonical map-content resolution, map entry,
 client-state-applied, item-set resolution, friend/social hydration, weapon-skill hydration, magic
 hydration, syndicate attributes, silent-info reporting, and the final `0x84` statistics request.
-The connection remains separately owned at `ExistingCharacterBootstrapCompleteConnection`;
-it has not yet entered an authoritative world session. Character-creation request processing
+At `ExistingCharacterBootstrapCompleteConnection`, the live connection can now be transferred
+exactly once through `WorldSessionAdmissionProcessor` into a `WorldSession` with canonical map
+identity and authoritative world ownership. Runnable GameServer hosting and gameplay dispatch
+remain unimplemented. Character-creation request processing
 remains an unimplemented route.
 
 ## Game Character Persistence
@@ -572,7 +574,8 @@ Implemented:
 - native weapon-skill bootstrap;
 - native magic, syndicate-attributes, silent-info, and statistics-request bootstrap through `0x84`;
 - canonical world-map resolution before successful bootstrap and ownership-safe map propagation;
-- standalone world-partition execution and generation-fenced character admission core;
+- standalone world-partition execution, bounded character residency, and runtime-instance generation-fenced admission;
+- completed-bootstrap world-session promotion with revocable presence and idempotent cleanup;
 - CI migration-drift verification for Accounts and Game persistence;
 - scheduled bounded expired-ticket cleanup;
 - production AccountServer authentication/game-login dependency composition.
@@ -586,5 +589,5 @@ Not yet implemented:
 - runnable GameServer host composition;
 - GameServer listener, admission, and worker lifecycle;
 - character creation request processing and durable creation;
-- promotion of completed bootstrap connections into authoritative world sessions;
+- hosting, lifetime supervision, and gameplay dispatch of admitted world sessions;
 - gameplay authorization, command routing, movement, and world replication.

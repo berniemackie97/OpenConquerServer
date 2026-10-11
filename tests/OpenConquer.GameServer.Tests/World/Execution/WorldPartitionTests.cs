@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 
 namespace OpenConquer.GameServer.Tests.World.Execution;

@@ -17,8 +17,9 @@ partition owned state.
 The initial authoritative execution core is implemented in
 `src/OpenConquer.GameServer/World/Execution/` and tested in
 `tests/OpenConquer.GameServer.Tests/World/Execution/`. It is currently a standalone runtime:
-`OpenConquer.GameServer/Program.cs` is not a runnable GameServer host, and the completed
-existing-character bootstrap connection is not yet admitted into an active world session.
+`OpenConquer.GameServer/Program.cs` is not a runnable GameServer host. Standalone world-session
+admission from completed existing-character bootstrap is implemented, but no listener or ongoing
+gameplay dispatcher is wired to it yet.
 
 `WorldRuntime` constructs a `WorldScheduler` from the validated immutable
 `WorldMapContentCatalog`. Each world `MapId` receives one `WorldPartition` containing one
@@ -26,8 +27,9 @@ existing-character bootstrap connection is not yet admitted into an active world
 and base terrain references. `MapId`, `MapDataId`, and 64-bit map flags remain distinct and intact.
 There is no fallback map or synthetic terrain.
 
-`WorldExecutionOptions` explicitly configures worker count, pending commands per partition, and
-maximum commands per execution turn. Each partition has a finite FIFO command queue. Once a
+`WorldExecutionOptions` explicitly configures worker count, pending commands per partition,
+maximum commands per execution turn, global resident character capacity, and per-map resident
+character capacity. Each partition has a finite FIFO command queue. Once a
 command is accepted, the partition is placed on the shared bounded ready channel at most once
 until it finishes its turn; additional accepted work uses the existing readiness claim. Workers
 execute synchronous, exclusive turns and requeue a busy partition after its command-count quantum.
@@ -43,8 +45,9 @@ or movement authorization.** The partition-owned `MapInstance` currently stores 
 ownership record and the admitted coordinates; monsters, NPCs, timers, visibility, and combat state
 remain future gameplay features.
 
-Each admission returns a `WorldCharacterOwnership` containing character ID, world map ID, and a
-monotonically increasing nonzero generation. `RemoveCharacterAsync` and `ReadCharacterAsync` accept
+Each admission returns a `WorldCharacterOwnership` containing character ID, world map ID,
+nonzero generation, and a runtime-instance identity. Tokens from previous runtime instances cannot
+refer to characters in a newly started runtime, even if their generations coincide. `RemoveCharacterAsync` and `ReadCharacterAsync` accept
 that complete ownership token, so stale generations cannot remove or read a replacement character.
 Successful removal releases the global reservation, allowing a later admission with a new
 generation. This is not yet a map-transfer or network-session ownership protocol.
@@ -57,8 +60,34 @@ finish, workers are joined, and the remaining map-local character state and glob
 are cleared. Runtime instances cannot be restarted after shutdown.
 
 There is no tick loop, gameplay command router, durable world transaction, event replication,
-world-session handoff, or production load-tuned capacity policy in this core. Those remain
-separate slices, governed by the design requirements below.
+or production load-tuned capacity policy in this core. Those remain separate slices, governed by
+the design requirements below.
+
+## World-Session Admission and Cleanup
+
+`WorldSessionAdmissionProcessor` takes exclusive ownership of
+`ExistingCharacterBootstrapCompleteConnection`, verifies that its map is the **same canonical
+object** retained by the runtime, and awaits world admission with authenticated character identity
+and persisted coordinates. Caller cancellation or presence revocation after world admission still
+releases the admitted token and closes the transferred connection. A failed admission cannot leave
+an orphaned presence lease or map-local character. Hydrated bootstrap snapshots remain available
+through the new `WorldSession`; no new client packets are emitted by promotion.
+
+A `WorldSession` owns the live `ExistingCharacterGameConnection` (including its revocable realm
+presence lease) and the runtime-scoped `WorldCharacterOwnership`. Concurrent disposal is
+idempotent. Revocation and runtime stopping initiate the same teardown. `Completion` exposes the
+terminal cleanup result for the future host to supervise; connection-disposal and world-release
+failures are both preserved. The currently standalone runtime does not install a game-session
+processing loop or automatically retry conflicting new logins while an old owner is still being
+released; admission fails closed until the previous ownership has actually ended.
+
+Ordinary partition commands are still bounded by `PartitionQueueCapacity`, but cleanup is admitted
+through a separate **bounded high-priority removal lane**. Its capacity equals the per-map resident
+character limit, and at most one removal may be outstanding for each active character. Therefore a
+full ordinary mailbox cannot strand a disconnect. Session teardown never abandons an accepted
+removal due to caller cancellation. If the world is stopping, cleanup waits for partition shutdown
+and authoritative state clearing. The GameServer host will eventually have to await active session
+`Completion` tasks before final process exit; it is not implemented by this slice.
 
 ## World Partitions
 

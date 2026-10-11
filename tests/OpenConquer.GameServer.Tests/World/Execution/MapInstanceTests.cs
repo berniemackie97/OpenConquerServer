@@ -1,4 +1,4 @@
-using OpenConquer.GameServer.Tests.World;
+using OpenConquer.Application.World;
 using OpenConquer.GameServer.World.Execution;
 
 namespace OpenConquer.GameServer.Tests.World.Execution;
@@ -12,7 +12,7 @@ public sealed class MapInstanceTests
     [Fact]
     public void Constructor_PreservesCanonicalWorldContent()
     {
-        var content = WorldMapTestContent.Create(MapId, MapDataId, 0x1122334455667788);
+        WorldMapContent content = WorldMapTestContent.Create(MapId, MapDataId, 0x1122334455667788);
         MapInstance map = new(content);
 
         Assert.Same(content, map.Map);
@@ -98,7 +98,7 @@ public sealed class MapInstanceTests
     {
         MapInstance map = CreateMap();
         WorldCharacterOwnership ownership = new(CharacterId, MapId, 1);
-        var content = map.Map;
+        WorldMapContent content = map.Map;
 
         map.Admit(ownership, 0, 0);
         map.Clear();

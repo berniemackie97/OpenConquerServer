@@ -11,30 +11,34 @@ internal enum WorldPartitionEnqueueResult
 }
 
 /// <summary>
-/// Serializes bounded map-local commands and yields to the shared scheduler after each execution quantum.
+/// Owns exclusive map-local execution, a bounded ordinary FIFO, and a separate bounded character-removal lane.
 /// </summary>
 internal sealed class WorldPartition
 {
     private readonly MapInstance _map;
     private readonly ChannelWriter<WorldPartition> _ready;
     private readonly Queue<IWorldPartitionCommand> _pending = [];
+    private readonly Queue<IWorldPartitionCommand> _removals = [];
     private readonly Lock _gate = new();
     private readonly int _capacity;
+    private readonly int _removalCapacity;
     private readonly int _maxCommandsPerTurn;
     private bool _scheduled;
     private bool _executing;
     private bool _stopped;
 
-    public WorldPartition(WorldMapContent map, ChannelWriter<WorldPartition> ready, int capacity, int maxCommandsPerTurn)
+    public WorldPartition(WorldMapContent map, ChannelWriter<WorldPartition> ready, int capacity, int maxCommandsPerTurn, int removalCapacity = 1024)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(ready);
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(removalCapacity, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxCommandsPerTurn, 1);
 
         _map = new MapInstance(map);
         _ready = ready;
         _capacity = capacity;
+        _removalCapacity = removalCapacity;
         _maxCommandsPerTurn = maxCommandsPerTurn;
     }
 
@@ -58,16 +62,41 @@ internal sealed class WorldPartition
 
             _pending.Enqueue(command);
 
-            if (!_scheduled)
+            if (!Schedule())
             {
-                _scheduled = true;
+                _pending.Dequeue();
+                return WorldPartitionEnqueueResult.Stopped;
+            }
 
-                if (!_ready.TryWrite(this))
-                {
-                    _scheduled = false;
-                    _pending.Dequeue();
-                    return WorldPartitionEnqueueResult.Stopped;
-                }
+            return WorldPartitionEnqueueResult.Accepted;
+        }
+    }
+
+    /// <summary>
+    /// Reserves cleanup work independently of the ordinary queue. The runtime admits no more than removalCapacity characters per map.
+    /// </summary>
+    public WorldPartitionEnqueueResult TryEnqueueRemoval(IWorldPartitionCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        lock (_gate)
+        {
+            if (_stopped)
+            {
+                return WorldPartitionEnqueueResult.Stopped;
+            }
+
+            if (_removals.Count >= _removalCapacity)
+            {
+                throw new InvalidOperationException($"World partition {Map.MapId} exceeded its reserved character-removal capacity.");
+            }
+
+            _removals.Enqueue(command);
+
+            if (!Schedule())
+            {
+                _removals.Dequeue();
+                return WorldPartitionEnqueueResult.Stopped;
             }
 
             return WorldPartitionEnqueueResult.Accepted;
@@ -101,12 +130,12 @@ internal sealed class WorldPartition
 
                 lock (_gate)
                 {
-                    if (_stopped || _pending.Count == 0)
+                    if (_stopped || (_pending.Count == 0 && _removals.Count == 0))
                     {
                         break;
                     }
 
-                    command = _pending.Dequeue();
+                    command = _removals.Count != 0 ? _removals.Dequeue() : _pending.Dequeue();
                 }
 
                 command.Execute(_map);
@@ -118,7 +147,7 @@ internal sealed class WorldPartition
             {
                 _executing = false;
 
-                if (_stopped || _pending.Count == 0)
+                if (_stopped || (_pending.Count == 0 && _removals.Count == 0))
                 {
                     _scheduled = false;
                 }
@@ -126,7 +155,8 @@ internal sealed class WorldPartition
                 {
                     _stopped = true;
                     _scheduled = false;
-                    rejected = [.. _pending];
+                    rejected = [.. _removals, .. _pending];
+                    _removals.Clear();
                     _pending.Clear();
                 }
             }
@@ -158,7 +188,8 @@ internal sealed class WorldPartition
 
             _stopped = true;
             _scheduled = false;
-            rejected = [.. _pending];
+            rejected = [.. _removals, .. _pending];
+            _removals.Clear();
             _pending.Clear();
         }
 
@@ -181,5 +212,23 @@ internal sealed class WorldPartition
 
             _map.Clear();
         }
+    }
+
+    private bool Schedule()
+    {
+        if (_scheduled)
+        {
+            return true;
+        }
+
+        _scheduled = true;
+
+        if (_ready.TryWrite(this))
+        {
+            return true;
+        }
+
+        _scheduled = false;
+        return false;
     }
 }

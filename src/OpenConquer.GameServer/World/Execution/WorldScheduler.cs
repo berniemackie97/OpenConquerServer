@@ -7,23 +7,27 @@ namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
 /// Schedules ready map partitions across a fixed worker pool without concurrent turns on one partition.
+/// Unexpected worker failure initiates shutdown and notifies the owning runtime.
 /// </summary>
 internal sealed class WorldScheduler : IAsyncDisposable
 {
     private readonly FrozenDictionary<uint, WorldPartition> _partitions;
     private readonly Channel<WorldPartition> _ready;
+    private readonly Action<Exception>? _onWorkerFailure;
     private readonly Lock _gate = new();
     private readonly int _workerCount;
     private Task[] _workers = [];
     private Task? _stopTask;
     private int _state;
 
-    public WorldScheduler(WorldMapContentCatalog maps, WorldExecutionOptions options)
+    public WorldScheduler(WorldMapContentCatalog maps, WorldExecutionOptions options, Action<Exception>? onWorkerFailure = null)
     {
         ArgumentNullException.ThrowIfNull(maps);
         ArgumentNullException.ThrowIfNull(options);
 
         _workerCount = options.WorkerCount;
+        _onWorkerFailure = onWorkerFailure;
+
         _ready = Channel.CreateBounded<WorldPartition>(new BoundedChannelOptions(maps.Count)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -36,7 +40,8 @@ internal sealed class WorldScheduler : IAsyncDisposable
 
         foreach (WorldMapContent map in maps.Maps)
         {
-            partitions.Add(map.MapId, new WorldPartition(map, _ready.Writer, options.PartitionQueueCapacity, options.MaxCommandsPerTurn));
+            partitions.Add(map.MapId, new WorldPartition(map, _ready.Writer, options.PartitionQueueCapacity, options.MaxCommandsPerTurn,
+                options.MaxCharactersPerMap));
         }
 
         _partitions = partitions.ToFrozenDictionary();
@@ -94,9 +99,10 @@ internal sealed class WorldScheduler : IAsyncDisposable
                 partition.ExecuteTurn();
             }
         }
-        catch
+        catch (Exception exception)
         {
             _ = StopAsync();
+            _onWorkerFailure?.Invoke(exception);
             throw;
         }
     }
