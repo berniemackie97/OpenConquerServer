@@ -1,13 +1,15 @@
 using System.Net;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using OpenConquer.AccountServer.Configuration;
+using OpenConquer.AccountServer.Hosting;
 
 namespace OpenConquer.AccountServer.Tests.Configuration;
 
 public sealed class AccountServerDeploymentConfigurationTests
 {
     [Fact]
-    public void ProductionConfiguration_RequiresExplicitDeploymentSettings()
+    public void ProductionConfiguration_DoesNotSupplyDeploymentSettings()
     {
         IConfiguration configuration = LoadConfiguration(false);
 
@@ -18,14 +20,10 @@ public sealed class AccountServerDeploymentConfigurationTests
         Assert.Null(configuration["AccountServer:Network:GameServerPort"]);
         Assert.Null(configuration["AccountServer:GameLoginTickets:ActiveVerificationKeyId"]);
         Assert.False(configuration.GetSection("AccountServer:GameLoginTickets:VerificationKeys").Exists());
-
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
-
-        Assert.Equal("ConnectionStrings:Accounts is missing or empty.", exception.Message);
     }
 
     [Fact]
-    public void DevelopmentConfiguration_PreservesExternalSecretRequirements()
+    public void DevelopmentConfiguration_SuppliesLoopbackEndpointsWithoutSecrets()
     {
         IConfiguration configuration = LoadConfiguration(true);
 
@@ -37,8 +35,70 @@ public sealed class AccountServerDeploymentConfigurationTests
         Assert.Null(configuration.GetConnectionString("Accounts"));
         Assert.Null(configuration["AccountServer:GameLoginTickets:ActiveVerificationKeyId"]);
         Assert.False(configuration.GetSection("AccountServer:GameLoginTickets:VerificationKeys").Exists());
+    }
 
-        Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeploymentConfiguration_RejectsMissingAccountConnectionString(bool development)
+    {
+        Dictionary<string, string?> values = CreateProductionValues();
+        values.Remove("ConnectionStrings:Accounts");
+
+        IConfiguration configuration = LoadConfiguration(development, values);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+
+        Assert.Equal("ConnectionStrings:Accounts is missing or empty.", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("AccountServer:Network:BindAddress")]
+    [InlineData("AccountServer:Network:LoginPort")]
+    [InlineData("AccountServer:Network:GameServerAddress")]
+    [InlineData("AccountServer:Network:GameServerPort")]
+    public void ProductionConfiguration_RejectsMissingNetworkSettings(string configurationKey)
+    {
+        Dictionary<string, string?> values = CreateProductionValues();
+        values.Remove(configurationKey);
+
+        IConfiguration configuration = LoadConfiguration(false, values);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+
+        Assert.IsAssignableFrom<ArgumentException>(exception.InnerException);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeploymentConfiguration_RejectsMissingVerificationKeys(bool development)
+    {
+        Dictionary<string, string?> values = CreateProductionValues();
+
+        values.Remove("AccountServer:GameLoginTickets:VerificationKeys:0:Id");
+        values.Remove("AccountServer:GameLoginTickets:VerificationKeys:0:EncodedKey");
+
+        IConfiguration configuration = LoadConfiguration(development, values);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+
+        Assert.IsType<ArgumentException>(exception.InnerException);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeploymentConfiguration_RejectsMissingActiveVerificationKeyId(bool development)
+    {
+        Dictionary<string, string?> values = CreateProductionValues();
+        values.Remove("AccountServer:GameLoginTickets:ActiveVerificationKeyId");
+
+        IConfiguration configuration = LoadConfiguration(development, values);
+        AccountServerConfiguration runtimeConfiguration = AccountServerConfiguration.Load(configuration);
+        ServiceCollection services = new();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => AccountServerHost.ConfigureServices(services, runtimeConfiguration));
     }
 
     [Fact]
@@ -84,14 +144,7 @@ public sealed class AccountServerDeploymentConfigurationTests
     [Fact]
     public void ProductionConfiguration_LoadsWhenRequiredDeploymentValuesAreSupplied()
     {
-        Dictionary<string, string?> values = CreateSecrets();
-
-        values["AccountServer:Network:BindAddress"] = "127.0.0.1";
-        values["AccountServer:Network:LoginPort"] = "9958";
-        values["AccountServer:Network:GameServerAddress"] = "127.0.0.1";
-        values["AccountServer:Network:GameServerPort"] = "5816";
-
-        IConfiguration configuration = LoadConfiguration(false, values);
+        IConfiguration configuration = LoadConfiguration(false, CreateProductionValues());
 
         AccountServerConfiguration result = AccountServerConfiguration.Load(configuration);
 
@@ -135,6 +188,18 @@ public sealed class AccountServerDeploymentConfigurationTests
         }
 
         return builder.Build();
+    }
+
+    private static Dictionary<string, string?> CreateProductionValues()
+    {
+        Dictionary<string, string?> values = CreateSecrets();
+
+        values["AccountServer:Network:BindAddress"] = "127.0.0.1";
+        values["AccountServer:Network:LoginPort"] = "9958";
+        values["AccountServer:Network:GameServerAddress"] = "127.0.0.1";
+        values["AccountServer:Network:GameServerPort"] = "5816";
+
+        return values;
     }
 
     private static Dictionary<string, string?> CreateSecrets()
