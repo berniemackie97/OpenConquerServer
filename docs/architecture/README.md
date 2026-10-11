@@ -474,9 +474,10 @@ requirement for later OpenConquer content. The GameServer never loads retail `.d
 files at runtime.
 
 The existing EnterMap contract can project a canonical definition into
-`GameMapEntryDefinition`. The runnable GameServer host, startup catalog publication,
-resolution of remaining 5517 reconstruction uncertainties, canonical terrain
-collision artifact publication, and authoritative world instances remain future boundaries.
+`GameMapEntryDefinition`. GameServer startup publication and readiness of the
+combined map-definition, terrain, and collision catalogs, resolution of remaining
+historical map uncertainties, and authoritative world instances remain future
+boundaries.
 
 Canonical base-terrain files are versioned, checksummed binary content keyed by
 `MapDataId`. The offline tool accepts authored terrain or imports the verified
@@ -484,10 +485,11 @@ native DMap base grid and exit-marker sections. Runtime loading requires only
 canonical terrain artifacts and the immutable map-definition catalog.
 Multiple maps sharing one terrain identity share one immutable grid.
 
-Base-grid passability is not authoritative movement collision. Native scenery
-and positioned overlays can modify effective collision and remain a separate
-required composition boundary. The converter does not claim validation of
-uninterpreted later native DMap sections.
+Base-grid passability alone is not complete effective static collision.
+Canonical collision artifacts store final terrain-object overrides against
+the immutable base terrain. Runtime loading verifies identity, integrity,
+and required content coverage. Authoritative movement rules and validation
+of uninterpreted source sections remain separate boundaries.
 
 See [`content/maps`](../../content/maps/README.md) for the source and canonical formats.
 
@@ -784,7 +786,7 @@ Not yet implemented:
 - runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- resolution of remaining historical map uncertainties, runtime collision catalog loading, and GameServer startup catalog integration;
+- resolution of remaining historical map uncertainties and GameServer startup map-content readiness integration;
 - authoritative world-session integration following the verified native bootstrap request sequence;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
