@@ -186,15 +186,31 @@ Its publication contains:
 
 A caller cannot acquire an unpublished or stopped world through this boundary.
 
-Existing-character bootstrap now transfers ownership into the authoritative world through
+Existing-character bootstrap transfers ownership into the authoritative world through
 the hosted connection-processing pipeline. A login worker becomes available immediately
-after transferring a completed `WorldSession`; the world session retains its own
-supervised I/O and cleanup lifetime.
+after transferring a completed `WorldSession`.
+
+World-session I/O and cleanup are supervised independently of login workers. Fatal cleanup
+failures are recorded and application shutdown is requested before the supervised session
+task completes. The worker pool does not finish draining sessions before those outcomes
+have been reported.
+
+Per-source admission reservations remain occupied until the underlying transport has
+successfully completed disposal. A failed transport disposal does not release its source
+reservation or permit replacement admission against that reservation. It records a fatal
+process failure and requests application shutdown.
+
+This policy also applies to disposal failures involving capacity-rejected connections.
+The server does not continue operating when TCP connection closure cannot be established.
 
 ## Shutdown
 
-Shutdown first stops GameServer ingress, prevents additional admission, drains workers,
-and closes supervised sessions. It then unpublishes the world through `GameServerWorldState`.
+Shutdown cancels GameServer ingress, closes the TCP listener once through the network
+execution lifecycle, prevents additional admission, and drains login workers and supervised
+sessions. It then unpublishes the world through `GameServerWorldState`.
+
+Failures during connection or session cleanup are retained in the process failure state.
+Normal shutdown does not treat successfully closed connections as fatal.
 
 It then stops authoritative execution, rejects pending commands, joins world workers, clears
 map-local state, and awaits registered admission and session lifetimes.
@@ -253,6 +269,16 @@ git diff --check
 
 CI additionally verifies the Account and Game EF Core migration models, dependency changes, and
 security analysis.
+
+The admission concurrency test reports completed-operation throughput and p50, p95, and
+p99 latency for 256 concurrent simulated source connections. These measurements are
+diagnostic, not machine-independent performance acceptance thresholds.
+
+Production performance validation must additionally collect world startup duration,
+managed memory, process working set, live-connection counts, real TCP throughput, and
+end-to-end authentication/bootstrap latency under representative concurrent load.
+The simulated admission measurement does not establish native-client throughput or
+a production latency service-level objective.
 
 ## Not Yet Implemented
 

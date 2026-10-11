@@ -16,11 +16,18 @@ namespace OpenConquer.GameServer.Login.Hosting;
 /// <summary>
 /// Starts bounded network ingress after canonical content readiness and owns all connection-processing work.
 /// </summary>
-internal sealed partial class GameLoginRuntimeHostedService(Func<ITransportConnectionListener> listenerFactory, Func<GameLoginConnectionProcessor> processorFactory,
-    IItemTypeCatalogRepository itemRepository, GameServerItemCatalogState itemState, GameNetworkOptions options, TransportConnectionAdmissionQueue queue,
-    GameLoginMetrics metrics, GameServerFailureState failureState, IHostApplicationLifetime applicationLifetime, ILoggerFactory loggerFactory,
-    ILogger<GameLoginRuntimeHostedService> logger)
-    : BackgroundService
+internal sealed partial class GameLoginRuntimeHostedService(
+    Func<ITransportConnectionListener> listenerFactory,
+    Func<GameLoginConnectionProcessor> processorFactory,
+    IItemTypeCatalogRepository itemRepository,
+    GameServerItemCatalogState itemState,
+    GameNetworkOptions options,
+    TransportConnectionAdmissionQueue queue,
+    GameLoginMetrics metrics,
+    GameServerFailureState failureState,
+    IHostApplicationLifetime applicationLifetime,
+    ILoggerFactory loggerFactory,
+    ILogger<GameLoginRuntimeHostedService> logger) : BackgroundService
 {
     private readonly Func<ITransportConnectionListener> _listenerFactory = listenerFactory ?? throw new ArgumentNullException(nameof(listenerFactory));
     private readonly Func<GameLoginConnectionProcessor> _processorFactory = processorFactory ?? throw new ArgumentNullException(nameof(processorFactory));
@@ -57,13 +64,30 @@ internal sealed partial class GameLoginRuntimeHostedService(Func<ITransportConne
         {
             GameLoginConnectionProcessor processor = _processorFactory();
 
-            _workers = new GameConnectionWorkerPool(_queue, processor, _options, _metrics,
+            _workers = new GameConnectionWorkerPool(_queue, processor.ProcessAsync, _options, _metrics,
                 _failureState, _applicationLifetime, _loggerFactory.CreateLogger<GameConnectionWorkerPool>());
 
             ITransportConnectionListener transport = _listenerFactory()
                 ?? throw new InvalidOperationException("The GameServer login listener factory returned no listener.");
 
-            _listener = new GameAdmissionTransportListener(transport, _options.MaximumConnectionsPerSource, _metrics);
+            try
+            {
+                _listener = new GameAdmissionTransportListener(transport, _options.MaximumConnectionsPerSource,
+                    _metrics, ReportFatalTransportDisposalFailure);
+            }
+            catch (Exception initializationFailure)
+            {
+                try
+                {
+                    await transport.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception cleanupFailure)
+                {
+                    throw new AggregateException("GameServer listener initialization and cleanup both failed.", initializationFailure, cleanupFailure);
+                }
+
+                throw;
+            }
 
             await base.StartAsync(cancellationToken).ConfigureAwait(false);
 
@@ -88,20 +112,48 @@ internal sealed partial class GameLoginRuntimeHostedService(Func<ITransportConne
         }
         catch (Exception startupFailure)
         {
-            Exception? cleanupFailure = null;
+            List<Exception> failures = [startupFailure];
 
-            try
+            if (ExecuteTask is not null)
             {
-                await StopAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await base.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
             }
-            catch (Exception exception)
+            else
             {
-                cleanupFailure = exception;
+                _queue.Complete();
+
+                if (_listener is not null)
+                {
+                    try
+                    {
+                        await _listener.DisposeAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        failures.Add(exception);
+                    }
+                }
+
+                try
+                {
+                    await _queue.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
             }
 
-            if (cleanupFailure is not null)
+            if (failures.Count > 1)
             {
-                throw new AggregateException("GameServer login startup and cleanup both failed.", startupFailure, cleanupFailure);
+                throw new AggregateException("GameServer login startup and cleanup both failed.", failures);
             }
 
             ExceptionDispatchInfo.Capture(startupFailure).Throw();
@@ -110,38 +162,7 @@ internal sealed partial class GameLoginRuntimeHostedService(Func<ITransportConne
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        Exception? shutdownFailure = null;
-
-        try
-        {
-            await base.StopAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            shutdownFailure = exception;
-        }
-
-        _queue.Complete();
-
-        try
-        {
-            if (_listener is not null)
-            {
-                await _listener.DisposeAsync().ConfigureAwait(false);
-            }
-        }
-        catch (Exception exception)
-        {
-            shutdownFailure = shutdownFailure is null
-                ? exception
-                : new AggregateException("Stopping GameServer login processing and closing the listener both failed.", shutdownFailure, exception);
-        }
-
-        if (shutdownFailure is not null)
-        {
-            ExceptionDispatchInfo.Capture(shutdownFailure).Throw();
-        }
-
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
         LogRuntimeStopped(_logger);
     }
 
@@ -275,9 +296,32 @@ internal sealed partial class GameLoginRuntimeHostedService(Func<ITransportConne
         ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    private void ReportFatalTransportDisposalFailure(Exception failure)
+    {
+        _failureState.Record(failure);
+
+        try
+        {
+            LogFatalTransportDisposal(_logger, failure);
+        }
+        finally
+        {
+            _applicationLifetime.StopApplication();
+        }
+    }
+
     private void ReportRejectionDisposalFailure(TransportConnectionRejectionDisposalFailure failure)
     {
-        LogRejectionDisposalFailure(_logger, failure.LocalEndPoint, failure.RemoteEndPoint, failure.Exception);
+        _failureState.Record(failure.Exception);
+
+        try
+        {
+            LogRejectionDisposalFailure(_logger, failure.LocalEndPoint, failure.RemoteEndPoint, failure.Exception);
+        }
+        finally
+        {
+            _applicationLifetime.StopApplication();
+        }
     }
 
     [LoggerMessage(EventId = 6100, Level = LogLevel.Information, Message = "GameServer login listener started on {EndPoint}.")]
@@ -291,4 +335,7 @@ internal sealed partial class GameLoginRuntimeHostedService(Func<ITransportConne
 
     [LoggerMessage(EventId = 6103, Level = LogLevel.Critical, Message = "GameServer network runtime terminated with a fatal failure.")]
     private static partial void LogFatalRuntimeFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 6104, Level = LogLevel.Critical, Message = "GameServer transport disposal failed; connection closure cannot be guaranteed.")]
+    private static partial void LogFatalTransportDisposal(ILogger logger, Exception exception);
 }

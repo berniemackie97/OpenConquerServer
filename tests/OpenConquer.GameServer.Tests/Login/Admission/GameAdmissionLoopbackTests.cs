@@ -21,7 +21,7 @@ public sealed class GameAdmissionLoopbackTests
             new IPEndPoint(IPAddress.Loopback, 0), backlog: 16);
 
         using GameLoginMetrics metrics = new();
-        await using GameAdmissionTransportListener listener = new(transport, 2, metrics);
+        await using GameAdmissionTransportListener listener = new(transport, 2, metrics, static _ => { });
 
         using Socket client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
