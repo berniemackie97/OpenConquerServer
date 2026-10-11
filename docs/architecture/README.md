@@ -47,7 +47,7 @@ flowchart TD
 | `OpenConquer.Protocol`       | Packet layouts, framing, serialization, text encoding, protocol cryptography, and client compatibility.                                        |
 | `OpenConquer.Transport`      | TCP, connections, buffering, asynchronous I/O, admission, backpressure, and connection lifetime.                                               |
 | `OpenConquer.AccountServer`  | Runnable 5517 account-login host and authentication-handshake orchestration.                                                                   |
-| `OpenConquer.GameServer`     | GameServer connection handoff, existing-character login/bootstrap orchestration, native compatibility behavior, and future gameplay hosting.   |
+| `OpenConquer.GameServer`     | Readiness-gated world hosting, connection handoff, existing-character bootstrap, and authoritative execution; network gameplay remains future. |
 | `OpenConquer.GameData.Tool`  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                        |
 
 ## Dependency Rules
@@ -446,9 +446,10 @@ validation. Cancellation or failure closes the owned connection instead of expos
 Secured GameServer output permits one active frame writer per connection. Overlapping writes are
 rejected immediately rather than queued.
 
-The runnable GameServer host, connection admission runtime, character creation transaction,
-network gameplay routing, and world simulation remain future boundaries. The standalone
-completed-bootstrap to authoritative-world session transfer is implemented separately.
+The readiness-gated GameServer Generic Host now initializes authoritative world execution
+after database and canonical-content verification. Connection admission, character creation,
+network gameplay routing, and world simulation remain future boundaries. Completed-bootstrap
+world-session promotion is implemented separately and is not yet network-hosted.
 
 See:
 
@@ -498,9 +499,10 @@ Shared terrain identities resolve to the same collision and base-terrain
 objects. Loading rejects incomplete or incompatible catalog snapshots.
 
 The unified catalog is an application-level content snapshot, not mutable gameplay state.
-The standalone `WorldRuntime` now builds one `WorldPartition` and `MapInstance` for each resolved
-world map, retaining the exact canonical content reference. Runnable GameServer startup/readiness,
-connection-to-world admission, and gameplay execution remain separate integration boundaries.
+The GameServer host validates and publishes this catalog only after both database readiness
+checks and complete canonical-content loading succeed. `WorldRuntime` constructs one
+`WorldPartition` and `MapInstance` per map, retaining the exact canonical content reference.
+Network connection admission and gameplay execution remain separate integration boundaries.
 
 See [`content/maps`](../../content/maps/README.md) for the source and canonical formats.
 
@@ -516,8 +518,8 @@ position; no movement, combat, visibility, or packet routing is implemented yet.
 `WorldSessionAdmissionProcessor` now takes exclusive ownership of a completed-bootstrap
 connection, verifies the exact canonical map object, admits the character with bounded residency,
 and returns a `WorldSession` owning the authenticated connection and world token. Its idempotent
-cleanup is triggered by disposal, presence revocation, or runtime stop. The standalone promotion
-is not yet composed into a runnable GameServer host.
+cleanup is triggered by disposal, presence revocation, or runtime stop. The Generic Host
+supervises world execution, but live network-session processing is not yet wired.
 
 Planned end-to-end client command routing (not yet implemented):
 
@@ -806,10 +808,9 @@ Implemented:
 Not yet implemented:
 
 - account registration;
-- runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
 - character creation request processing and durable creation;
-- resolution of remaining historical map uncertainties and GameServer startup map-content readiness integration;
+- resolution of remaining historical map uncertainties;
 - runnable host integration of existing-character world sessions, including supervised connection processing;
 - gameplay outbound scheduling and bounded mailbox policy;
 - authoritative world simulation;
@@ -820,6 +821,7 @@ Not yet implemented:
 - [Networking Architecture](networking.md)
 - [Authentication](authentication.md)
 - [World Execution](world-execution.md)
+- [GameServer Operations](../operations/game-server.md)
 - [Protocol Reference](../protocol/README.md)
 - [TQ Framing](../protocol/framing.md)
 - [TQ Text Encoding](../protocol/encoding.md)

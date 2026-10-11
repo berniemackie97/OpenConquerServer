@@ -68,7 +68,6 @@ internal sealed class GameServerSettings
         {
             get; set;
         }
-
         public List<VerificationKeySettings> VerificationKeys { get; set; } = [];
     }
 

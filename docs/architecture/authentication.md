@@ -296,9 +296,9 @@ client-state-applied, item-set resolution, friend/social hydration, weapon-skill
 hydration, syndicate attributes, silent-info reporting, and the final `0x84` statistics request.
 At `ExistingCharacterBootstrapCompleteConnection`, the live connection can now be transferred
 exactly once through `WorldSessionAdmissionProcessor` into a `WorldSession` with canonical map
-identity and authoritative world ownership. Runnable GameServer hosting and gameplay dispatch
-remain unimplemented. Character-creation request processing
-remains an unimplemented route.
+identity and authoritative world ownership. GameServer world-readiness hosting is implemented,
+but network admission and gameplay dispatch remain unimplemented. Character-creation request
+processing remains an unimplemented route.
 
 ## Game Character Persistence
 
@@ -382,8 +382,8 @@ The Game persistence registration exposes:
 - `ICharacterMagicSetRepository`;
 - `IGameDatabaseReadinessVerifier`.
 
-Game database readiness is implemented as an infrastructure capability. A runnable GameServer host
-does not yet exist to execute the readiness gate during process startup.
+The GameServer Generic Host executes Accounts and Game database schema-readiness checks before
+loading canonical world content and publishing its running authoritative world.
 
 CI independently verifies that both `AccountDbContext` and `GameDbContext` have no pending EF Core
 model changes relative to their committed migrations.
@@ -586,7 +586,6 @@ Not yet implemented:
 - least-privilege production database identities;
 - authenticated self-service password changes;
 - staff/admin mutation authorization;
-- runnable GameServer host composition;
 - GameServer listener, admission, and worker lifecycle;
 - character creation request processing and durable creation;
 - hosting, lifetime supervision, and gameplay dispatch of admitted world sessions;

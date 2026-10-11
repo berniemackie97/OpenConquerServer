@@ -588,9 +588,10 @@ The `0x84` statistics request completes without an unsupported acknowledgement. 
 content is resolved before accepted bootstrap output and is carried across every typed state.
 
 Character creation requests and writes, and runtime hosting of ongoing gameplay packets, remain
-unimplemented. The standalone `WorldSessionAdmissionProcessor` now transfers the completed
-bootstrap connection into `WorldSession` and authoritative `WorldRuntime` ownership, including
-revocable presence and bounded cleanup, but the GameServer listener/worker host is not yet wired.
+unimplemented. `WorldSessionAdmissionProcessor` transfers completed-bootstrap connections into
+`WorldSession` and authoritative `WorldRuntime` ownership, including revocable presence and bounded
+cleanup. The GameServer Generic Host now owns world startup and shutdown, but the listener and
+connection-worker runtime remain unimplemented.
 
 ## Game Character Persistence Boundary
 
@@ -631,8 +632,8 @@ and gameplay mutation are intentionally not introduced through these boundaries 
 `GameDatabaseReadinessVerifier` validates the Game database character set, collation, schema
 version, and migration identity.
 
-The future runnable GameServer host must execute Game database readiness before exposing GameServer
-ingress, but that host lifecycle is not yet implemented.
+The GameServer Generic Host verifies Accounts and Game database readiness, then canonical
+world content, before publishing authoritative execution. Network ingress remains unimplemented.
 
 ## Game-Login Redemption
 
@@ -757,9 +758,7 @@ Implemented GameServer connection and character-login components:
 
 Not yet implemented:
 
-- runnable GameServer Generic Host;
 - GameServer listener, admission queue, and worker runtime;
-- GameServer startup execution of Game database readiness;
 - gameplay event/replication production and connection outbound scheduling;
 - runtime hosting and supervision of admitted world sessions and gameplay packet processing;
 - character creation request processing and durable creation;

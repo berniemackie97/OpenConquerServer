@@ -19,9 +19,11 @@ server architecture.
 > Seven historical map identities remain unresolved. Canonical static collision is released,
 > and the standalone authoritative world-partition core now supports bounded map-local command
 > execution, capped character residency, generation-fenced ownership, and a revocable session
-> admission/cleanup boundary. Independent retail conformance and full native-parity verification
-> remain ongoing. Account registration, the runnable GameServer host, character creation,
-> gameplay packet routing, movement, and combat remain unimplemented.
+> admission/cleanup boundary. The readiness-gated GameServer Generic Host now verifies both
+> database schemas, loads canonical content, and supervises authoritative world execution.
+> Independent retail conformance and full native-parity verification remain ongoing.
+> Account registration, GameServer network admission, character creation, gameplay packet
+> routing, movement, and combat remain unimplemented.
 
 ## Architecture
 
@@ -68,7 +70,7 @@ flowchart TD
 | **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and verified AccountServer/GameServer packet contracts.                                |
 | **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer**     | Authenticated GameServer bootstrap, standalone authoritative world execution, and owned world-session admission; hosting and gameplay remain future. |
+| **OpenConquer.GameServer**     | Readiness-gated world host, authenticated bootstrap, authoritative execution, and owned world-session admission; network hosting and gameplay remain future. |
 | **OpenConquer.GameData.Tool**  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                                             |
 
 ## Current AccountServer Login Flow
@@ -122,6 +124,7 @@ failures trigger graceful host shutdown and result in a nonzero process exit cod
 - [World execution](docs/architecture/world-execution.md)
 - [Server baseline audit](docs/audits/server-baseline.md)
 - [AccountServer operations](docs/operations/account-server.md)
+- [GameServer operations](docs/operations/game-server.md)
 
 ### Protocol
 
