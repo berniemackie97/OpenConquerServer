@@ -16,10 +16,11 @@ server architecture.
 > Game schema v9 syndicate persistence and read hydration are implemented.
 > The initial canonical map-content baseline includes 282 world-map definitions and
 > 185 distinct base-terrain artifacts, with immutable loading and integrity validation.
-> Seven historical map identities remain unresolved. Complete native-parity verification,
-> canonical collision release content, independent tile-level conformance, and GameServer runtime integration remain pending.
-> Account registration, the runnable GameServer host, character creation, authoritative
-> world-session integration, and gameplay are not yet implemented.
+> Seven historical map identities remain unresolved. Canonical static collision is released,
+> and the standalone authoritative world-partition core now supports bounded map-local command
+> execution and generation-fenced character ownership. Independent retail conformance and
+> full native-parity verification remain ongoing. Account registration, the runnable GameServer
+> host, character creation, world-session admission, movement, and gameplay remain unimplemented.
 
 ## Architecture
 
@@ -66,7 +67,7 @@ flowchart TD
 | **OpenConquer.Protocol**       | 5517 framing, serialization, text encoding, login cryptography, credentials, and verified AccountServer/GameServer packet contracts.                                |
 | **OpenConquer.Transport**      | TCP connections, bounded admission, I/O pumps, buffering, backpressure, and connection lifetime.                                                                    |
 | **OpenConquer.AccountServer**  | Runnable 5517 account-login host with readiness-gated startup, bounded login processing, authentication handoff, supervision, observability, and ticket maintenance. |
-| **OpenConquer.GameServer**     | Native GameServer connection handoff and existing-character bootstrap runtime through the completed native request-sequence ownership boundary; authoritative gameplay is future. |
+| **OpenConquer.GameServer**     | Authenticated GameServer connection/bootstrap processing and a standalone authoritative world-partition core; hosting, world-session admission, and gameplay remain future. |
 | **OpenConquer.GameData.Tool**  | Offline source-format decoding, import, verification, and generation of canonical OpenConquer release data.                                                             |
 
 ## Current AccountServer Login Flow
@@ -151,7 +152,8 @@ tools/
 └── OpenConquer.GameData.Tool/
 
 content/
-└── items/
+├── items/
+└── maps/
 
 docs/
 ├── architecture/

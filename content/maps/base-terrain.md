@@ -116,10 +116,11 @@ The base-grid `PassabilityFlag` is retained as raw content information.
 
 It is not a complete, authoritative `IsWalkable` rule.
 
-Canonical static terrain-object collision must be loaded and validated before
-world partitions use it for authoritative collision or pathing. Dynamic
-occupancy, movement restrictions, and map-specific gameplay rules remain
-separate responsibilities.
+The standalone world-partition core retains the already validated canonical collision and base
+terrain through `WorldMapContent`; it uses collision grid dimensions for initial character bounds
+checking only. Neither raw `PassabilityFlag` nor bounds validation establishes a walkability rule.
+Authoritative pathing, dynamic occupancy, movement restrictions, and map-specific gameplay rules
+remain separate responsibilities.
 
 Custom OpenConquer features need valid canonical content and supported runtime
 rules, not evidence that they existed in the original 5517 client.

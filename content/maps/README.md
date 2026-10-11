@@ -129,9 +129,11 @@ canonical file inventories.
 A complete immutable world-map content catalog is returned only after
 all required content passes validation.
 
-GameServer host initialization, readiness publication, admission gating,
-authoritative world instances, and gameplay movement remain separate
-implementation boundaries.
+The standalone GameServer `WorldRuntime` now creates one partition-owned `MapInstance` per resolved
+world map, retaining the exact immutable `WorldMapContent` reference and validating initial
+character coordinates against the collision grid bounds. It does not implement walkability,
+movement, or network-session admission. GameServer host initialization, readiness publication,
+and admission gating remain separate integration boundaries.
 
 ## Remaining map-system boundaries
 
@@ -142,7 +144,7 @@ The following are not completed by this catalog slice:
 - GameServer startup readiness for the combined map-definition, base-terrain,
   and static-collision catalogs;
 - GameServer startup publication and readiness gating;
-- authoritative map instances and world-session integration.
+- authoritative world-session integration, movement rules, and gameplay replication.
 
 The GameServer must not assume a map exists or substitute MapId for MapDataId
 when canonical content is absent.

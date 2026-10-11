@@ -291,9 +291,12 @@ The connection is not replaced, parked, or converted into a separate transport s
 ticket redemption and character resolution.
 
 Existing-character results continue on the same owned authenticated connection through the
-implemented bootstrap progression: initial character bootstrap, map entry, client-state-applied,
-item-set resolution, friend/social hydration, weapon-skill hydration, and magic hydration.
-Character-creation request processing remains a separate unimplemented route.
+implemented bootstrap progression: canonical map-content resolution, map entry,
+client-state-applied, item-set resolution, friend/social hydration, weapon-skill hydration, magic
+hydration, syndicate attributes, silent-info reporting, and the final `0x84` statistics request.
+The connection remains separately owned at `ExistingCharacterBootstrapCompleteConnection`;
+it has not yet entered an authoritative world session. Character-creation request processing
+remains an unimplemented route.
 
 ## Game Character Persistence
 
@@ -567,8 +570,9 @@ Implemented:
 - bounded item hydration and catalog-aware runtime resolution;
 - native friend/social bootstrap;
 - native weapon-skill bootstrap;
-- native magic bootstrap;
-- ownership-safe handoff to the syndicate-attributes bootstrap stage;
+- native magic, syndicate-attributes, silent-info, and statistics-request bootstrap through `0x84`;
+- canonical world-map resolution before successful bootstrap and ownership-safe map propagation;
+- standalone world-partition execution and generation-fenced character admission core;
 - CI migration-drift verification for Accounts and Game persistence;
 - scheduled bounded expired-ticket cleanup;
 - production AccountServer authentication/game-login dependency composition.
@@ -581,6 +585,6 @@ Not yet implemented:
 - staff/admin mutation authorization;
 - runnable GameServer host composition;
 - GameServer listener, admission, and worker lifecycle;
-- syndicate-attributes and later existing-character bootstrap stages;
 - character creation request processing and durable creation;
-- gameplay/world-session authorization and authoritative runtime integration.
+- promotion of completed bootstrap connections into authoritative world sessions;
+- gameplay authorization, command routing, movement, and world replication.
