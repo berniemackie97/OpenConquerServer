@@ -1,13 +1,13 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
 using OpenConquer.Application.World;
 
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Schedules ready map partitions across a fixed worker pool without concurrent turns on one partition.
-/// Unexpected worker failure initiates shutdown and notifies the owning runtime.
+/// Schedules exclusive map-partition turns across a fixed worker pool and preserves all terminal execution failures.
 /// </summary>
 internal sealed class WorldScheduler : IAsyncDisposable
 {
@@ -109,25 +109,67 @@ internal sealed class WorldScheduler : IAsyncDisposable
 
     private async Task StopCoreAsync()
     {
+        List<Exception> failures = [];
+
         foreach (WorldPartition partition in _partitions.Values)
         {
-            partition.Stop();
+            try
+            {
+                partition.Stop();
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
         }
 
         _ready.Writer.TryComplete();
 
+        Task workers = Task.WhenAll(_workers);
+
         try
         {
-            await Task.WhenAll(_workers).ConfigureAwait(false);
+            await workers.ConfigureAwait(false);
         }
-        finally
+        catch (Exception exception)
+        {
+            if (workers.Exception is { } aggregate)
+            {
+                failures.AddRange(aggregate.Flatten().InnerExceptions);
+            }
+            else
+            {
+                failures.Add(exception);
+            }
+        }
+
+        try
         {
             foreach (WorldPartition partition in _partitions.Values)
             {
-                partition.Clear();
+                try
+                {
+                    partition.Clear();
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
             }
-
+        }
+        finally
+        {
             Volatile.Write(ref _state, 3);
+        }
+
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException("World scheduler shutdown encountered multiple failures.", failures);
         }
     }
 }

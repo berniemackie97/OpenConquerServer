@@ -1,5 +1,4 @@
 using OpenConquer.Application.World;
-using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 
 namespace OpenConquer.GameServer.Tests.World.Execution;
@@ -94,57 +93,57 @@ public sealed class WorldSchedulerTests
     }
 
     [Fact]
-    public async Task Scheduler_UnexpectedWorkerFailureNotifiesOwnerAndStopsExecution()
+    public async Task Scheduler_UnexpectedWorkerFailureNotifiesOwnerAndPreservesOriginalFailure()
     {
         TaskCompletionSource<Exception> notified = new(TaskCreationOptions.RunContinuationsAsynchronously);
         WorldScheduler scheduler = CreateScheduler(workerCount: 1, onWorkerFailure: exception => notified.TrySetResult(exception));
 
         Assert.True(scheduler.TryGetPartition(1002, out WorldPartition? partition));
 
-        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        using ManualResetEventSlim release = new(false);
+        IOException failure = new("fatal worker failure");
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, partition.TryEnqueue(new ThrowingCommand(failure)));
 
-        WorldPartitionCommand<int> command = new(_ =>
-        {
-            started.TrySetResult();
+        scheduler.Start();
 
-            if (!release.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken))
-            {
-                throw new TimeoutException("The executing partition was not released.");
-            }
+        Exception notification = await notified.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+        Assert.Same(failure, notification);
 
-            return 1;
-        });
-
-        Assert.Equal(WorldPartitionEnqueueResult.Accepted, partition.TryEnqueue(command));
-
-        Task executing = Task.Run(partition.ExecuteTurn, TestContext.Current.CancellationToken);
-
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
-
-            scheduler.Start();
-
-            Exception failure = await notified.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
-            InvalidOperationException exception = Assert.IsType<InvalidOperationException>(failure);
-
-            Assert.Contains("already executing", exception.Message, StringComparison.Ordinal);
-            Assert.False(scheduler.IsRunning);
-        }
-        finally
-        {
-            release.Set();
-        }
-
-        await executing;
-        Assert.Equal(1, await command.Completion);
-
-        InvalidOperationException shutdownFailure = await Assert.ThrowsAsync<InvalidOperationException>(
+        IOException shutdownFailure = await Assert.ThrowsAsync<IOException>(
             () => scheduler.StopAsync().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
 
-        Assert.Contains("already executing", shutdownFailure.Message, StringComparison.Ordinal);
+        Assert.Same(failure, shutdownFailure);
         Assert.False(scheduler.IsRunning);
+        Assert.Throws<InvalidOperationException>(scheduler.Start);
+        Assert.Equal(WorldPartitionEnqueueResult.Stopped, partition.TryEnqueue(new WorldPartitionCommand<int>(_ => 1)));
+    }
+
+    [Fact]
+    public async Task Scheduler_WorkerAndCleanupFailuresAreBothPreserved()
+    {
+        TaskCompletionSource<Exception> notified = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        WorldScheduler scheduler = CreateScheduler(workerCount: 1, onWorkerFailure: exception => notified.TrySetResult(exception));
+
+        Assert.True(scheduler.TryGetPartition(1002, out WorldPartition? first));
+        Assert.True(scheduler.TryGetPartition(1011, out WorldPartition? second));
+
+        IOException workerFailure = new("fatal worker failure");
+        InvalidOperationException cleanupFailure = new("partition rejection failure");
+
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, first.TryEnqueue(new ThrowingCommand(workerFailure)));
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, second.TryEnqueue(new RejectingCommand(cleanupFailure)));
+
+        scheduler.Start();
+
+        Exception notification = await notified.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+        Assert.Same(workerFailure, notification);
+
+        AggregateException shutdownFailure = await Assert.ThrowsAsync<AggregateException>(
+            () => scheduler.StopAsync().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+        Assert.Contains(shutdownFailure.InnerExceptions, exception => ReferenceEquals(exception, workerFailure));
+        Assert.Contains(shutdownFailure.InnerExceptions, exception => ReferenceEquals(exception, cleanupFailure));
+        Assert.False(scheduler.IsRunning);
+        Assert.Equal(WorldPartitionEnqueueResult.Stopped, second.TryEnqueue(new WorldPartitionCommand<int>(_ => 1)));
     }
 
     [Fact]
@@ -237,5 +236,17 @@ public sealed class WorldSchedulerTests
         WorldMapContentCatalog catalog = WorldMapTestContent.CreateCatalog(first, second);
 
         return new WorldScheduler(catalog, new WorldExecutionOptions(workerCount, partitionQueueCapacity: 16, maxCommandsPerTurn), onWorkerFailure);
+    }
+
+    private sealed class ThrowingCommand(Exception failure) : IWorldPartitionCommand
+    {
+        public void Execute(MapInstance map) => throw failure;
+        public void Reject(Exception exception) => throw new InvalidOperationException("An executing command must not be rejected.");
+    }
+
+    private sealed class RejectingCommand(Exception failure) : IWorldPartitionCommand
+    {
+        public void Execute(MapInstance map) => throw new InvalidOperationException("The pending command must not execute.");
+        public void Reject(Exception exception) => throw failure;
     }
 }

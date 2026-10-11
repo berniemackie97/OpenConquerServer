@@ -172,6 +172,33 @@ public sealed class WorldSessionAdmissionProcessorTests
     }
 
     [Fact]
+    public async Task RemoveCharacterAsync_CannotBypassActiveWorldSessionOwnership()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        CharacterPresenceDirectory presence = new();
+        FakeGameTransportConnection transport = new();
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+            await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
+
+        InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => runtime.RemoveCharacterAsync(session.Ownership, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains("active world session", failure.Message, StringComparison.Ordinal);
+        Assert.False(session.IsStopping);
+        Assert.Equal(0, transport.DisposeCount);
+        Assert.True(presence.IsOnline(CharacterId));
+        Assert.NotNull(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
+
+        await session.DisposeAsync();
+
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.False(presence.IsOnline(CharacterId));
+        Assert.Null(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Revocation_AutomaticallyTerminatesSessionAndReleasesWorldResidency()
     {
         WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
@@ -216,6 +243,66 @@ public sealed class WorldSessionAdmissionProcessorTests
         Assert.Equal(1, transport.DisposeCount);
         Assert.False(presence.IsOnline(CharacterId));
         await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RuntimeStop_WaitsForBlockedTransportDisposal()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        CharacterPresenceDirectory presence = new();
+        FakeGameTransportConnection transport = new(blockDispose: true);
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+            await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
+
+        Task stopping = runtime.StopAsync();
+
+        try
+        {
+            await transport.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            Assert.False(stopping.IsCompleted);
+            Assert.False(session.Completion.IsCompleted);
+            Assert.True(session.IsStopping);
+        }
+        finally
+        {
+            transport.ReleaseDispose();
+        }
+
+        await stopping.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+        Assert.True(session.Completion.IsCompletedSuccessfully);
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.False(presence.IsOnline(CharacterId));
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RuntimeStop_PreservesFailuresFromIndependentTrackedLifetimes()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        WorldRuntime runtime = CreateRuntime(map, maxCharacters: 2);
+        runtime.Start();
+
+        WorldCharacterOwnership ownership = await runtime.AdmitCharacterAsync(CreateProfile(CharacterId), TestContext.Current.CancellationToken);
+        IOException sessionFailure = new("session cleanup failed");
+        InvalidOperationException admissionFailure = new("admission cleanup failed");
+        Task sessionCompletion = Task.FromException(sessionFailure);
+        Task admissionCompletion = Task.FromException(admissionFailure);
+
+        runtime.TrackSession(ownership, sessionCompletion);
+        runtime.TrackAdmission(admissionCompletion);
+
+        AggregateException failure = await Assert.ThrowsAsync<AggregateException>(
+            () => runtime.StopAsync().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+        Assert.Contains(failure.InnerExceptions, exception => ReferenceEquals(exception, sessionFailure));
+        Assert.Contains(failure.InnerExceptions, exception => ReferenceEquals(exception, admissionFailure));
+        Assert.False(runtime.IsRunning);
+
+        await Assert.ThrowsAsync<AggregateException>(() => runtime.DisposeAsync().AsTask());
     }
 
     [Fact]

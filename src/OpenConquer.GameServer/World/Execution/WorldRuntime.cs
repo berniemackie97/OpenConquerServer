@@ -7,7 +7,7 @@ using OpenConquer.Domain.Characters;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Coordinates bounded authoritative character ownership, partition execution, and supervised world-session shutdown.
+/// Coordinates bounded authoritative character ownership, exclusive partition execution, and supervised world-session shutdown.
 /// </summary>
 internal sealed class WorldRuntime : IAsyncDisposable
 {
@@ -217,12 +217,17 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 return ValueTask.FromResult(false);
             }
 
+            if (_sessions.ContainsKey(ownership))
+            {
+                throw new InvalidOperationException($"Character {ownership.CharacterId} is owned by an active world session.");
+            }
+
             return new ValueTask<bool>(QueueRemoval(entry));
         }
     }
 
     /// <summary>
-    /// Completes character cleanup independently of caller cancellation without waiting on the session-drain task.
+    /// Releases authoritative residency independently of caller cancellation and without awaiting the calling session's completion.
     /// </summary>
     public async ValueTask ReleaseCharacterAsync(WorldCharacterOwnership ownership)
     {
@@ -299,13 +304,12 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
             _stopping = true;
             _stopTask = Task.Run(StopCoreAsync);
-            _stoppingSignal.Cancel();
             return _stopTask;
         }
     }
 
     /// <summary>
-    /// Initiates full shutdown but waits only for partition execution, avoiding a cycle with the calling session's completion.
+    /// Initiates full shutdown while returning only the partition-drain task, avoiding a cycle with session completion.
     /// </summary>
     internal Task StopPartitionExecutionAsync()
     {
@@ -332,7 +336,16 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
     private async Task StopCoreAsync()
     {
-        Exception? executionFailure = null;
+        List<Exception> failures = [];
+
+        try
+        {
+            await _stoppingSignal.CancelAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            AddFailure(failures, exception);
+        }
 
         try
         {
@@ -340,7 +353,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            executionFailure = exception;
+            AddFailure(failures, exception);
         }
 
         Task[] lifetimes;
@@ -352,30 +365,32 @@ internal sealed class WorldRuntime : IAsyncDisposable
             lifetimes = [.. _sessions.Values, .. _admissions];
         }
 
-        Exception? lifetimeFailure = null;
+        Task drain = Task.WhenAll(lifetimes);
 
         try
         {
-            await Task.WhenAll(lifetimes).ConfigureAwait(false);
+            await drain.ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            lifetimeFailure = exception;
+            if (drain.Exception is AggregateException aggregate)
+            {
+                AddFailure(failures, aggregate);
+            }
+            else
+            {
+                AddFailure(failures, exception);
+            }
         }
 
-        if (executionFailure is not null && lifetimeFailure is not null)
+        if (failures.Count == 1)
         {
-            throw new AggregateException("World execution shutdown and session cleanup both failed.", executionFailure, lifetimeFailure);
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
         }
 
-        if (executionFailure is not null)
+        if (failures.Count > 1)
         {
-            ExceptionDispatchInfo.Capture(executionFailure).Throw();
-        }
-
-        if (lifetimeFailure is not null)
-        {
-            ExceptionDispatchInfo.Capture(lifetimeFailure).Throw();
+            throw new AggregateException("World execution shutdown and supervised session cleanup encountered multiple failures.", failures);
         }
     }
 
@@ -453,6 +468,18 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 entry.Removing = false;
                 entry.RemovalTask = null;
             }
+        }
+    }
+
+    private static void AddFailure(List<Exception> failures, Exception exception)
+    {
+        if (exception is AggregateException aggregate)
+        {
+            failures.AddRange(aggregate.Flatten().InnerExceptions);
+        }
+        else
+        {
+            failures.Add(exception);
         }
     }
 
