@@ -1,6 +1,24 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OpenConquer.GameServer.Hosting;
+
 namespace OpenConquer.GameServer;
 
 internal static class Program
 {
-    public static void Main() { }
+    public static Task<int> Main(string[] args)
+    {
+        return RunAsync(GameServerHost.Create(args));
+    }
+
+    internal static async Task<int> RunAsync(IHost host)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+
+        FatalBackgroundServiceFailureState fatalFailureState = host.Services.GetRequiredService<FatalBackgroundServiceFailureState>();
+
+        await host.RunAsync().ConfigureAwait(false);
+
+        return fatalFailureState.Failure is null ? 0 : 1;
+    }
 }
