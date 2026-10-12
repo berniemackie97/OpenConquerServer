@@ -27,6 +27,12 @@ internal sealed class CharacterLoginHandoffProcessor(ICharacterLoginResolver res
             cancellationToken.ThrowIfCancellationRequested();
 
             CharacterLoginResolution resolution = await _resolver.ResolveAsync(connection.AccountId, cancellationToken).ConfigureAwait(false);
+
+            if (resolution.Route != CharacterLoginRoute.CharacterCreation)
+            {
+                connection.DiscardRepeatedLoginProof();
+            }
+
             return new CharacterLoginHandoffResult(connection, resolution);
         }
         catch (Exception processingException)
