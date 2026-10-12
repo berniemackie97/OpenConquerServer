@@ -9,13 +9,7 @@ namespace OpenConquer.Protocol.Game.Packets;
 /// <summary>
 /// Decodes the native 5517 character-creation request without authorizing or executing creation.
 /// </summary>
-public readonly record struct GameCharacterCreationRequest(
-    bool CancelRequested,
-    string Name,
-    ushort Body,
-    ushort Profession,
-    uint ClientReportedSessionUid,
-    string ClientReportedMacAddress)
+public readonly record struct GameCharacterCreationRequest(bool CancelRequested, string Name, ushort Body, ushort Profession, uint ClientReportedSessionUid, string ClientReportedMacAddress)
 {
     public const ushort PacketId = 1001;
     public const int PacketLength = 124;
