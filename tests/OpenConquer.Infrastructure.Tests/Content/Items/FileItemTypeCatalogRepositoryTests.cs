@@ -6,19 +6,15 @@ namespace OpenConquer.Infrastructure.Tests.Content.Items;
 
 public sealed class FileItemTypeCatalogRepositoryTests
 {
+    private static readonly string s_hash = new('a', 64);
+
     [Fact]
     public async Task LoadAsync_ValidContent_ReturnsCatalog()
     {
-        using TemporaryFile file = new(CreateCatalog(
-            CreateEntry(100001, "First", stackCapacity: 0),
-            CreateEntry(100002, "Second", stackCapacity: 20)));
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
-        ItemTypeCatalog catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
-
+        using TemporaryFile file = new(Catalog(Entry(100001, "First", stackCapacity: 0),
+            Entry(100002, "Second", stackCapacity: 20)));
+        ItemTypeCatalog catalog = await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken);
         Assert.Equal(2, catalog.Count);
-
         Assert.True(catalog.TryGet(100001, out ItemTypeDefinition? first));
         Assert.Equal("First", first.Name);
         Assert.Equal((byte)15, first.RequiredLevel);
@@ -31,9 +27,13 @@ public sealed class FileItemTypeCatalogRepositoryTests
         Assert.Equal((ushort)0, first.StackCapacity);
         Assert.Equal((ushort)1, first.EffectiveStackCapacity);
         Assert.False(first.IsStackable);
-
+        Assert.Equal(55, first.RequiredProfessionCode);
+        Assert.Equal(1024u, first.MonopolyFlags);
+        Assert.Equal(50_000u, first.SilverPrice);
+        Assert.Equal(5, first.AttackRange);
+        Assert.Equal(900, first.AttackSpeed);
+        Assert.Equal(300u, first.ConquerPointsPrice);
         Assert.True(catalog.TryGet(100002, out ItemTypeDefinition? second));
-        Assert.Equal((ushort)20, second.StackCapacity);
         Assert.Equal((ushort)20, second.EffectiveStackCapacity);
         Assert.True(second.IsStackable);
     }
@@ -41,204 +41,168 @@ public sealed class FileItemTypeCatalogRepositoryTests
     [Fact]
     public async Task LoadAsync_MaximumRepresentableStaticLifetime_ReturnsCatalog()
     {
-        using TemporaryFile file = new(CreateCatalog(CreateEntry(
-            100001,
-            "First",
+        using TemporaryFile file = new(Catalog(Entry(100001, "First",
             staticLifetimeMinutes: ItemTypeDefinition.MaximumStaticLifetimeMinutes)));
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
-        ItemTypeCatalog catalog = await repository.LoadAsync(TestContext.Current.CancellationToken);
-
-        Assert.True(catalog.TryGet(100001, out ItemTypeDefinition? definition));
-        Assert.Equal(ItemTypeDefinition.MaximumStaticLifetimeMinutes, definition.StaticLifetimeMinutes);
-        Assert.Equal(2_147_483_640, definition.StaticLifetimeDurationSeconds);
+        ItemTypeCatalog catalog = await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken);
+        Assert.True(catalog.TryGet(100001, out ItemTypeDefinition? item));
+        Assert.Equal(ItemTypeDefinition.MaximumStaticLifetimeMinutes, item.StaticLifetimeMinutes);
+        Assert.Equal(2_147_483_640, item.StaticLifetimeDurationSeconds);
     }
 
     [Fact]
     public async Task LoadAsync_StaticLifetimeAboveRepresentableMaximum_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(CreateCatalog(CreateEntry(
-            100001,
-            "First",
+        using TemporaryFile file = new(Catalog(Entry(100001, "First",
             staticLifetimeMinutes: ItemTypeDefinition.MaximumStaticLifetimeMinutes + 1)));
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
-
-        Assert.Contains("contains invalid state", exception.Message, StringComparison.Ordinal);
-        Assert.IsType<ArgumentOutOfRangeException>(exception.InnerException);
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("contains invalid state", e.Message, StringComparison.Ordinal);
+        Assert.IsType<ArgumentOutOfRangeException>(e.InnerException);
     }
 
     [Fact]
     public async Task LoadAsync_UnsupportedFormatVersion_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(
-            """
-            {
-              "formatVersion": 2,
-              "itemTypes": []
-            }
-            """);
+        using TemporaryFile file = new("""{"formatVersion":3,"sourceSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","itemTypes":[]}""");
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("format version 3 is unsupported", e.Message, StringComparison.Ordinal);
+    }
 
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
+    [Fact]
+    public async Task LoadAsync_OldFormatVersion_IsRejected()
+    {
+        using TemporaryFile file = new("""{"formatVersion":1,"itemTypes":[]}""");
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("malformed", e.Message, StringComparison.Ordinal);
+    }
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
-
-        Assert.Contains("format version 2 is unsupported", exception.Message, StringComparison.Ordinal);
+    [Theory]
+    [InlineData("")]
+    [InlineData("invalid")]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
+    public async Task LoadAsync_InvalidSourceHash_ThrowsInvalidDataException(string hash)
+    {
+        using TemporaryFile file = new($$"""{"formatVersion":2,"sourceSha256":"{{hash}}","itemTypes":[]}""");
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("source SHA-256", e.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task LoadAsync_UnknownProperty_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(
-            """
-            {
-              "formatVersion": 1,
-              "itemTypes": [],
-              "unexpected": true
-            }
-            """);
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
+        using TemporaryFile file = new($$"""{"formatVersion":2,"sourceSha256":"{{s_hash}}","itemTypes":[],"unexpected":true}""");
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task LoadAsync_MissingNewNativeProperty_ThrowsInvalidDataException()
+    {
+        string incomplete = Entry(100001, "Incomplete").Replace("\"monopolyFlags\": 1024,", string.Empty, StringComparison.Ordinal);
+        using TemporaryFile file = new(Catalog(incomplete));
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("malformed", e.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task LoadAsync_EmptyCatalog_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(
-            """
-            {
-              "formatVersion": 1,
-              "itemTypes": []
-            }
-            """);
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
+        using TemporaryFile file = new(Catalog());
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task LoadAsync_DuplicateItemType_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(CreateCatalog(
-            CreateEntry(100001, "First"),
-            CreateEntry(100001, "Duplicate")));
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
+        using TemporaryFile file = new(Catalog(Entry(100001, "First"), Entry(100001, "Duplicate")));
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task LoadAsync_InvalidItemType_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(CreateCatalog(CreateEntry(0, "Invalid")));
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
+        using TemporaryFile file = new(Catalog(Entry(0, "Invalid")));
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
+            await Repository(file.Path).LoadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task LoadAsync_TooManyDefinitions_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(CreateCatalog(
-            CreateEntry(100001, "First"),
-            CreateEntry(100002, "Second")));
-
-        FileItemTypeCatalogRepository repository = new(
-            new ItemTypeCatalogFileOptions(file.Path, maximumFileLengthBytes: 1024 * 1024, maximumDefinitions: 1));
-
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
-
-        Assert.Contains("exceeding the configured maximum of 1", exception.Message, StringComparison.Ordinal);
+        using TemporaryFile file = new(Catalog(Entry(100001, "First"), Entry(100002, "Second")));
+        FileItemTypeCatalogRepository repo = new(new ItemTypeCatalogFileOptions(file.Path, 1024 * 1024, 1));
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await repo.LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("exceeding the configured maximum of 1", e.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task LoadAsync_FileExceedsMaximumLength_ThrowsInvalidDataException()
     {
-        using TemporaryFile file = new(CreateCatalog(CreateEntry(100001, "First")));
-
-        FileItemTypeCatalogRepository repository = new(
-            new ItemTypeCatalogFileOptions(file.Path, maximumFileLengthBytes: 1, maximumDefinitions: 100));
-
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
-
-        Assert.Contains("exceeds the configured maximum", exception.Message, StringComparison.Ordinal);
+        using TemporaryFile file = new(Catalog(Entry(100001, "First")));
+        FileItemTypeCatalogRepository repo = new(new ItemTypeCatalogFileOptions(file.Path, 1, 100));
+        InvalidDataException e = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await repo.LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("exceeds the configured maximum", e.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task LoadAsync_MissingFile_ThrowsFileNotFoundException()
     {
-        string filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
-
-        FileItemTypeCatalogRepository repository = CreateRepository(filePath);
-
+        string path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
         await Assert.ThrowsAsync<FileNotFoundException>(async () =>
-            await repository.LoadAsync(TestContext.Current.CancellationToken));
+            await Repository(path).LoadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task LoadAsync_PreCanceled_ThrowsOperationCanceledException()
     {
-        using TemporaryFile file = new(CreateCatalog(CreateEntry(100001, "First")));
+        using TemporaryFile file = new(Catalog(Entry(100001, "First")));
         using CancellationTokenSource cancellation = new();
         await cancellation.CancelAsync();
-
-        FileItemTypeCatalogRepository repository = CreateRepository(file.Path);
-
         await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-            await repository.LoadAsync(cancellation.Token));
+            await Repository(file.Path).LoadAsync(cancellation.Token));
     }
 
-    private static FileItemTypeCatalogRepository CreateRepository(string filePath)
-    {
-        return new FileItemTypeCatalogRepository(
-            new ItemTypeCatalogFileOptions(filePath, maximumFileLengthBytes: 1024 * 1024, maximumDefinitions: 100));
-    }
+    private static FileItemTypeCatalogRepository Repository(string path) =>
+        new(new ItemTypeCatalogFileOptions(path, 1024 * 1024, 100));
 
-    private static string CreateCatalog(params string[] entries)
-    {
-        return $$"""
-            {
-              "formatVersion": 1,
-              "itemTypes": [
-                {{string.Join(",\n", entries)}}
-              ]
-            }
-            """;
-    }
+    private static string Catalog(params string[] entries) => $$"""
+        {
+          "formatVersion": 2,
+          "sourceSha256": "{{s_hash}}",
+          "itemTypes": [
+            {{string.Join(",\n", entries)}}
+          ]
+        }
+        """;
 
-    private static string CreateEntry(uint itemTypeId, string name, ushort stackCapacity = 1, uint staticLifetimeMinutes = 10080)
-    {
-        return $$"""
-                {
-                  "itemTypeId": {{itemTypeId}},
-                  "name": "{{name}}",
-                  "requiredLevel": 15,
-                  "speedPercentOffset": -5,
-                  "life": 120,
-                  "mana": 30,
-                  "initialDurability": 100,
-                  "maximumDurability": 200,
-                  "staticLifetimeMinutes": {{staticLifetimeMinutes}},
-                  "stackCapacity": {{stackCapacity}}
-                }
-            """;
-    }
+    private static string Entry(uint id, string name, ushort stackCapacity = 1, uint staticLifetimeMinutes = 10080) => $$"""
+        {
+          "itemTypeId": {{id}},
+          "name": "{{name}}",
+          "requiredLevel": 15,
+          "speedPercentOffset": -5,
+          "life": 120,
+          "mana": 30,
+          "initialDurability": 100,
+          "maximumDurability": 200,
+          "staticLifetimeMinutes": {{staticLifetimeMinutes}},
+          "stackCapacity": {{stackCapacity}},
+          "requiredProfessionCode": 55,
+          "monopolyFlags": 1024,
+          "silverPrice": 50000,
+          "attackRange": 5,
+          "attackSpeed": 900,
+          "conquerPointsPrice": 300
+        }
+        """;
 
     private sealed class TemporaryFile : IDisposable
     {
@@ -247,12 +211,7 @@ public sealed class FileItemTypeCatalogRepositoryTests
             Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
             File.WriteAllText(Path, content);
         }
-
         public string Path { get; }
-
-        public void Dispose()
-        {
-            File.Delete(Path);
-        }
+        public void Dispose() => File.Delete(Path);
     }
 }

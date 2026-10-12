@@ -5,10 +5,10 @@ namespace OpenConquer.Infrastructure.Tests.Content.Items;
 public sealed class FileItemTypeCatalogDuplicatePropertyTests
 {
     [Theory]
-    [InlineData("""{"formatVersion":1,"formatVersion":2,"itemTypes":[]}""")]
-    [InlineData("""{"formatVersion":1,"itemTypes":[],"itemTypes":[]}""")]
-    [InlineData("""{"formatVersion":1,"itemTypes":[{"itemTypeId":100001,"itemTypeId":100002}]}""")]
-    [InlineData("""{"formatVersion":1,"itemTypes":[{"name":"First","name":"Second"}]}""")]
+    [InlineData("""{"formatVersion":2,"formatVersion":3,"itemTypes":[]}""")]
+    [InlineData("""{"formatVersion":2,"itemTypes":[],"itemTypes":[]}""")]
+    [InlineData("""{"formatVersion":2,"itemTypes":[{"itemTypeId":100001,"itemTypeId":100002}]}""")]
+    [InlineData("""{"formatVersion":2,"itemTypes":[{"name":"First","name":"Second"}]}""")]
     public async Task LoadAsync_DuplicateJsonProperties_AreRejected(string content)
     {
         using TemporaryFile file = new(content);

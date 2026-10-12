@@ -6,7 +6,7 @@ namespace OpenConquer.Infrastructure.Content.Items;
 
 public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions options) : IItemTypeCatalogRepository
 {
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
 
     private readonly ItemTypeCatalogFileOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
@@ -55,6 +55,12 @@ public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions opt
             throw new InvalidDataException($"Item-type catalog format version {document.FormatVersion} is unsupported. Expected version {FormatVersion}.");
         }
 
+        if (document.SourceSha256 is not { Length: 64 }
+            || document.SourceSha256.Any(c => !((c is >= '0' and <= '9') || (c is >= 'a' and <= 'f'))))
+        {
+            throw new InvalidDataException("Item-type catalog requires a lowercase 64-digit source SHA-256 fingerprint.");
+        }
+
         if (document.ItemTypes is null)
         {
             throw new InvalidDataException("Item-type catalog content is missing its itemTypes collection.");
@@ -76,7 +82,8 @@ public sealed class FileItemTypeCatalogRepository(ItemTypeCatalogFileOptions opt
             {
                 definitions[index] = new ItemTypeDefinition(entry.ItemTypeId, entry.Name, entry.RequiredLevel,
                     entry.SpeedPercentOffset, entry.Life, entry.Mana, entry.InitialDurability, entry.MaximumDurability,
-                    entry.StaticLifetimeMinutes, entry.StackCapacity);
+                    entry.StaticLifetimeMinutes, entry.StackCapacity, entry.RequiredProfessionCode, entry.MonopolyFlags,
+                    entry.SilverPrice, entry.AttackRange, entry.AttackSpeed, entry.ConquerPointsPrice);
             }
             catch (ArgumentException exception)
             {

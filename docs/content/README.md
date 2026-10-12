@@ -20,9 +20,11 @@ files into its build and publish output. The manifest is not shipped.
 
 ## Item types
 
-`item-types.json` (format version 1) holds one entry per item type with its ID, name, required
-level, speed offset, life and mana bonuses, initial and maximum durability, lifetime in minutes, and
-stack capacity. The GameServer loads it into an immutable `ItemTypeCatalog` and uses it to validate
+`item-types.json` (format version 2) holds one entry per item type with its ID, name, required
+level, speed offset, life and mana bonuses, initial and maximum durability, lifetime in minutes,
+stack capacity, profession-code requirement, native monopoly flags, silver and CP prices, and
+attack range/speed. The additional values are data only; gameplay rules must be separately
+evidence-verified. The GameServer loads it into an immutable `ItemTypeCatalog` and uses it to validate
 persisted items at login: unknown types, incompatible lifetimes, and stacks over capacity are
 rejected.
 
@@ -31,7 +33,7 @@ The current catalog has 14,981 types and was generated from client data:
 | File               | SHA-256                                                            |
 | ------------------ | ------------------------------------------------------------------ |
 | `itemtype.dat`     | `90e9c983b0f78337f20720a3cf61d8f1392f23979565da14eb01dc514e3a71e7` |
-| `item-types.json`  | `e18b1822dd9270c4c5fd36c7c81c2c413c9cd9e3cf73da9a50f18856bb484ab7` |
+| `item-types.json`  | `5862d91e68b408942be81512877a7bdb818d3f5f7106a593668222458d89246c` |
 
 A content test pins the count and hash so changes are deliberate. Update the test in the same
 change when editing the catalog.

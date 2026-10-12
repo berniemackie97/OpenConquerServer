@@ -5,12 +5,13 @@ namespace OpenConquer.GameData.Tool.Items;
 
 internal static class ItemTypeCatalogFileWriter
 {
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
 
-    public static void Write(string destinationPath, IReadOnlyList<ItemTypeDefinition> definitions)
+    public static void Write(string destinationPath, IReadOnlyList<ItemTypeDefinition> definitions, string sourceSha256)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
         ArgumentNullException.ThrowIfNull(definitions);
+        ValidateSourceSha256(sourceSha256);
 
         if (definitions.Count == 0)
         {
@@ -45,11 +46,13 @@ internal static class ItemTypeCatalogFileWriter
 
         try
         {
-            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 81920, FileOptions.SequentialScan))
+            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                bufferSize: 81920, FileOptions.SequentialScan))
             using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Indented = true }))
             {
                 writer.WriteStartObject();
                 writer.WriteNumber("formatVersion", FormatVersion);
+                writer.WriteString("sourceSha256", sourceSha256);
                 writer.WritePropertyName("itemTypes");
                 writer.WriteStartArray();
 
@@ -66,6 +69,12 @@ internal static class ItemTypeCatalogFileWriter
                     writer.WriteNumber("maximumDurability", definition.MaximumDurability);
                     writer.WriteNumber("staticLifetimeMinutes", definition.StaticLifetimeMinutes);
                     writer.WriteNumber("stackCapacity", definition.StackCapacity);
+                    writer.WriteNumber("requiredProfessionCode", definition.RequiredProfessionCode);
+                    writer.WriteNumber("monopolyFlags", definition.MonopolyFlags);
+                    writer.WriteNumber("silverPrice", definition.SilverPrice);
+                    writer.WriteNumber("attackRange", definition.AttackRange);
+                    writer.WriteNumber("attackSpeed", definition.AttackSpeed);
+                    writer.WriteNumber("conquerPointsPrice", definition.ConquerPointsPrice);
                     writer.WriteEndObject();
                 }
 
@@ -83,6 +92,14 @@ internal static class ItemTypeCatalogFileWriter
             {
                 File.Delete(temporaryPath);
             }
+        }
+    }
+
+    private static void ValidateSourceSha256(string sourceSha256)
+    {
+        if (sourceSha256 is not { Length: 64 } || sourceSha256.Any(c => !((c is >= '0' and <= '9') || (c is >= 'a' and <= 'f'))))
+        {
+            throw new ArgumentException("An item-type release requires a lowercase SHA-256 source fingerprint.", nameof(sourceSha256));
         }
     }
 }
