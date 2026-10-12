@@ -68,12 +68,23 @@ Validated allotments are copied into an immutable lookup.
 No client-provided attributes, appearance, spawn position, or profession-family identity are
 trusted.
 
-The hosted GameServer must validate the configured starting location against loaded world-map and
-collision content before constructing the runtime creation service.
+An optional `GameServer:CharacterCreation` configuration section supplies this immutable starting
+state. It is deliberately absent from the distributed default configuration. When omitted, the
+existing-character world host starts normally and character creation stays unavailable.
 
-The starting-state snapshot is not automatically loaded from disk or registered with the GameServer
-in this slice. Its authoritative content source and startup integration remain separate
-responsibilities.
+When supplied, the section is bound with strict unknown-property rejection and validated before
+the host is built. Once the canonical world maps are loaded, the world hosted service checks that
+the configured starting map exists and the starting coordinates are within its composed collision
+dimensions. A failure prevents world publication and network ingress.
+
+Coordinates are zero-based. The check establishes **bounds only**, not walkability: the meaning
+of every raw terrain passability flag has not been proven. A configured starting location must
+still be selected and confirmed against authoritative map data before enabling creation.
+
+The section does not itself enable the character-creation route, register creation credentials,
+or authorize character writes. It is an opt-in prerequisite for later runtime integration.
+
+See [Character creation starting-state operations](../operations/character-creation-starting-state.md).
 
 ## Appearance
 
@@ -131,7 +142,8 @@ Character name and account uniqueness are enforced by the database.
 
 Application validation is not a substitute for these constraints.
 
-The creation service does not retry a database operation after an uncertain write outcome.
+The creation service does not retry a database operation after an uncertain
+write outcome.
 
 A request may be rejected before persistence without modifying durable state.
 
@@ -143,17 +155,16 @@ The GameServer character-creation route remains disabled.
 
 Enabling it requires:
 
-1. Loading and validating authoritative starting-state content.
-2. Validating the starting location against world-map content.
-3. Provisioning and configuring dedicated creation database credentials.
-4. Binding the application service to the authenticated account identity.
-5. Sending the native `NEW_ROLE` control message.
-6. Processing native packet `1001` on the authenticated secured connection.
-7. Handling cancellation, invalid requests, duplicate submissions, and failures.
-8. Sending the verified success response only after durable creation succeeds.
-9. Validating the repeated `1052` login proof on the same encrypted connection.
-10. Resolving the newly persisted character and continuing existing-character bootstrap without
-    losing connection ownership.
+1. Provisioning verified starting-state values and a confirmed walkable starting location.
+2. Provisioning and configuring dedicated creation database credentials.
+3. Binding the creation application service to authenticated account identity.
+4. Sending the native `NEW_ROLE` control message.
+5. Processing native packet `1001` on the authenticated secured connection.
+6. Handling cancellation, invalid requests, duplicate submissions, and failures.
+7. Sending the verified success response only after durable creation succeeds.
+8. Validating the repeated `1052` login proof on the same encrypted connection.
+9. Resolving the newly persisted character and continuing existing-character bootstrap without
+   losing connection ownership.
 
 The repeated proof must not be treated as a second opportunity to redeem an already consumed
 single-use login ticket.

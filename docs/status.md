@@ -37,11 +37,13 @@ implemented parts work and link here rather than repeating this list.
   uniqueness, duplicate-request resolution, and dedicated least-privilege write credentials.
 - Character-creation application service with authoritative account identity, server-validated
   selections, immutable starting-state resolution, and persistence-result handling.
+- Optional strict starting-state configuration with required profession-family validation and
+  startup map/coordinate bounds verification before world publication.
 
 ## Not yet implemented
 
 - Account registration and staff tooling.
-- Hosted character creation: starting-state content loading, world location validation, native
+- Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
 - Gameplay packet routing after login: movement, combat, NPCs, trading, chat, and replication.
 - World simulation: monsters, timers, visibility, and map transfers.

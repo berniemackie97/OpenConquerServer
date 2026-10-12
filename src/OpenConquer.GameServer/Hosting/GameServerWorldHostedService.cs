@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.World;
+using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
@@ -17,6 +18,7 @@ internal sealed partial class GameServerWorldHostedService(
     IGameDatabaseReadinessVerifier gameReadiness,
     WorldMapContentLoader contentLoader,
     WorldExecutionOptions options,
+    GameServerCharacterCreationReadiness creationReadiness,
     GameServerWorldState worldState,
     IHostApplicationLifetime applicationLifetime,
     GameServerFailureState failureState,
@@ -26,6 +28,7 @@ internal sealed partial class GameServerWorldHostedService(
     private readonly IGameDatabaseReadinessVerifier _gameReadiness = gameReadiness ?? throw new ArgumentNullException(nameof(gameReadiness));
     private readonly WorldMapContentLoader _contentLoader = contentLoader ?? throw new ArgumentNullException(nameof(contentLoader));
     private readonly WorldExecutionOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly GameServerCharacterCreationReadiness _creationReadiness = creationReadiness ?? throw new ArgumentNullException(nameof(creationReadiness));
     private readonly GameServerWorldState _worldState = worldState ?? throw new ArgumentNullException(nameof(worldState));
     private readonly IHostApplicationLifetime _applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));
     private readonly GameServerFailureState _failureState = failureState ?? throw new ArgumentNullException(nameof(failureState));
@@ -57,6 +60,8 @@ internal sealed partial class GameServerWorldHostedService(
 
         WorldMapContentCatalog maps = await _contentLoader.LoadAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+
+        _creationReadiness.Validate(maps);
 
         WorldRuntime runtime = new(maps, _options);
 
