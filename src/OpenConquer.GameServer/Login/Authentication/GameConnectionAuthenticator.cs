@@ -81,6 +81,7 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
         }
 
         AuthenticatedGameConnection authenticatedConnection = new(identity.AccountId, identity.Username, identity.SessionUid, proof.LocaleTag, proof.HardwareAddress, proof.ResourceVersion, session);
+        authenticatedConnection.ArmRepeatedLoginProof(proof);
 
         return GameConnectionAuthenticationResult.Authenticated(authenticatedConnection);
     }

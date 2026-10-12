@@ -1,6 +1,7 @@
 using System.Net;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.Protocol.Game.Framing;
+using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.Login.Authentication;
@@ -11,7 +12,14 @@ namespace OpenConquer.GameServer.Login.Authentication;
 /// </summary>
 internal sealed class AuthenticatedGameConnection : IAsyncDisposable
 {
+    private const int RepeatedProofUnbound = 0;
+    private const int RepeatedProofArmed = 1;
+    private const int RepeatedProofConsumed = 2;
+
     private readonly GameConnectionSession _session;
+    private readonly Lock _repeatedProofGate = new();
+    private uint _repeatedProofAuthenticationKey;
+    private int _repeatedProofState;
 
     public AuthenticatedGameConnection(uint accountId, string username, uint sessionUid, ushort localeTag, ulong hardwareAddress,
         int resourceVersion, GameConnectionSession session)
@@ -52,5 +60,71 @@ internal sealed class AuthenticatedGameConnection : IAsyncDisposable
 
     public ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default) => _session.WriteAsync(packet, cancellationToken);
 
-    public ValueTask DisposeAsync() => _session.DisposeAsync();
+    /// <summary>
+    /// Retains the minimum proof material needed to verify exactly one same-session
+    /// post-creation 1052, without redeeming the consumed ticket again.
+    /// Called only after successful ticket redemption.
+    /// </summary>
+    internal void ArmRepeatedLoginProof(GameLoginProof firstProof)
+    {
+        if (firstProof.SessionUid != SessionUid || firstProof.AuthenticationKey == 0 ||
+            firstProof.Mode != GameLoginProof.ExpectedMode || firstProof.LocaleTag != LocaleTag ||
+            firstProof.HardwareAddress != HardwareAddress || firstProof.ResourceVersion != ResourceVersion)
+        {
+            throw new ArgumentException("The initial login proof does not match this authenticated session.", nameof(firstProof));
+        }
+
+        lock (_repeatedProofGate)
+        {
+            if (_repeatedProofState != RepeatedProofUnbound)
+            {
+                throw new InvalidOperationException("The repeated game-login proof may only be armed once.");
+            }
+
+            _repeatedProofAuthenticationKey = firstProof.AuthenticationKey;
+            _repeatedProofState = RepeatedProofArmed;
+        }
+    }
+
+    /// <summary>
+    /// Consumes the one permitted repeat attempt, including an incorrect attempt.
+    /// No account ticket store is consulted and no second attempt can succeed.
+    /// </summary>
+    internal bool TryConsumeRepeatedLoginProof(GameLoginProof repeatedProof)
+    {
+        lock (_repeatedProofGate)
+        {
+            if (_repeatedProofState != RepeatedProofArmed)
+            {
+                return false;
+            }
+
+            uint expectedKey = _repeatedProofAuthenticationKey;
+            _repeatedProofAuthenticationKey = 0;
+            _repeatedProofState = RepeatedProofConsumed;
+
+            return repeatedProof.SessionUid == SessionUid &&
+                   repeatedProof.AuthenticationKey == expectedKey &&
+                   repeatedProof.Mode == GameLoginProof.ExpectedMode;
+        }
+    }
+
+    /// <summary>
+    /// Clears the proof when the session cannot enter the creation path, for example
+    /// after it is resolved to an existing character.
+    /// </summary>
+    internal void DiscardRepeatedLoginProof()
+    {
+        lock (_repeatedProofGate)
+        {
+            _repeatedProofAuthenticationKey = 0;
+            _repeatedProofState = RepeatedProofConsumed;
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        DiscardRepeatedLoginProof();
+        return _session.DisposeAsync();
+    }
 }
