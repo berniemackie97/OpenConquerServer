@@ -20,7 +20,7 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
-        bool validArguments = args is [("generate-item-types" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _]
+        bool validArguments = args is [("generate-item-types" or "export-item-type-source" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _]
             or ["generate-map-terrains", _, _, _]
             or ["verify-map-collision-sources", _, _, _]
             or ["generate-map-collisions", _, _, _, _];
@@ -69,6 +69,7 @@ internal static class Program
             return args[0] switch
             {
                 "generate-item-types" => GenerateItemTypes(sourcePath, destinationPath),
+                "export-item-type-source" => ExportItemTypeSource(sourcePath, destinationPath),
                 "generate-map-definitions" => GenerateMapDefinitions(sourcePath, destinationPath),
                 "generate-base-terrain" => GenerateBaseTerrain(sourcePath, destinationPath),
                 "import-map-catalog" => ImportMapCatalog(sourcePath, destinationPath),
@@ -146,6 +147,17 @@ internal static class Program
         return SuccessExitCode;
     }
 
+    private static int ExportItemTypeSource(string sourcePath, string destinationPath)
+    {
+        byte[] sourcePayload = ToolSourceFileReader.Read(sourcePath, MaximumItemTypeSourceLengthBytes);
+        ItemTypeDatTable source = ItemTypeDatTable.Parse(sourcePayload);
+
+        ItemTypeNativeSourceFileWriter.Write(destinationPath, source.Records.ToArray(), sourcePayload);
+        PrintResult("native item-type source", source.RecordCount, sourcePayload, destinationPath);
+
+        return SuccessExitCode;
+    }
+
     private static int GenerateMapDefinitions(string sourcePath, string destinationPath)
     {
         byte[] sourcePayload = ToolSourceFileReader.Read(sourcePath, MapDefinitionSourceReader.MaximumSourceLengthBytes);
@@ -183,6 +195,7 @@ internal static class Program
     {
         Console.Error.WriteLine("Usage:");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-item-types <itemtype.dat> <item-types.json>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool export-item-type-source <itemtype.dat> <item-type-source.json>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-definitions <source.json> <map-definitions.json>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-base-terrain <source.json> <terrain.ocbt>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-terrains <client-root> <map-definitions.json> <destination-directory>");
