@@ -75,6 +75,7 @@ internal static class GameServerHost
             configuration.TerrainLimits, configuration.CollisionDirectory, configuration.CollisionLimits);
 
         services.AddSingleton(configuration.World);
+        services.AddSingleton(new GameServerCharacterCreationReadiness(configuration.CharacterCreationStartingState));
         services.AddSingleton<GameServerFailureState>();
         services.AddSingleton<GameServerWorldState>();
         services.AddSingleton<GameServerWorldHostedService>();

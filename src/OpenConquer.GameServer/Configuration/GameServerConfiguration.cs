@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
+using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Infrastructure.Content.Items;
@@ -19,7 +20,8 @@ internal sealed class GameServerConfiguration
         MapDefinitionCatalogFileOptions mapDefinitions, string terrainDirectory, string collisionDirectory,
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
         GameNetworkOptions? network, ItemTypeCatalogFileOptions? itemTypes,
-        ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys)
+        ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
+        CharacterCreationStartingState? characterCreationStartingState)
     {
         AccountConnectionString = accountConnectionString;
         GameConnectionString = gameConnectionString;
@@ -33,6 +35,7 @@ internal sealed class GameServerConfiguration
         ItemTypes = itemTypes;
         ActiveVerificationKeyId = activeVerificationKeyId;
         VerificationKeys = Array.AsReadOnly(verificationKeys);
+        CharacterCreationStartingState = characterCreationStartingState;
     }
 
     public string AccountConnectionString { get; }
@@ -47,6 +50,7 @@ internal sealed class GameServerConfiguration
     public ItemTypeCatalogFileOptions? ItemTypes { get; }
     public ushort ActiveVerificationKeyId { get; }
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
+    public CharacterCreationStartingState? CharacterCreationStartingState { get; }
 
     public static GameServerConfiguration Load(IConfiguration configuration, string contentRootPath)
     {
@@ -125,14 +129,31 @@ internal sealed class GameServerConfiguration
                     ValidatePositive(itemSettings.MaximumDefinitions, 1_000_000, $"{SectionName}:Items:MaximumDefinitions"));
             }
 
+            CharacterCreationStartingState? characterCreationStartingState = CreateCharacterCreationStartingState(settings.CharacterCreation);
+
             return new GameServerConfiguration(accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
-                network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys);
+                network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
         {
             throw new InvalidOperationException($"Configuration section '{SectionName}' is invalid.", exception);
         }
+    }
+
+    private static CharacterCreationStartingState? CreateCharacterCreationStartingState(GameServerSettings.CharacterCreationSettings? settings)
+    {
+        if (settings is null)
+        {
+            return null;
+        }
+
+        ArgumentNullException.ThrowIfNull(settings.Allotments);
+
+        CharacterCreationStartingAllotment[] allotments = settings.Allotments.Select(row =>
+            new CharacterCreationStartingAllotment(row.Family, row.Strength, row.Agility, row.Vitality, row.Spirit)).ToArray();
+
+        return new CharacterCreationStartingState(settings.StartingMapId, settings.StartingX, settings.StartingY, allotments);
     }
 
     private static string ResolvePath(string? value, string root, string configurationPath)

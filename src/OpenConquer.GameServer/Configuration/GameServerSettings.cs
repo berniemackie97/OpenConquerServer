@@ -7,6 +7,7 @@ internal sealed class GameServerSettings
     public GameLoginTicketSettings GameLoginTickets { get; set; } = new();
     public NetworkSettings Network { get; set; } = new();
     public ItemContentSettings Items { get; set; } = new();
+    public CharacterCreationSettings? CharacterCreation { get; set; }
 
     internal sealed class ContentSettings
     {
@@ -146,5 +147,22 @@ internal sealed class GameServerSettings
         {
             get; set;
         }
+    }
+
+    internal sealed class CharacterCreationSettings
+    {
+        public uint StartingMapId { get; set; }
+        public ushort StartingX { get; set; }
+        public ushort StartingY { get; set; }
+        public List<CharacterCreationAllotmentSettings> Allotments { get; set; } = [];
+    }
+
+    internal sealed class CharacterCreationAllotmentSettings
+    {
+        public ushort Family { get; set; }
+        public ushort Strength { get; set; }
+        public ushort Agility { get; set; }
+        public ushort Vitality { get; set; }
+        public ushort Spirit { get; set; }
     }
 }
