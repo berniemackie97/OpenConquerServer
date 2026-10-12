@@ -30,7 +30,10 @@ public static class GameCharacterCreationConnectionPolicy
         if (string.IsNullOrWhiteSpace(game.Database) || string.IsNullOrWhiteSpace(creation.Database)
             || !string.Equals(game.Database, creation.Database, StringComparison.Ordinal)
             || !string.Equals(game.Server, creation.Server, StringComparison.OrdinalIgnoreCase)
-            || game.Port != creation.Port)
+            || game.Port != creation.Port
+            || game.ConnectionProtocol != creation.ConnectionProtocol
+            || (game.ConnectionProtocol == MySqlConnectionProtocol.NamedPipe
+                && !string.Equals(game.PipeName, creation.PipeName, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Character creation must target the same Game database endpoint as the read-only GameServer connection.");
         }
