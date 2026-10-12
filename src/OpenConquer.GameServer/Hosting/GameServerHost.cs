@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Resolution;
 using OpenConquer.GameServer.Configuration;
@@ -80,6 +81,16 @@ internal static class GameServerHost
         services.AddSingleton<GameServerWorldState>();
         services.AddSingleton<GameServerWorldHostedService>();
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<GameServerWorldHostedService>());
+
+        if (configuration.CharacterCreationConnectionString is { } creationConnectionString)
+        {
+            CharacterCreationStartingState startingState = configuration.CharacterCreationStartingState
+                ?? throw new InvalidOperationException("Character creation persistence requires validated starting-state configuration.");
+
+            services.AddGameCharacterCreationPersistence(creationConnectionString);
+            services.AddSingleton(startingState);
+            services.AddSingleton<CharacterCreationService>();
+        }
 
         if (configuration.Network is { } network)
         {

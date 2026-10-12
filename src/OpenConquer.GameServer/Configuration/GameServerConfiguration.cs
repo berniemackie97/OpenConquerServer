@@ -6,6 +6,7 @@ using OpenConquer.Application.World;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Infrastructure.Content.Items;
 using OpenConquer.Infrastructure.Content.Maps;
+using OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 namespace OpenConquer.GameServer.Configuration;
 
@@ -21,7 +22,7 @@ internal sealed class GameServerConfiguration
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
         GameNetworkOptions? network, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
-        CharacterCreationStartingState? characterCreationStartingState)
+        CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString)
     {
         AccountConnectionString = accountConnectionString;
         GameConnectionString = gameConnectionString;
@@ -36,6 +37,7 @@ internal sealed class GameServerConfiguration
         ActiveVerificationKeyId = activeVerificationKeyId;
         VerificationKeys = Array.AsReadOnly(verificationKeys);
         CharacterCreationStartingState = characterCreationStartingState;
+        CharacterCreationConnectionString = characterCreationConnectionString;
     }
 
     public string AccountConnectionString { get; }
@@ -51,6 +53,7 @@ internal sealed class GameServerConfiguration
     public ushort ActiveVerificationKeyId { get; }
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
     public CharacterCreationStartingState? CharacterCreationStartingState { get; }
+    public string? CharacterCreationConnectionString { get; }
 
     public static GameServerConfiguration Load(IConfiguration configuration, string contentRootPath)
     {
@@ -130,10 +133,27 @@ internal sealed class GameServerConfiguration
             }
 
             CharacterCreationStartingState? characterCreationStartingState = CreateCharacterCreationStartingState(settings.CharacterCreation);
+            string? characterCreationConnectionString = configuration.GetConnectionString("GameCreation");
+
+            if (characterCreationConnectionString is not null)
+            {
+                if (string.IsNullOrWhiteSpace(characterCreationConnectionString))
+                {
+                    throw new InvalidOperationException("ConnectionStrings:GameCreation must not be empty when supplied.");
+                }
+
+                if (characterCreationStartingState is null)
+                {
+                    throw new InvalidOperationException("ConnectionStrings:GameCreation requires a validated GameServer:CharacterCreation starting state.");
+                }
+
+                GameCharacterCreationConnectionPolicy.Validate(gameConnectionString, characterCreationConnectionString);
+            }
 
             return new GameServerConfiguration(accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
-                network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState);
+                network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
+                characterCreationConnectionString);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
         {
