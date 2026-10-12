@@ -9,10 +9,10 @@ implemented parts work and link here rather than repeating this list.
 
 - Runnable host with validated configuration, database readiness gating, and supervised shutdown.
 - Per-source and global connection admission, a fixed worker pool, and a whole-connection timeout.
-- The standard account login sequence: seed, credential request, authentication, durable
-  GameServer ticket grant, response, and the two post-login client reports.
-- Authentication rate limiting and lockout, password storage with transparent migration, and
-  account security mutations that revoke outstanding tickets.
+- The standard account login sequence: seed, credential request, authentication, durable GameServer
+  ticket grant, response, and the two post-login client reports.
+- Authentication rate limiting and lockout, password storage with transparent migration, and account
+  security mutations that revoke outstanding tickets.
 - Scheduled cleanup of expired tickets and low-cardinality login metrics.
 
 ### GameServer
@@ -20,9 +20,8 @@ implemented parts work and link here rather than repeating this list.
 - Runnable host that verifies both databases, loads map and item content, and starts the world.
 - TCP ingress with per-source and global admission, fixed login workers, and a login timeout.
 - Diffie-Hellman key exchange, CAST5 encrypted framing, and single-use ticket redemption.
-- Existing-character login: character resolution, the initial bootstrap packets, and the full
-  client request sequence (map entry, items, friends, weapon skills, magic, syndicate, client
-  reports).
+- Existing-character login: character resolution, the initial bootstrap packets, and the full client
+  request sequence (map entry, items, friends, weapon skills, magic, syndicate, client reports).
 - World runtime: one partition per map, a shared scheduler, bounded command queues, and
   generation-fenced character admission and removal.
 - Hand-off from a completed login into a supervised world session with revocable realm presence.
@@ -31,15 +30,21 @@ implemented parts work and link here rather than repeating this list.
 
 - Accounts schema version 2 and Game schema version 9, both checked at startup.
 - Characters, items (with lifetimes), friends and enemies, weapon skills, magic, and syndicates.
-- Item type catalog (14,981 types), 282 map definitions, 185 base terrains, and static collision
-  for every terrain, all validated before the GameServer starts.
+- Item type catalog (14,981 types), 282 map definitions, 185 base terrains, and static collision for
+  every terrain, all validated before the GameServer starts.
+- Native 5517 character-creation request parsing and validation.
+- Independently testable character-creation persistence with atomic insertion, database-enforced
+  uniqueness, duplicate-request resolution, and dedicated least-privilege write credentials.
+- Character-creation application service with authoritative account identity, server-validated
+  selections, immutable starting-state resolution, and persistence-result handling.
 
 ## Not yet implemented
 
 - Account registration and staff tooling.
-- Character creation.
+- Hosted character creation: starting-state content loading, world location validation, native
+  control exchange, authenticated creation processing, and same-session continuation.
 - Gameplay packet routing after login: movement, combat, NPCs, trading, chat, and replication.
 - World simulation: monsters, timers, visibility, and map transfers.
 - Seven map identities from the original data that could not be resolved (see
   [content](content/README.md)).
-- Verification-key rotation tooling and least-privilege production database accounts.
+- Verification-key rotation tooling and production least-privilege credential provisioning.
