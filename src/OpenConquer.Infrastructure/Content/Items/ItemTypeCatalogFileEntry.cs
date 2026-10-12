@@ -64,4 +64,40 @@ internal sealed class ItemTypeCatalogFileEntry
     {
         get; init;
     }
+
+    [JsonPropertyName("requiredProfessionCode")]
+    public required int RequiredProfessionCode
+    {
+        get; init;
+    }
+
+    [JsonPropertyName("monopolyFlags")]
+    public required uint MonopolyFlags
+    {
+        get; init;
+    }
+
+    [JsonPropertyName("silverPrice")]
+    public required uint SilverPrice
+    {
+        get; init;
+    }
+
+    [JsonPropertyName("attackRange")]
+    public required int AttackRange
+    {
+        get; init;
+    }
+
+    [JsonPropertyName("attackSpeed")]
+    public required int AttackSpeed
+    {
+        get; init;
+    }
+
+    [JsonPropertyName("conquerPointsPrice")]
+    public required uint ConquerPointsPrice
+    {
+        get; init;
+    }
 }

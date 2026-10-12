@@ -11,6 +11,12 @@ internal sealed class ItemTypeCatalogFileDocument
         get; init;
     }
 
+    [JsonPropertyName("sourceSha256")]
+    public required string SourceSha256
+    {
+        get; init;
+    }
+
     [JsonPropertyName("itemTypes")]
     public required ItemTypeCatalogFileEntry[] ItemTypes
     {

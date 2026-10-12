@@ -1,11 +1,11 @@
 # 5517 item definitions: native-field evidence export
 
-The production `content/items/item-types.json` format version 1 is an intentional, ten-field
-projection of the original 5517 client `itemtype.dat`. The decoder already reads 59 decoded text
-fields per native record; the production projection does **not** currently retain 49 fields.
-The field loss is real: the 2026-10-12 historical reconciliation found 43 of those 49 positions
-populated in the 5517 source. This export closes the offline evidence-retention gap without
-pretending that unverified field semantics are server gameplay rules.
+The original 5517 client `itemtype.dat` contains 59 positional decoded fields per item. The
+version-2 production `content/items/item-types.json` retains 16 selected typed fields,
+including the previously shipped ten fields and six additional native requirement/economy/attack
+values. The 59-field evidence export remains the **lossless decoded-field source**, independent
+of the deliberately smaller runtime projection. Original encoded bytes are SHA-256 pinned.
+No exported value automatically becomes an authorized gameplay rule.
 
 ## Generate the native-field evidence
 
@@ -27,8 +27,9 @@ general native-format tool; it deliberately does not pretend every input is 5517
 The version-1 evidence output contains `formatVersion`, `sourceFormat`, `sourceSha256`,
 `fieldCount`, and an `itemTypes` array. Each record has its numeric `itemTypeId` and precisely
 59 **decoded, unmodified, positional text fields**. Entries are ordered by numeric ID.
-The exporter checks duplicate/zero IDs, inconsistent encoded IDs, source bytes, and field counts;
-it writes through a temporary file then atomically replaces the destination. Source hashes and
+The writer rejects duplicate/zero IDs in the effective record set, inconsistent encoded IDs,
+empty source bytes, and incorrect field counts. The native decoder itself applies last-record-wins
+semantics to duplicate physical source lines. The writer stages and atomically replaces its output. Source hashes and
 output hashes are reported by the tool. Two exports from the same source produce identical bytes.
 
 This is a *decoded field-level record snapshot*, not a byte-for-byte copy of the encrypted source.
@@ -61,14 +62,19 @@ The full field mapping and confidence classifications are in
 `20_notes/Server/historical-reconciliation-5095.md` and the accompanying
 `field-mapping-matrix.csv` research dataset.
 
-## Production boundary and next slice
+## Production boundary
 
-This command is an **offline import/evidence operation**. It does not modify `item-types.json`,
-its pinned hash, GameServer startup, domain item semantics, MySQL, or gameplay behavior. Neither
-`item-type-source.json` nor original client `itemtype.dat` is shipped to GameServer by this slice.
+The native export is offline import/evidence. Neither the 59-field source JSON nor the original
+encoded client file is shipped to GameServer. The production release generator promotes selected
+verified native values to `item-types.json` version 2, retaining the remaining positional fields
+in the separately hash-pinned evidence export. The on-disk v2 release contains 16 fields per item
+plus a source fingerprint. The GameServer parses those into an immutable catalog at startup.
 
-Before promoting production item catalog format version 2, audit this export against the original
-source hash and all 14,981 IDs, approve typed fields with their verified widths/ranges, establish
-how unknown positions remain lossless without unnecessary runtime allocations, then update the
-writer, reader, domain contracts, released JSON, tests, docs, and content hash **in one release**.
-Never manufacture absent native values or use 5095 values as 5517 defaults.
+The v2 conversion is conditioned on an exact 5517 source hash, 14,981 item IDs, field-by-field
+comparison against the native export, unchanged v1 values, deterministic output, and a pinned
+release hash. See [Item catalog v2](item-type-catalog-v2.md). The native field 18 retains the
+existing `speedPercentOffset` API for compatibility; historical `dodge` and native mount-speed
+interpretations must not be conflated.
+
+All game mechanics using professions, trading, prices, or attack timing require separate evidence
+and explicit server-side validation before being activated. Never substitute 5095 values for 5517.

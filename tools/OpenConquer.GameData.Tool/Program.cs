@@ -141,7 +141,7 @@ internal static class Program
         ItemTypeDatTable source = ItemTypeDatTable.Parse(sourcePayload);
         ItemTypeDefinition[] definitions = ItemTypeCatalogGenerator.Generate(source);
 
-        ItemTypeCatalogFileWriter.Write(destinationPath, definitions);
+        ItemTypeCatalogFileWriter.Write(destinationPath, definitions, Convert.ToHexStringLower(SHA256.HashData(sourcePayload)));
         PrintResult("item type", definitions.Length, sourcePayload, destinationPath);
 
         return SuccessExitCode;

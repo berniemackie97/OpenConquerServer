@@ -7,7 +7,9 @@ public sealed class ItemTypeDefinition
     public const uint MaximumStaticLifetimeMinutes = (uint)int.MaxValue / SecondsPerMinute;
 
     public ItemTypeDefinition(uint itemTypeId, string name, byte requiredLevel, short speedPercentOffset, short life, short mana,
-        ushort initialDurability, ushort maximumDurability, uint staticLifetimeMinutes, ushort stackCapacity)
+        ushort initialDurability, ushort maximumDurability, uint staticLifetimeMinutes, ushort stackCapacity,
+        int requiredProfessionCode = 0, uint monopolyFlags = 0, uint silverPrice = 0,
+        int attackRange = 0, int attackSpeed = 0, uint conquerPointsPrice = 0)
     {
         if (itemTypeId == 0)
         {
@@ -31,6 +33,12 @@ public sealed class ItemTypeDefinition
         MaximumDurability = maximumDurability;
         StaticLifetimeMinutes = staticLifetimeMinutes;
         StackCapacity = stackCapacity;
+        RequiredProfessionCode = requiredProfessionCode;
+        MonopolyFlags = monopolyFlags;
+        SilverPrice = silverPrice;
+        AttackRange = attackRange;
+        AttackSpeed = attackSpeed;
+        ConquerPointsPrice = conquerPointsPrice;
     }
 
     public uint ItemTypeId { get; }
@@ -43,6 +51,14 @@ public sealed class ItemTypeDefinition
     public ushort MaximumDurability { get; }
     public uint StaticLifetimeMinutes { get; }
     public ushort StackCapacity { get; }
+
+    // Native 5517 data fields. Their values are retained but no new gameplay rules are inferred.
+    public int RequiredProfessionCode { get; }
+    public uint MonopolyFlags { get; }
+    public uint SilverPrice { get; }
+    public int AttackRange { get; }
+    public int AttackSpeed { get; }
+    public uint ConquerPointsPrice { get; }
 
     public int StaticLifetimeDurationSeconds => checked((int)(StaticLifetimeMinutes * SecondsPerMinute));
     public ushort EffectiveStackCapacity => StackCapacity == 0 ? (ushort)1 : StackCapacity;
