@@ -293,6 +293,38 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Queues one native 5517 eight-direction step under the exact active ownership token.
+    /// This is not a substitute for authenticated packet validation, anti-replay, or movement pacing.
+    /// </summary>
+    public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || directionIndex >= 8)
+            {
+                return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
+            }
+
+            if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
+            {
+                throw new InvalidOperationException("An active character references a missing world partition.");
+            }
+
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map => map.TryWalk(ownership, directionIndex));
+
+            return partition.TryEnqueue(command) switch
+            {
+                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
+                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
+                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
+            };
+        }
+    }
+
     public Task StopAsync()
     {
         lock (_gate)

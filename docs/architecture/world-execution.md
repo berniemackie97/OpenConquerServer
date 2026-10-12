@@ -17,9 +17,14 @@ The runtime lives in `src/OpenConquer.GameServer/World/Execution`.
   parallel; one partition never runs two turns at once.
 - `WorldRuntime.AdmitCharacterAsync` reserves the character across all partitions, checks that the
   map exists and the position is inside the map, and returns a `WorldCharacterOwnership` token
-  holding the character ID, map, a generation number, and the runtime instance. Reads and removal
-  require the full token, so a stale token cannot affect a newer admission. A position check is a
-  bounds check only; it does not decide walkability.
+  holding the character ID, map, a generation number, and the runtime instance. Reads, walking,
+  and removal require the full token, so a stale token cannot affect a newer admission. The
+  admission position check is bounds only; it does not decide walkability.
+- `WorldRuntime.TryWalkCharacterAsync` enqueues one 5517 eight-direction ground step. The partition
+  reconstructs a destination from the authoritative position and native direction table, checks
+  composed static collision, and commits both coordinates together. A refused step returns `null`
+  without modifying the position. No client gameplay packet can invoke this command yet; the
+  network authorization, pacing, replay, broadcast, and acknowledgement boundary is outstanding.
 - `WorldSessionAdmissionProcessor` takes a connection that has finished the login sequence,
   confirms its map is the same object the runtime holds, admits the character, and returns a
   `WorldSession` that owns both the connection and the ownership token.
@@ -32,13 +37,15 @@ The runtime lives in `src/OpenConquer.GameServer/World/Execution`.
 | `MaxCharacters`          | Characters resident across the world            |
 | `MaxCharactersPerMap`    | Characters resident per map                     |
 
-Today a map holds only resident characters and their positions. There is no tick loop, command
-router, movement, combat, visibility, or replication yet.
+Today a map holds only resident characters and their positions. There is no timed tick loop,
+gameplay packet router, combat, visibility, or replication yet. See
+[ground-walking.md](ground-walking.md) for native evidence and the exact walking boundary.
 
 ### Cancellation, cleanup, and shutdown
 
 Cancellation is honored only before a command is accepted. After that, the command runs and its
-result must be observed, so a cancelled caller cannot leave a half-admitted character.
+result must be observed, so a cancelled caller cannot leave a half-admitted character or a
+half-applied walk.
 
 A full command queue rejects new work immediately. Removals use a separate high-priority lane
 sized to the map's character limit, with at most one pending removal per character, so a busy map
@@ -89,7 +96,9 @@ flowchart LR
 
 A movement packet means "request this movement", not "set my position". The partition validates
 it against the current position, terrain, character state, elapsed time, and active effects. The
-same applies to combat, items, trading, and NPC interaction.
+eight-direction map-local coordinate primitive now exists, but its complete movement validation,
+packet route, authoritative event publication, and replication do not. The same requirements apply
+to combat, items, trading, and NPC interaction.
 
 Timed systems such as AI, regeneration, status effects, cooldowns, and respawns run as scheduled
 partition work instead of a global loop, so idle maps cost nothing. Catch-up work after a delay is

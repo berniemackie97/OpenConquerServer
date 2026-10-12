@@ -25,6 +25,9 @@ implemented parts work and link here rather than repeating this list.
 - World runtime: one partition per map, a shared scheduler, bounded command queues, and
   generation-fenced character admission and removal.
 - Hand-off from a completed login into a supervised world session with revocable realm presence.
+- Partition-owned eight-direction walking state mutation with native 5517 direction ordering,
+  composed static collision, generation fencing, and a cancellable-before-acceptance command API.
+  This is not connected to gameplay packets and does not provide movement pacing or replication.
 
 ### Persistence and content
 
@@ -39,14 +42,18 @@ implemented parts work and link here rather than repeating this list.
   selections, immutable starting-state resolution, and persistence-result handling.
 - Optional strict starting-state configuration with required profession-family validation and
   startup map/coordinate bounds verification before world publication.
+- Evidence-qualified map-transition candidate catalog with 373 native exit identities; the catalog
+  is validated offline and does not enable transfers.
 
 ## Not yet implemented
 
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
-- Gameplay packet routing after login: movement, combat, NPCs, trading, chat, and replication.
-- World simulation: monsters, timers, visibility, and map transfers.
+- Gameplay packet routing after login: movement request parsing, pacing, acknowledgements,
+  replication, combat, NPCs, trading, and chat.
+- World simulation: monsters, timers, visibility, and map transfers. Dynamic occupancy and elevation
+  constraints for movement also remain unresolved.
 - Seven map identities from the original data that could not be resolved (see
   [content](content/README.md)).
 - Verification-key rotation tooling and production least-privilege credential provisioning.
