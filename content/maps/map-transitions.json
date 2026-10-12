@@ -1,0 +1,3480 @@
+{
+  "formatVersion": 1,
+  "transitions": [
+    {
+      "mapId": 601,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1000,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1001,
+      "targetPortalIndex": 0,
+      "targetX": 312,
+      "targetY": 646
+    },
+    {
+      "mapId": 1000,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 1,
+      "targetX": 69,
+      "targetY": 473
+    },
+    {
+      "mapId": 1000,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1077,
+      "targetPortalIndex": 0,
+      "targetX": 756,
+      "targetY": 873
+    },
+    {
+      "mapId": 1001,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1000,
+      "targetPortalIndex": 1,
+      "targetX": 85,
+      "targetY": 323
+    },
+    {
+      "mapId": 1002,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 0,
+      "targetX": 11,
+      "targetY": 376
+    },
+    {
+      "mapId": 1002,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1006,
+      "targetPortalIndex": 0,
+      "targetX": 37,
+      "targetY": 31
+    },
+    {
+      "mapId": 1002,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 0,
+      "targetX": 11,
+      "targetY": 376
+    },
+    {
+      "mapId": 1002,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 39,
+      "targetX": 1008,
+      "targetY": 707
+    },
+    {
+      "mapId": 1002,
+      "passwayIndex": 9,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1020,
+      "targetPortalIndex": 0,
+      "targetX": 381,
+      "targetY": 21
+    },
+    {
+      "mapId": 1003,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 2,
+      "targetX": 53,
+      "targetY": 399
+    },
+    {
+      "mapId": 1003,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1021,
+      "targetPortalIndex": 0,
+      "targetX": 71,
+      "targetY": 50
+    },
+    {
+      "mapId": 1004,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "T7",
+      "targetMapId": 1002,
+      "targetPortalIndex": 4,
+      "targetX": 403,
+      "targetY": 394
+    },
+    {
+      "mapId": 1005,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 3,
+      "targetX": 455,
+      "targetY": 295
+    },
+    {
+      "mapId": 1006,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "T7",
+      "targetMapId": 1002,
+      "targetPortalIndex": 5,
+      "targetX": 386,
+      "targetY": 391
+    },
+    {
+      "mapId": 1007,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 6,
+      "targetX": 453,
+      "targetY": 335
+    },
+    {
+      "mapId": 1008,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 7,
+      "targetX": 419,
+      "targetY": 356
+    },
+    {
+      "mapId": 1009,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 8,
+      "targetX": 466,
+      "targetY": 330
+    },
+    {
+      "mapId": 1011,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 9,
+      "targetX": 958,
+      "targetY": 555
+    },
+    {
+      "mapId": 1011,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1013,
+      "targetPortalIndex": 0,
+      "targetX": 54,
+      "targetY": 81
+    },
+    {
+      "mapId": 1011,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1020,
+      "targetPortalIndex": 4,
+      "targetX": 919,
+      "targetY": 559
+    },
+    {
+      "mapId": 1011,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1076,
+      "targetPortalIndex": 0,
+      "targetX": 11,
+      "targetY": 361
+    },
+    {
+      "mapId": 1012,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1020,
+      "targetPortalIndex": 3,
+      "targetX": 23,
+      "targetY": 383
+    },
+    {
+      "mapId": 1013,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 1,
+      "targetX": 379,
+      "targetY": 28
+    },
+    {
+      "mapId": 1013,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1014,
+      "targetPortalIndex": 0,
+      "targetX": 80,
+      "targetY": 40
+    },
+    {
+      "mapId": 1014,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1013,
+      "targetPortalIndex": 1,
+      "targetX": 59,
+      "targetY": 28
+    },
+    {
+      "mapId": 1014,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1016,
+      "targetPortalIndex": 0,
+      "targetX": 50,
+      "targetY": 82
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 13,
+      "targetX": 525,
+      "targetY": 331
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 0,
+      "targetX": 759,
+      "targetY": 513
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 3,
+      "targetX": 570,
+      "targetY": 853
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 4,
+      "targetX": 649,
+      "targetY": 837
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 29,
+      "targetX": 531,
+      "targetY": 593
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 6,
+      "targetX": 584,
+      "targetY": 674
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 7,
+      "targetX": 742,
+      "targetY": 843
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 30,
+      "targetX": 722,
+      "targetY": 926
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 31,
+      "targetX": 564,
+      "targetY": 800
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 9,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 32,
+      "targetX": 346,
+      "targetY": 582
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 10,
+      "status": "blocked-destination"
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 11,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 34,
+      "targetX": 195,
+      "targetY": 418
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 12,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 13,
+      "targetX": 199,
+      "targetY": 484
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 13,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 35,
+      "targetX": 294,
+      "targetY": 561
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 14,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 15,
+      "targetX": 300,
+      "targetY": 460
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 15,
+      "status": "blocked-destination"
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 16,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 36,
+      "targetX": 485,
+      "targetY": 675
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 17,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 18,
+      "targetX": 285,
+      "targetY": 352
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 18,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 19,
+      "targetX": 288,
+      "targetY": 260
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 19,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 20,
+      "targetX": 200,
+      "targetY": 224
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 20,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 21,
+      "targetX": 150,
+      "targetY": 311
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 21,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 20,
+      "targetX": 200,
+      "targetY": 224
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 22,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 19,
+      "targetX": 288,
+      "targetY": 260
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 23,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 37,
+      "targetX": 411,
+      "targetY": 333
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 24,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 25,
+      "targetX": 455,
+      "targetY": 211
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 25,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 26,
+      "targetX": 496,
+      "targetY": 280
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 26,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 27,
+      "targetX": 611,
+      "targetY": 390
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 27,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 38,
+      "targetX": 570,
+      "targetY": 460
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 28,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 10,
+      "targetX": 232,
+      "targetY": 190
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 29,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 40,
+      "targetX": 344,
+      "targetY": 206
+    },
+    {
+      "mapId": 1015,
+      "passwayIndex": 31,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 0,
+      "targetX": 184,
+      "targetY": 549
+    },
+    {
+      "mapId": 1016,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1014,
+      "targetPortalIndex": 1,
+      "targetX": 131,
+      "targetY": 86
+    },
+    {
+      "mapId": 1018,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1020,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 2,
+      "targetX": 718,
+      "targetY": 746
+    },
+    {
+      "mapId": 1020,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 11,
+      "targetX": 555,
+      "targetY": 957
+    },
+    {
+      "mapId": 1020,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1012,
+      "targetPortalIndex": 0,
+      "targetX": 532,
+      "targetY": 529
+    },
+    {
+      "mapId": 1020,
+      "passwayIndex": 10,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1075,
+      "targetPortalIndex": 0,
+      "targetX": 360,
+      "targetY": 10
+    },
+    {
+      "mapId": 1021,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1003,
+      "targetPortalIndex": 1,
+      "targetX": 28,
+      "targetY": 31
+    },
+    {
+      "mapId": 1025,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 3,
+      "targetX": 933,
+      "targetY": 565
+    },
+    {
+      "mapId": 1026,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1020,
+      "targetPortalIndex": 5,
+      "targetX": 528,
+      "targetY": 890
+    },
+    {
+      "mapId": 1027,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1000,
+      "targetPortalIndex": 3,
+      "targetX": 314,
+      "targetY": 9
+    },
+    {
+      "mapId": 1028,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 2,
+      "targetX": 53,
+      "targetY": 399
+    },
+    {
+      "mapId": 1041,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1041,
+      "targetPortalIndex": 0,
+      "targetX": 515,
+      "targetY": 327
+    },
+    {
+      "mapId": 1041,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1041,
+      "targetPortalIndex": 1,
+      "targetX": 587,
+      "targetY": 399
+    },
+    {
+      "mapId": 1041,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1041,
+      "targetPortalIndex": 2,
+      "targetX": 619,
+      "targetY": 367
+    },
+    {
+      "mapId": 1041,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1041,
+      "targetPortalIndex": 3,
+      "targetX": 547,
+      "targetY": 295
+    },
+    {
+      "mapId": 1042,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 12,
+      "targetX": 342,
+      "targetY": 723
+    },
+    {
+      "mapId": 1051,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1051,
+      "targetPortalIndex": 0,
+      "targetX": 446,
+      "targetY": 97
+    },
+    {
+      "mapId": 1051,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1051,
+      "targetPortalIndex": 1,
+      "targetX": 244,
+      "targetY": 527
+    },
+    {
+      "mapId": 1051,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1051,
+      "targetPortalIndex": 2,
+      "targetX": 85,
+      "targetY": 427
+    },
+    {
+      "mapId": 1051,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1051,
+      "targetPortalIndex": 3,
+      "targetX": 103,
+      "targetY": 342
+    },
+    {
+      "mapId": 1051,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1051,
+      "targetPortalIndex": 4,
+      "targetX": 170,
+      "targetY": 324
+    },
+    {
+      "mapId": 1051,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1051,
+      "targetPortalIndex": 5,
+      "targetX": 270,
+      "targetY": 177
+    },
+    {
+      "mapId": 1052,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1052,
+      "targetPortalIndex": 0,
+      "targetX": 191,
+      "targetY": 228
+    },
+    {
+      "mapId": 1052,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1052,
+      "targetPortalIndex": 0,
+      "targetX": 191,
+      "targetY": 228
+    },
+    {
+      "mapId": 1052,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1052,
+      "targetPortalIndex": 0,
+      "targetX": 191,
+      "targetY": 228
+    },
+    {
+      "mapId": 1052,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1052,
+      "targetPortalIndex": 0,
+      "targetX": 191,
+      "targetY": 228
+    },
+    {
+      "mapId": 1052,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1052,
+      "targetPortalIndex": 0,
+      "targetX": 191,
+      "targetY": 228
+    },
+    {
+      "mapId": 1060,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1060,
+      "targetPortalIndex": 0,
+      "targetX": 515,
+      "targetY": 326
+    },
+    {
+      "mapId": 1060,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1060,
+      "targetPortalIndex": 1,
+      "targetX": 587,
+      "targetY": 398
+    },
+    {
+      "mapId": 1060,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1060,
+      "targetPortalIndex": 2,
+      "targetX": 547,
+      "targetY": 294
+    },
+    {
+      "mapId": 1060,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1060,
+      "targetPortalIndex": 3,
+      "targetX": 619,
+      "targetY": 366
+    },
+    {
+      "mapId": 1060,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1061,
+      "targetPortalIndex": 4,
+      "targetX": 220,
+      "targetY": 477
+    },
+    {
+      "mapId": 1060,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1062,
+      "targetPortalIndex": 4,
+      "targetX": 220,
+      "targetY": 477
+    },
+    {
+      "mapId": 1061,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1061,
+      "targetPortalIndex": 0,
+      "targetX": 515,
+      "targetY": 326
+    },
+    {
+      "mapId": 1061,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1061,
+      "targetPortalIndex": 1,
+      "targetX": 587,
+      "targetY": 398
+    },
+    {
+      "mapId": 1061,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1061,
+      "targetPortalIndex": 2,
+      "targetX": 547,
+      "targetY": 294
+    },
+    {
+      "mapId": 1061,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1061,
+      "targetPortalIndex": 3,
+      "targetX": 619,
+      "targetY": 366
+    },
+    {
+      "mapId": 1061,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1060,
+      "targetPortalIndex": 4,
+      "targetX": 220,
+      "targetY": 477
+    },
+    {
+      "mapId": 1061,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1062,
+      "targetPortalIndex": 5,
+      "targetX": 529,
+      "targetY": 505
+    },
+    {
+      "mapId": 1062,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1062,
+      "targetPortalIndex": 0,
+      "targetX": 515,
+      "targetY": 326
+    },
+    {
+      "mapId": 1062,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1062,
+      "targetPortalIndex": 1,
+      "targetX": 587,
+      "targetY": 398
+    },
+    {
+      "mapId": 1062,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1062,
+      "targetPortalIndex": 2,
+      "targetX": 547,
+      "targetY": 294
+    },
+    {
+      "mapId": 1062,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1062,
+      "targetPortalIndex": 3,
+      "targetX": 619,
+      "targetY": 366
+    },
+    {
+      "mapId": 1062,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1060,
+      "targetPortalIndex": 5,
+      "targetX": 529,
+      "targetY": 505
+    },
+    {
+      "mapId": 1062,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1061,
+      "targetPortalIndex": 5,
+      "targetX": 529,
+      "targetY": 505
+    },
+    {
+      "mapId": 1070,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1020,
+      "targetPortalIndex": 0,
+      "targetX": 381,
+      "targetY": 21
+    },
+    {
+      "mapId": 1073,
+      "passwayIndex": 0,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 1075,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1020,
+      "targetPortalIndex": 6,
+      "targetX": 607,
+      "targetY": 870
+    },
+    {
+      "mapId": 1076,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 5,
+      "targetX": 850,
+      "targetY": 485
+    },
+    {
+      "mapId": 1077,
+      "passwayIndex": 0,
+      "status": "blocked-destination"
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 1,
+      "targetX": 135,
+      "targetY": 487
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 2,
+      "targetX": 178,
+      "targetY": 540
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 3,
+      "targetX": 46,
+      "targetY": 418
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 4,
+      "targetX": 88,
+      "targetY": 423
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 5,
+      "targetX": 48,
+      "targetY": 415
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 6,
+      "targetX": 180,
+      "targetY": 425
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 7,
+      "targetX": 105,
+      "targetY": 338
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 8,
+      "targetX": 180,
+      "targetY": 425
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 9,
+      "targetX": 318,
+      "targetY": 300
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 9,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 10,
+      "targetX": 224,
+      "targetY": 280
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 10,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 11,
+      "targetX": 372,
+      "targetY": 156
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 11,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 12,
+      "targetX": 372,
+      "targetY": 215
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 12,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 13,
+      "targetX": 373,
+      "targetY": 156
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 13,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 14,
+      "targetX": 496,
+      "targetY": 217
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 14,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 15,
+      "targetX": 508,
+      "targetY": 159
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 15,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 16,
+      "targetX": 273,
+      "targetY": 492
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 16,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 17,
+      "targetX": 456,
+      "targetY": 262
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 17,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 18,
+      "targetX": 144,
+      "targetY": 447
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 18,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 19,
+      "targetX": 176,
+      "targetY": 302
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 19,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 20,
+      "targetX": 96,
+      "targetY": 315
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 20,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 21,
+      "targetX": 238,
+      "targetY": 483
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 21,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 22,
+      "targetX": 296,
+      "targetY": 400
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 22,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 23,
+      "targetX": 442,
+      "targetY": 199
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 23,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 24,
+      "targetX": 397,
+      "targetY": 317
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 24,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 25,
+      "targetX": 244,
+      "targetY": 522
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 25,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 26,
+      "targetX": 273,
+      "targetY": 177
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 26,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 27,
+      "targetX": 110,
+      "targetY": 432
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 27,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 28,
+      "targetX": 447,
+      "targetY": 99
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 28,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 29,
+      "targetX": 272,
+      "targetY": 299
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 29,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1015,
+      "targetPortalIndex": 41,
+      "targetX": 789,
+      "targetY": 484
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 30,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 30,
+      "targetX": 69,
+      "targetY": 346
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 31,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 31,
+      "targetX": 453,
+      "targetY": 155
+    },
+    {
+      "mapId": 1078,
+      "passwayIndex": 32,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1078,
+      "targetPortalIndex": 32,
+      "targetX": 220,
+      "targetY": 386
+    },
+    {
+      "mapId": 1080,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1081,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1090,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1092,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1094,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1100,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1101,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1102,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1103,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1104,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1105,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1106,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1107,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1108,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1109,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1201,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1213,
+      "targetPortalIndex": 1,
+      "targetX": 1072,
+      "targetY": 798
+    },
+    {
+      "mapId": 1201,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1202,
+      "targetPortalIndex": 0,
+      "targetX": 8,
+      "targetY": 302
+    },
+    {
+      "mapId": 1202,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1201,
+      "targetPortalIndex": 1,
+      "targetX": 592,
+      "targetY": 398
+    },
+    {
+      "mapId": 1202,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1205,
+      "targetPortalIndex": 0,
+      "targetX": 8,
+      "targetY": 161
+    },
+    {
+      "mapId": 1204,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1216,
+      "targetPortalIndex": 3,
+      "targetX": 950,
+      "targetY": 478
+    },
+    {
+      "mapId": 1204,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1213,
+      "targetPortalIndex": 0,
+      "targetX": 10,
+      "targetY": 282
+    },
+    {
+      "mapId": 1205,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1202,
+      "targetPortalIndex": 1,
+      "targetX": 691,
+      "targetY": 398
+    },
+    {
+      "mapId": 1205,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1077,
+      "targetPortalIndex": 1,
+      "targetX": 362,
+      "targetY": 12
+    },
+    {
+      "mapId": 1207,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1208,
+      "targetPortalIndex": 0,
+      "targetX": 9,
+      "targetY": 502
+    },
+    {
+      "mapId": 1207,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1215,
+      "targetPortalIndex": 3,
+      "targetX": 934,
+      "targetY": 565
+    },
+    {
+      "mapId": 1208,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1207,
+      "targetPortalIndex": 0,
+      "targetX": 261,
+      "targetY": 10
+    },
+    {
+      "mapId": 1210,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1211,
+      "targetPortalIndex": 1,
+      "targetX": 951,
+      "targetY": 558
+    },
+    {
+      "mapId": 1211,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1212,
+      "targetPortalIndex": 32,
+      "targetX": 1017,
+      "targetY": 1292
+    },
+    {
+      "mapId": 1211,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1210,
+      "targetPortalIndex": 0,
+      "targetX": 8,
+      "targetY": 329
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 1,
+      "targetX": 705,
+      "targetY": 921
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 0,
+      "targetX": 781,
+      "targetY": 838
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 3,
+      "targetX": 539,
+      "targetY": 752
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 2,
+      "targetX": 582,
+      "targetY": 827
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 5,
+      "targetX": 369,
+      "targetY": 651
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 4,
+      "targetX": 479,
+      "targetY": 691
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 7,
+      "targetX": 404,
+      "targetY": 451
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 6,
+      "targetX": 349,
+      "targetY": 512
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 9,
+      "targetX": 335,
+      "targetY": 282
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 9,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 8,
+      "targetX": 395,
+      "targetY": 390
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 10,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 11,
+      "targetX": 378,
+      "targetY": 153
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 11,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 10,
+      "targetX": 310,
+      "targetY": 174
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 12,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 13,
+      "targetX": 623,
+      "targetY": 402
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 13,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 12,
+      "targetX": 611,
+      "targetY": 311
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 14,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 15,
+      "targetX": 713,
+      "targetY": 377
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 15,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 14,
+      "targetX": 674,
+      "targetY": 418
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 16,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 17,
+      "targetX": 846,
+      "targetY": 558
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 17,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 16,
+      "targetX": 834,
+      "targetY": 455
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 18,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 19,
+      "targetX": 872,
+      "targetY": 850
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 19,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 18,
+      "targetX": 900,
+      "targetY": 826
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 20,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 21,
+      "targetX": 808,
+      "targetY": 823
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 21,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 20,
+      "targetX": 864,
+      "targetY": 846
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 22,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 23,
+      "targetX": 899,
+      "targetY": 894
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 23,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 22,
+      "targetX": 871,
+      "targetY": 853
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 24,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 25,
+      "targetX": 690,
+      "targetY": 667
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 25,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 24,
+      "targetX": 813,
+      "targetY": 677
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 26,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 27,
+      "targetX": 903,
+      "targetY": 1041
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 27,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 26,
+      "targetX": 942,
+      "targetY": 1012
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 28,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 29,
+      "targetX": 1087,
+      "targetY": 1124
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 29,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 28,
+      "targetX": 1022,
+      "targetY": 1035
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 30,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 31,
+      "targetX": 1138,
+      "targetY": 895
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 31,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 30,
+      "targetX": 1046,
+      "targetY": 835
+    },
+    {
+      "mapId": 1212,
+      "passwayIndex": 32,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1211,
+      "targetPortalIndex": 0,
+      "targetX": 10,
+      "targetY": 401
+    },
+    {
+      "mapId": 1213,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1204,
+      "targetPortalIndex": 1,
+      "targetX": 1351,
+      "targetY": 1199
+    },
+    {
+      "mapId": 1213,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1201,
+      "targetPortalIndex": 0,
+      "targetX": 10,
+      "targetY": 202
+    },
+    {
+      "mapId": 1214,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1217,
+      "targetPortalIndex": 0,
+      "targetX": 363,
+      "targetY": 13
+    },
+    {
+      "mapId": 1214,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1216,
+      "targetPortalIndex": 1,
+      "targetX": 479,
+      "targetY": 950
+    },
+    {
+      "mapId": 1215,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1216,
+      "targetPortalIndex": 2,
+      "targetX": 481,
+      "targetY": 10
+    },
+    {
+      "mapId": 1215,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1207,
+      "targetPortalIndex": 1,
+      "targetX": 958,
+      "targetY": 1211
+    },
+    {
+      "mapId": 1216,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1214,
+      "targetPortalIndex": 2,
+      "targetX": 641,
+      "targetY": 9
+    },
+    {
+      "mapId": 1216,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1215,
+      "targetPortalIndex": 0,
+      "targetX": 9,
+      "targetY": 376
+    },
+    {
+      "mapId": 1216,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1204,
+      "targetPortalIndex": 0,
+      "targetX": 9,
+      "targetY": 161
+    },
+    {
+      "mapId": 1217,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1214,
+      "targetPortalIndex": 1,
+      "targetX": 799,
+      "targetY": 1432
+    },
+    {
+      "mapId": 1218,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1210,
+      "targetPortalIndex": 2,
+      "targetX": 715,
+      "targetY": 1036
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 1,
+      "targetX": 705,
+      "targetY": 921
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 0,
+      "targetX": 781,
+      "targetY": 838
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 3,
+      "targetX": 539,
+      "targetY": 752
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 2,
+      "targetX": 582,
+      "targetY": 827
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 5,
+      "targetX": 369,
+      "targetY": 651
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 4,
+      "targetX": 479,
+      "targetY": 691
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 7,
+      "targetX": 404,
+      "targetY": 451
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 6,
+      "targetX": 349,
+      "targetY": 512
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 9,
+      "targetX": 335,
+      "targetY": 282
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 9,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 8,
+      "targetX": 395,
+      "targetY": 390
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 10,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 11,
+      "targetX": 378,
+      "targetY": 153
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 11,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 10,
+      "targetX": 310,
+      "targetY": 174
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 12,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 13,
+      "targetX": 623,
+      "targetY": 402
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 13,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 12,
+      "targetX": 611,
+      "targetY": 311
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 14,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 15,
+      "targetX": 713,
+      "targetY": 377
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 15,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 14,
+      "targetX": 674,
+      "targetY": 418
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 16,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 17,
+      "targetX": 846,
+      "targetY": 558
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 17,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 16,
+      "targetX": 834,
+      "targetY": 455
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 18,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 19,
+      "targetX": 872,
+      "targetY": 850
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 19,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 18,
+      "targetX": 900,
+      "targetY": 826
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 20,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 21,
+      "targetX": 808,
+      "targetY": 823
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 21,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 20,
+      "targetX": 864,
+      "targetY": 846
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 22,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 23,
+      "targetX": 899,
+      "targetY": 894
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 23,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 22,
+      "targetX": 871,
+      "targetY": 853
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 24,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 25,
+      "targetX": 690,
+      "targetY": 667
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 25,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 24,
+      "targetX": 813,
+      "targetY": 677
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 26,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 27,
+      "targetX": 903,
+      "targetY": 1041
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 27,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 26,
+      "targetX": 942,
+      "targetY": 1012
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 28,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 29,
+      "targetX": 1087,
+      "targetY": 1124
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 29,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 28,
+      "targetX": 1022,
+      "targetY": 1035
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 30,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 31,
+      "targetX": 1138,
+      "targetY": 895
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 31,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1219,
+      "targetPortalIndex": 30,
+      "targetX": 1046,
+      "targetY": 835
+    },
+    {
+      "mapId": 1219,
+      "passwayIndex": 32,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1212,
+      "targetPortalIndex": 33,
+      "targetX": 378,
+      "targetY": 37
+    },
+    {
+      "mapId": 1300,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1001,
+      "targetPortalIndex": 1,
+      "targetX": 674,
+      "targetY": 349
+    },
+    {
+      "mapId": 1511,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1550,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1551,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1763,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1002,
+      "targetPortalIndex": 0,
+      "targetX": 439,
+      "targetY": 385
+    },
+    {
+      "mapId": 1765,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1768,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1769,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1769,
+      "passwayIndex": 1,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1769,
+      "passwayIndex": 2,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1769,
+      "passwayIndex": 3,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1769,
+      "passwayIndex": 4,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1778,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1778,
+      "targetPortalIndex": 1,
+      "targetX": 56,
+      "targetY": 85
+    },
+    {
+      "mapId": 1778,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1778,
+      "targetPortalIndex": 2,
+      "targetX": 59,
+      "targetY": 24
+    },
+    {
+      "mapId": 1782,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1782,
+      "targetPortalIndex": 0,
+      "targetX": 51,
+      "targetY": 68
+    },
+    {
+      "mapId": 1783,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1783,
+      "targetPortalIndex": 0,
+      "targetX": 51,
+      "targetY": 68
+    },
+    {
+      "mapId": 1784,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1791,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1792,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 2,
+      "targetX": 718,
+      "targetY": 746
+    },
+    {
+      "mapId": 1792,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1011,
+      "targetPortalIndex": 2,
+      "targetX": 718,
+      "targetY": 746
+    },
+    {
+      "mapId": 1794,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1794,
+      "targetPortalIndex": 0,
+      "targetX": 157,
+      "targetY": 97
+    },
+    {
+      "mapId": 1818,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1926,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1927,
+      "targetPortalIndex": 0,
+      "targetX": 60,
+      "targetY": 257
+    },
+    {
+      "mapId": 1926,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1000,
+      "targetPortalIndex": 5,
+      "targetX": 499,
+      "targetY": 650
+    },
+    {
+      "mapId": 1927,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1926,
+      "targetPortalIndex": 0,
+      "targetX": 636,
+      "targetY": 380
+    },
+    {
+      "mapId": 1927,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 0,
+      "targetX": 410,
+      "targetY": 484
+    },
+    {
+      "mapId": 1962,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1963,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1964,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1965,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1966,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1967,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1968,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1969,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1972,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1973,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1974,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1975,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1976,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1977,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1978,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1979,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1982,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1983,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1984,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1985,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1986,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1987,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1988,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1989,
+      "passwayIndex": 0,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2054,
+      "targetPortalIndex": 0,
+      "targetX": 530,
+      "targetY": 431
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1927,
+      "targetPortalIndex": 1,
+      "targetX": 636,
+      "targetY": 380
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 5,
+      "targetX": 360,
+      "targetY": 177
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 12,
+      "targetX": 409,
+      "targetY": 488
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 3,
+      "targetX": 173,
+      "targetY": 223
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 9,
+      "targetX": 360,
+      "targetY": 177
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 7,
+      "targetX": 287,
+      "targetY": 570
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 6,
+      "targetX": 510,
+      "targetY": 242
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 9,
+      "status": "no-source"
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 10,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 13,
+      "targetX": 360,
+      "targetY": 177
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 11,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 8,
+      "targetX": 397,
+      "targetY": 551
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 12,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 4,
+      "targetX": 338,
+      "targetY": 50
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 13,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 2,
+      "targetX": 446,
+      "targetY": 228
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 14,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 10,
+      "targetX": 410,
+      "targetY": 484
+    },
+    {
+      "mapId": 1999,
+      "passwayIndex": 15,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 11,
+      "targetX": 410,
+      "targetY": 484
+    },
+    {
+      "mapId": 2054,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 1999,
+      "targetPortalIndex": 14,
+      "targetX": 410,
+      "targetY": 484
+    },
+    {
+      "mapId": 2054,
+      "passwayIndex": 1,
+      "status": "no-source"
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 8,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 9,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 10,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 11,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 12,
+      "status": "no-source"
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 13,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 14,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 15,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 16,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 2,
+      "targetX": 445,
+      "targetY": 505
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 17,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 3,
+      "targetX": 379,
+      "targetY": 501
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 18,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 4,
+      "targetX": 431,
+      "targetY": 633
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 19,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 5,
+      "targetX": 464,
+      "targetY": 627
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 20,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 6,
+      "targetX": 332,
+      "targetY": 602
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 21,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 22,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 20,
+      "targetX": 499,
+      "targetY": 265
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 23,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 21,
+      "targetX": 292,
+      "targetY": 535
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 24,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 22,
+      "targetX": 428,
+      "targetY": 175
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 25,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 23,
+      "targetX": 161,
+      "targetY": 404
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 26,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 24,
+      "targetX": 351,
+      "targetY": 102
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 27,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 25,
+      "targetX": 75,
+      "targetY": 316
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 28,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 7,
+      "targetX": 594,
+      "targetY": 359
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 29,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 8,
+      "targetX": 366,
+      "targetY": 360
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 30,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 9,
+      "targetX": 294,
+      "targetY": 416
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 31,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 10,
+      "targetX": 141,
+      "targetY": 313
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 32,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 11,
+      "targetX": 229,
+      "targetY": 150
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 33,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 12,
+      "targetX": 213,
+      "targetY": 294
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 34,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 13,
+      "targetX": 583,
+      "targetY": 487
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 35,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 14,
+      "targetX": 419,
+      "targetY": 412
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 36,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 15,
+      "targetX": 314,
+      "targetY": 287
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 37,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 16,
+      "targetX": 343,
+      "targetY": 160
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 38,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 17,
+      "targetX": 488,
+      "targetY": 296
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 39,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 18,
+      "targetX": 421,
+      "targetY": 328
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 40,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 19,
+      "targetX": 194,
+      "targetY": 245
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 41,
+      "status": "no-source"
+    },
+    {
+      "mapId": 2055,
+      "passwayIndex": 42,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2056,
+      "targetPortalIndex": 0,
+      "targetX": 465,
+      "targetY": 639
+    },
+    {
+      "mapId": 2056,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "Q",
+      "targetMapId": 2055,
+      "targetPortalIndex": 1,
+      "targetX": 500,
+      "targetY": 509
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 0,
+      "targetX": 110,
+      "targetY": 166
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 1,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 1,
+      "targetX": 165,
+      "targetY": 169
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 2,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 2,
+      "targetX": 152,
+      "targetY": 94
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 3,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 3,
+      "targetX": 92,
+      "targetY": 86
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 4,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 4,
+      "targetX": 116,
+      "targetY": 138
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 5,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 5,
+      "targetX": 145,
+      "targetY": 147
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 6,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 6,
+      "targetX": 130,
+      "targetY": 114
+    },
+    {
+      "mapId": 2060,
+      "passwayIndex": 7,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 2060,
+      "targetPortalIndex": 7,
+      "targetX": 112,
+      "targetY": 107
+    },
+    {
+      "mapId": 5000,
+      "passwayIndex": 0,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 5002,
+      "passwayIndex": 2,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 5002,
+      "passwayIndex": 3,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 5002,
+      "passwayIndex": 7,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 5002,
+      "passwayIndex": 8,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 5002,
+      "passwayIndex": 9,
+      "status": "shared-terrain-unresolved"
+    },
+    {
+      "mapId": 6072,
+      "passwayIndex": 0,
+      "status": "resolved",
+      "source": "L",
+      "targetMapId": 1004,
+      "targetPortalIndex": 0,
+      "targetX": 51,
+      "targetY": 70
+    }
+  ]
+}
