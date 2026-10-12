@@ -55,4 +55,19 @@ public sealed class MapTerrainCollision
             ? effectiveCell
             : baseCell;
     }
+
+    /// <summary>
+    /// Conservative static terrain predicate after scenery collision composition.
+    /// This is not a complete movement, portal, dynamic-occupancy, or spawn-approval policy.
+    /// Unknown nonzero passability values fail closed.
+    /// </summary>
+    public bool IsStaticallyPassable(int x, int y)
+    {
+        if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+        {
+            return false;
+        }
+
+        return GetEffectiveCell(x, y).PassabilityFlag == 0;
+    }
 }
