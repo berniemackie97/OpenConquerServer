@@ -8,7 +8,7 @@ namespace OpenConquer.Application.Characters.Creation;
 public sealed class CharacterCreationCandidate
 {
     public const byte StartingLevel = 1;
-    private const int StartingAttributeBudget = 10;
+    public const int StartingAttributeBudget = 10;
 
     public CharacterCreationCandidate(uint accountId, string name, ushort body, ushort profession, uint appearanceComposite,
         ushort hairComposite, ushort strength, ushort agility, ushort vitality, ushort spirit, ushort currentMana,

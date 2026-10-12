@@ -4,7 +4,8 @@ namespace OpenConquer.Application.Characters.Creation;
 
 public enum CharacterCreationStoreStatus
 {
-    Created = 0,
+    Unspecified = 0,
+    Created,
     AccountAlreadyHasCharacter,
     NameAlreadyInUse,
 }
