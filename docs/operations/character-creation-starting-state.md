@@ -35,8 +35,12 @@ Level-one starting allotments from the audited OpenConquerPublic reference:
 | 6 | 3 | 1 | 4 | 2 |
 | 10 | 0 | 2 | 3 | 5 |
 
+The 5095 MyISAM `cq_point_allot` contains an older family-5 level-one row
+`(2,7,1,0)` and no family-6 row. Neither supersedes the verified later-version
+policy. See [Historical source reconciliation](../content/historical-source-reconciliation.md).
+
 Deployments must choose a starting map and coordinates from their canonical
-map content. This package intentionally provides **no default spawn point**.
+**5517** map content. This package intentionally provides **no default spawn point**.
 
 ## Validation boundaries
 
@@ -44,16 +48,25 @@ Configuration binding rejects unknown properties and invalid numeric conversions
 Construction rejects missing, duplicate, unsupported, or budget-invalid allotments
 and a zero starting map identity.
 
-After loading canonical definitions, terrain, and composed collision, world
-startup requires the configured map identity to exist and both coordinates
-to fall within the collision grid dimensions.
+After loading canonical definitions, terrain, and composed collision, world startup
+requires the configured map to exist, the coordinates to be in bounds, and the
+**effective static collision** cell to have `PassabilityFlag == 0`.
 
-Validation runs before `WorldRuntime.Start`, before world publication, and before
-network listeners start. Invalid configured content fails startup closed.
+The predicate uses the final `.ocmc` scenery override where present, not merely the
+original `.ocbt` base-grid flag. An unknown nonzero flag is rejected, not treated as
+walkable. Failures occur before `WorldRuntime.Start`, world publication, and opening
+network listeners. When creation is unconfigured, ordinary existing-character login
+starts without an additional spawn requirement.
 
-Map bounds are not equivalent to walkability. The raw `PassabilityFlag` is not
-yet assigned a proven complete movement policy; this gate intentionally makes
-no assertion that a particular bounded coordinate is walkable.
+This is a **conservative static safety gate**, not comprehensive walkability or
+permission to enable creation. It does not establish portal rules, dynamic occupancy,
+NPC placement, per-map restrictions, or retail spawn intent. Those remain explicit
+runtime and evidence obligations.
+
+The previous test/example coordinate `mapId 1010, (61,101)` is blocked in sampled
+5095/5517 references and is not an approved spawn. The released 5517 content test
+pins this regression against the canonical composed collision. Do not promote a
+nearby raw-passable coordinate without the same independent approval.
 
 ## Deployment security
 

@@ -1,10 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.World;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Tests.Configuration;
-using OpenConquer.GameServer.Tests.World;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
 
@@ -78,6 +78,27 @@ public sealed class GameServerCharacterCreationStartupTests
         }
     }
 
+    [Fact]
+    public async Task StartAsync_ConfiguredBlockedSpawn_DoesNotPublishWorld()
+    {
+        IHost host = CreateHost(GameServerCharacterCreationConfigurationTests.LoadWithStartingState(), basePassability: 1);
+
+        try
+        {
+            GameServerWorldState state = host.Services.GetRequiredService<GameServerWorldState>();
+
+            InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(
+                () => host.StartAsync(TestContext.Current.CancellationToken));
+
+            Assert.Contains("blocked", failure.Message, StringComparison.Ordinal);
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredWorld());
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
     private static async ValueTask DisposeHostAsync(IHost host)
     {
         if (host is IAsyncDisposable asyncDisposable)
@@ -90,7 +111,7 @@ public sealed class GameServerCharacterCreationStartupTests
         }
     }
 
-    private static IHost CreateHost(GameServerConfiguration configuration)
+    private static IHost CreateHost(GameServerConfiguration configuration, ushort basePassability = 0)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
 
@@ -98,7 +119,7 @@ public sealed class GameServerCharacterCreationStartupTests
         builder.Services.AddSingleton<IAccountDatabaseReadinessVerifier>(new ReadyDatabase());
         builder.Services.AddSingleton<IGameDatabaseReadinessVerifier>(new ReadyDatabase());
 
-        CanonicalContent content = new();
+        CanonicalContent content = new(basePassability);
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(content);
         builder.Services.AddSingleton<IMapBaseTerrainCatalogRepository>(content);
         builder.Services.AddSingleton<IMapTerrainCollisionCatalogRepository>(content);
@@ -118,7 +139,14 @@ public sealed class GameServerCharacterCreationStartupTests
     private sealed class CanonicalContent :
         IMapDefinitionCatalogRepository, IMapBaseTerrainCatalogRepository, IMapTerrainCollisionCatalogRepository
     {
-        private readonly WorldMapContent _map = WorldMapTestContent.Create(1002, 1015, 0);
+        private readonly WorldMapContent _map;
+
+        public CanonicalContent(ushort basePassability)
+        {
+            MapBaseTerrain terrain = new(1015, 1, 1, [new MapBaseTerrainCell(10, basePassability, -5)], []);
+            MapTerrainCollision collision = new(terrain, []);
+            _map = new WorldMapContent(new MapDefinition(1002, 1015, 0), collision);
+        }
 
         public ValueTask<MapDefinitionCatalog> LoadAsync(CancellationToken cancellationToken = default)
         {

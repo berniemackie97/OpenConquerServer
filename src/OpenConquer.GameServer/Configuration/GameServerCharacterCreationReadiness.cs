@@ -4,8 +4,8 @@ using OpenConquer.Application.World;
 namespace OpenConquer.GameServer.Configuration;
 
 /// <summary>
-/// Verifies a configured creation spawn against the canonical world snapshot before publication.
-/// Does not authorize character creation or interpret unproven passability flags.
+/// Verifies a configured creation spawn against the canonical composed static collision before publication.
+/// Does not authorize creation or establish full movement and dynamic-occupancy rules.
 /// </summary>
 internal sealed class GameServerCharacterCreationReadiness(CharacterCreationStartingState? startingState)
 {
@@ -27,8 +27,12 @@ internal sealed class GameServerCharacterCreationReadiness(CharacterCreationStar
 
         if (_startingState.PositionX >= map.Collision.Width || _startingState.PositionY >= map.Collision.Height)
         {
-            throw new InvalidDataException(
-                $"Character creation starting position ({_startingState.PositionX}, {_startingState.PositionY}) is outside map {_startingState.MapId} ({map.Collision.Width} x {map.Collision.Height}).");
+            throw new InvalidDataException($"Character creation starting position ({_startingState.PositionX}, {_startingState.PositionY}) is outside map {_startingState.MapId} ({map.Collision.Width} x {map.Collision.Height}).");
+        }
+
+        if (!map.Collision.IsStaticallyPassable(_startingState.PositionX, _startingState.PositionY))
+        {
+            throw new InvalidDataException($"Character creation starting position ({_startingState.PositionX}, {_startingState.PositionY}) on map {_startingState.MapId} is blocked by canonical static collision.");
         }
     }
 }
