@@ -11,17 +11,20 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 {
     internal const string DatabaseName = "openconquer_game_tests";
     private const string RuntimeUserName = "openconquer_game_runtime_tests";
+    private const string CreationUserName = "openconquer_game_creation_tests";
     private static readonly string s_administrativePassword = Guid.NewGuid().ToString("N");
 
     private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.4.11").WithDatabase(DatabaseName).WithUsername("root").WithPassword(s_administrativePassword).Build();
 
     private ServiceProvider? _services;
     private string? _runtimeConnectionString;
+    private string? _creationConnectionString;
 
     public ServiceProvider Services => _services ?? throw new InvalidOperationException("The game test database is not initialized.");
     public IDbContextFactory<GameDbContext> ContextFactory => Services.GetRequiredService<IDbContextFactory<GameDbContext>>();
     public string AdministrativeConnectionString => _container.GetConnectionString();
     public string RuntimeConnectionString => _runtimeConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
+    public string CreationConnectionString => _creationConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
     public ulong InitialCharacterAutoIncrement { get; private set; }
 
     public async ValueTask InitializeAsync()
@@ -36,6 +39,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 
             InitialCharacterAutoIncrement = await ReadCharacterAutoIncrementAsync(administrativeConnectionString);
             _runtimeConnectionString = await CreateRuntimeIdentityAsync(administrativeConnectionString);
+            _creationConnectionString = await CreateCreationIdentityAsync(administrativeConnectionString);
 
             _services = new ServiceCollection().AddGamePersistence(_runtimeConnectionString)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
@@ -60,6 +64,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
         {
             _services = null;
             _runtimeConnectionString = null;
+            _creationConnectionString = null;
             InitialCharacterAutoIncrement = 0;
 
             await _container.DisposeAsync();
@@ -144,5 +149,33 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 
         MySqlConnectionStringBuilder runtimeConnection = new(administrativeConnectionString) { UserID = RuntimeUserName, Password = password };
         return runtimeConnection.ConnectionString;
+    }
+
+    private static async Task<string> CreateCreationIdentityAsync(string administrativeConnectionString)
+    {
+        string password = Guid.NewGuid().ToString("N");
+
+        await using MySqlConnection connection = new(administrativeConnectionString);
+        await connection.OpenAsync();
+
+        await using (MySqlCommand createUser = connection.CreateCommand())
+        {
+            createUser.CommandText = $"""
+                CREATE USER '{CreationUserName}'@'%'
+                IDENTIFIED BY '{password}'
+                """;
+
+            await createUser.ExecuteNonQueryAsync();
+        }
+
+        await using (MySqlCommand grant = connection.CreateCommand())
+        {
+            grant.CommandText = $"GRANT SELECT, INSERT ON `{DatabaseName}`.`characters` TO '{CreationUserName}'@'%'";
+
+            await grant.ExecuteNonQueryAsync();
+        }
+
+        MySqlConnectionStringBuilder creationConnection = new(administrativeConnectionString) { UserID = CreationUserName, Password = password };
+        return creationConnection.ConnectionString;
     }
 }
