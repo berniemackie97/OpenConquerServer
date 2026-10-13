@@ -1,115 +1,39 @@
-using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Application.Skills.Hydration;
-using OpenConquer.Application.Social.Hydration;
-using OpenConquer.Application.Syndicates.Hydration;
-using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Character;
-using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Login.Bootstrap.Reports;
 
+/// <summary>
+/// The report carries a client checksum and data version. Neither is trusted; both are echoed in the acknowledgement and kept for the world session.
+/// </summary>
 internal sealed class ExistingCharacterSilentInfoReportProcessor
 {
-    /// <summary>
-    /// Takes ownership of the awaiting connection and transfers it only after the silent-info report is validated and acknowledged.
-    /// </summary>
-    public async ValueTask<AwaitingStatisticsRequestConnection> ProcessAsync(AwaitingSilentInfoReportConnection awaitingSilentInfoReport,
-        CancellationToken cancellationToken = default)
+    public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(awaitingSilentInfoReport);
+        ExistingCharacterGameConnection connection = login.Connection;
+        GameAction report = await LoginActionRequest.ReadAsync(connection, GameAction.ReportSilentInfoAction, "silent-info report", cancellationToken)
+            .ConfigureAwait(false);
 
-        ExistingCharacterGameConnection connection = awaitingSilentInfoReport.TakeConnection();
-        CharacterLoginProfile profile = awaitingSilentInfoReport.Profile;
-        WorldMapContent map = awaitingSilentInfoReport.Map;
-        CharacterItemSet itemSet = awaitingSilentInfoReport.ItemSet;
-        CharacterSocialRelationSet socialRelationSet = awaitingSilentInfoReport.SocialRelationSet;
-        CharacterWeaponSkillSet weaponSkillSet = awaitingSilentInfoReport.WeaponSkillSet;
-        CharacterMagicSet magicSet = awaitingSilentInfoReport.MagicSet;
-        CharacterSyndicateState syndicateState = awaitingSilentInfoReport.SyndicateState;
-        using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
-        CancellationToken operationToken = operationCancellation.Token;
-
-        try
+        if (report.EntityId != 0)
         {
-            operationToken.ThrowIfCancellationRequested();
-
-            GameAction request;
-
-            using (GameInboundFrame? frame = await connection.ReadAsync(operationToken).ConfigureAwait(false))
-            {
-                if (frame is null)
-                {
-                    throw new EndOfStreamException("The GameServer connection closed while awaiting the silent-info report.");
-                }
-
-                if (!GameAction.TryParse(frame, out request, out GameActionParseError parseError))
-                {
-                    throw new InvalidDataException($"The post-syndicate GameServer frame is not a valid action packet: {parseError}.");
-                }
-
-                if (frame.Header.Length != GameAction.FixedPacketLength || request.StringCount != 0)
-                {
-                    throw new InvalidDataException("The silent-info report must contain the fixed action body without trailing strings.");
-                }
-            }
-
-            if (request.Action != GameAction.ReportSilentInfoAction)
-            {
-                throw new InvalidDataException($"Expected silent-info action {GameAction.ReportSilentInfoAction}, received action {request.Action}.");
-            }
-
-            if (request.EntityId != 0)
-            {
-                throw new InvalidDataException("The silent-info report requires a zero entity ID.");
-            }
-
-            if (request.ActionParameter != 0 || request.Direction != 0 || request.PositionX != 0
-                || request.PositionY != 0 || request.Data1 != 0 || request.Data2 != 0 || request.Flag != 0)
-            {
-                throw new InvalidDataException("The silent-info report requires all fields other than its checksum, version, and action to be zero.");
-            }
-
-            operationToken.ThrowIfCancellationRequested();
-
-            GameActionPacket acknowledgement = new(profile.Identity.CharacterId, request.ParameterPair,
-                actionParameter: 0, request.Timestamp, GameAction.ReportSilentInfoAction, direction: 0,
-                positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
-
-            await connection.WriteAsync(acknowledgement, operationToken).ConfigureAwait(false);
-
-            return new AwaitingStatisticsRequestConnection(connection, map, itemSet, socialRelationSet, weaponSkillSet,
-                magicSet, syndicateState, request.ParameterPair, request.Timestamp);
-        }
-        catch (Exception processingException)
-        {
-            try
-            {
-                await connection.DisposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception cleanupException)
-            {
-                throw CreateProcessingFailure(processingException, cleanupException);
-            }
-
-            throw;
-        }
-    }
-
-    private static AggregateException CreateProcessingFailure(Exception processingException, Exception cleanupException)
-    {
-        List<Exception> failures = [processingException];
-
-        if (cleanupException is AggregateException aggregate)
-        {
-            failures.AddRange(aggregate.Flatten().InnerExceptions);
-        }
-        else
-        {
-            failures.Add(cleanupException);
+            throw new InvalidDataException("The silent-info report requires a zero entity ID.");
         }
 
-        return new AggregateException("Existing-character silent-info processing failed and connection cleanup also failed.", failures);
+        if (report.ActionParameter != 0 || report.Direction != 0 || report.PositionX != 0
+            || report.PositionY != 0 || report.Data1 != 0 || report.Data2 != 0 || report.Flag != 0)
+        {
+            throw new InvalidDataException("The silent-info report requires all fields other than its checksum, version, and action to be zero.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        GameActionPacket acknowledgement = new(login.CharacterId, report.ParameterPair,
+            actionParameter: 0, report.Timestamp, GameAction.ReportSilentInfoAction, direction: 0,
+            positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
+
+        await connection.WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+
+        login.ClientReportedSilentDataChecksum = report.ParameterPair;
+        login.ClientReportedSilentDataVersion = report.Timestamp;
     }
 }

@@ -1,45 +1,18 @@
 using System.Buffers.Binary;
-using System.Net;
-using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Application.Skills.Hydration;
-using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
-using OpenConquer.Application.World;
-using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.Syndicates;
-using OpenConquer.GameServer.Connections;
-using OpenConquer.GameServer.Login.Authentication;
-using OpenConquer.GameServer.Login.Bootstrap.Reports;
+using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Syndicates;
-using OpenConquer.GameServer.Login.Character;
-using OpenConquer.GameServer.Tests.Connections;
-using OpenConquer.GameServer.Tests.World;
-using OpenConquer.GameServer.World.Presence;
-using OpenConquer.Protocol.Framing;
-using OpenConquer.Protocol.Game;
-using OpenConquer.Protocol.Game.Cryptography;
-using OpenConquer.Protocol.Game.Handshake;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.Login.Bootstrap.Syndicates;
 
 public sealed class ExistingCharacterSyndicateAttributesProcessorTests
 {
-    private const uint AccountId = 42;
-    private const string Username = "Bernie";
-    private const uint SessionUid = 0x1020_3040;
-    private const ushort LocaleTag = 0x6E45;
-    private const ulong HardwareAddress = 0x0000_6655_4433_2211;
-    private const int ResourceVersion = 5517;
-    private const uint CharacterId = CharacterIdentityPolicy.FirstPlayerEntityId;
-    private const uint MapId = 1002;
-    private const uint MapDataId = 1015;
-    private const ulong MapFlags = 0x1122334455667788;
+    private const uint CharacterId = LoginStepHarness.CharacterId;
     private const uint RequestTimestamp = 0x11223344;
     private const ushort SyndicateId = 73;
 
-    private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
     private static readonly DateTimeOffset s_utcNow = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
     private static readonly uint s_joinDate = checked((uint)new DateTimeOffset(2020, 1, 2, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds());
     private static readonly uint s_expirationDate = checked((uint)new DateTimeOffset(2027, 2, 3, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds());
@@ -52,77 +25,49 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_Member_WritesAttributesThenAcknowledgementAndTransfersStateExactlyOnce()
+    public async Task ProcessAsync_Member_WritesAttributesThenAcknowledgement()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         CharacterSyndicateState state = CreateMemberState();
         FakeSyndicateRepository repository = new(state);
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest(timestamp: RequestTimestamp);
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction, timestamp: RequestTimestamp);
 
-        AwaitingSilentInfoReportConnection result = await processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken);
+        await CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken);
 
+        Assert.Same(state, login.SyndicateState);
         Assert.Equal(1, repository.LoadCount);
         Assert.Equal(CharacterId, repository.LastCharacterId);
-        Assert.Same(fixture.Profile, result.Profile);
-        Assert.Same(fixture.Map, result.Map);
-        Assert.Same(fixture.ItemSet, result.ItemSet);
-        Assert.Same(fixture.SocialRelationSet, result.SocialRelationSet);
-        Assert.Same(fixture.WeaponSkillSet, result.WeaponSkillSet);
-        Assert.Same(fixture.MagicSet, result.MagicSet);
-        Assert.Same(state, result.SyndicateState);
-        Assert.True(fixture.Presence.IsOnline(CharacterId));
-        Assert.Equal(0, fixture.Transport.DisposeCount);
+        Assert.True(harness.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, harness.Transport.DisposeCount);
 
-        byte[][] packets = ReadPackets(fixture.DecryptResponse());
+        byte[][] packets = harness.ReadServerPackets();
 
         Assert.Equal(2, packets.Length);
         AssertSyndicatePacket(packets[0]);
         AssertAcknowledgement(packets[1], RequestTimestamp);
-
-        ExistingCharacterGameConnection connection = result.TakeConnection();
-
-        Assert.Same(fixture.Profile, connection.Profile);
-        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
-        Assert.Throws<InvalidOperationException>(() => fixture.AwaitingSyndicateAttributes.TakeConnection());
-
-        await result.DisposeAsync();
-
-        Assert.Equal(0, fixture.Transport.DisposeCount);
-        Assert.True(fixture.Presence.IsOnline(CharacterId));
-
-        await connection.DisposeAsync();
-
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
     }
 
     [Fact]
     public async Task ProcessAsync_NoMembership_WritesOnlyAcknowledgement()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         CharacterSyndicateState state = CreateEmptyState();
         FakeSyndicateRepository repository = new(state);
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest(timestamp: RequestTimestamp);
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction, timestamp: RequestTimestamp);
 
-        AwaitingSilentInfoReportConnection result = await processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken);
+        await CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken);
 
-        byte[] acknowledgement = Assert.Single(ReadPackets(fixture.DecryptResponse()));
+        byte[] acknowledgement = Assert.Single(harness.ReadServerPackets());
 
         AssertAcknowledgement(acknowledgement, RequestTimestamp);
-        Assert.Same(state, result.SyndicateState);
-        Assert.False(result.SyndicateState.HasMembership);
-        Assert.Null(result.SyndicateState.Syndicate);
+        Assert.Same(state, login.SyndicateState);
+        Assert.False(login.SyndicateState!.HasMembership);
+        Assert.Null(login.SyndicateState.Syndicate);
         Assert.Equal(1, repository.LoadCount);
-        Assert.True(fixture.Presence.IsOnline(CharacterId));
-
-        await result.DisposeAsync();
-
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
     }
 
     [Fact]
@@ -197,116 +142,111 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_PeerClosesBeforeRequest_DisposesWithoutHydration()
+    public async Task ProcessAsync_PeerClosesBeforeRequest_ThrowsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.Transport.QueueEndOfStream();
+        harness.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<EndOfStreamException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<EndOfStreamException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
     public async Task ProcessAsync_UnexpectedAction_RejectsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest(action: GameAction.GetMagicSetAction);
+        harness.QueueAction(GameAction.GetMagicSetAction);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+            CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Contains("Expected syndicate-attributes action", exception.Message, StringComparison.Ordinal);
-        AssertFailureBeforeWrite(fixture, repository);
+        Assert.Contains("Expected syndicate-attributes request action", exception.Message, StringComparison.Ordinal);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
     public async Task ProcessAsync_EarlySilentInfoReport_IsRejected()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateEmptyState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest(action: 0xFB);
+        harness.QueueAction(GameAction.ReportSilentInfoAction);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
     public async Task ProcessAsync_UnexpectedPacketId_RejectsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
-        byte[] packet = BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId);
+        byte[] packet = LoginStepHarness.BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId);
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 9999);
-        fixture.QueuePacket(packet);
+        harness.QueuePacket(packet);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
     public async Task ProcessAsync_TruncatedRequest_RejectsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueuePacket(BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId, length: 37));
+        harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId, length: 37));
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
     public async Task ProcessAsync_TrailingStrings_RejectsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
-        byte[] packet = BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId, length: 41, stringCount: 1);
+        byte[] packet = LoginStepHarness.BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId, length: 41, stringCount: 1);
 
         packet[38] = 2;
         packet[39] = (byte)'A';
         packet[40] = (byte)'B';
-        fixture.QueuePacket(packet);
+        harness.QueuePacket(packet);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
     public async Task ProcessAsync_WrongCharacter_RejectsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest(entityId: CharacterId + 1);
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction, entityId: CharacterId + 1);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+            CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("character ID", exception.Message, StringComparison.Ordinal);
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Theory]
@@ -320,123 +260,115 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
     [InlineData(36, 1)]
     public async Task ProcessAsync_NonZeroReservedField_RejectsWithoutHydration(int offset, int width)
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
-        byte[] packet = BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId);
+        byte[] packet = LoginStepHarness.BuildActionPacket(GameAction.GetSyndicateAttributesAction, CharacterId);
 
-        WriteNonZeroValue(packet, offset, width);
-        fixture.QueuePacket(packet);
+        LoginStepHarness.WriteNonZeroValue(packet, offset, width);
+        harness.QueuePacket(packet);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
-    public async Task ProcessAsync_RepositoryFailure_WritesNothingAndDisposes()
+    public async Task ProcessAsync_RepositoryFailure_WritesNothing()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         IOException failure = new("syndicate repository failed");
         FakeSyndicateRepository repository = new(CreateMemberState()) { Failure = failure };
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest();
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
         IOException exception = await Assert.ThrowsAsync<IOException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+            CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Same(failure, exception);
         Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, harness.UnreadServerBytes);
     }
 
     [Fact]
     public async Task ProcessAsync_RepositoryReturnsDifferentCharacter_FailsBeforeWriting()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateEmptyState(CharacterId + 1));
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest();
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+            CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("hydrated syndicate state belongs to character", exception.Message, StringComparison.Ordinal);
         Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, harness.UnreadServerBytes);
+        Assert.Null(login.SyndicateState);
     }
 
     [Fact]
     public async Task ProcessAsync_InvalidPersistedPopulation_FailsBeforeWriting()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState(population: 0));
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
 
-        fixture.QueueSyndicateRequest();
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, harness.UnreadServerBytes);
     }
 
     [Fact]
     public async Task ProcessAsync_PreCanceledOperation_DoesNotReadLoadOrWrite()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        int receiveCount = fixture.Transport.ReceiveCallCount;
+        int receiveCount = harness.Transport.ReceiveCallCount;
 
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateProcessor(repository).ProcessAsync(login, cancellation.Token).AsTask());
 
-        Assert.Equal(receiveCount, fixture.Transport.ReceiveCallCount);
-        AssertFailureBeforeWrite(fixture, repository);
+        Assert.Equal(receiveCount, harness.Transport.ReceiveCallCount);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationWhileAwaitingRequest_DisposesWithoutHydration()
+    public async Task ProcessAsync_CancellationWhileAwaitingRequest_StopsWithoutHydration()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        Task<AwaitingSilentInfoReportConnection> processing = processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, cancellation.Token).AsTask();
+        Task processing = CreateProcessor(repository).ProcessAsync(login, cancellation.Token).AsTask();
 
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
 
-        AssertFailureBeforeWrite(fixture, repository);
+        AssertNothingLoadedOrWritten(harness, repository);
     }
 
     [Fact]
-    public async Task ProcessAsync_CancellationDuringRepositoryLoad_DisposesWithoutWriting()
+    public async Task ProcessAsync_CancellationDuringRepositoryLoad_WritesNothing()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         BlockingSyndicateRepository repository = new();
-        ExistingCharacterSyndicateAttributesProcessor processor = new(repository, CreateTimeProvider());
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        fixture.QueueSyndicateRequest();
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
-        Task<AwaitingSilentInfoReportConnection> processing = processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, cancellation.Token).AsTask();
+        Task processing = CreateProcessor(repository).ProcessAsync(login, cancellation.Token).AsTask();
 
         await repository.Started.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();
@@ -444,340 +376,73 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
 
         Assert.Equal(CharacterId, repository.CharacterId);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, harness.UnreadServerBytes);
     }
 
     [Fact]
     public async Task ProcessAsync_CancellationImmediatelyAfterRepositoryReturn_WritesNothing()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         CancelingSyndicateRepository repository = new(CreateMemberState(), cancellation);
-        ExistingCharacterSyndicateAttributesProcessor processor = new(repository, CreateTimeProvider());
 
-        fixture.QueueSyndicateRequest();
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateProcessor(repository).ProcessAsync(login, cancellation.Token).AsTask());
 
         Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, harness.UnreadServerBytes);
+        Assert.Null(login.SyndicateState);
     }
 
     [Fact]
-    public async Task ProcessAsync_PresenceRevocationDuringLoad_DoesNotRemoveReplacement()
+    public async Task ProcessAsync_CancellationDuringResponseWrite_SendsNoPartialPacketOnceClosed()
     {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
-        BlockingSyndicateRepository repository = new();
-        ExistingCharacterSyndicateAttributesProcessor processor = new(repository, CreateTimeProvider());
-
-        fixture.QueueSyndicateRequest();
-
-        Task<AwaitingSilentInfoReportConnection> processing = processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask();
-
-        await repository.Started.WaitAsync(TestContext.Current.CancellationToken);
-        ICharacterPresenceLease replacement = fixture.Presence.Register(CharacterId);
-
-        try
-        {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
-
-            Assert.True(fixture.Presence.IsOnline(CharacterId));
-            Assert.Equal(1, fixture.Transport.DisposeCount);
-            Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        }
-        finally
-        {
-            replacement.Dispose();
-        }
-
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
-    }
-
-    [Fact]
-    public async Task ProcessAsync_CancellationDuringResponseWrite_DisposesWithoutPartialFrame()
-    {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeSyndicateRepository repository = new(CreateMemberState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        fixture.QueueSyndicateRequest();
-        fixture.Transport.BlockSends();
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
+        harness.Transport.BlockSends();
 
-        Task<AwaitingSilentInfoReportConnection> processing = processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, cancellation.Token).AsTask();
+        Task processing = CreateProcessor(repository).ProcessAsync(login, cancellation.Token).AsTask();
 
-        await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
+        await harness.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
 
-        fixture.Transport.ReleaseSends();
+        await login.DisposeAsync();
+        harness.Transport.ReleaseSends();
 
         Assert.Equal(1, repository.LoadCount);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
-    }
-
-    [Fact]
-    public async Task ProcessAsync_SequentialReuseOfAwaitingState_IsRejected()
-    {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
-        FakeSyndicateRepository repository = new(CreateEmptyState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
-
-        fixture.QueueSyndicateRequest();
-
-        AwaitingSilentInfoReportConnection result = await processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken);
-        int sentLength = fixture.Transport.SentBytes.Length;
-        int receiveCount = fixture.Transport.ReceiveCallCount;
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
-
-        Assert.Equal(sentLength, fixture.Transport.SentBytes.Length);
-        Assert.Equal(receiveCount, fixture.Transport.ReceiveCallCount);
-        Assert.Equal(1, repository.LoadCount);
-        Assert.True(fixture.Presence.IsOnline(CharacterId));
-
-        await result.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task ProcessAsync_OverlappingReuseOfAwaitingState_AllowsOneOwner()
-    {
-        await using SyndicateFixture fixture = await CreateFixtureAsync();
-        FakeSyndicateRepository repository = new(CreateEmptyState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
-
-        fixture.QueueSyndicateRequest();
-        fixture.Transport.BlockSends();
-
-        Task<AwaitingSilentInfoReportConnection> first = processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask();
-
-        await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
-
-        try
-        {
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
-
-            Assert.Equal(1, repository.LoadCount);
-            Assert.Equal(0, fixture.Transport.DisposeCount);
-        }
-        finally
-        {
-            fixture.Transport.ReleaseSends();
-        }
-
-        AwaitingSilentInfoReportConnection result = await first;
-
-        Assert.Same(fixture.Profile, result.Profile);
-        Assert.Same(fixture.Map, result.Map);
-        Assert.True(fixture.Presence.IsOnline(CharacterId));
-        Assert.Equal(1, repository.LoadCount);
-        Assert.Single(ReadPackets(fixture.DecryptResponse()));
-
-        await result.DisposeAsync();
-
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-    }
-
-    [Fact]
-    public async Task ProcessAsync_ProcessingAndCleanupFailures_AreAggregated()
-    {
-        IOException cleanupFailure = new("transport dispose failed");
-        await using SyndicateFixture fixture = await CreateFixtureAsync(cleanupFailure);
-        FakeSyndicateRepository repository = new(CreateEmptyState());
-        ExistingCharacterSyndicateAttributesProcessor processor = CreateProcessor(repository);
-
-        fixture.QueueSyndicateRequest(action: GameAction.GetMagicSetAction);
-
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
-            processor.ProcessAsync(fixture.AwaitingSyndicateAttributes, TestContext.Current.CancellationToken).AsTask());
-
-        Assert.Equal(2, exception.InnerExceptions.Count);
-        Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
-        Assert.Same(cleanupFailure, exception.InnerExceptions[1]);
-        AssertFailureBeforeWrite(fixture, repository);
+        Assert.Equal(0, harness.UnreadServerBytes);
+        Assert.False(harness.Presence.IsOnline(CharacterId));
     }
 
     private static ExistingCharacterSyndicateAttributesProcessor CreateProcessor(ICharacterSyndicateStateRepository repository) =>
-        new(repository, CreateTimeProvider());
-
-    private static TimeProvider CreateTimeProvider() => new FixedTimeProvider(s_utcNow);
+        new(repository, new LoginStepHarness.FixedTimeProvider(s_utcNow));
 
     private static CharacterSyndicateState CreateEmptyState(uint characterId = CharacterId) =>
         new(characterId, membership: null, syndicate: null);
 
-    private static CharacterSyndicateState CreateMemberState(uint characterId = CharacterId, uint population = 2,
-        uint? positionExpiration = null, uint? joinDate = null)
+    private static CharacterSyndicateState CreateMemberState(uint population = 2, uint? positionExpiration = null, uint? joinDate = null)
     {
-        CharacterSyndicateMembership membership = CharacterSyndicateMembership.Create(characterId, SyndicateId, uint.MaxValue,
+        CharacterSyndicateMembership membership = CharacterSyndicateMembership.Create(CharacterId, SyndicateId, uint.MaxValue,
             uint.MaxValue, positionExpiration ?? s_expirationDate, joinDate ?? s_joinDate);
 
         Syndicate syndicate = new(SyndicateId, "GuildAlpha", CharacterId + 1, "LeaderName", ulong.MaxValue,
             uint.MaxValue, population, 99, 35, 2);
 
-        return new CharacterSyndicateState(characterId, membership, syndicate);
-    }
-
-    private static CharacterLoginProfile CreateProfile()
-    {
-        CharacterLoginIdentity identity = new(CharacterId, AccountId, Username);
-        CharacterAppearance appearance = new(composite: 2011003, hair: 339);
-        CharacterProgression progression = new(level: 120, experience: 123456789, profession: 60, firstProfession: 10,
-            previousProfession: 20, rebirthCount: 2, preRebirthLevel: 130);
-        CharacterAttributes attributes = new(101, 102, 103, 104, 105);
-        CharacterVitals vitals = new(Life: 1234, Mana: 567);
-        CharacterEconomy economy = new(Silver: 1_234_567, ConquerPoints: 2_345, BoundConquerPoints: 678);
-        CharacterLocation location = new(MapId, x: 430, y: 378);
-
-        return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy, pkPoints: -25,
-            titleId: 321, enlightenmentPoints: 1234, location);
-    }
-
-    private static async Task<SyndicateFixture> CreateFixtureAsync(Exception? disposeFailure = null)
-    {
-        FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000), disposeFailure: disposeFailure);
-        (GameConnectionSession session, GameClientTestPeer client) = await OpenSecuredSessionAsync(transport);
-        ExistingCharacterGameConnection? connection = null;
-
-        try
-        {
-            AuthenticatedGameConnection authenticatedConnection = new(AccountId, Username, SessionUid, LocaleTag,
-                HardwareAddress, ResourceVersion, session);
-
-            CharacterLoginProfile profile = CreateProfile();
-            CharacterPresenceDirectory presence = new();
-            connection = new ExistingCharacterGameConnection(authenticatedConnection, profile, presence.Register(CharacterId));
-
-            WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
-            CharacterItemSet itemSet = new(CharacterId, []);
-            CharacterSocialRelationSet socialRelationSet = new(CharacterId, []);
-            CharacterWeaponSkillSet weaponSkillSet = new(CharacterId, []);
-            CharacterMagicSet magicSet = new(CharacterId, []);
-
-            AwaitingSyndicateAttributesConnection awaiting = new(connection, map, itemSet, socialRelationSet, weaponSkillSet, magicSet);
-
-            return new SyndicateFixture(transport, client, presence, profile, map, itemSet, socialRelationSet,
-                weaponSkillSet, magicSet, awaiting, transport.SentBytes.Length);
-        }
-        catch
-        {
-            client.Dispose();
-
-            if (connection is not null)
-            {
-                await connection.DisposeAsync();
-            }
-            else
-            {
-                await session.DisposeAsync();
-            }
-
-            throw;
-        }
-    }
-
-    private static async Task<(GameConnectionSession Session, GameClientTestPeer Client)> OpenSecuredSessionAsync(FakeGameTransportConnection transport)
-    {
-        GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
-        using GameHandshakeExchange exchange = GameHandshakeExchange.Create();
-        GameClientTestPeer client = GameClientTestPeer.Create(exchange.EncryptedChallenge.Span);
-
-        try
-        {
-            await session.SendHandshakeChallengeAsync(exchange.EncryptedChallenge, TestContext.Current.CancellationToken);
-            transport.QueueReceive(client.EncryptedKeyExchangeResponse);
-
-            string clientPublicKeyHex = Assert.IsType<string>(
-                await session.ReadClientKeyExchangeResponseAsync(TestContext.Current.CancellationToken));
-
-            Assert.Equal(client.PublicKeyHex, clientPublicKeyHex);
-
-            GameSessionCipher? sessionCipher = exchange.Complete(clientPublicKeyHex);
-
-            try
-            {
-                session.CompleteHandshake(sessionCipher);
-                sessionCipher = null;
-            }
-            finally
-            {
-                sessionCipher?.Dispose();
-            }
-
-            return (session, client);
-        }
-        catch
-        {
-            client.Dispose();
-            await session.DisposeAsync();
-            throw;
-        }
-    }
-
-    private static byte[] BuildActionPacket(ushort action, uint entityId, uint parameterPair = 0, uint actionParameter = 0,
-        uint timestamp = 0, ushort direction = 0, ushort positionX = 0, ushort positionY = 0, uint data1 = 0,
-        uint data2 = 0, byte flag = 0, int length = GameAction.FixedPacketLength, byte stringCount = 0)
-    {
-        byte[] packet = new byte[length];
-        WireFrameHeader.Write(packet, checked((ushort)length), GameAction.PacketIdentifier);
-
-        if (length < GameAction.FixedPacketLength)
-        {
-            return packet;
-        }
-
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), entityId);
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(8), parameterPair);
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(12), actionParameter);
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(16), timestamp);
-        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(20), action);
-        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(22), direction);
-        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(24), positionX);
-        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(26), positionY);
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(28), data1);
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(32), data2);
-        packet[36] = flag;
-        packet[37] = stringCount;
-
-        return packet;
-    }
-
-    private static byte[][] ReadPackets(ReadOnlySpan<byte> plaintext)
-    {
-        List<byte[]> packets = [];
-        int offset = 0;
-
-        while (offset < plaintext.Length)
-        {
-            Assert.True(WireFrameHeader.TryRead(plaintext[offset..], out WireFrameHeader header));
-            Assert.InRange(header.Length, WireFrameHeader.Size, GameWireProtocol.MaximumPacketLength);
-
-            int wireLength = checked(header.Length + GameWireProtocol.SignatureLength);
-
-            Assert.True(wireLength <= plaintext.Length - offset);
-            Assert.True(plaintext.Slice(offset + header.Length, GameWireProtocol.SignatureLength)
-                .SequenceEqual(GameWireProtocol.ServerSignature));
-
-            packets.Add(plaintext.Slice(offset, header.Length).ToArray());
-            offset += wireLength;
-        }
-
-        return packets.ToArray();
+        return new CharacterSyndicateState(CharacterId, membership, syndicate);
     }
 
     private static void AssertSyndicatePacket(byte[] packet)
     {
         Assert.Equal(GameSyndicateAttributesPacket.FixedPacketLength, packet.Length);
-        Assert.Equal(GameSyndicateAttributesPacket.PacketIdentifier, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(2)));
+        Assert.Equal(GameSyndicateAttributesPacket.PacketIdentifier, LoginStepHarness.ReadPacketId(packet));
         Assert.Equal((uint)SyndicateId, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)));
         Assert.Equal(uint.MaxValue, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(8)));
         Assert.Equal(ulong.MaxValue, BinaryPrimitives.ReadUInt64LittleEndian(packet.AsSpan(12)));
@@ -804,7 +469,7 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
     private static void AssertAcknowledgement(byte[] packet, uint timestamp)
     {
         Assert.Equal(GameAction.FixedPacketLength, packet.Length);
-        Assert.Equal(GameAction.PacketIdentifier, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(2)));
+        Assert.Equal(GameAction.PacketIdentifier, LoginStepHarness.ReadPacketId(packet));
         Assert.Equal(CharacterId, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)));
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(8)));
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(12)));
@@ -813,78 +478,10 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
         Assert.All(packet[22..], value => Assert.Equal((byte)0, value));
     }
 
-    private static void AssertFailureBeforeWrite(SyndicateFixture fixture, FakeSyndicateRepository repository)
+    private static void AssertNothingLoadedOrWritten(LoginStepHarness harness, FakeSyndicateRepository repository)
     {
         Assert.Equal(0, repository.LoadCount);
-        Assert.Equal(fixture.ResponseBoundary, fixture.Transport.SentBytes.Length);
-        Assert.Equal(1, fixture.Transport.DisposeCount);
-        Assert.False(fixture.Presence.IsOnline(CharacterId));
-        Assert.Throws<InvalidOperationException>(() => fixture.AwaitingSyndicateAttributes.TakeConnection());
-    }
-
-    private static void WriteNonZeroValue(Span<byte> packet, int offset, int width)
-    {
-        switch (width)
-        {
-            case 1:
-                packet[offset] = 1;
-                break;
-            case 2:
-                BinaryPrimitives.WriteUInt16LittleEndian(packet[offset..], 1);
-                break;
-            case 4:
-                BinaryPrimitives.WriteUInt32LittleEndian(packet[offset..], 1);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(width));
-        }
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
-    }
-
-    private sealed class SyndicateFixture(FakeGameTransportConnection transport, GameClientTestPeer client,
-        CharacterPresenceDirectory presence, CharacterLoginProfile profile, WorldMapContent map,
-        CharacterItemSet itemSet, CharacterSocialRelationSet socialRelationSet, CharacterWeaponSkillSet weaponSkillSet,
-        CharacterMagicSet magicSet, AwaitingSyndicateAttributesConnection awaitingSyndicateAttributes,
-        int responseBoundary) : IAsyncDisposable
-    {
-        public FakeGameTransportConnection Transport { get; } = transport;
-        public GameClientTestPeer Client { get; } = client;
-        public CharacterPresenceDirectory Presence { get; } = presence;
-        public CharacterLoginProfile Profile { get; } = profile;
-        public WorldMapContent Map { get; } = map;
-        public CharacterItemSet ItemSet { get; } = itemSet;
-        public CharacterSocialRelationSet SocialRelationSet { get; } = socialRelationSet;
-        public CharacterWeaponSkillSet WeaponSkillSet { get; } = weaponSkillSet;
-        public CharacterMagicSet MagicSet { get; } = magicSet;
-        public AwaitingSyndicateAttributesConnection AwaitingSyndicateAttributes { get; } = awaitingSyndicateAttributes;
-        public int ResponseBoundary { get; } = responseBoundary;
-
-        public void QueueSyndicateRequest(ushort action = GameAction.GetSyndicateAttributesAction, uint? entityId = null,
-            uint timestamp = 0)
-        {
-            QueuePacket(BuildActionPacket(action, entityId ?? CharacterId, timestamp: timestamp));
-        }
-
-        public void QueuePacket(byte[] packet)
-        {
-            Transport.QueueReceive(Client.EncryptClientFrame(packet));
-        }
-
-        public byte[] DecryptResponse() => Client.DecryptServerBytes(Transport.SentBytes[ResponseBoundary..]);
-
-        public async ValueTask DisposeAsync()
-        {
-            Client.Dispose();
-
-            if (Transport.DisposeCount == 0)
-            {
-                await AwaitingSyndicateAttributes.DisposeAsync();
-            }
-        }
+        Assert.Equal(0, harness.UnreadServerBytes);
     }
 
     private sealed class FakeSyndicateRepository(CharacterSyndicateState result) : ICharacterSyndicateStateRepository
@@ -901,12 +498,7 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
             Interlocked.Increment(ref _loadCount);
             LastCharacterId = characterId;
 
-            if (Failure is not null)
-            {
-                return ValueTask.FromException<CharacterSyndicateState>(Failure);
-            }
-
-            return ValueTask.FromResult(result);
+            return Failure is null ? ValueTask.FromResult(result) : ValueTask.FromException<CharacterSyndicateState>(Failure);
         }
     }
 

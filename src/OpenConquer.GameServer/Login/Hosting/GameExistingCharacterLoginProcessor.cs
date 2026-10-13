@@ -31,17 +31,56 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
     {
         ArgumentNullException.ThrowIfNull(handoff);
 
-        AwaitingEnterMapConnection awaitingEnterMap = await _bootstrap.ProcessAsync(handoff, cancellationToken).ConfigureAwait(false);
-        EnteredMapConnection enteredMap = await _enterMap.ProcessAsync(awaitingEnterMap, cancellationToken).ConfigureAwait(false);
-        AwaitingItemSetConnection awaitingItemSet = await _mapStateApplied.ProcessAsync(enteredMap, cancellationToken).ConfigureAwait(false);
-        AwaitingFriendListConnection awaitingFriendList = await _itemSet.ProcessAsync(awaitingItemSet, cancellationToken).ConfigureAwait(false);
-        AwaitingWeaponSkillSetConnection awaitingWeaponSkills = await _friendList.ProcessAsync(awaitingFriendList, cancellationToken).ConfigureAwait(false);
-        AwaitingMagicSetConnection awaitingMagic = await _weaponSkills.ProcessAsync(awaitingWeaponSkills, cancellationToken).ConfigureAwait(false);
-        AwaitingSyndicateAttributesConnection awaitingSyndicate = await _magic.ProcessAsync(awaitingMagic, cancellationToken).ConfigureAwait(false);
-        AwaitingSilentInfoReportConnection awaitingSilentInfo = await _syndicate.ProcessAsync(awaitingSyndicate, cancellationToken).ConfigureAwait(false);
-        AwaitingStatisticsRequestConnection awaitingStatistics = await _silentInfo.ProcessAsync(awaitingSilentInfo, cancellationToken).ConfigureAwait(false);
-        ExistingCharacterBootstrapCompleteConnection completed = await _statistics.ProcessAsync(awaitingStatistics, cancellationToken).ConfigureAwait(false);
+        ExistingCharacterLoginContext login = await _bootstrap.ProcessAsync(handoff, cancellationToken).ConfigureAwait(false);
+        ExistingCharacterBootstrapCompleteConnection completed;
+
+        try
+        {
+            using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, login.Connection.RevocationToken);
+            CancellationToken operationToken = operationCancellation.Token;
+
+            await _enterMap.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _mapStateApplied.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _itemSet.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _friendList.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _weaponSkills.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _magic.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _syndicate.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _silentInfo.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await _statistics.ProcessAsync(login, operationToken).ConfigureAwait(false);
+
+            completed = login.Complete();
+        }
+        catch (Exception loginFailure)
+        {
+            try
+            {
+                await login.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw CreateLoginFailure(loginFailure, cleanupFailure);
+            }
+
+            throw;
+        }
 
         return await _admission.ProcessAsync(completed, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static AggregateException CreateLoginFailure(Exception loginFailure, Exception cleanupFailure)
+    {
+        List<Exception> failures = [loginFailure];
+
+        if (cleanupFailure is AggregateException aggregate)
+        {
+            failures.AddRange(aggregate.Flatten().InnerExceptions);
+        }
+        else
+        {
+            failures.Add(cleanupFailure);
+        }
+
+        return new AggregateException("Existing-character login failed and connection cleanup also failed.", failures);
     }
 }

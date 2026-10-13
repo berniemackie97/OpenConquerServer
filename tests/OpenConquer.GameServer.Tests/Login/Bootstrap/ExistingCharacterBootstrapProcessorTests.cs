@@ -9,7 +9,6 @@ using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
-using OpenConquer.GameServer.Login.Bootstrap.Maps;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.World;
@@ -45,7 +44,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_ExistingCharacter_WritesBootstrapOrderAndTransfersMapExactlyOnce()
+    public async Task ProcessAsync_ExistingCharacter_WritesBootstrapOrderAndStartsLoginContext()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginProfile profile = CreateProfile(rebirthCount: 2, preRebirthLevel: 130);
@@ -55,10 +54,9 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(map));
         int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
 
-        AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
-        ExistingCharacterGameConnection transferredConnection = result.TakeConnection();
+        ExistingCharacterLoginContext result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
-        Assert.Same(profile, transferredConnection.Profile);
+        Assert.Same(profile, result.Connection.Profile);
         Assert.True(presence.IsOnline(profile.Identity.CharacterId));
         Assert.Same(profile, result.Profile);
         Assert.Same(map, result.Map);
@@ -69,7 +67,6 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.Equal(receiveCallCountBeforeBootstrap, fixture.Transport.ReceiveCallCount);
         Assert.Throws<InvalidOperationException>(() => handoff.TakeConnection());
-        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
 
         byte[] encryptedBootstrap = fixture.Transport.SentBytes[fixture.AuthenticationBoundary..];
         byte[] plaintextBootstrap = fixture.Client.DecryptServerBytes(encryptedBootstrap);
@@ -84,11 +81,6 @@ public sealed class ExistingCharacterBootstrapProcessorTests
             ReadPacketIds(plaintextBootstrap));
 
         await result.DisposeAsync();
-
-        Assert.Equal(0, fixture.Transport.DisposeCount);
-        Assert.True(presence.IsOnline(profile.Identity.CharacterId));
-
-        await transferredConnection.DisposeAsync();
 
         Assert.Equal(1, fixture.Transport.DisposeCount);
         Assert.False(presence.IsOnline(profile.Identity.CharacterId));
@@ -144,7 +136,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
         ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
-        await using AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+        await using ExistingCharacterLoginContext result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
         int sentLengthAfterFirstBootstrap = fixture.Transport.SentBytes.Length;
 
@@ -163,7 +155,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         fixture.Transport.BlockSends();
 
-        Task<AwaitingEnterMapConnection> first = processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask();
+        Task<ExistingCharacterLoginContext> first = processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask();
 
         await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -178,7 +170,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
             fixture.Transport.ReleaseSends();
         }
 
-        await using AwaitingEnterMapConnection result = await first;
+        await using ExistingCharacterLoginContext result = await first;
 
         Assert.Equal(0, fixture.Transport.DisposeCount);
 
@@ -211,14 +203,14 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_AwaitingEnterMapStateDisposalDisposesOwnedConnection()
+    public async Task ProcessAsync_LoginContextDisposalDisposesOwnedConnection()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
         CharacterPresenceDirectory presence = new();
         ExistingCharacterBootstrapProcessor processor = CreateProcessor(presence);
 
-        AwaitingEnterMapConnection result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+        ExistingCharacterLoginContext result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.True(presence.IsOnline(result.Profile.Identity.CharacterId));
@@ -227,7 +219,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         Assert.Equal(1, fixture.Transport.DisposeCount);
         Assert.False(presence.IsOnline(result.Profile.Identity.CharacterId));
-        Assert.Throws<InvalidOperationException>(() => result.TakeConnection());
+        Assert.Throws<InvalidOperationException>(() => result.Connection);
     }
 
     [Fact]
@@ -272,7 +264,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         fixture.Transport.BlockSends();
 
-        Task<AwaitingEnterMapConnection> processing = processor.ProcessAsync(handoff, cancellation.Token).AsTask();
+        Task<ExistingCharacterLoginContext> processing = processor.ProcessAsync(handoff, cancellation.Token).AsTask();
 
         await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();

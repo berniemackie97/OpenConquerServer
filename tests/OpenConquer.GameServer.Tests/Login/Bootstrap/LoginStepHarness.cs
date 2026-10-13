@@ -1,9 +1,13 @@
 using System.Buffers.Binary;
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login.Authentication;
+using OpenConquer.GameServer.Login.Bootstrap;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
@@ -27,6 +31,7 @@ internal sealed class LoginStepHarness : IAsyncDisposable
     public const ulong MapFlags = 0x1122334455667788;
 
     private int _readOffset;
+    private ExistingCharacterLoginContext? _login;
 
     private LoginStepHarness(FakeGameTransportConnection transport, GameClientTestPeer client, AuthenticatedGameConnection connection)
     {
@@ -86,6 +91,20 @@ internal sealed class LoginStepHarness : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Registers presence for the character and starts a login context as if bootstrap had just finished.
+    /// </summary>
+    public ExistingCharacterLoginContext CreateLoginContext(CharacterLoginProfile? profile = null)
+    {
+        profile ??= CreateProfile();
+
+        WorldMapContent map = WorldMapTestContent.Create(profile.Location.MapId, MapDataId, MapFlags);
+        ExistingCharacterGameConnection connection = new(Connection, profile, Presence.Register(profile.Identity.CharacterId));
+        _login = new ExistingCharacterLoginContext(connection, map);
+
+        return _login;
+    }
+
     public static CharacterLoginProfile CreateProfile(uint mapId = MapId, ushort x = 430, ushort y = 378)
     {
         return new CharacterLoginProfile(
@@ -129,6 +148,24 @@ internal sealed class LoginStepHarness : IAsyncDisposable
 
     public static ushort ReadPacketId(byte[] packet) => BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(2));
 
+    public static void WriteNonZeroValue(Span<byte> packet, int offset, int width)
+    {
+        switch (width)
+        {
+            case 1:
+                packet[offset] = 1;
+                break;
+            case 2:
+                BinaryPrimitives.WriteUInt16LittleEndian(packet[offset..], 1);
+                break;
+            case 4:
+                BinaryPrimitives.WriteUInt32LittleEndian(packet[offset..], 1);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(width));
+        }
+    }
+
     public void QueueAction(ushort action, uint entityId = CharacterId, uint timestamp = 0)
     {
         QueuePacket(BuildActionPacket(action, entityId, timestamp: timestamp));
@@ -168,6 +205,11 @@ internal sealed class LoginStepHarness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
+
+        if (Transport.DisposeCount == 0 && _login is not null)
+        {
+            await _login.DisposeAsync();
+        }
 
         if (Transport.DisposeCount == 0)
         {

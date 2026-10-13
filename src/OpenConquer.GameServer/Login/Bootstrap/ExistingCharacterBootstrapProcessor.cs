@@ -2,7 +2,6 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Authentication;
-using OpenConquer.GameServer.Login.Bootstrap.Maps;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Game.Packets;
@@ -10,7 +9,7 @@ using OpenConquer.Protocol.Game.Packets;
 namespace OpenConquer.GameServer.Login.Bootstrap;
 
 /// <summary>
-/// Sends the existing-character bootstrap packets, registers realm presence, and transfers the connection to the EnterMap stage.
+/// Sends the existing-character bootstrap packets, registers realm presence, and starts the login context for the client requests.
 /// </summary>
 internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegistrar presenceRegistrar, WorldMapContentCatalog maps)
 {
@@ -18,9 +17,9 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
     private readonly WorldMapContentCatalog _maps = maps ?? throw new ArgumentNullException(nameof(maps));
 
     /// <summary>
-    /// Takes ownership of the handoff and transfers the connection only after map resolution, bootstrap output, and presence registration succeed.
+    /// Takes the handoff connection. If map resolution, bootstrap output, or presence registration fails, the connection is closed here.
     /// </summary>
-    public async ValueTask<AwaitingEnterMapConnection> ProcessAsync(CharacterLoginHandoffResult handoff, CancellationToken cancellationToken = default)
+    public async ValueTask<ExistingCharacterLoginContext> ProcessAsync(CharacterLoginHandoffResult handoff, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handoff);
 
@@ -57,7 +56,7 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
             characterConnection = new ExistingCharacterGameConnection(connection, profile, presenceLease);
             presenceLease = null;
 
-            return new AwaitingEnterMapConnection(characterConnection, map);
+            return new ExistingCharacterLoginContext(characterConnection, map);
         }
         catch (Exception processingException)
         {
