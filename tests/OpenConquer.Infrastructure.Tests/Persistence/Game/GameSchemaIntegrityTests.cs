@@ -27,6 +27,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_items_location_payload",
         "CK_items_stack_quantity",
         "CK_magic_owner_character_id",
+        "CK_realm_binding_id",
+        "CK_realm_binding_key",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",
@@ -356,8 +358,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(9u, reader.GetUInt32(1));
-        Assert.Equal("20261008033456_AddSyndicatePersistence", reader.GetString(2));
+        Assert.Equal(10u, reader.GetUInt32(1));
+        Assert.Equal("20261013030000_AddGameRealmBinding", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

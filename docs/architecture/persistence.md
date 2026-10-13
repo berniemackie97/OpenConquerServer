@@ -11,11 +11,11 @@ all on MySQL 8.4, with no foreign keys between Accounts and Game.
 | Database | Owns                                                                                     | Schema |
 | -------- | ---------------------------------------------------------------------------------------- | -----: |
 | Accounts | Accounts, password credentials, security state, audit events, GameServer tickets, realm registry | 3 |
-| Game     | Characters, items, friends and enemies, weapon skills, magic, syndicates and memberships | 9 |
+| Game     | Characters, items, friends and enemies, weapon skills, magic, syndicates and memberships; realm binding | 10 |
 
 The GameServer currently trusts the account ID only because it came from redeeming a ticket. That
-redemption is the link between the two databases. Tickets are **not yet realm-bound**, and the
-GameServer is not yet bound to one realm database. See [multi-realm](multi-realm.md).
+redemption is the link between the two databases. Tickets are **not yet realm-bound**, but the GameServer now verifies its configured realm identity
+against the single-row Game database binding before world publication. See [multi-realm](multi-realm.md).
 
 Both databases use the `utf8mb4` character set and `utf8mb4_0900_as_cs` collation. Character and
 syndicate names use binary collation so uniqueness is exact. The `realms` table additionally uses

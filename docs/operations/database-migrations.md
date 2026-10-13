@@ -19,6 +19,7 @@ start on a mismatch. They never migrate on their own.
 | Game     |       7 | `20261004014402_AddWeaponSkillPersistence`    |
 | Game     |       8 | `20261004193352_AddMagicPersistence`          |
 | Game     |       9 | `20261008033456_AddSyndicatePersistence`      |
+| Game     |      10 | `20261013030000_AddGameRealmBinding`          |
 
 ## Before you start
 
@@ -80,6 +81,14 @@ the same migration again. Do not mark it complete manually.
 |       7 | Adds `weapon_skills`                       | An incompatible table already exists               |
 |       8 | Adds `magic`                               | An incompatible table already exists               |
 |       9 | Adds `syndicates`, `syndicate_memberships` | An incompatible table already exists               |
+
+### Game version 10: realm identity binding
+
+Each Game database has a one-row operator-provisioned `realm_binding` table. The
+migration does **not** insert or infer an identity. The GameServer refuses startup
+without a matching `GameServer:RealmId`, and the runtime requires `SELECT` only.
+See [game realm binding](game-realm-binding.md). Downgrading v10 to v9 is blocked
+because it would discard the persistent world identity.
 
 ### Accounts version 3: realm registry
 
@@ -165,6 +174,8 @@ Downgrades remove data, so each one refuses to run if it would destroy rows:
 | 4 → 3     | `items`                          | Always destructive; no guard       |
 | 3 → 2     | `pre_rebirth_level`              | Always destructive; no guard       |
 | 2 → 1     | Signed `pk_points`               | Any value is negative              |
+
+Game v10 → v9 is deliberately blocked: a Game database cannot silently lose its realm identity.
 
 Accounts v3 → v2 is deliberately blocked: dropping `realms` could destroy operator identities.
 Restore a verified backup or write an independently reviewed, data-preserving downgrade.

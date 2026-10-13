@@ -14,6 +14,7 @@ public sealed class GameServerConfigurationTests
 
         Assert.Equal("Server=localhost;Database=accounts", configuration.AccountConnectionString);
         Assert.Equal("Server=localhost;Database=game", configuration.GameConnectionString);
+        Assert.Equal(1u, configuration.RealmId.Value);
         Assert.Equal(4, configuration.World.WorkerCount);
         Assert.Equal(128, configuration.World.PartitionQueueCapacity);
         Assert.Equal(32, configuration.World.MaxCommandsPerTurn);
@@ -25,6 +26,15 @@ public sealed class GameServerConfigurationTests
         Assert.Equal(Path.GetFullPath("content/maps/map-definitions.json", Path.GetTempPath()), configuration.MapDefinitions.FilePath);
         Assert.Equal(Path.GetFullPath("content/maps/terrains", Path.GetTempPath()), configuration.TerrainDirectory);
         Assert.Equal(Path.GetFullPath("content/maps/collision", Path.GetTempPath()), configuration.CollisionDirectory);
+    }
+
+    [Fact]
+    public void Load_MissingOrZeroRealmIsRejected()
+    {
+        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(
+            CreateConfiguration(values => values.Remove("GameServer:RealmId")), Path.GetTempPath()));
+        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(
+            CreateConfiguration(values => values["GameServer:RealmId"] = "0"), Path.GetTempPath()));
     }
 
     [Theory]
@@ -108,6 +118,7 @@ public sealed class GameServerConfigurationTests
         {
             ["ConnectionStrings:Accounts"] = "Server=localhost;Database=accounts",
             ["ConnectionStrings:Game"] = "Server=localhost;Database=game",
+            ["GameServer:RealmId"] = "1",
 
             ["GameServer:Content:DefinitionsPath"] = "content/maps/map-definitions.json",
             ["GameServer:Content:TerrainDirectory"] = "content/maps/terrains",

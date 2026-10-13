@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
@@ -16,6 +17,8 @@ namespace OpenConquer.GameServer.Hosting;
 internal sealed partial class GameServerWorldHostedService(
     IAccountDatabaseReadinessVerifier accountReadiness,
     IGameDatabaseReadinessVerifier gameReadiness,
+    IGameRealmBindingVerifier realmBindingVerifier,
+    RealmId realmId,
     WorldMapContentLoader contentLoader,
     WorldExecutionOptions options,
     GameServerCharacterCreationReadiness creationReadiness,
@@ -26,6 +29,8 @@ internal sealed partial class GameServerWorldHostedService(
 {
     private readonly IAccountDatabaseReadinessVerifier _accountReadiness = accountReadiness ?? throw new ArgumentNullException(nameof(accountReadiness));
     private readonly IGameDatabaseReadinessVerifier _gameReadiness = gameReadiness ?? throw new ArgumentNullException(nameof(gameReadiness));
+    private readonly IGameRealmBindingVerifier _realmBindingVerifier = realmBindingVerifier ?? throw new ArgumentNullException(nameof(realmBindingVerifier));
+    private readonly RealmId _realmId = realmId.Value != 0 ? realmId : throw new ArgumentException("A nonzero configured realm is required.", nameof(realmId));
     private readonly WorldMapContentLoader _contentLoader = contentLoader ?? throw new ArgumentNullException(nameof(contentLoader));
     private readonly WorldExecutionOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly GameServerCharacterCreationReadiness _creationReadiness = creationReadiness ?? throw new ArgumentNullException(nameof(creationReadiness));
@@ -56,6 +61,7 @@ internal sealed partial class GameServerWorldHostedService(
         LogAccountDatabaseReady(_logger);
 
         await _gameReadiness.VerifyAsync(cancellationToken).ConfigureAwait(false);
+        await _realmBindingVerifier.VerifyAsync(_realmId, cancellationToken).ConfigureAwait(false);
         LogGameDatabaseReady(_logger);
 
         WorldMapContentCatalog maps = await _contentLoader.LoadAsync(cancellationToken).ConfigureAwait(false);

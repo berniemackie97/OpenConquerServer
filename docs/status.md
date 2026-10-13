@@ -31,7 +31,8 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 3 and Game schema version 9, both checked at startup.
+- Accounts schema version 3 and Game schema version 10, both checked at startup.
+- GameServer validates a configured realm ID against its Game database's operator-provisioned binding before world publication.
 - Operator-controlled Accounts DB realm registry keyed by the exact native protocol server name,
   with case-sensitive uniqueness, explicit availability, a stable internal realm ID, IPv4 endpoint,
   and read-only runtime lookup. It is not yet used in the login handshake or ticket issuance.

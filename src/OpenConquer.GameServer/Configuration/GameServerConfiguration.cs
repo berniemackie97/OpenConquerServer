@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Infrastructure.Content.Items;
 using OpenConquer.Infrastructure.Content.Maps;
@@ -17,13 +18,14 @@ internal sealed class GameServerConfiguration
 {
     public const string SectionName = "GameServer";
 
-    private GameServerConfiguration(string accountConnectionString, string gameConnectionString,
+    private GameServerConfiguration(RealmId realmId, string accountConnectionString, string gameConnectionString,
         MapDefinitionCatalogFileOptions mapDefinitions, string terrainDirectory, string collisionDirectory,
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
         GameNetworkOptions? network, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
         CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString)
     {
+        RealmId = realmId;
         AccountConnectionString = accountConnectionString;
         GameConnectionString = gameConnectionString;
         MapDefinitions = mapDefinitions;
@@ -40,6 +42,7 @@ internal sealed class GameServerConfiguration
         CharacterCreationConnectionString = characterCreationConnectionString;
     }
 
+    public RealmId RealmId { get; }
     public string AccountConnectionString { get; }
     public string GameConnectionString { get; }
     public MapDefinitionCatalogFileOptions MapDefinitions { get; }
@@ -78,6 +81,7 @@ internal sealed class GameServerConfiguration
 
         try
         {
+            RealmId realmId = new(settings.RealmId);
             string root = Path.GetFullPath(contentRootPath);
             GameServerSettings.ContentSettings content = settings.Content ?? throw new ArgumentException("GameServer content configuration is missing.");
             GameServerSettings.WorldSettings worldSettings = settings.World ?? throw new ArgumentException("GameServer world configuration is missing.");
@@ -150,7 +154,7 @@ internal sealed class GameServerConfiguration
                 GameCharacterCreationConnectionPolicy.Validate(gameConnectionString, characterCreationConnectionString);
             }
 
-            return new GameServerConfiguration(accountConnectionString, gameConnectionString, definitions, terrainDirectory,
+            return new GameServerConfiguration(realmId, accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
                 network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
                 characterCreationConnectionString);

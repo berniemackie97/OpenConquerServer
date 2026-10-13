@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Items;
+using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Hosting;
@@ -146,6 +147,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
         builder.Services.AddSingleton<IAccountDatabaseReadinessVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IGameDatabaseReadinessVerifier, ReadyDatabase>();
+        builder.Services.AddSingleton<IGameRealmBindingVerifier, ReadyDatabase>();
 
         builder.Services.AddSingleton<MapRepositories>();
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(provider => provider.GetRequiredService<MapRepositories>());
@@ -174,8 +176,15 @@ public sealed class GameLoginRuntimeHostedServiceTests
         }
     }
 
-    private sealed class ReadyDatabase : IAccountDatabaseReadinessVerifier, IGameDatabaseReadinessVerifier
+    private sealed class ReadyDatabase : IAccountDatabaseReadinessVerifier, IGameDatabaseReadinessVerifier, IGameRealmBindingVerifier
     {
+        public Task VerifyAsync(RealmId expectedRealmId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.Equal(1u, expectedRealmId.Value);
+            return Task.CompletedTask;
+        }
+
         public Task VerifyAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
