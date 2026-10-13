@@ -9,6 +9,8 @@ using OpenConquer.AccountServer.Login.Observability;
 using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Realms;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
@@ -179,7 +181,7 @@ public sealed class LoginRuntimeHostedServiceTests
     private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue queue, LoginRuntimeMetrics metrics, out FatalBackgroundServiceFailureState fatalFailureState, IAccountLoginConnectionLimiter? connectionLimiter = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new ThrowingGameLoginTicketGrantStore(), new TestGameLoginTicketTokenGenerator());
-        LoginHandshakeProcessor handshakeProcessor = new(new ThrowingAccountAuthenticator(), ticketIssuer, new LoginHandshakeConfiguration(IPAddress.Loopback, 5816, TimeSpan.FromSeconds(5)));
+        LoginHandshakeProcessor handshakeProcessor = new(new ThrowingAccountAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(IPAddress.Loopback, 5816, TimeSpan.FromSeconds(5)));
         fatalFailureState = new FatalBackgroundServiceFailureState();
 
         return new LoginRuntimeHostedService(
@@ -329,6 +331,12 @@ public sealed class LoginRuntimeHostedServiceTests
         {
             return ValueTask.FromException<AccountAuthenticationResult>(new InvalidOperationException("Authentication should not be reached by runtime lifecycle tests."));
         }
+    }
+
+    private sealed class UnusedRealmRegistry : IRealmRegistry
+    {
+        public ValueTask<RealmRegistration?> FindByNameAsync(ProtocolServerName name, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Realm lookup was not expected.");
     }
 
     private sealed class ThrowingGameLoginTicketGrantStore : IGameLoginTicketGrantStore
