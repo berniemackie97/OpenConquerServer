@@ -138,6 +138,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             $"GRANT SELECT ON `{DatabaseName}`.`syndicates` TO '{RuntimeUserName}'@'%'",
             $"GRANT SELECT ON `{DatabaseName}`.`syndicate_memberships` TO '{RuntimeUserName}'@'%'",
             $"GRANT SELECT ON `{DatabaseName}`.`schema_compatibility` TO '{RuntimeUserName}'@'%'",
+            $"GRANT SELECT ON `{DatabaseName}`.`realm_binding` TO '{RuntimeUserName}'@'%'",
         ];
 
         foreach (string grant in grants)

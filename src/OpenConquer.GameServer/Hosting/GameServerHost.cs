@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Resolution;
+using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login.Authentication;
@@ -75,6 +76,7 @@ internal static class GameServerHost
         services.AddWorldMapContent(configuration.MapDefinitions, configuration.TerrainDirectory,
             configuration.TerrainLimits, configuration.CollisionDirectory, configuration.CollisionLimits);
 
+        services.AddSingleton(typeof(RealmId), configuration.RealmId);
         services.AddSingleton(configuration.World);
         services.AddSingleton(new GameServerCharacterCreationReadiness(configuration.CharacterCreationStartingState));
         services.AddSingleton<GameServerFailureState>();

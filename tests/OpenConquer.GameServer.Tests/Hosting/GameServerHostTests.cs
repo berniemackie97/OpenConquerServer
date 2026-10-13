@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Tests.Configuration;
@@ -124,6 +125,31 @@ public sealed class GameServerHostTests
 
             Assert.Same(failure, observed);
             Assert.Equal(1, account.Calls);
+            Assert.Equal(0, content.DefinitionCalls);
+            Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld());
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
+    [Fact]
+    public async Task Host_RealmBindingFailurePreventsCanonicalContentAndWorldPublication()
+    {
+        IOException failure = new("game realm identity mismatch");
+        ControlledReadiness account = new();
+        ControlledReadiness game = new();
+        ControlledContentRepositories content = new();
+        IHost host = CreateHost(account, game, content, realmBindingFailure: failure);
+
+        try
+        {
+            IOException observed = await Assert.ThrowsAsync<IOException>(
+                () => host.StartAsync(TestContext.Current.CancellationToken));
+            Assert.Same(failure, observed);
+            Assert.Equal(1, account.Calls);
+            Assert.Equal(1, game.Calls);
             Assert.Equal(0, content.DefinitionCalls);
             Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld());
         }
@@ -341,7 +367,7 @@ public sealed class GameServerHostTests
     }
 
     private static IHost CreateHost(ControlledReadiness account, ControlledReadiness game, ControlledContentRepositories content,
-        ILogger<GameServerWorldHostedService>? logger = null)
+        ILogger<GameServerWorldHostedService>? logger = null, Exception? realmBindingFailure = null)
     {
         GameServerConfiguration configuration = GameServerConfiguration.Load(GameServerConfigurationTests.CreateConfiguration(), Path.GetTempPath());
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
@@ -350,6 +376,7 @@ public sealed class GameServerHostTests
 
         builder.Services.AddSingleton<IAccountDatabaseReadinessVerifier>(account);
         builder.Services.AddSingleton<IGameDatabaseReadinessVerifier>(game);
+        builder.Services.AddSingleton<IGameRealmBindingVerifier>(new StubRealmBindingVerifier(realmBindingFailure));
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(content);
         builder.Services.AddSingleton<IMapBaseTerrainCatalogRepository>(content);
         builder.Services.AddSingleton<IMapTerrainCollisionCatalogRepository>(content);
@@ -371,6 +398,16 @@ public sealed class GameServerHostTests
         else
         {
             host.Dispose();
+        }
+    }
+
+    private sealed class StubRealmBindingVerifier(Exception? failure) : IGameRealmBindingVerifier
+    {
+        public Task VerifyAsync(RealmId expectedRealmId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.Equal(1u, expectedRealmId.Value);
+            return failure is null ? Task.CompletedTask : Task.FromException(failure);
         }
     }
 

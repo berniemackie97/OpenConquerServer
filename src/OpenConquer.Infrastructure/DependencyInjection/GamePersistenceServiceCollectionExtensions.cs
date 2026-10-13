@@ -64,6 +64,8 @@ public static class GamePersistenceServiceCollectionExtensions
         services.AddSingleton<ICharacterWeaponSkillSetRepository, CharacterWeaponSkillSetRepository>();
         services.AddSingleton<ICharacterMagicSetRepository, CharacterMagicSetRepository>();
         services.AddSingleton<ICharacterSyndicateStateRepository, CharacterSyndicateStateRepository>();
+        services.AddSingleton<GameRealmBindingVerifier>();
+        services.AddSingleton<IGameRealmBindingVerifier>(provider => provider.GetRequiredService<GameRealmBindingVerifier>());
         services.AddSingleton<GameDatabaseReadinessVerifier>();
         services.AddSingleton<IGameDatabaseReadinessVerifier>(provider => provider.GetRequiredService<GameDatabaseReadinessVerifier>());
 

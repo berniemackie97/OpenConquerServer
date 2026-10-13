@@ -20,7 +20,7 @@ The table is deliberately owned by a SQL-only EF migration rather than the `Acco
 
 Before enabling any realm-aware login: resolve the selected 1060 name against this registry, reject unavailable realms without disclosing account information, bind newly issued tickets to the selected stable realm ID, and require that exact realm at atomic redemption. The next schema migration **must be Accounts v4**, because the registry is already committed as v3; two distinct deployed schema shapes may not share one version.
 
-Before character creation: add a one-row binding in each separate Game database, verify it against the configured GameServer realm at startup, and deny cross-realm ticket redemption before character lookup. Neither a shared Game database nor a distributed control plane is needed.
+Game schema v10 adds an operator-provisioned one-row binding in each separate Game database, checked against the configured GameServer realm before world publication. Cross-realm ticket redemption must still be denied before character lookup in a subsequent slice. Neither a shared Game database nor a distributed control plane is needed.
 
 ## Operational integrity
 

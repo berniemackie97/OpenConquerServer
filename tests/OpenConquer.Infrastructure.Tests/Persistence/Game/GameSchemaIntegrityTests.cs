@@ -27,6 +27,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_items_location_payload",
         "CK_items_stack_quantity",
         "CK_magic_owner_character_id",
+        "CK_realm_binding_id",
+        "CK_realm_binding_key",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",

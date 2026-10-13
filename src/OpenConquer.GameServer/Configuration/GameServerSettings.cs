@@ -2,6 +2,7 @@ namespace OpenConquer.GameServer.Configuration;
 
 internal sealed class GameServerSettings
 {
+    public uint RealmId { get; set; }
     public ContentSettings Content { get; set; } = new();
     public WorldSettings World { get; set; } = new();
     public GameLoginTicketSettings GameLoginTickets { get; set; } = new();
