@@ -96,7 +96,17 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
             throw new InvalidOperationException($"Account authenticator returned unsupported status {authentication.Status}.");
         }
 
-        GameLoginTicket? ticket = await _ticketIssuer.IssueAsync(authentication, selectedRealm.Id, cancellationToken).ConfigureAwait(false);
+        // Authentication can take long enough for operators to change a realm's
+        // availability or public endpoint. Recheck before granting a ticket.
+        RealmRegistration? currentRealm = await FindSelectedRealmAsync(selectedRealm.ProtocolName.Value, cancellationToken).ConfigureAwait(false);
+
+        if (currentRealm is null || currentRealm.Id != selectedRealm.Id)
+        {
+            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.InvalidCredentials, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        GameLoginTicket? ticket = await _ticketIssuer.IssueAsync(authentication, currentRealm.Id, cancellationToken).ConfigureAwait(false);
 
         if (ticket is null)
         {
@@ -104,7 +114,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
             return;
         }
 
-        LoginAccountAuthenticationResponsePacket response = LoginAccountAuthenticationResponsePacket.Success(ticket.SessionUid, ticket.AuthenticationKey, _configuration.GameServerPort, ticket.AuthenticationKey, _configuration.GameServerIp);
+        LoginAccountAuthenticationResponsePacket response = LoginAccountAuthenticationResponsePacket.Success(ticket.SessionUid, ticket.AuthenticationKey, currentRealm.PublicGamePort, ticket.AuthenticationKey, currentRealm.PublicGameAddress.ToString());
 
         await session.WriteAsync(response, cancellationToken).ConfigureAwait(false);
         await ReadPostAuthenticationReportsAsync(session, ticket.SessionUid, cancellationToken).ConfigureAwait(false);
@@ -124,14 +134,10 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         RealmRegistration? realm = await _realmRegistry.FindByNameAsync(protocolName, cancellationToken).ConfigureAwait(false);
 
-        // Packet 1055 still advertises one statically configured endpoint. Until the
-        // realm-bound-ticket and multi-realm routing slices land, refusing a mismatch
-        // is safer than advertising a different GameServer than the selected realm.
+        // Fail closed for unknown/unavailable/noncanonical selections. The selected
+        // endpoint is authoritative only for a successful native 1055 response.
         return realm is { Availability: RealmAvailability.Enabled }
-            && realm.ProtocolName == protocolName
-            && realm.PublicGamePort == _configuration.GameServerPort
-            && string.Equals(realm.PublicGameAddress.ToString(), _configuration.GameServerIp, StringComparison.Ordinal)
-            ? realm : null;
+            && realm.ProtocolName == protocolName ? realm : null;
     }
 
     private async ValueTask<AccountAuthenticationResult> AuthenticateAsync(LoginAccountRequest request, IPAddress remoteAddress, CancellationToken cancellationToken)

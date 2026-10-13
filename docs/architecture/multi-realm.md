@@ -14,11 +14,11 @@ Distinct UI rows can select the same logical realm; the database has one row per
 
 The table is deliberately owned by a SQL-only EF migration rather than the `AccountDbContext` entity model: runtime access is a single parameterized lookup through the existing keyed `MySqlDataSource`, and operators manage changes separately. The model snapshot remains unchanged because it contains only EF-mapped tables; do not generate a second EF `realms` entity or migration without first deciding to transfer schema ownership. MySQL enforces realm name uniqueness and fundamental integrity; the registry refuses malformed rows rather than inventing endpoint defaults.
 
-`IRealmRegistry.FindByNameAsync` returns a validated immutable registration or `null` for an unknown name. AccountServer now requires the native 1060 name to resolve to an enabled registry row whose endpoint exactly matches its currently configured static 1055 redirect. Invalid or mismatched selection returns a generic authentication failure before credential verification and ticket creation. Registry failures are not converted into success. Accounts v4 binds tickets to the authoritative selected realm and rejects cross-realm redemption. The static endpoint restriction must be replaced only together with the full realm-bound ticket enforcement and routing cutover.
+`IRealmRegistry.FindByNameAsync` returns a validated immutable registration or `null` for an unknown name. AccountServer requires the native 1060 name to resolve to an enabled, case-sensitive registry entry before credential verification. After successful verification, it re-reads the registration: missing, disabled, renamed or different-ID results fail generically before ticket issuance. An updated endpoint for the same immutable identity is used for the successful packet 1055 redirect. The durable Accounts v4 ticket is bound to that realm, and GameServer redemption denies cross-realm use. The configured static GameServer address remains in failure responses only; registry failures are not converted into success.
 
-## Pending security gates
+## Routing and remaining deployment gates
 
-The native pre-issuance lookup gate and Accounts v4 realm-bound ticket cutover are implemented. Before enabling multiple GameServer destinations, integrate dynamic endpoint selection and enforce its routing invariants; packet 1055 still advertises one statically configured endpoint.
+The native pre-issuance lookup gate, Accounts v4 realm-bound ticket cutover and registry-directed successful 1055 routing are implemented. Multi-realm operation additionally requires each GameServer to have its own provisioned Game database, verified numeric realm binding, separate reachable endpoint, correct secrets and deployment readiness. The registry is a configuration source, not a health check or an automatic realm provisioning system.
 
 Game schema v10 adds an operator-provisioned one-row binding in each separate Game database, checked against the configured GameServer realm before world publication. Cross-realm ticket redemption is rejected during the locked, atomic ticket-consumption transaction, before character lookup. Neither a shared Game database nor a distributed control plane is needed.
 
@@ -33,5 +33,6 @@ is propagated to ticket grant and persisted with each new ticket. Under the same
 that consumes the single-use ticket, GameServer redemption checks the stored `realm_id`
 against the configured and database-verified GameServer realm. A mismatch does not consume
 the ticket and does not authorize a character. Pre-v4 outstanding tickets are invalidated
-by the migration instead of receiving a guessed realm. The existing static redirect is
-unchanged; this is not dynamic multi-realm routing.
+by the migration instead of receiving a guessed realm. Successful native 1055 responses
+use the selected enabled registration's current IPv4 endpoint after a second lookup.
+Failure responses preserve their existing configured endpoint and failure codes.
