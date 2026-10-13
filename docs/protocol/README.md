@@ -70,7 +70,9 @@ packet.
 | `0x10` |   16 | GameServer IPv4 address (C string)     |
 
 A nonzero session ID means success; a zero session ID makes `0x04` a failure code (`1` invalid
-credentials, `12` banned, `57` invalid request). On success the server writes the authentication
+credentials, `10` server down, `12` banned, `57` invalid request, `70` server locked). The client's
+failure branch reads only that code and shows its `STR_CONNECT_ERROR_MSG_TYPE_%03u` text, so a
+failure leaves the port, `0x0C` and address zeroed. On success the server writes the authentication
 key into both `0x04` and `0x0C`. The meaning of `0x0C` is not fully known, so the packet model keeps
 it as a separate field.
 

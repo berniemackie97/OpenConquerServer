@@ -14,7 +14,6 @@ committed settings files contain no credentials or keys.
 | -------------------------------------------------------------- | -------------------------------------------------------- |
 | `ConnectionStrings:Accounts`                                   | Accounts database (required)                             |
 | `AccountServer:Network:BindAddress`, `LoginPort`               | Login listener                                           |
-| `AccountServer:Network:GameServerAddress`, `GameServerPort`    | GameServer endpoint sent to clients                      |
 | `AccountServer:Network:ListenBacklog`                          | Listener backlog (default 512)                           |
 | `AccountServer:Admission:Capacity`                             | Queued connections (default 1,024)                       |
 | `AccountServer:Admission:MaximumConcurrentConnectionsPerSource`| Per-source connections (default 6)                       |
@@ -25,9 +24,10 @@ committed settings files contain no credentials or keys.
 | `AccountServer:GameLoginTickets:VerificationKeys`              | `Id` and `EncodedKey` pairs (required)                   |
 | `AccountServer:GameLoginTickets:Cleanup:Interval`, `MaximumBatchesPerRun` | Expired ticket cleanup (1 minute, 10 batches) |
 
-The listen address and the advertised GameServer address are separate: the advertised address must
-be reachable by clients. In environment variables, replace `:` with `__`, for example
-`AccountServer__Network__LoginPort`.
+The AccountServer has no GameServer setting. Each login is redirected to the endpoint registered for
+the realm the client selected; see [Realm registry](realm-registry.md). Configuration that still sets
+the retired `AccountServer:Network:GameServerAddress` or `GameServerPort` is rejected at startup. In
+environment variables, replace `:` with `__`, for example `AccountServer__Network__LoginPort`.
 
 ### Verification keys
 
@@ -39,8 +39,9 @@ fixtures.
 ## Local development
 
 `DOTNET_ENVIRONMENT=Development` enables `appsettings.Development.json` (listener on
-`127.0.0.1:9958`, GameServer advertised as `127.0.0.1:5816`) and user secrets. From the repository
-root:
+`127.0.0.1:9958`) and user secrets. The development realm and its GameServer endpoint are provisioned
+in the database, as described in [LocalRealm provisioning](local-realm-provisioning.md). From the
+repository root:
 
 ```bash
 P=src/OpenConquer.AccountServer/OpenConquer.AccountServer.csproj
@@ -57,10 +58,10 @@ the deployment's secret store.
 ## Database
 
 The Accounts database must already exist on MySQL 8.4 with character set `utf8mb4` and collation
-`utf8mb4_0900_as_cs`, migrated to schema version 2
-(`20260907004603_ProtectGameLoginTicketAuthenticationKey`). The server never migrates on startup;
+`utf8mb4_0900_as_cs`, migrated to schema version 4
+(`20261013050000_BindGameLoginTicketsToRealm`). The server never migrates on startup;
 see [Database migrations](database-migrations.md). The runtime database account needs only the
-permissions for normal account operations and the readiness check.
+permissions for normal account operations, the readiness check, and `SELECT` on `realms`.
 
 ## Running
 

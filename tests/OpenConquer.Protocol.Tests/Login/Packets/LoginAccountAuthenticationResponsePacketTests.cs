@@ -10,9 +10,13 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     {
         Assert.Equal(1u, (uint)LoginAccountAuthenticationFailureCode.InvalidCredentials);
 
+        Assert.Equal(10u, (uint)LoginAccountAuthenticationFailureCode.ServerDown);
+
         Assert.Equal(12u, (uint)LoginAccountAuthenticationFailureCode.Banned);
 
         Assert.Equal(57u, (uint)LoginAccountAuthenticationFailureCode.InvalidAccount);
+
+        Assert.Equal(70u, (uint)LoginAccountAuthenticationFailureCode.ServerLocked);
     }
 
     [Fact]
@@ -38,9 +42,9 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     }
 
     [Fact]
-    public void Failure_EnforcesFailureState()
+    public void Failure_CarriesOnlyTheFailureCode()
     {
-        LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.Banned, gameServerPort: 5816, gameServerIp: "127.0.0.1");
+        LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.Banned);
 
         Assert.False(packet.IsSuccess);
 
@@ -48,11 +52,11 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
 
         Assert.Equal(12u, packet.AuthenticationKeyOrFailureCode);
 
-        Assert.Equal(5816u, packet.GameServerPort);
+        Assert.Equal(0u, packet.GameServerPort);
 
         Assert.Equal(0u, packet.AdditionalSessionField);
 
-        Assert.Equal("127.0.0.1", packet.GameServerIp);
+        Assert.Equal(string.Empty, packet.GameServerIp);
     }
 
     [Fact]
@@ -68,7 +72,7 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     {
         LoginAccountAuthenticationFailureCode invalid = (LoginAccountAuthenticationFailureCode)uint.MaxValue;
 
-        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => LoginAccountAuthenticationResponsePacket.Failure(invalid, gameServerPort: 5816, gameServerIp: "127.0.0.1"));
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => LoginAccountAuthenticationResponsePacket.Failure(invalid));
 
         Assert.Equal("failureCode", exception.ParamName);
     }
@@ -77,11 +81,9 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     [InlineData("")]
     [InlineData("not-an-ip")]
     [InlineData("::1")]
-    public void Factories_RejectInvalidGameServerIp(string gameServerIp)
+    public void Success_RejectsInvalidGameServerIp(string gameServerIp)
     {
         Assert.Throws<ArgumentException>(() => LoginAccountAuthenticationResponsePacket.Success(sessionUid: 1, authenticationKey: 2, gameServerPort: 5816, additionalSessionField: 3, gameServerIp));
-
-        Assert.Throws<ArgumentException>(() => LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.InvalidCredentials, gameServerPort: 5816, gameServerIp));
     }
 
     [Fact]
@@ -141,7 +143,7 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
     [Fact]
     public void WireFrameEncoder_WritesFailureResponseVector()
     {
-        LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.InvalidCredentials, gameServerPort: 5816, gameServerIp: "127.0.0.1");
+        LoginAccountAuthenticationResponsePacket packet = LoginAccountAuthenticationResponsePacket.Failure(LoginAccountAuthenticationFailureCode.ServerLocked);
 
         byte[] destination = new byte[WireFrameHeader.Size + LoginAccountAuthenticationResponsePacket.PayloadSize];
 
@@ -157,27 +159,27 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
             0x00,
             0x00,
             0x00,
-            0x01,
-            0x00,
-            0x00,
-            0x00,
-            0xB8,
-            0x16,
+            0x46,
             0x00,
             0x00,
             0x00,
             0x00,
             0x00,
             0x00,
-            (byte)'1',
-            (byte)'2',
-            (byte)'7',
-            (byte)'.',
-            (byte)'0',
-            (byte)'.',
-            (byte)'0',
-            (byte)'.',
-            (byte)'1',
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
             0x00,
             0x00,
             0x00,

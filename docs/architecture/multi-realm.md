@@ -14,7 +14,19 @@ Distinct UI rows can select the same logical realm; the database has one row per
 
 The table is deliberately owned by a SQL-only EF migration rather than the `AccountDbContext` entity model: runtime access is a single parameterized lookup through the existing keyed `MySqlDataSource`, and operators manage changes separately. The model snapshot remains unchanged because it contains only EF-mapped tables; do not generate a second EF `realms` entity or migration without first deciding to transfer schema ownership. MySQL enforces realm name uniqueness and fundamental integrity; the registry refuses malformed rows rather than inventing endpoint defaults.
 
-`IRealmRegistry.FindByNameAsync` returns a validated immutable registration or `null` for an unknown name. AccountServer requires the native 1060 name to resolve to an enabled, case-sensitive registry entry before credential verification. After successful verification, it re-reads the registration: missing, disabled, renamed or different-ID results fail generically before ticket issuance. An updated endpoint for the same immutable identity is used for the successful packet 1055 redirect. The durable Accounts v4 ticket is bound to that realm, and GameServer redemption denies cross-realm use. The configured static GameServer address remains in failure responses only; registry failures are not converted into success.
+`IRealmRegistry.FindByNameAsync` returns a validated immutable registration or `null` for an unknown name. AccountServer requires the native 1060 name to resolve to an enabled, case-sensitive registry entry before credential verification. After successful verification, it re-reads the registration: a missing, unavailable or different-ID result fails before ticket issuance. An updated endpoint for the same immutable identity is used for the successful packet 1055 redirect. The durable Accounts v4 ticket is bound to that realm, and GameServer redemption denies cross-realm use. The AccountServer has no GameServer endpoint of its own; every redirect comes from the registry.
+
+## Availability replies
+
+A refused selection uses the native failure codes whose client text describes the realm, not the account:
+
+| Selection | Code | Client text |
+| --- | ---: | --- |
+| Unknown, malformed or `Disabled` | `10` | "The Server is down." |
+| `Maintenance` | `70` | "Server Locked" |
+| Removed, disabled or given a different ID during authentication | `10` / `70` | as above |
+
+Unknown and disabled share one reply, so retiring a realm by disabling or by deleting its row looks the same to players. The check runs before credential verification, so it reveals nothing about accounts. Which codes the original TQ AccountServer used for these states is not recoverable (its binary is unavailable); the client only maps code to text. A realm disabled in the instant between the post-authentication lookup and the locked ticket grant still fails with code `1`, because the grant reports every lost precondition as one outcome.
 
 ## Routing and remaining deployment gates
 
@@ -35,4 +47,4 @@ against the configured and database-verified GameServer realm. A mismatch does n
 the ticket and does not authorize a character. Pre-v4 outstanding tickets are invalidated
 by the migration instead of receiving a guessed realm. Successful native 1055 responses
 use the selected enabled registration's current IPv4 endpoint after a second lookup.
-Failure responses preserve their existing configured endpoint and failure codes.
+Failure responses carry only the failure code: the client's failure branch reads nothing else.

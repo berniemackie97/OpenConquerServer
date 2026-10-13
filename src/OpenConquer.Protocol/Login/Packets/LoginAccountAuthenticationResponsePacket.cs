@@ -22,7 +22,8 @@ namespace OpenConquer.Protocol.Login.Packets;
 /// <para>
 /// A nonzero session token selects the client's success branch. A zero session
 /// token selects the failure branch and causes the second field to be
-/// interpreted as a failure code.
+/// interpreted as a failure code. The failure branch reads nothing else, so a
+/// failure carries no game-server endpoint.
 /// </para>
 /// </remarks>
 public sealed class LoginAccountAuthenticationResponsePacket : IPacket
@@ -83,14 +84,14 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     /// <summary>
     /// Creates a failed account authentication response.
     /// </summary>
-    public static LoginAccountAuthenticationResponsePacket Failure(LoginAccountAuthenticationFailureCode failureCode, uint gameServerPort, string gameServerIp)
+    public static LoginAccountAuthenticationResponsePacket Failure(LoginAccountAuthenticationFailureCode failureCode)
     {
         if (!Enum.IsDefined(failureCode))
         {
             throw new ArgumentOutOfRangeException(nameof(failureCode), failureCode, "Unknown account-authentication failure code.");
         }
 
-        return new LoginAccountAuthenticationResponsePacket(sessionUid: 0, authenticationKeyOrFailureCode: (uint)failureCode, gameServerPort, additionalSessionField: 0, NormalizeGameServerIp(gameServerIp));
+        return new LoginAccountAuthenticationResponsePacket(sessionUid: 0, authenticationKeyOrFailureCode: (uint)failureCode, gameServerPort: 0, additionalSessionField: 0, gameServerIp: string.Empty);
     }
 
     public void WritePayload(ref PacketWriter writer)

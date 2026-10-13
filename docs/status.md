@@ -17,7 +17,9 @@ implemented parts work and link here rather than repeating this list.
 - Exact native 1060 protocol-name validation and live read-only realm lookup before authentication;
   unknown or unavailable selections cannot receive a ticket. After credential verification, a second
   lookup checks continued availability and immutable realm identity; successful native 1055 redirects
-  advertise the selected registration's IPv4 address and port.
+  advertise the selected registration's IPv4 address and port. Refused selections reply with the
+  native "server down" (10) and "server locked" (70) codes; the AccountServer has no static
+  GameServer endpoint.
 
 ### GameServer
 

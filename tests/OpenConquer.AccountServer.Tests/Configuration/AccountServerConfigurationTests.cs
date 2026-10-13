@@ -45,11 +45,19 @@ public sealed class AccountServerConfigurationTests
     }
 
     [Theory]
-    [InlineData("AccountServer:Network:BindAddress")]
-    [InlineData("AccountServer:Network:GameServerAddress")]
-    public void Load_RejectsIpv6Endpoints(string configurationKey)
+    [InlineData("AccountServer:Network:GameServerAddress", "127.0.0.1")]
+    [InlineData("AccountServer:Network:GameServerPort", "5816")]
+    public void Load_RejectsRetiredStaticGameServerEndpoint(string configurationKey, string value)
     {
-        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values[configurationKey] = "::1");
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values[configurationKey] = value);
+
+        Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+    }
+
+    [Fact]
+    public void Load_RejectsIpv6BindAddress()
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:Network:BindAddress"] = "::1");
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
 
@@ -135,8 +143,6 @@ public sealed class AccountServerConfigurationTests
         Assert.Equal(8, result.WorkerPool.WorkerCount);
         Assert.Equal(TimeSpan.FromSeconds(15), result.WorkerPool.ConnectionTimeout);
 
-        Assert.Equal("127.0.0.1", result.Handshake.GameServerIp);
-        Assert.Equal(5816u, result.Handshake.GameServerPort);
         Assert.Equal(TimeSpan.FromSeconds(5), result.Handshake.PhaseTimeout);
 
         Assert.Equal(60, result.AuthenticationProtection.RequestLimitPerSource);

@@ -211,7 +211,7 @@ public sealed class LoginConnectionWorkerPoolTests
     private static LoginHandshakeProcessor CreateProcessor(TimeSpan? phaseTimeout = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new UnusedGrantStore(), new UnusedTokenGenerator());
-        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(IPAddress.Loopback, 5816, phaseTimeout ?? TimeSpan.FromSeconds(10)));
+        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(phaseTimeout ?? TimeSpan.FromSeconds(10)));
     }
 
     private sealed class UnusedRealmRegistry : IRealmRegistry

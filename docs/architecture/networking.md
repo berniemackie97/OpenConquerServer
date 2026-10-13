@@ -84,8 +84,12 @@ a missing or malformed report does not revoke the ticket.
 | Wrong credentials                                |          `1` |
 | Protected or mobile login request (unsupported)  |          `1` |
 | Account state changed before the ticket grant    |          `1` |
+| Selected realm unknown, malformed or disabled    |         `10` |
 | Banned account                                   |         `12` |
 | Malformed credential request or unknown packet   |         `57` |
+| Selected realm in maintenance                    |         `70` |
+
+A failure response carries no GameServer endpoint.
 
 Transport, database, and application exceptions close the connection; they are never turned into
 a failure response.

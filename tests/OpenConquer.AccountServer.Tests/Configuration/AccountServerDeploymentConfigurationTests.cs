@@ -16,8 +16,6 @@ public sealed class AccountServerDeploymentConfigurationTests
         Assert.Null(configuration.GetConnectionString("Accounts"));
         Assert.Null(configuration["AccountServer:Network:BindAddress"]);
         Assert.Null(configuration["AccountServer:Network:LoginPort"]);
-        Assert.Null(configuration["AccountServer:Network:GameServerAddress"]);
-        Assert.Null(configuration["AccountServer:Network:GameServerPort"]);
         Assert.Null(configuration["AccountServer:GameLoginTickets:ActiveVerificationKeyId"]);
         Assert.False(configuration.GetSection("AccountServer:GameLoginTickets:VerificationKeys").Exists());
     }
@@ -29,8 +27,6 @@ public sealed class AccountServerDeploymentConfigurationTests
 
         Assert.Equal("127.0.0.1", configuration["AccountServer:Network:BindAddress"]);
         Assert.Equal("9958", configuration["AccountServer:Network:LoginPort"]);
-        Assert.Equal("127.0.0.1", configuration["AccountServer:Network:GameServerAddress"]);
-        Assert.Equal("5816", configuration["AccountServer:Network:GameServerPort"]);
 
         Assert.Null(configuration.GetConnectionString("Accounts"));
         Assert.Null(configuration["AccountServer:GameLoginTickets:ActiveVerificationKeyId"]);
@@ -55,8 +51,6 @@ public sealed class AccountServerDeploymentConfigurationTests
     [Theory]
     [InlineData("AccountServer:Network:BindAddress")]
     [InlineData("AccountServer:Network:LoginPort")]
-    [InlineData("AccountServer:Network:GameServerAddress")]
-    [InlineData("AccountServer:Network:GameServerPort")]
     public void ProductionConfiguration_RejectsMissingNetworkSettings(string configurationKey)
     {
         Dictionary<string, string?> values = CreateProductionValues();
@@ -110,8 +104,6 @@ public sealed class AccountServerDeploymentConfigurationTests
 
         Assert.Equal(IPAddress.Loopback, result.LoginEndPoint.Address);
         Assert.Equal(9958, result.LoginEndPoint.Port);
-        Assert.Equal("127.0.0.1", result.Handshake.GameServerIp);
-        Assert.Equal(5816u, result.Handshake.GameServerPort);
 
         Assert.Equal(512, result.ListenBacklog);
         Assert.Equal(1024, result.AdmissionCapacity);
@@ -150,8 +142,6 @@ public sealed class AccountServerDeploymentConfigurationTests
 
         Assert.Equal(IPAddress.Loopback, result.LoginEndPoint.Address);
         Assert.Equal(9958, result.LoginEndPoint.Port);
-        Assert.Equal("127.0.0.1", result.Handshake.GameServerIp);
-        Assert.Equal(5816u, result.Handshake.GameServerPort);
     }
 
     [Fact]
@@ -196,8 +186,6 @@ public sealed class AccountServerDeploymentConfigurationTests
 
         values["AccountServer:Network:BindAddress"] = "127.0.0.1";
         values["AccountServer:Network:LoginPort"] = "9958";
-        values["AccountServer:Network:GameServerAddress"] = "127.0.0.1";
-        values["AccountServer:Network:GameServerPort"] = "5816";
 
         return values;
     }

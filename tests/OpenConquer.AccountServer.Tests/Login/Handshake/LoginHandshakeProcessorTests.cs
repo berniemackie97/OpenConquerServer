@@ -117,9 +117,9 @@ public sealed class LoginHandshakeProcessorTests
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
         Assert.Equal((uint)expectedFailure, response.AuthenticationKeyOrFailureCode);
-        Assert.Equal(GameServerPort, response.GameServerPort);
+        Assert.Equal(0u, response.GameServerPort);
         Assert.Equal(0u, response.AdditionalSessionField);
-        Assert.Equal(GameServerIp, response.GameServerIp);
+        Assert.Equal(string.Empty, response.GameServerIp);
         Assert.Equal(0, authenticator.CallCount);
         Assert.Equal(0, grantStore.CallCount);
     }
@@ -247,7 +247,7 @@ public sealed class LoginHandshakeProcessorTests
             connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
-        LoginHandshakeConfiguration configuration = new(IPAddress.Loopback, (int)GameServerPort, TimeSpan.FromMilliseconds(50));
+        LoginHandshakeConfiguration configuration = new(TimeSpan.FromMilliseconds(50));
         LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(new FakeGrantStore()), new FakeRealmRegistry(), configuration);
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
@@ -286,7 +286,7 @@ public sealed class LoginHandshakeProcessorTests
     [InlineData("OtherRealm")]
     [InlineData("Local.Realm")]
     [InlineData("")]
-    public async Task ProcessAsync_UnknownOrMalformedNativeRealmRejectsBeforeAuthentication(string serverName)
+    public async Task ProcessAsync_UnknownOrMalformedNativeRealmReportsServerDownBeforeAuthentication(string serverName)
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
@@ -304,15 +304,15 @@ public sealed class LoginHandshakeProcessorTests
 
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
-        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.ServerDown, response.AuthenticationKeyOrFailureCode);
         Assert.Equal(0, authenticator.CallCount);
         Assert.Equal(0, grants.CallCount);
     }
 
     [Theory]
-    [InlineData(RealmAvailability.Maintenance)]
-    [InlineData(RealmAvailability.Disabled)]
-    public async Task ProcessAsync_UnavailableRealmRejectsWithoutCredentialOrTicketWork(RealmAvailability availability)
+    [InlineData(RealmAvailability.Maintenance, LoginAccountAuthenticationFailureCode.ServerLocked)]
+    [InlineData(RealmAvailability.Disabled, LoginAccountAuthenticationFailureCode.ServerDown)]
+    public async Task ProcessAsync_UnavailableRealmReportsAvailabilityWithoutCredentialOrTicketWork(RealmAvailability availability, LoginAccountAuthenticationFailureCode expectedFailure)
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
@@ -329,7 +329,7 @@ public sealed class LoginHandshakeProcessorTests
 
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
-        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal((uint)expectedFailure, response.AuthenticationKeyOrFailureCode);
         Assert.Equal(0, authenticator.CallCount);
         Assert.Equal(0, grants.CallCount);
     }
@@ -337,7 +337,7 @@ public sealed class LoginHandshakeProcessorTests
     [Theory]
     [InlineData("127.0.0.2", (ushort)5816)]
     [InlineData("127.0.0.1", (ushort)5817)]
-    public async Task ProcessAsync_EnabledRealmRoutesToRegistryEndpointInsteadOfStaticConfiguration(string address, ushort port)
+    public async Task ProcessAsync_EnabledRealmRoutesToRegistryEndpoint(string address, ushort port)
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
@@ -364,6 +364,33 @@ public sealed class LoginHandshakeProcessorTests
         Assert.Equal(1, grants.CallCount);
         Assert.Equal(1, authenticator.CallCount);
         Assert.Equal(2, registry.LookupCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_SelectedRealmDeterminesEndpointAndTicketRealm()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher, "SecondRealm");
+        QueuePostAuthenticationReports(connection, cipher, SessionUid);
+
+        FakeRealmRegistry registry = new();
+        registry.SetRegistration(RealmAvailability.Enabled, IPAddress.Parse("192.0.2.20"), 5817, realmId: 2, protocolName: "SecondRealm");
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
+        FakeGrantStore grants = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(SessionUid, response.SessionUid);
+        Assert.Equal("192.0.2.20", response.GameServerIp);
+        Assert.Equal(5817u, response.GameServerPort);
+        Assert.Equal(2u, grants.Request!.RealmId.Value);
+        Assert.Equal(1, grants.CallCount);
     }
 
     [Fact]
@@ -395,9 +422,9 @@ public sealed class LoginHandshakeProcessorTests
     }
 
     [Theory]
-    [InlineData(RealmAvailability.Maintenance)]
-    [InlineData(RealmAvailability.Disabled)]
-    public async Task ProcessAsync_RealmDisabledDuringAuthenticationRejectsBeforeTicketGrant(RealmAvailability availability)
+    [InlineData(RealmAvailability.Maintenance, LoginAccountAuthenticationFailureCode.ServerLocked)]
+    [InlineData(RealmAvailability.Disabled, LoginAccountAuthenticationFailureCode.ServerDown)]
+    public async Task ProcessAsync_RealmUnavailableAfterAuthenticationReportsAvailabilityBeforeTicketGrant(RealmAvailability availability, LoginAccountAuthenticationFailureCode expectedFailure)
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
@@ -416,9 +443,9 @@ public sealed class LoginHandshakeProcessorTests
 
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
-        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
-        Assert.Equal(GameServerPort, response.GameServerPort);
-        Assert.Equal(GameServerIp, response.GameServerIp);
+        Assert.Equal((uint)expectedFailure, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal(0u, response.GameServerPort);
+        Assert.Equal(string.Empty, response.GameServerIp);
         Assert.Equal(0u, response.AdditionalSessionField);
         Assert.Equal(1, authenticator.CallCount);
         Assert.Equal(0, grants.CallCount);
@@ -426,7 +453,7 @@ public sealed class LoginHandshakeProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_RealmIdentityChangedDuringAuthenticationRejectsBeforeTicketGrant()
+    public async Task ProcessAsync_RealmIdentityChangedDuringAuthenticationReportsServerDownBeforeTicketGrant()
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
@@ -445,13 +472,13 @@ public sealed class LoginHandshakeProcessorTests
 
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
-        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.ServerDown, response.AuthenticationKeyOrFailureCode);
         Assert.Equal(0, grants.CallCount);
         Assert.Equal(2, registry.LookupCount);
     }
 
     [Fact]
-    public async Task ProcessAsync_RealmRemovedDuringAuthenticationRejectsBeforeTicketGrant()
+    public async Task ProcessAsync_RealmRemovedDuringAuthenticationReportsServerDownBeforeTicketGrant()
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
@@ -469,14 +496,14 @@ public sealed class LoginHandshakeProcessorTests
 
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
-        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.ServerDown, response.AuthenticationKeyOrFailureCode);
         Assert.Equal(0, grants.CallCount);
         Assert.Equal(2, registry.LookupCount);
     }
 
     private static LoginHandshakeConfiguration CreateConfiguration()
     {
-        return new LoginHandshakeConfiguration(IPAddress.Parse(GameServerIp), (int)GameServerPort, TimeSpan.FromSeconds(5));
+        return new LoginHandshakeConfiguration(TimeSpan.FromSeconds(5));
     }
 
     private static GameLoginTicketIssuer CreateIssuer(FakeGrantStore grantStore)
@@ -581,7 +608,7 @@ public sealed class LoginHandshakeProcessorTests
 
     private sealed class FakeRealmRegistry : IRealmRegistry
     {
-        private RealmRegistration? _registration;
+        private readonly Dictionary<string, RealmRegistration> _registrations = new(StringComparer.Ordinal);
 
         public FakeRealmRegistry(RealmAvailability availability = RealmAvailability.Enabled, IPAddress? address = null, ushort port = (ushort)GameServerPort)
         {
@@ -590,18 +617,18 @@ public sealed class LoginHandshakeProcessorTests
 
         public int LookupCount { get; private set; }
 
-        public void SetRegistration(RealmAvailability availability, IPAddress? address = null, ushort port = (ushort)GameServerPort, uint realmId = 1)
+        public void SetRegistration(RealmAvailability availability, IPAddress? address = null, ushort port = (ushort)GameServerPort, uint realmId = 1, string protocolName = ServerName)
         {
-            _registration = new RealmRegistration(new RealmId(realmId), new ProtocolServerName(ServerName), address ?? IPAddress.Parse(GameServerIp), port, availability);
+            _registrations[protocolName] = new RealmRegistration(new RealmId(realmId), new ProtocolServerName(protocolName), address ?? IPAddress.Parse(GameServerIp), port, availability);
         }
 
-        public void RemoveRegistration() => _registration = null;
+        public void RemoveRegistration() => _registrations.Remove(ServerName);
 
         public ValueTask<RealmRegistration?> FindByNameAsync(ProtocolServerName protocolName, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             LookupCount++;
-            return ValueTask.FromResult<RealmRegistration?>(_registration is { } realm && realm.ProtocolName == protocolName ? realm : null);
+            return ValueTask.FromResult(_registrations.GetValueOrDefault(protocolName.Value));
         }
     }
 
