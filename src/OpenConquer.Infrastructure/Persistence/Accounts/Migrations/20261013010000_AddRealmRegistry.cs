@@ -24,7 +24,9 @@ public sealed class AddRealmRegistry : Migration
                 CONSTRAINT `PK_realms` PRIMARY KEY (`realm_id`),
                 CONSTRAINT `UX_realms_protocol_server_name` UNIQUE (`protocol_server_name`),
                 CONSTRAINT `CK_realms_id` CHECK (`realm_id` > 0),
-                CONSTRAINT `CK_realms_protocol_server_name` CHECK (REGEXP_LIKE(`protocol_server_name`, '^[A-Za-z0-9_()-]{1,15}$', 'c')),
+                CONSTRAINT `CK_realms_protocol_server_name` CHECK (
+                    CHAR_LENGTH(`protocol_server_name`) BETWEEN 1 AND 15
+                    AND NOT REGEXP_LIKE(`protocol_server_name`, '[^A-Za-z0-9_()-]', 'c')),
                 CONSTRAINT `CK_realms_public_game_address` CHECK (HEX(`public_game_address`) NOT IN ('00000000', 'FFFFFFFF')),
                 CONSTRAINT `CK_realms_public_game_port` CHECK (`public_game_port` > 0),
                 CONSTRAINT `CK_realms_availability` CHECK (`availability` IN (1, 2, 3))
