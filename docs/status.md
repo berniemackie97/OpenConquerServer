@@ -31,7 +31,10 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 2 and Game schema version 9, both checked at startup.
+- Accounts schema version 3 and Game schema version 9, both checked at startup.
+- Operator-controlled Accounts DB realm registry keyed by the exact native protocol server name,
+  with case-sensitive uniqueness, explicit availability, a stable internal realm ID, IPv4 endpoint,
+  and read-only runtime lookup. It is not yet used in the login handshake or ticket issuance.
 - Characters, items (with lifetimes), friends and enemies, weapon skills, magic, and syndicates.
 - Item type catalog (14,981 types), 282 map definitions, 185 base terrains, and static collision for
   every terrain, all validated before the GameServer starts.
@@ -47,6 +50,8 @@ implemented parts work and link here rather than repeating this list.
 
 ## Not yet implemented
 
+- Realm resolution during AccountServer login, realm-bound ticket issuance/redemption, and Game DB
+  binding to a configured realm. The current login destination remains single-server configuration.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.

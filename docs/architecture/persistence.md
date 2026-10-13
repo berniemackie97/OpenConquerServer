@@ -5,18 +5,21 @@ database is read at login and written at defined commit points.
 
 ## Databases
 
-There are two MySQL 8.4 databases with no foreign keys between them.
+The intended topology is one shared Accounts database and one independent Game database per realm,
+all on MySQL 8.4, with no foreign keys between Accounts and Game.
 
 | Database | Owns                                                                                     | Schema |
 | -------- | ---------------------------------------------------------------------------------------- | -----: |
-| Accounts | Accounts, password credentials, security state, audit events, GameServer tickets         |      2 |
-| Game     | Characters, items, friends and enemies, weapon skills, magic, syndicates and memberships |      9 |
+| Accounts | Accounts, password credentials, security state, audit events, GameServer tickets, realm registry | 3 |
+| Game     | Characters, items, friends and enemies, weapon skills, magic, syndicates and memberships | 9 |
 
-The GameServer trusts the account ID only because it came from redeeming a ticket. That redemption
-is the link between the two databases.
+The GameServer currently trusts the account ID only because it came from redeeming a ticket. That
+redemption is the link between the two databases. Tickets are **not yet realm-bound**, and the
+GameServer is not yet bound to one realm database. See [multi-realm](multi-realm.md).
 
 Both databases use the `utf8mb4` character set and `utf8mb4_0900_as_cs` collation. Character and
-syndicate names use binary collation so uniqueness is exact.
+syndicate names use binary collation so uniqueness is exact. The `realms` table additionally uses
+ASCII/binary collation for exact native protocol-name identity.
 
 ## Schema contracts
 
@@ -28,7 +31,9 @@ either check fails. A failed query is reported separately from an incompatible s
 
 Hosts never apply migrations. Migration is an administrative step; see
 [Database migrations](../operations/database-migrations.md). CI fails if either model has changes
-that no migration captures.
+that no migration captures. The operator-controlled `realms` table has a SQL-only EF migration and
+is intentionally not part of the mapped `AccountDbContext` model; its owner and rollback rules are
+documented separately.
 
 ## Game schema highlights
 
@@ -50,6 +55,9 @@ invented.
 Login reads go through repository contracts defined in Application. Repositories use a pooled
 `DbContext` factory, create one context per operation, read without change tracking, and map records
 to Application types before returning; persistence records never leave Infrastructure.
+
+The realm registry is the intentional exception: its single parameterized read uses the existing
+shared `MySqlDataSource`, and never exposes provider-specific records to Application.
 
 Collection reads have explicit row limits that are separate from gameplay limits (items default to
 4,096 per character). Item reads exclude expired items in SQL before the limit is applied, using the
@@ -133,3 +141,6 @@ GRANT SELECT, INSERT
 ON `openconquer_game`.`characters`
 TO 'openconquer_game_creation'@'%';
 ```
+
+The AccountServer runtime identity also needs `SELECT` on `realms`, but no DML privilege for that
+operator-managed table.
