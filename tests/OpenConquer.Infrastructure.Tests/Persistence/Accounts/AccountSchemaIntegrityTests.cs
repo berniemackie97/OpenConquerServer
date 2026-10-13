@@ -570,7 +570,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                 """
                     INSERT INTO `game_login_tickets`
                         (`realm_id`,
-                 `session_uid`,
+                         `session_uid`,
                          `authentication_key_verifier`,
                          `authentication_key_verifier_key_id`,
                          `account_id`,
@@ -579,7 +579,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                          `expires_at_utc`)
                     VALUES
                         (1,
-                 @account_id,
+                         @account_id,
                          0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
                          1,
                          @account_id,
@@ -593,7 +593,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                 """
                     INSERT INTO `game_login_tickets`
                         (`realm_id`,
-                 `session_uid`,
+                         `session_uid`,
                          `authentication_key_verifier`,
                          `authentication_key_verifier_key_id`,
                          `account_id`,
@@ -602,7 +602,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                          `expires_at_utc`)
                     VALUES
                         (1,
-                 0,
+                         0,
                          0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
                          1,
                          @account_id,
@@ -616,7 +616,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                 """
                     INSERT INTO `game_login_tickets`
                         (`realm_id`,
-                 `session_uid`,
+                         `session_uid`,
                          `authentication_key_verifier`,
                          `authentication_key_verifier_key_id`,
                          `account_id`,
@@ -625,7 +625,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                          `expires_at_utc`)
                     VALUES
                         (1,
-                 @account_id,
+                         @account_id,
                          0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
                          0,
                          @account_id,

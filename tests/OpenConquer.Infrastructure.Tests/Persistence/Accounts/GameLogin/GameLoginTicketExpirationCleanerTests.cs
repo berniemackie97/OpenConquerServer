@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
@@ -245,7 +246,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
 
             await InsertTicketAsync(account, sessionUid, TimeSpan.FromMinutes(-6), verifier, verificationKeyId);
 
-            GameLoginTicketRedemptionStore redemptionStore = new(_dataSource, authenticationKeyRing);
+            GameLoginTicketRedemptionStore redemptionStore = new(_dataSource, authenticationKeyRing, new RealmId(1));
 
             await using MySqlConnection lockConnection = new(_database.AdministrativeConnectionString);
             await lockConnection.OpenAsync(CancellationToken);
@@ -504,7 +505,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
             command.CommandText = """
                 INSERT INTO `game_login_tickets`
                     (`realm_id`,
-                 `session_uid`,
+                     `session_uid`,
                      `account_id`,
                      `username`,
                      `issued_at_utc`,
@@ -513,7 +514,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                      `authentication_key_verifier_key_id`)
                 VALUES
                     (1,
-                 @session_uid,
+                     @session_uid,
                      @account_id,
                      @username,
                      @issued_at_utc,
