@@ -337,13 +337,14 @@ public sealed class LoginHandshakeProcessorTests
     [Theory]
     [InlineData("127.0.0.2", (ushort)5816)]
     [InlineData("127.0.0.1", (ushort)5817)]
-    public async Task ProcessAsync_RegistrationWithWrongStaticEndpointNeverGrants(string address, ushort port)
+    public async Task ProcessAsync_EnabledRealmRoutesToRegistryEndpointInsteadOfStaticConfiguration(string address, ushort port)
     {
         TestTransportConnection connection = new();
         ClientCipher cipher = new();
         await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
             connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
         QueueAccountRequest(connection, cipher);
+        QueuePostAuthenticationReports(connection, cipher, SessionUid);
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
             AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
@@ -354,10 +355,123 @@ public sealed class LoginHandshakeProcessorTests
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
         AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(SessionUid, response.SessionUid);
+        Assert.Equal(AuthenticationKey, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal((uint)port, response.GameServerPort);
+        Assert.Equal(AuthenticationKey, response.AdditionalSessionField);
+        Assert.Equal(address, response.GameServerIp);
+        Assert.Equal(1u, grants.Request!.RealmId.Value);
+        Assert.Equal(1, grants.CallCount);
+        Assert.Equal(1, authenticator.CallCount);
+        Assert.Equal(2, registry.LookupCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_EndpointChangedDuringAuthenticationUsesRefreshedRegistration()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher);
+        QueuePostAuthenticationReports(connection, cipher, SessionUid);
+
+        FakeRealmRegistry registry = new();
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision),
+            () => registry.SetRegistration(RealmAvailability.Enabled, IPAddress.Parse("192.0.2.44"), 5824));
+        FakeGrantStore grants = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(SessionUid, response.SessionUid);
+        Assert.Equal("192.0.2.44", response.GameServerIp);
+        Assert.Equal(5824u, response.GameServerPort);
+        Assert.Equal(1u, grants.Request!.RealmId.Value);
+        Assert.Equal(2, registry.LookupCount);
+        Assert.Equal(1, grants.CallCount);
+    }
+
+    [Theory]
+    [InlineData(RealmAvailability.Maintenance)]
+    [InlineData(RealmAvailability.Disabled)]
+    public async Task ProcessAsync_RealmDisabledDuringAuthenticationRejectsBeforeTicketGrant(RealmAvailability availability)
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher);
+
+        FakeRealmRegistry registry = new();
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision),
+            () => registry.SetRegistration(availability));
+        FakeGrantStore grants = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
         Assert.Equal(0u, response.SessionUid);
         Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
-        Assert.Equal(0, authenticator.CallCount);
+        Assert.Equal(GameServerPort, response.GameServerPort);
+        Assert.Equal(GameServerIp, response.GameServerIp);
+        Assert.Equal(0u, response.AdditionalSessionField);
+        Assert.Equal(1, authenticator.CallCount);
         Assert.Equal(0, grants.CallCount);
+        Assert.Equal(2, registry.LookupCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RealmIdentityChangedDuringAuthenticationRejectsBeforeTicketGrant()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher);
+
+        FakeRealmRegistry registry = new();
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision),
+            () => registry.SetRegistration(RealmAvailability.Enabled, realmId: 2));
+        FakeGrantStore grants = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(0u, response.SessionUid);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal(0, grants.CallCount);
+        Assert.Equal(2, registry.LookupCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RealmRemovedDuringAuthenticationRejectsBeforeTicketGrant()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher);
+
+        FakeRealmRegistry registry = new();
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision), registry.RemoveRegistration);
+        FakeGrantStore grants = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(0u, response.SessionUid);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal(0, grants.CallCount);
+        Assert.Equal(2, registry.LookupCount);
     }
 
     private static LoginHandshakeConfiguration CreateConfiguration()
@@ -467,21 +581,31 @@ public sealed class LoginHandshakeProcessorTests
 
     private sealed class FakeRealmRegistry : IRealmRegistry
     {
-        private readonly RealmRegistration _registration;
+        private RealmRegistration? _registration;
 
         public FakeRealmRegistry(RealmAvailability availability = RealmAvailability.Enabled, IPAddress? address = null, ushort port = (ushort)GameServerPort)
         {
-            _registration = new RealmRegistration(new RealmId(1), new ProtocolServerName(ServerName), address ?? IPAddress.Parse(GameServerIp), port, availability);
+            SetRegistration(availability, address, port);
         }
+
+        public int LookupCount { get; private set; }
+
+        public void SetRegistration(RealmAvailability availability, IPAddress? address = null, ushort port = (ushort)GameServerPort, uint realmId = 1)
+        {
+            _registration = new RealmRegistration(new RealmId(realmId), new ProtocolServerName(ServerName), address ?? IPAddress.Parse(GameServerIp), port, availability);
+        }
+
+        public void RemoveRegistration() => _registration = null;
 
         public ValueTask<RealmRegistration?> FindByNameAsync(ProtocolServerName protocolName, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<RealmRegistration?>(_registration.ProtocolName == protocolName ? _registration : null);
+            LookupCount++;
+            return ValueTask.FromResult<RealmRegistration?>(_registration is { } realm && realm.ProtocolName == protocolName ? realm : null);
         }
     }
 
-    private sealed class FakeAuthenticator(AccountAuthenticationResult result) : IAccountAuthenticator
+    private sealed class FakeAuthenticator(AccountAuthenticationResult result, Action? onAuthenticate = null) : IAccountAuthenticator
     {
         public int CallCount { get; private set; }
         public string? AccountName { get; private set; }
@@ -494,6 +618,7 @@ public sealed class LoginHandshakeProcessorTests
             cancellationToken.ThrowIfCancellationRequested();
 
             CallCount++;
+            onAuthenticate?.Invoke();
             AccountName = accountName;
             Password = new string(password.Span);
             RemoteAddress = remoteAddress;

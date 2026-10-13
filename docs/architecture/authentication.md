@@ -52,6 +52,15 @@ revoke existing tickets. An explicit password reset does revoke them.
 
 ## GameServer tickets
 
+The native 1060 realm name is validated against the live realm registry before password
+verification. A successful verification triggers a second registry read to reject realm
+removal, disablement or identity substitution and to select the latest endpoint. A
+successful packet 1055 advertises that registration's concrete IPv4 address and port;
+failure responses retain the configured legacy endpoint and original failure codes.
+The current ticket grant independently verifies that the same realm ID remains enabled
+under a shared database lock before committing the realm-bound ticket. Routing does
+not provision realms or probe GameServer health; operator deployment remains required.
+
 After a successful login, `GameLoginTicketIssuer` creates a ticket that is valid for five minutes.
 The client receives a session ID and an authentication key, both nonzero. The ticket grant locks
 `accounts`, then `account_password_credentials`, validates the selected enabled `realms`

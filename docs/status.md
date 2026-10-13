@@ -15,7 +15,9 @@ implemented parts work and link here rather than repeating this list.
   security mutations that revoke outstanding tickets.
 - Scheduled cleanup of expired tickets and low-cardinality login metrics.
 - Exact native 1060 protocol-name validation and live read-only realm lookup before authentication;
-  unknown, unavailable or endpoint-mismatched selections cannot receive a ticket.
+  unknown or unavailable selections cannot receive a ticket. After credential verification, a second
+  lookup checks continued availability and immutable realm identity; successful native 1055 redirects
+  advertise the selected registration's IPv4 address and port.
 
 ### GameServer
 
@@ -54,8 +56,10 @@ implemented parts work and link here rather than repeating this list.
 
 ## Not yet implemented
 
-- Dynamic multi-realm routing and GameServer destination selection. A selected native realm is now
-  checked against the registry, and packet 1055 still uses the single configured GameServer endpoint.
+- End-to-end multi-realm deployment/operations: additional GameServer processes, independently
+  provisioned Game databases, publicly reachable endpoints, lifecycle/health management and
+  authoritative world-content readiness for each destination. Packet 1055 selection is implemented;
+  actual realm deployment remains explicitly operator-controlled.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
