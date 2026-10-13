@@ -29,6 +29,8 @@ implemented parts work and link here rather than repeating this list.
 - World runtime: one partition per map, a shared scheduler, bounded command queues, and
   generation-fenced character admission and removal.
 - Hand-off from a completed login into a supervised world session with revocable realm presence.
+- Native 5517 eight-direction walk packet 10005 parsing, authenticated world-session gating,
+  server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
 - Partition-owned eight-direction walking state mutation with native 5517 direction ordering,
   composed static collision, generation fencing, and a cancellable-before-acceptance command API.
   This is not connected to gameplay packets and does not provide movement pacing or replication.
@@ -63,8 +65,8 @@ implemented parts work and link here rather than repeating this list.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
-- Gameplay packet routing after login: movement request parsing, pacing, acknowledgements,
-  replication, combat, NPCs, trading, and chat.
+- Remaining gameplay routing: native 24-direction movement, jumping, movement replication,
+  position persistence/correction, combat, NPCs, trading, and chat.
 - World simulation: monsters, timers, visibility, and map transfers. Dynamic occupancy and elevation
   constraints for movement also remain unresolved.
 - Seven map identities from the original data that could not be resolved (see

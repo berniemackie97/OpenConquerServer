@@ -1,9 +1,12 @@
+using System.Diagnostics;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Execution;
+using OpenConquer.GameServer.World.Movement;
 using OpenConquer.Protocol.Game.Framing;
+using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.World.Sessions;
@@ -16,6 +19,7 @@ internal sealed class WorldSession : IAsyncDisposable
 {
     private readonly ExistingCharacterGameConnection _connection;
     private readonly WorldRuntime _runtime;
+    private readonly WorldWalkPacer _walkPacer = new();
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private CancellationTokenRegistration _presenceRegistration;
@@ -92,6 +96,33 @@ internal sealed class WorldSession : IAsyncDisposable
         if (!_runtime.IsRunning)
         {
             throw new InvalidOperationException("The authoritative world runtime is stopping.");
+        }
+    }
+
+    /// <summary>
+    /// Applies exactly one authenticated eight-direction ground step. The packet is echoed
+    /// only after the authoritative partition commits the new position.
+    /// </summary>
+    internal async ValueTask ProcessWalkAsync(GameWalkPacket walk, CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+
+        if (walk.EntityId != Ownership.CharacterId || walk.DirectionIndex >= 8 || walk.CommandSelector == GameWalkPacket.TwentyFourDirectionSelector)
+        {
+            throw new InvalidDataException("A walk command does not match the authenticated character or supported native direction mode.");
+        }
+
+        if (!_walkPacer.TryAccept(walk.MovementTick, Stopwatch.GetTimestamp()))
+        {
+            return;
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex, linked.Token).ConfigureAwait(false);
+
+        if (committed is not null)
+        {
+            await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
         }
     }
 

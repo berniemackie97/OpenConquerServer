@@ -7,6 +7,7 @@ using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Protocol.Game.Framing;
+using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
@@ -187,7 +188,12 @@ internal sealed partial class GameConnectionWorkerPool(
                         return;
                     }
 
-                    throw new InvalidDataException("The GameServer received a gameplay frame before gameplay dispatch is available.");
+                    if (frame.PacketId != GameWalkPacket.PacketIdentifier || !GameWalkPacket.TryParse(frame.Packet.Span, out GameWalkPacket walk))
+                    {
+                        throw new InvalidDataException("The GameServer received an unsupported or malformed gameplay frame.");
+                    }
+
+                    await session.ProcessWalkAsync(walk, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || session.IsStopping)
