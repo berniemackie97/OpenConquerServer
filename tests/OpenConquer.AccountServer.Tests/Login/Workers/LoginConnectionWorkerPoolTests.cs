@@ -3,6 +3,8 @@ using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Realms;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
@@ -209,7 +211,13 @@ public sealed class LoginConnectionWorkerPoolTests
     private static LoginHandshakeProcessor CreateProcessor(TimeSpan? phaseTimeout = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new UnusedGrantStore(), new UnusedTokenGenerator());
-        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new LoginHandshakeConfiguration(IPAddress.Loopback, 5816, phaseTimeout ?? TimeSpan.FromSeconds(10)));
+        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(IPAddress.Loopback, 5816, phaseTimeout ?? TimeSpan.FromSeconds(10)));
+    }
+
+    private sealed class UnusedRealmRegistry : IRealmRegistry
+    {
+        public ValueTask<RealmRegistration?> FindByNameAsync(ProtocolServerName name, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Realm lookup was not expected.");
     }
 
     private sealed class FixedSeedGenerator : ILoginSeedGenerator

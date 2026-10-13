@@ -14,6 +14,8 @@ implemented parts work and link here rather than repeating this list.
 - Authentication rate limiting and lockout, password storage with transparent migration, and account
   security mutations that revoke outstanding tickets.
 - Scheduled cleanup of expired tickets and low-cardinality login metrics.
+- Exact native 1060 protocol-name validation and live read-only realm lookup before authentication;
+  unknown, unavailable or endpoint-mismatched selections cannot receive a ticket.
 
 ### GameServer
 
@@ -35,7 +37,8 @@ implemented parts work and link here rather than repeating this list.
 - GameServer validates a configured realm ID against its Game database's operator-provisioned binding before world publication.
 - Operator-controlled Accounts DB realm registry keyed by the exact native protocol server name,
   with case-sensitive uniqueness, explicit availability, a stable internal realm ID, IPv4 endpoint,
-  and read-only runtime lookup. It is not yet used in the login handshake or ticket issuance.
+  and read-only runtime lookup. The login handshake uses it for fail-closed selection preflight;
+  ticket records and redemption remain realm-unbound.
 - Characters, items (with lifetimes), friends and enemies, weapon skills, magic, and syndicates.
 - Item type catalog (14,981 types), 282 map definitions, 185 base terrains, and static collision for
   every terrain, all validated before the GameServer starts.
@@ -51,8 +54,8 @@ implemented parts work and link here rather than repeating this list.
 
 ## Not yet implemented
 
-- Realm resolution during AccountServer login, realm-bound ticket issuance/redemption, and Game DB
-  binding to a configured realm. The current login destination remains single-server configuration.
+- Realm-bound ticket issuance/redemption and multi-realm routing. A selected native realm is now
+  checked against the registry, but packet 1055 still uses the single configured GameServer endpoint.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.

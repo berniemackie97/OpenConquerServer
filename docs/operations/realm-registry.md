@@ -29,10 +29,13 @@ provision a known realm with an operator-controlled `realm_id`:
 ```sql
 INSERT INTO `realms`
     (`realm_id`, `protocol_server_name`, `public_game_address`, `public_game_port`, `availability`)
-VALUES (1, 'Local', INET6_ATON('127.0.0.1'), 5816, 1);
+VALUES (1, 'LocalRealm', INET6_ATON('127.0.0.1'), 5816, 1);
 ```
 
-The example is for local development only. The public GameServer address and port
+The `LocalRealm` values above are the explicitly assigned OpenConquerClient development identity,
+not an arbitrary example. For a guarded, verified one-time insertion, use
+[LocalRealm provisioning](local-realm-provisioning.md) instead of blindly executing
+the INSERT. The public GameServer address and port
 must match the real deployment. `protocol_server_name` is an immutable native
 identity, not a display name; changing it disrupts saved client paths. A second
 operator-provisioned row does not enable a second GameServer on its own.
