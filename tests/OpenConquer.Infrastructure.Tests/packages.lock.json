@@ -13,11 +13,11 @@
       },
       "Testcontainers.MySql": {
         "type": "Direct",
-        "requested": "[4.15.0, )",
-        "resolved": "4.15.0",
-        "contentHash": "pgY+pjNJ8z/kwdv1bdAPWSnSXqFiDGg4rmQcX4ubzZCgiX8Q2CFOaOAJrM9ADdFP9mPas5GemyZH4zmwU39ekg==",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "29DkCw3cK0l1rrViedRflMkQaxEaru9WsGcC6Giqd5+TakbCuOyh7ltmYCjEQvX47C8M2q2l6XJYizwJcPB+vg==",
         "dependencies": {
-          "Testcontainers": "4.15.0"
+          "Testcontainers": "4.16.0"
         }
       },
       "xunit.v3": {
@@ -161,8 +161,8 @@
       },
       "Testcontainers": {
         "type": "Transitive",
-        "resolved": "4.15.0",
-        "contentHash": "8tCZKMm++C/9dHIr8lsE1iDBIBmthbo2XlGFDr4gorT1vgZrJwU36fNkCGuX7h7V39rpQoTK/aG+FhJz3jhY3A==",
+        "resolved": "4.16.0",
+        "contentHash": "JmMUZk6ZXQovbGQjaMB+YxOR0PbJTdYjOYjRcrm5LrA2dhLVMuCbhVGGunzCGIQfFMUB5Lno2LPOHMMuaGmuIg==",
         "dependencies": {
           "Docker.DotNet.Enhanced": "4.3.3",
           "Docker.DotNet.Enhanced.X509": "4.3.3",
