@@ -702,7 +702,8 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
 
         command.CommandText = """
             INSERT INTO `game_login_tickets`
-                (`session_uid`,
+                (`realm_id`,
+                 `session_uid`,
                  `account_id`,
                  `username`,
                  `issued_at_utc`,
@@ -710,7 +711,8 @@ public sealed class AccountAuthenticationRepositoryTests(AccountDatabaseFixture 
                  `authentication_key_verifier`,
                  `authentication_key_verifier_key_id`)
             VALUES
-                (@session_uid,
+                (1,
+                 @session_uid,
                  @account_id,
                  @username,
                  UTC_TIMESTAMP(6),

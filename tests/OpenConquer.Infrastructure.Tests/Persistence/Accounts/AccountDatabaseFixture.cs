@@ -80,6 +80,10 @@ public sealed class AccountDatabaseFixture : IAsyncLifetime
             """);
 
         await db.Database.MigrateAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO `realms` (`realm_id`, `protocol_server_name`, `public_game_address`, `public_game_port`, `availability`)
+            VALUES (1, 'LocalRealm', INET6_ATON('127.0.0.1'), 5816, 1);
+            """);
     }
 
     private static async Task<string> CreateRuntimeIdentityAsync(string administrativeConnectionString)

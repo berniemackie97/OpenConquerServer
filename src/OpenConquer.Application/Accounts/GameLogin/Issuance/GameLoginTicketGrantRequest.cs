@@ -1,10 +1,11 @@
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 
 namespace OpenConquer.Application.Accounts.GameLogin.Issuance;
 
 public sealed class GameLoginTicketGrantRequest
 {
-    public GameLoginTicketGrantRequest(uint accountId, string username, uint sessionUid, uint authenticationKey)
+    public GameLoginTicketGrantRequest(uint accountId, string username, uint sessionUid, uint authenticationKey, RealmId realmId)
     {
         if (accountId == 0)
         {
@@ -26,14 +27,21 @@ public sealed class GameLoginTicketGrantRequest
             throw new ArgumentOutOfRangeException(nameof(authenticationKey), "A game-login ticket grant requires a nonzero authentication key.");
         }
 
+        if (realmId.Value == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(realmId), "A ticket grant requires a nonzero authoritative realm identity.");
+        }
+
         AccountId = accountId;
         Username = username;
         SessionUid = sessionUid;
         AuthenticationKey = authenticationKey;
+        RealmId = realmId;
     }
 
     public uint AccountId { get; }
     public string Username { get; }
     public uint SessionUid { get; }
     public uint AuthenticationKey { get; }
+    public RealmId RealmId { get; }
 }

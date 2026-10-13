@@ -28,6 +28,7 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
         "CK_account_password_credentials_password_hash",
         "CK_account_password_credentials_revision",
         "CK_game_login_tickets_expiration",
+        "CK_game_login_tickets_realm_id",
         "CK_game_login_tickets_session_uid",
         "CK_game_login_tickets_verifier_key_id",
         "CK_realms_availability",
@@ -568,7 +569,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                 "CK_game_login_tickets_expiration",
                 """
                     INSERT INTO `game_login_tickets`
-                        (`session_uid`,
+                        (`realm_id`,
+                         `session_uid`,
                          `authentication_key_verifier`,
                          `authentication_key_verifier_key_id`,
                          `account_id`,
@@ -576,7 +578,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                          `issued_at_utc`,
                          `expires_at_utc`)
                     VALUES
-                        (@account_id,
+                        (1,
+                         @account_id,
                          0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
                          1,
                          @account_id,
@@ -589,7 +592,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                 "CK_game_login_tickets_session_uid",
                 """
                     INSERT INTO `game_login_tickets`
-                        (`session_uid`,
+                        (`realm_id`,
+                         `session_uid`,
                          `authentication_key_verifier`,
                          `authentication_key_verifier_key_id`,
                          `account_id`,
@@ -597,7 +601,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                          `issued_at_utc`,
                          `expires_at_utc`)
                     VALUES
-                        (0,
+                        (1,
+                         0,
                          0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
                          1,
                          @account_id,
@@ -610,7 +615,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                 "CK_game_login_tickets_verifier_key_id",
                 """
                     INSERT INTO `game_login_tickets`
-                        (`session_uid`,
+                        (`realm_id`,
+                         `session_uid`,
                          `authentication_key_verifier`,
                          `authentication_key_verifier_key_id`,
                          `account_id`,
@@ -618,9 +624,33 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
                          `issued_at_utc`,
                          `expires_at_utc`)
                     VALUES
-                        (@account_id,
+                        (1,
+                         @account_id,
                          0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
                          0,
+                         @account_id,
+                         @username,
+                         '2026-01-01 00:01:00',
+                         '2026-01-01 00:02:00')
+                    """
+            },
+            {
+                "CK_game_login_tickets_realm_id",
+                """
+                    INSERT INTO `game_login_tickets`
+                        (`realm_id`,
+                         `session_uid`,
+                         `authentication_key_verifier`,
+                         `authentication_key_verifier_key_id`,
+                         `account_id`,
+                         `username`,
+                         `issued_at_utc`,
+                         `expires_at_utc`)
+                    VALUES
+                        (0,
+                         @account_id,
+                         0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F,
+                         1,
                          @account_id,
                          @username,
                          '2026-01-01 00:01:00',

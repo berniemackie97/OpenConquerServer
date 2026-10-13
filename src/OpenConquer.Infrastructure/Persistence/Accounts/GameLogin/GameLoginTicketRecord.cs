@@ -6,6 +6,7 @@ internal sealed class GameLoginTicketRecord
     public byte[] AuthenticationKeyVerifier { get; set; } = [];
     public ushort AuthenticationKeyVerifierKeyId { get; set; }
     public uint AccountId { get; set; }
+    public uint RealmId { get; set; }
     public string Username { get; set; } = string.Empty;
     public DateTime IssuedAtUtc { get; set; }
     public DateTime ExpiresAtUtc { get; set; }

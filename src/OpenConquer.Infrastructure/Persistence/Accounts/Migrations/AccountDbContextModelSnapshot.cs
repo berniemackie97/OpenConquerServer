@@ -292,6 +292,10 @@ namespace OpenConquer.Infrastructure.Persistence.Accounts.Migrations
                         .HasColumnName("authentication_key_verifier")
                         .IsFixedLength();
 
+                    b.Property<uint>("RealmId")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("realm_id");
+
                     b.Property<ushort>("AuthenticationKeyVerifierKeyId")
                         .HasColumnType("smallint unsigned")
                         .HasColumnName("authentication_key_verifier_key_id");
@@ -325,6 +329,8 @@ namespace OpenConquer.Infrastructure.Persistence.Accounts.Migrations
                     b.ToTable("game_login_tickets", null, t =>
                         {
                             t.HasCheckConstraint("CK_game_login_tickets_expiration", "`expires_at_utc` > `issued_at_utc`");
+
+                            t.HasCheckConstraint("CK_game_login_tickets_realm_id", "`realm_id` > 0");
 
                             t.HasCheckConstraint("CK_game_login_tickets_session_uid", "`session_uid` > 0");
 

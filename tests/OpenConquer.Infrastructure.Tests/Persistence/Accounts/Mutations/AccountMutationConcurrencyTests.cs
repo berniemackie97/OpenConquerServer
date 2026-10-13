@@ -6,6 +6,7 @@ using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Accounts.Mutations;
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
@@ -61,7 +62,7 @@ public sealed class AccountMutationConcurrencyTests
 
         _mutationStore = new AccountMutationStore(_dataSource);
         _grantStore = new GameLoginTicketGrantStore(_dataSource, _authenticationKeyRing);
-        _redemptionStore = new GameLoginTicketRedemptionStore(_dataSource, _authenticationKeyRing);
+        _redemptionStore = new GameLoginTicketRedemptionStore(_dataSource, _authenticationKeyRing, new RealmId(1));
     }
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -596,7 +597,8 @@ public sealed class AccountMutationConcurrencyTests
 
             command.CommandText = """
                 INSERT INTO `game_login_tickets`
-                    (`session_uid`,
+                    (`realm_id`,
+                 `session_uid`,
                      `account_id`,
                      `username`,
                      `issued_at_utc`,
@@ -604,7 +606,8 @@ public sealed class AccountMutationConcurrencyTests
                      `authentication_key_verifier`,
                      `authentication_key_verifier_key_id`)
                 VALUES
-                    (@session_uid,
+                    (1,
+                 @session_uid,
                      @account_id,
                      @username,
                      TIMESTAMPADD(MINUTE, -1, UTC_TIMESTAMP(6)),
@@ -796,7 +799,8 @@ public sealed class AccountMutationConcurrencyTests
             account.AccountId,
             account.Username,
             NextSessionUid(),
-            NextAuthenticationKey()
+            NextAuthenticationKey(),
+            new RealmId(1)
         );
     }
 

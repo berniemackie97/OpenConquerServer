@@ -33,12 +33,12 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 3 and Game schema version 10, both checked at startup.
+- Accounts schema version 4 and Game schema version 10, both checked at startup.
 - GameServer validates a configured realm ID against its Game database's operator-provisioned binding before world publication.
 - Operator-controlled Accounts DB realm registry keyed by the exact native protocol server name,
   with case-sensitive uniqueness, explicit availability, a stable internal realm ID, IPv4 endpoint,
   and read-only runtime lookup. The login handshake uses it for fail-closed selection preflight;
-  ticket records and redemption remain realm-unbound.
+  newly issued tickets are realm-bound and redemption enforces GameServer realm identity.
 - Characters, items (with lifetimes), friends and enemies, weapon skills, magic, and syndicates.
 - Item type catalog (14,981 types), 282 map definitions, 185 base terrains, and static collision for
   every terrain, all validated before the GameServer starts.
@@ -54,8 +54,8 @@ implemented parts work and link here rather than repeating this list.
 
 ## Not yet implemented
 
-- Realm-bound ticket issuance/redemption and multi-realm routing. A selected native realm is now
-  checked against the registry, but packet 1055 still uses the single configured GameServer endpoint.
+- Dynamic multi-realm routing and GameServer destination selection. A selected native realm is now
+  checked against the registry, and packet 1055 still uses the single configured GameServer endpoint.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
@@ -30,7 +31,7 @@ public static class GameLoginTicketRedemptionInfrastructureServiceCollectionExte
         services.AddSingleton<IGameLoginTicketRedemptionAttemptLimiter>(provider => provider.GetRequiredService<GameLoginTicketRedemptionAttemptLimiter>());
 
         services.AddSingleton<GameLoginTicketAuthenticationKeyRing>(_ => GameLoginTicketAuthenticationKeyRingFactory.Create(activeVerificationKeyId, verificationKeys));
-        services.AddSingleton<IGameLoginTicketRedemptionStore>(provider => new GameLoginTicketRedemptionStore(provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>()));
+        services.AddSingleton<IGameLoginTicketRedemptionStore>(provider => new GameLoginTicketRedemptionStore(provider.GetRequiredKeyedService<MySqlDataSource>(AccountPersistenceServiceCollectionExtensions.RawMySqlDataSourceKey), provider.GetRequiredService<GameLoginTicketAuthenticationKeyRing>(), provider.GetRequiredService<RealmId>()));
 
         services.AddSingleton<GameLoginTicketRedeemer>();
 
