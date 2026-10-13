@@ -51,6 +51,7 @@ EF migration history, or delete the table to make a migration succeed. An unknow
 preexisting table is a hard failure. The migration does not modify characters,
 items, or syndicates and refuses destructive downgrade.
 
-**This gate is not sufficient for multi-realm login security.** Tickets remain
-realm-unbound until the next security slice; no new realm may be made live through
-AccountServer routing until the ticket issuance/redemption gate is also in place.
+The binding is one half of realm isolation; the other is the realm-bound ticket
+(Accounts v4, see [realm-bound tickets](realm-bound-tickets.md)), which a GameServer
+redeems only for its own configured realm. Adding a realm end to end is covered in
+[Realm operations](realms.md).

@@ -30,7 +30,7 @@ Unknown and disabled share one reply, so retiring a realm by disabling or by del
 
 ## Routing and remaining deployment gates
 
-The native pre-issuance lookup gate, Accounts v4 realm-bound ticket cutover and registry-directed successful 1055 routing are implemented. Multi-realm operation additionally requires each GameServer to have its own provisioned Game database, verified numeric realm binding, separate reachable endpoint, correct secrets and deployment readiness. The registry is a configuration source, not a health check or an automatic realm provisioning system.
+The native pre-issuance lookup gate, Accounts v4 realm-bound ticket cutover and registry-directed successful 1055 routing are implemented. Each additional realm needs its own provisioned Game database, numeric realm binding, reachable endpoint and secrets; [Realm operations](../operations/realms.md) is the procedure. The registry is a configuration source, not a health check or an automatic realm provisioning system.
 
 Game schema v10 adds an operator-provisioned one-row binding in each separate Game database, checked against the configured GameServer realm before world publication. Cross-realm ticket redemption is rejected during the locked, atomic ticket-consumption transaction, before character lookup. Neither a shared Game database nor a distributed control plane is needed.
 

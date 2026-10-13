@@ -46,4 +46,4 @@ If migration fails or DDL partially commits, **stop**. Inspect table structure, 
 
 ## Security limits
 
-Realm identity comes from the validated 1060 selection, not a client-supplied numeric ID. Tickets are bound in the Accounts transaction and redemption must verify the configured GameServer realm in the same row-lock-and-delete transaction. The pre-v4 ticket shape is not accepted. Existing static 1055 redirects remain unchanged: this release does **not** enable dynamic multi-realm routing or remote clients.
+Realm identity comes from the validated 1060 selection, not a client-supplied numeric ID. Tickets are bound in the Accounts transaction and redemption must verify the configured GameServer realm in the same row-lock-and-delete transaction. The pre-v4 ticket shape is not accepted. Successful 1055 redirects come from the selected realm's registration, and refused selections reply with the native availability codes; see [Realm operations](realms.md).
