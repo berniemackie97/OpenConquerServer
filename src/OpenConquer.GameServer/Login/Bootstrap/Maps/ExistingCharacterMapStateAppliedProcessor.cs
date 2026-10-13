@@ -1,96 +1,22 @@
-using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.Application.World;
-using OpenConquer.GameServer.Login.Bootstrap.Items;
-using OpenConquer.GameServer.Login.Character;
-using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Login.Bootstrap.Maps;
 
 internal sealed class ExistingCharacterMapStateAppliedProcessor
 {
-    /// <summary>
-    /// Takes ownership of the entered-map connection and transfers it only after the client-state-applied notification is validated.
-    /// </summary>
-    public async ValueTask<AwaitingItemSetConnection> ProcessAsync(EnteredMapConnection enteredMap, CancellationToken cancellationToken = default)
+    public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(enteredMap);
+        GameAction notification = await LoginActionRequest.ReadAsync(login.Connection, GameAction.ClientStateAppliedAction,
+            "client-state-applied notification", cancellationToken).ConfigureAwait(false);
 
-        ExistingCharacterGameConnection connection = enteredMap.TakeConnection();
-        CharacterLoginProfile profile = enteredMap.Profile;
-        WorldMapContent map = enteredMap.Map;
-        using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connection.RevocationToken);
-        CancellationToken operationToken = operationCancellation.Token;
-
-        try
+        if (notification.EntityId != 0 || notification.ParameterPair != 0 || notification.ActionParameter != 0
+            || notification.Timestamp != 0 || notification.Direction != 0 || notification.PositionX != 0
+            || notification.PositionY != 0 || notification.Data1 != 0 || notification.Data2 != 0
+            || notification.Flag != 0)
         {
-            operationToken.ThrowIfCancellationRequested();
-
-            GameAction clientStateApplied;
-
-            using (GameInboundFrame? frame = await connection.ReadAsync(operationToken).ConfigureAwait(false))
-            {
-                if (frame is null)
-                {
-                    throw new EndOfStreamException("The GameServer connection closed while awaiting the client-state-applied notification.");
-                }
-
-                if (!GameAction.TryParse(frame, out clientStateApplied, out GameActionParseError parseError))
-                {
-                    throw new InvalidDataException($"The post-EnterMap GameServer frame is not a valid action packet: {parseError}.");
-                }
-
-                if (frame.Header.Length != GameAction.FixedPacketLength || clientStateApplied.StringCount != 0)
-                {
-                    throw new InvalidDataException("The client-state-applied notification must contain the fixed action body without trailing strings.");
-                }
-            }
-
-            if (clientStateApplied.Action != GameAction.ClientStateAppliedAction)
-            {
-                throw new InvalidDataException($"Expected client-state-applied action {GameAction.ClientStateAppliedAction}, received action {clientStateApplied.Action}.");
-            }
-
-            if (clientStateApplied.EntityId != 0 || clientStateApplied.ParameterPair != 0 || clientStateApplied.ActionParameter != 0
-                || clientStateApplied.Timestamp != 0 || clientStateApplied.Direction != 0 || clientStateApplied.PositionX != 0
-                || clientStateApplied.PositionY != 0 || clientStateApplied.Data1 != 0 || clientStateApplied.Data2 != 0
-                || clientStateApplied.Flag != 0)
-            {
-                throw new InvalidDataException("The client-state-applied notification requires all non-action fields to be zero.");
-            }
-
-            operationToken.ThrowIfCancellationRequested();
-
-            return new AwaitingItemSetConnection(connection, map);
-        }
-        catch (Exception processingException)
-        {
-            try
-            {
-                await connection.DisposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception cleanupException)
-            {
-                throw CreateProcessingFailure(processingException, cleanupException);
-            }
-
-            throw;
-        }
-    }
-
-    private static AggregateException CreateProcessingFailure(Exception processingException, Exception cleanupException)
-    {
-        List<Exception> failures = [processingException];
-
-        if (cleanupException is AggregateException aggregate)
-        {
-            failures.AddRange(aggregate.Flatten().InnerExceptions);
-        }
-        else
-        {
-            failures.Add(cleanupException);
+            throw new InvalidDataException("The client-state-applied notification requires all non-action fields to be zero.");
         }
 
-        return new AggregateException("Existing-character client-state-applied processing failed and connection cleanup also failed.", failures);
+        cancellationToken.ThrowIfCancellationRequested();
     }
 }

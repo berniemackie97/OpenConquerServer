@@ -125,9 +125,10 @@ Character lookup uses only the account ID established by the ticket; nothing the
 selects which character is loaded. An account without a character is routed to character
 creation, which is not implemented yet. An existing character goes through the bootstrap
 sequence described in the [protocol documentation](../protocol/README.md#gameserver-login).
-Each stage is a separate connection type. A stage takes exclusive ownership of the previous one,
-validates the client's request against the authenticated character, writes its response, and
-hands the same connection to the next stage. Any failure closes the connection.
+`GameExistingCharacterLoginProcessor` owns the connection for the whole sequence and keeps what each
+step loads in a single login context. Each step validates the client's request against the
+authenticated character, writes its response, and records its state. Any failure closes the
+connection.
 
 When the sequence completes, the worker hands the connection to a `WorldSession` and becomes free
 immediately. The world session's I/O and cleanup are supervised separately from the workers.
