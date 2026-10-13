@@ -8,6 +8,8 @@ namespace OpenConquer.GameServer.World.Execution;
 /// </summary>
 internal sealed class MapInstance(WorldMapContent map)
 {
+    private static readonly sbyte[] s_walkDeltaX = [0, -1, -1, -1, 0, 1, 1, 1];
+    private static readonly sbyte[] s_walkDeltaY = [1, 1, 0, -1, -1, -1, 0, 1];
     private readonly Dictionary<uint, WorldCharacterSnapshot> _characters = [];
 
     public WorldMapContent Map { get; } = map ?? throw new ArgumentNullException(nameof(map));
@@ -50,6 +52,30 @@ internal sealed class MapInstance(WorldMapContent map)
         return _characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current) && current.Ownership == ownership
             ? current
             : null;
+    }
+
+    /// <summary>
+    /// Applies one 5517 eight-direction ground step. This is a partition-owned primitive, not an ingress authorization policy.
+    /// </summary>
+    public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex)
+    {
+        if (directionIndex >= s_walkDeltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)
+            || current.Ownership != ownership)
+        {
+            return null;
+        }
+
+        int x = current.X + s_walkDeltaX[directionIndex];
+        int y = current.Y + s_walkDeltaY[directionIndex];
+
+        if ((uint)x > ushort.MaxValue || (uint)y > ushort.MaxValue || !Map.Collision.IsStaticallyPassable(x, y))
+        {
+            return null;
+        }
+
+        WorldCharacterSnapshot moved = current with { X = (ushort)x, Y = (ushort)y };
+        _characters[ownership.CharacterId] = moved;
+        return moved;
     }
 
     public void Clear() => _characters.Clear();
