@@ -7,17 +7,20 @@ using OpenConquer.AccountServer.Login.Handshake.Authentication;
 using OpenConquer.AccountServer.Login.Handshake.PostAuthentication;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Realms;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Protocol.Login.Packets;
 
 namespace OpenConquer.AccountServer.Login.Handshake;
 
-internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticator, GameLoginTicketIssuer ticketIssuer, LoginHandshakeConfiguration configuration)
+internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticator, GameLoginTicketIssuer ticketIssuer, IRealmRegistry realmRegistry, LoginHandshakeConfiguration configuration)
 {
     private const ushort ProtectedAccountRequestPacketId = 1084;
     private const ushort MobileAccountRequestPacketId = 1098;
 
     private readonly IAccountAuthenticator _authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
     private readonly GameLoginTicketIssuer _ticketIssuer = ticketIssuer ?? throw new ArgumentNullException(nameof(ticketIssuer));
+    private readonly IRealmRegistry _realmRegistry = realmRegistry ?? throw new ArgumentNullException(nameof(realmRegistry));
     private readonly LoginHandshakeConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
     public async ValueTask ProcessAsync(LoginConnectionSession session, CancellationToken cancellationToken = default)
@@ -58,11 +61,22 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         }
 
         LoginAccountRequest request = readResult.Request ?? throw new InvalidOperationException("Account-request reader reported success without returning a request.");
-        AccountAuthenticationResult authentication;
+        AccountAuthenticationResult authentication = default;
+        bool realmAccepted;
 
         using (request)
         {
-            authentication = await AuthenticateAsync(request, remoteAddress, cancellationToken).ConfigureAwait(false);
+            realmAccepted = await IsSelectedRealmAvailableAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
+            if (realmAccepted)
+            {
+                authentication = await AuthenticateAsync(request, remoteAddress, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (!realmAccepted)
+        {
+            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.InvalidCredentials, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
         if (authentication.Status == AccountAuthenticationStatus.InvalidCredentials)
@@ -94,6 +108,29 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         await session.WriteAsync(response, cancellationToken).ConfigureAwait(false);
         await ReadPostAuthenticationReportsAsync(session, ticket.SessionUid, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<bool> IsSelectedRealmAvailableAsync(string serverName, CancellationToken cancellationToken)
+    {
+        ProtocolServerName protocolName;
+        try
+        {
+            protocolName = new ProtocolServerName(serverName);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+
+        RealmRegistration? realm = await _realmRegistry.FindByNameAsync(protocolName, cancellationToken).ConfigureAwait(false);
+
+        // Packet 1055 still advertises one statically configured endpoint. Until the
+        // realm-bound-ticket and multi-realm routing slices land, refusing a mismatch
+        // is safer than advertising a different GameServer than the selected realm.
+        return realm is { Availability: RealmAvailability.Enabled }
+            && realm.ProtocolName == protocolName
+            && realm.PublicGamePort == _configuration.GameServerPort
+            && string.Equals(realm.PublicGameAddress.ToString(), _configuration.GameServerIp, StringComparison.Ordinal);
     }
 
     private async ValueTask<AccountAuthenticationResult> AuthenticateAsync(LoginAccountRequest request, IPAddress remoteAddress, CancellationToken cancellationToken)

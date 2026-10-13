@@ -7,6 +7,8 @@ using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Realms;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Transport.Connections;
@@ -24,7 +26,7 @@ public sealed class LoginHandshakeProcessorTests
     private const uint GameServerPort = 5816;
     private const string AccountName = "testacc";
     private const string Password = "password1";
-    private const string ServerName = "Conquer";
+    private const string ServerName = "LocalRealm";
     private const string GameServerIp = "127.0.0.1";
     private const string EncryptedCredential = "22DB42ACB82F421D" + "AEF13F7A611D5A03" + "2F45309A4D0DDC65" + "2F45309A4D0DDC65";
 
@@ -34,9 +36,13 @@ public sealed class LoginHandshakeProcessorTests
         LoginHandshakeConfiguration configuration = CreateConfiguration();
         GameLoginTicketIssuer issuer = CreateIssuer(new FakeGrantStore());
 
-        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(null!, issuer, configuration));
-        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(new FakeAuthenticator(AccountAuthenticationResult.InvalidCredentials()), null!, configuration));
-        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(new FakeAuthenticator(AccountAuthenticationResult.InvalidCredentials()), issuer, null!));
+        FakeRealmRegistry registry = new();
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
+
+        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(null!, issuer, registry, configuration));
+        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(authenticator, null!, registry, configuration));
+        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(authenticator, issuer, null!, configuration));
+        Assert.Throws<ArgumentNullException>(() => new LoginHandshakeProcessor(authenticator, issuer, registry, null!));
     }
 
     [Fact]
@@ -54,7 +60,7 @@ public sealed class LoginHandshakeProcessorTests
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
             AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
         FakeGrantStore grantStore = new(blockGrant: true);
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         Task processTask = processor.ProcessAsync(session, TestContext.Current.CancellationToken).AsTask();
 
@@ -104,7 +110,7 @@ public sealed class LoginHandshakeProcessorTests
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
             AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
         FakeGrantStore grantStore = new();
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
@@ -131,7 +137,7 @@ public sealed class LoginHandshakeProcessorTests
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
         FakeGrantStore grantStore = new();
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
@@ -155,7 +161,7 @@ public sealed class LoginHandshakeProcessorTests
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.Banned());
         FakeGrantStore grantStore = new();
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
@@ -180,7 +186,7 @@ public sealed class LoginHandshakeProcessorTests
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
             AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
         FakeGrantStore grantStore = new(authenticationStateChanged: true);
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
@@ -203,7 +209,7 @@ public sealed class LoginHandshakeProcessorTests
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
         FakeGrantStore grantStore = new();
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
@@ -221,7 +227,7 @@ public sealed class LoginHandshakeProcessorTests
             connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(new FakeGrantStore()), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(new FakeGrantStore()), new FakeRealmRegistry(), CreateConfiguration());
 
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         Task processTask = processor.ProcessAsync(session, cancellation.Token).AsTask();
@@ -242,7 +248,7 @@ public sealed class LoginHandshakeProcessorTests
 
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
         LoginHandshakeConfiguration configuration = new(IPAddress.Loopback, (int)GameServerPort, TimeSpan.FromMilliseconds(50));
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(new FakeGrantStore()), configuration);
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(new FakeGrantStore()), new FakeRealmRegistry(), configuration);
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
@@ -265,7 +271,7 @@ public sealed class LoginHandshakeProcessorTests
         FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
             AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
         FakeGrantStore grantStore = new();
-        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), CreateConfiguration());
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), CreateConfiguration());
 
         await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
 
@@ -273,6 +279,85 @@ public sealed class LoginHandshakeProcessorTests
         Assert.Equal(SessionUid, response.SessionUid);
         Assert.Equal(AuthenticationKey, response.AuthenticationKeyOrFailureCode);
         Assert.Equal(1, grantStore.CallCount);
+    }
+
+    [Theory]
+    [InlineData("localrealm")]
+    [InlineData("OtherRealm")]
+    [InlineData("Local.Realm")]
+    [InlineData("")]
+    public async Task ProcessAsync_UnknownOrMalformedNativeRealmRejectsBeforeAuthentication(string serverName)
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher, serverName);
+
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
+        FakeGrantStore grants = new();
+        FakeRealmRegistry registry = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(0u, response.SessionUid);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal(0, authenticator.CallCount);
+        Assert.Equal(0, grants.CallCount);
+    }
+
+    [Theory]
+    [InlineData(RealmAvailability.Maintenance)]
+    [InlineData(RealmAvailability.Disabled)]
+    public async Task ProcessAsync_UnavailableRealmRejectsWithoutCredentialOrTicketWork(RealmAvailability availability)
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher);
+
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
+        FakeGrantStore grants = new();
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), new FakeRealmRegistry(availability), CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(0u, response.SessionUid);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal(0, authenticator.CallCount);
+        Assert.Equal(0, grants.CallCount);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.2", (ushort)5816)]
+    [InlineData("127.0.0.1", (ushort)5817)]
+    public async Task ProcessAsync_RegistrationWithWrongStaticEndpointNeverGrants(string address, ushort port)
+    {
+        TestTransportConnection connection = new();
+        ClientCipher cipher = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        QueueAccountRequest(connection, cipher);
+
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.Succeeded(
+            AccountId, AccountName, AccountStateRevision, PasswordCredentialRevision));
+        FakeGrantStore grants = new();
+        FakeRealmRegistry registry = new(RealmAvailability.Enabled, IPAddress.Parse(address), port);
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grants), registry, CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        AuthenticationResponse response = ReadAuthenticationResponse(connection);
+        Assert.Equal(0u, response.SessionUid);
+        Assert.Equal((uint)LoginAccountAuthenticationFailureCode.InvalidCredentials, response.AuthenticationKeyOrFailureCode);
+        Assert.Equal(0, authenticator.CallCount);
+        Assert.Equal(0, grants.CallCount);
     }
 
     private static LoginHandshakeConfiguration CreateConfiguration()
@@ -285,9 +370,9 @@ public sealed class LoginHandshakeProcessorTests
         return new GameLoginTicketIssuer(grantStore, new FakeTokenGenerator());
     }
 
-    private static void QueueAccountRequest(TestTransportConnection connection, ClientCipher cipher)
+    private static void QueueAccountRequest(TestTransportConnection connection, ClientCipher cipher, string serverName = ServerName)
     {
-        connection.QueueReceive(BuildClientFrame(cipher, LoginAccountRequestPacket.PacketIdentifier, CreateAccountRequestPayload()));
+        connection.QueueReceive(BuildClientFrame(cipher, LoginAccountRequestPacket.PacketIdentifier, CreateAccountRequestPayload(serverName)));
     }
 
     private static void QueuePostAuthenticationReports(TestTransportConnection connection, ClientCipher cipher, uint sessionUid)
@@ -296,12 +381,12 @@ public sealed class LoginHandshakeProcessorTests
         connection.QueueReceive(BuildClientFrame(cipher, LoginAccountResourceVersionReportPacket.PacketIdentifier, CreateResourceVersionReportPayload(sessionUid)));
     }
 
-    private static byte[] CreateAccountRequestPayload()
+    private static byte[] CreateAccountRequestPayload(string serverName)
     {
         byte[] payload = new byte[LoginAccountRequestPacket.PayloadLength];
         WriteAscii(AccountName, payload.AsSpan(LoginAccountRequestPacket.AccountNameOffset, LoginAccountRequestPacket.AccountNameLength));
         Convert.FromHexString(EncryptedCredential).CopyTo(payload.AsSpan(LoginAccountRequestPacket.CredentialFieldOffset, LoginAccountRequestPacket.StandardCredentialTransformLength));
-        WriteAscii(ServerName, payload.AsSpan(LoginAccountRequestPacket.ServerNameOffset, LoginAccountRequestPacket.ServerNameLength));
+        WriteAscii(serverName, payload.AsSpan(LoginAccountRequestPacket.ServerNameOffset, LoginAccountRequestPacket.ServerNameLength));
         return payload;
     }
 
@@ -379,6 +464,22 @@ public sealed class LoginHandshakeProcessorTests
         uint GameServerPort,
         uint AdditionalSessionField,
         string GameServerIp);
+
+    private sealed class FakeRealmRegistry : IRealmRegistry
+    {
+        private readonly RealmRegistration _registration;
+
+        public FakeRealmRegistry(RealmAvailability availability = RealmAvailability.Enabled, IPAddress? address = null, ushort port = (ushort)GameServerPort)
+        {
+            _registration = new RealmRegistration(new RealmId(1), new ProtocolServerName(ServerName), address ?? IPAddress.Parse(GameServerIp), port, availability);
+        }
+
+        public ValueTask<RealmRegistration?> FindByNameAsync(ProtocolServerName protocolName, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<RealmRegistration?>(_registration.ProtocolName == protocolName ? _registration : null);
+        }
+    }
 
     private sealed class FakeAuthenticator(AccountAuthenticationResult result) : IAccountAuthenticator
     {
