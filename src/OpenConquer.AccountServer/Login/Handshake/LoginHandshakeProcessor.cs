@@ -62,18 +62,18 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         LoginAccountRequest request = readResult.Request ?? throw new InvalidOperationException("Account-request reader reported success without returning a request.");
         AccountAuthenticationResult authentication = default;
-        bool realmAccepted;
+        RealmRegistration? selectedRealm;
 
         using (request)
         {
-            realmAccepted = await IsSelectedRealmAvailableAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
-            if (realmAccepted)
+            selectedRealm = await FindSelectedRealmAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
+            if (selectedRealm is not null)
             {
                 authentication = await AuthenticateAsync(request, remoteAddress, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        if (!realmAccepted)
+        if (selectedRealm is null)
         {
             await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.InvalidCredentials, cancellationToken).ConfigureAwait(false);
             return;
@@ -96,7 +96,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
             throw new InvalidOperationException($"Account authenticator returned unsupported status {authentication.Status}.");
         }
 
-        GameLoginTicket? ticket = await _ticketIssuer.IssueAsync(authentication, cancellationToken).ConfigureAwait(false);
+        GameLoginTicket? ticket = await _ticketIssuer.IssueAsync(authentication, selectedRealm.Id, cancellationToken).ConfigureAwait(false);
 
         if (ticket is null)
         {
@@ -110,7 +110,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         await ReadPostAuthenticationReportsAsync(session, ticket.SessionUid, cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask<bool> IsSelectedRealmAvailableAsync(string serverName, CancellationToken cancellationToken)
+    private async ValueTask<RealmRegistration?> FindSelectedRealmAsync(string serverName, CancellationToken cancellationToken)
     {
         ProtocolServerName protocolName;
         try
@@ -119,7 +119,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         }
         catch (ArgumentException)
         {
-            return false;
+            return null;
         }
 
         RealmRegistration? realm = await _realmRegistry.FindByNameAsync(protocolName, cancellationToken).ConfigureAwait(false);
@@ -130,7 +130,8 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         return realm is { Availability: RealmAvailability.Enabled }
             && realm.ProtocolName == protocolName
             && realm.PublicGamePort == _configuration.GameServerPort
-            && string.Equals(realm.PublicGameAddress.ToString(), _configuration.GameServerIp, StringComparison.Ordinal);
+            && string.Equals(realm.PublicGameAddress.ToString(), _configuration.GameServerIp, StringComparison.Ordinal)
+            ? realm : null;
     }
 
     private async ValueTask<AccountAuthenticationResult> AuthenticateAsync(LoginAccountRequest request, IPAddress remoteAddress, CancellationToken cancellationToken)

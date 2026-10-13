@@ -54,7 +54,8 @@ revoke existing tickets. An explicit password reset does revoke them.
 
 After a successful login, `GameLoginTicketIssuer` creates a ticket that is valid for five minutes.
 The client receives a session ID and an authentication key, both nonzero. The ticket grant locks
-`accounts`, then `account_password_credentials`, then `game_login_tickets`, and succeeds only if the
+`accounts`, then `account_password_credentials`, validates the selected enabled `realms`
+row under a shared lock, then inserts `game_login_tickets`. It succeeds only if the
 account and password revisions still match the authentication result. Combined with ticket
 revocation below, this means:
 
@@ -80,7 +81,8 @@ Security changes revoke outstanding tickets in the same transaction:
 
 ### Redemption
 
-`GameLoginTicketRedeemer` locks the ticket row, checks expiry against the database clock, verifies
+`GameLoginTicketRedeemer` locks the ticket row, requires the ticket realm to match this
+GameServer’s configured and Game-DB-verified RealmId, checks expiry against the database clock, verifies
 the key, deletes the ticket, and commits before reporting success. Concurrent redemptions of one
 ticket serialize on the row, so at most one succeeds. A wrong key leaves the ticket in place; an
 expired ticket is left for cleanup. The result carries the account ID, username, and session ID.

@@ -461,7 +461,8 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
 
         command.CommandText = """
             INSERT INTO `game_login_tickets`
-                (`session_uid`,
+                (`realm_id`,
+                 `session_uid`,
                  `account_id`,
                  `username`,
                  `issued_at_utc`,
@@ -469,7 +470,8 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                  `authentication_key_verifier`,
                  `authentication_key_verifier_key_id`)
             VALUES
-                (@session_uid,
+                (1,
+                 @session_uid,
                  @account_id,
                  @username,
                  TIMESTAMPADD(MINUTE, -5, TIMESTAMPADD(MICROSECOND, @expiration_offset_microseconds, UTC_TIMESTAMP(6))),
@@ -501,7 +503,8 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
 
             command.CommandText = """
                 INSERT INTO `game_login_tickets`
-                    (`session_uid`,
+                    (`realm_id`,
+                 `session_uid`,
                      `account_id`,
                      `username`,
                      `issued_at_utc`,
@@ -509,7 +512,8 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
                      `authentication_key_verifier`,
                      `authentication_key_verifier_key_id`)
                 VALUES
-                    (@session_uid,
+                    (1,
+                 @session_uid,
                      @account_id,
                      @username,
                      @issued_at_utc,

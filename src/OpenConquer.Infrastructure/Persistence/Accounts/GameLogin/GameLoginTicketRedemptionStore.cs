@@ -2,15 +2,17 @@ using System.Data;
 using System.Security.Cryptography;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
-internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource, GameLoginTicketAuthenticationKeyRing authenticationKeyRing)
+internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource, GameLoginTicketAuthenticationKeyRing authenticationKeyRing, RealmId realmId)
     : IGameLoginTicketRedemptionStore
 {
     private readonly MySqlDataSource _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
     private readonly GameLoginTicketAuthenticationKeyRing _authenticationKeyRing = authenticationKeyRing ?? throw new ArgumentNullException(nameof(authenticationKeyRing));
+    private readonly RealmId _realmId = realmId.Value != 0 ? realmId : throw new ArgumentOutOfRangeException(nameof(realmId));
 
     public async ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, CancellationToken cancellationToken = default)
     {
@@ -39,6 +41,12 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
 
         using (ticket)
         {
+            if (ticket.RealmId != _realmId.Value)
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return null;
+            }
+
             DateTime databaseUtcNow = await ReadDatabaseUtcNowAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
 
             if (databaseUtcNow >= ticket.ExpiresAtUtc)
@@ -57,7 +65,7 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            bool deleted = await TryDeleteUnexpiredTicketAsync(connection, transaction, sessionUid, cancellationToken).ConfigureAwait(false);
+            bool deleted = await TryDeleteUnexpiredTicketAsync(connection, transaction, sessionUid, _realmId, cancellationToken).ConfigureAwait(false);
 
             if (!deleted)
             {
@@ -85,6 +93,7 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
         command.CommandText = """
             SELECT
                 `account_id`,
+                `realm_id`,
                 `username`,
                 `expires_at_utc`,
                 `authentication_key_verifier_key_id`,
@@ -104,12 +113,13 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
         }
 
         uint accountId = reader.GetUInt32(0);
-        string username = reader.GetString(1);
-        DateTime expiresAtUtc = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
-        ushort authenticationKeyVerifierKeyId = reader.GetUInt16(3);
-        byte[] authenticationKeyVerifier = reader.GetFieldValue<byte[]>(4);
+        uint realmId = reader.GetUInt32(1);
+        string username = reader.GetString(2);
+        DateTime expiresAtUtc = DateTime.SpecifyKind(reader.GetDateTime(3), DateTimeKind.Utc);
+        ushort authenticationKeyVerifierKeyId = reader.GetUInt16(4);
+        byte[] authenticationKeyVerifier = reader.GetFieldValue<byte[]>(5);
 
-        return new PersistedTicket(new GameLoginTicketIdentity(accountId, username, sessionUid), expiresAtUtc, authenticationKeyVerifierKeyId, authenticationKeyVerifier);
+        return new PersistedTicket(new GameLoginTicketIdentity(accountId, username, sessionUid), realmId, expiresAtUtc, authenticationKeyVerifierKeyId, authenticationKeyVerifier);
     }
 
     private static async ValueTask<DateTime> ReadDatabaseUtcNowAsync(MySqlConnection connection, MySqlTransaction transaction, CancellationToken cancellationToken)
@@ -129,7 +139,7 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
         return DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc);
     }
 
-    private static async ValueTask<bool> TryDeleteUnexpiredTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid, CancellationToken cancellationToken)
+    private static async ValueTask<bool> TryDeleteUnexpiredTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid, RealmId realmId, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -137,10 +147,13 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
         command.CommandText = """
             DELETE FROM `game_login_tickets`
             WHERE `session_uid` = @session_uid
+              AND `realm_id` = @realm_id
               AND `expires_at_utc` > UTC_TIMESTAMP(6);
             """;
 
         command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = sessionUid;
+
+        command.Parameters.Add("@realm_id", MySqlDbType.UInt32).Value = realmId.Value;
 
         int affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
@@ -152,9 +165,10 @@ internal sealed class GameLoginTicketRedemptionStore(MySqlDataSource dataSource,
         };
     }
 
-    private sealed class PersistedTicket(GameLoginTicketIdentity identity, DateTime expiresAtUtc, ushort authenticationKeyVerifierKeyId, byte[] authenticationKeyVerifier) : IDisposable
+    private sealed class PersistedTicket(GameLoginTicketIdentity identity, uint realmId, DateTime expiresAtUtc, ushort authenticationKeyVerifierKeyId, byte[] authenticationKeyVerifier) : IDisposable
     {
         public GameLoginTicketIdentity Identity { get; } = identity;
+        public uint RealmId { get; } = realmId;
         public DateTime ExpiresAtUtc { get; } = expiresAtUtc;
         public ushort AuthenticationKeyVerifierKeyId { get; } = authenticationKeyVerifierKeyId;
         public byte[] AuthenticationKeyVerifier { get; } = authenticationKeyVerifier;

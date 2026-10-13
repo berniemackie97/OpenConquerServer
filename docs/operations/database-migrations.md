@@ -10,6 +10,7 @@ start on a mismatch. They never migrate on their own.
 | Accounts |       1 | `20260906043138_InitialAccountSchema`         |
 | Accounts |       2 | `20260907004603_ProtectGameLoginTicketAuthenticationKey` |
 | Accounts |       3 | `20261013010000_AddRealmRegistry`             |
+| Accounts |       4 | `20261013050000_BindGameLoginTicketsToRealm`  |
 | Game     |       1 | `20260914210346_InitialGameSchema`            |
 | Game     |       2 | `20260922025854_UseSignedCharacterPkPoints`   |
 | Game     |       3 | `20260923223920_RetainPreRebirthLevel`        |
@@ -182,3 +183,12 @@ Restore a verified backup or write an independently reviewed, data-preserving do
 
 A downgrade that stops partway can be resumed by running it again through EF. Before any downgrade,
 read the migration's `Down` method, confirm what will be lost, and take a backup.
+
+### Accounts version 4: realm-bound tickets
+
+The migration invalidates outstanding pre-v4 five-minute game-login tickets, then adds a
+required, positive `realm_id` field to new tickets. **Stop both servers, back up Accounts,
+confirm the permanent realm records, then migrate with an administrative EF connection.**
+Do not run old binaries against v4. In case of a partial MySQL DDL failure, inspect the
+column, constraints, compatibility marker and EF history before retrying; do not guess
+a realm identity or hand-edit migration history. See `realm-bound-tickets.md`.

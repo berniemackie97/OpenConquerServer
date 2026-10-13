@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
@@ -53,7 +54,7 @@ public sealed class GameLoginTicketRedemptionStoreTests : IClassFixture<AccountD
                 new KeyValuePair<ushort, byte[]>(HistoricalVerificationKeyId, _historicalVerificationKey),
             ]);
 
-        _store = new GameLoginTicketRedemptionStore(_dataSource, _authenticationKeyRing);
+        _store = new GameLoginTicketRedemptionStore(_dataSource, _authenticationKeyRing, new RealmId(1));
     }
 
     public ValueTask InitializeAsync()
@@ -72,14 +73,14 @@ public sealed class GameLoginTicketRedemptionStoreTests : IClassFixture<AccountD
     [Fact]
     public void Constructor_WhenDataSourceIsNull_ThrowsArgumentNullException()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketRedemptionStore(null!, _authenticationKeyRing));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketRedemptionStore(null!, _authenticationKeyRing, new RealmId(1)));
         Assert.Equal("dataSource", exception.ParamName);
     }
 
     [Fact]
     public void Constructor_WhenAuthenticationKeyRingIsNull_ThrowsArgumentNullException()
     {
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketRedemptionStore(_dataSource, null!));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new GameLoginTicketRedemptionStore(_dataSource, null!, new RealmId(1)));
         Assert.Equal("authenticationKeyRing", exception.ParamName);
     }
 
@@ -146,6 +147,21 @@ public sealed class GameLoginTicketRedemptionStoreTests : IClassFixture<AccountD
         GameLoginTicketIdentity? replay = await _store.TryRedeemAsync(sessionUid, authenticationKey, CancellationToken);
 
         Assert.Null(replay);
+    }
+
+    [Fact]
+    public async Task TryRedeemAsync_WhenTicketTargetsAnotherRealm_ReturnsNullWithoutConsumingTicket()
+    {
+        AccountRecord account = await InsertAccountAsync();
+        uint sessionUid = GenerateNonzeroUInt32();
+        uint authenticationKey = GenerateNonzeroUInt32();
+        await InsertTicketAsync(account, sessionUid, authenticationKey);
+
+        GameLoginTicketRedemptionStore otherRealm = new(_dataSource, _authenticationKeyRing, new RealmId(2));
+        Assert.Null(await otherRealm.TryRedeemAsync(sessionUid, authenticationKey, CancellationToken));
+        Assert.True(await TicketExistsAsync(sessionUid));
+        Assert.NotNull(await _store.TryRedeemAsync(sessionUid, authenticationKey, CancellationToken));
+        Assert.False(await TicketExistsAsync(sessionUid));
     }
 
     [Fact]
@@ -563,7 +579,8 @@ public sealed class GameLoginTicketRedemptionStoreTests : IClassFixture<AccountD
 
         command.CommandText = """
             INSERT INTO `game_login_tickets`
-                (`session_uid`,
+                (`realm_id`,
+                 `session_uid`,
                  `account_id`,
                  `username`,
                  `issued_at_utc`,
@@ -571,7 +588,8 @@ public sealed class GameLoginTicketRedemptionStoreTests : IClassFixture<AccountD
                  `authentication_key_verifier`,
                  `authentication_key_verifier_key_id`)
             VALUES
-                (@session_uid,
+                (1,
+                 @session_uid,
                  @account_id,
                  @username,
                  TIMESTAMPADD(MINUTE, -10, UTC_TIMESTAMP(6)),

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
@@ -166,6 +167,7 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
 
         Assert.Equal(request.SessionUid, persisted.SessionUid);
         Assert.Equal(request.AccountId, persisted.AccountId);
+        Assert.Equal(request.RealmId.Value, persisted.RealmId);
         Assert.Equal(request.Username, persisted.Username);
 
         Assert.Equal(persisted.IssuedAtUtc, granted.IssuedAtUtc.UtcDateTime);
@@ -270,6 +272,20 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
 
         Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
         Assert.Null(result.Ticket);
+        Assert.Null(await ReadTicketAsync(request.SessionUid));
+    }
+
+    [Fact]
+    public async Task TryGrantAsync_WhenRealmDoesNotExist_ReturnsAuthenticationStateChanged()
+    {
+        AccountRecord account = await InsertAccountAsync();
+        GameLoginTicketGrantRequest request = new(account.AccountId, account.Username,
+            GenerateNonzeroUInt32(), GenerateNonzeroUInt32(), new RealmId(2));
+
+        GameLoginTicketGrantResult result = await _store.TryGrantAsync(request, s_ticketLifetime,
+            account.StateRevision, account.PasswordCredential.Revision, CancellationToken);
+
+        Assert.Equal(GameLoginTicketGrantStatus.AuthenticationStateChanged, result.Status);
         Assert.Null(await ReadTicketAsync(request.SessionUid));
     }
 
@@ -675,6 +691,7 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
             SELECT
                 `session_uid`,
                 `account_id`,
+                `realm_id`,
                 `username`,
                 `issued_at_utc`,
                 `expires_at_utc`,
@@ -696,11 +713,12 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
         PersistedTicket ticket = new(
             reader.GetUInt32(0),
             reader.GetUInt32(1),
-            reader.GetString(2),
-            reader.GetDateTime(3),
+            reader.GetUInt32(2),
+            reader.GetString(3),
             reader.GetDateTime(4),
-            reader.GetFieldValue<byte[]>(5),
-            reader.GetUInt16(6));
+            reader.GetDateTime(5),
+            reader.GetFieldValue<byte[]>(6),
+            reader.GetUInt16(7));
 
         Assert.False(await reader.ReadAsync(CancellationToken));
 
@@ -725,7 +743,8 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
             accountId,
             username,
             sessionUid ?? GenerateNonzeroUInt32(),
-            authenticationKey ?? GenerateNonzeroUInt32());
+            authenticationKey ?? GenerateNonzeroUInt32(),
+            new RealmId(1));
     }
 
     private static GameLoginTicketAuthenticationKeyRing CreateAuthenticationKeyRing()
@@ -772,10 +791,11 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
         return "User" + Guid.NewGuid().ToString("N")[..28];
     }
 
-    private sealed class PersistedTicket(uint sessionUid, uint accountId, string username, DateTime issuedAtUtc, DateTime expiresAtUtc, byte[] authenticationKeyVerifier, ushort authenticationKeyVerifierKeyId)
+    private sealed class PersistedTicket(uint sessionUid, uint accountId, uint realmId, string username, DateTime issuedAtUtc, DateTime expiresAtUtc, byte[] authenticationKeyVerifier, ushort authenticationKeyVerifierKeyId)
     {
         public uint SessionUid { get; } = sessionUid;
         public uint AccountId { get; } = accountId;
+        public uint RealmId { get; } = realmId;
         public string Username { get; } = username;
         public DateTime IssuedAtUtc { get; } = issuedAtUtc;
         public DateTime ExpiresAtUtc { get; } = expiresAtUtc;

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.DependencyInjection;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
@@ -30,6 +31,7 @@ public sealed class GameLoginTicketRedemptionInfrastructureServiceCollectionExte
         GameLoginTicketRedemptionAttemptLimiterOptions protection = new();
 
         await using ServiceProvider provider = new ServiceCollection()
+            .AddSingleton(typeof(RealmId), new RealmId(1))
             .AddGameLoginTicketRedemptionInfrastructure("Server=localhost;Database=authentication", protection, ActiveVerificationKeyId, CreateVerificationKeys())
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 

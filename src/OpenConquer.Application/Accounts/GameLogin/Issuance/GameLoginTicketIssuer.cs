@@ -1,4 +1,5 @@
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Domain.Realms;
 
 namespace OpenConquer.Application.Accounts.GameLogin.Issuance;
 
@@ -11,9 +12,13 @@ public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore,
     private readonly IGameLoginTicketGrantStore _grantStore = grantStore ?? throw new ArgumentNullException(nameof(grantStore));
     private readonly IGameLoginTicketTokenGenerator _tokenGenerator = tokenGenerator ?? throw new ArgumentNullException(nameof(tokenGenerator));
 
-    public async ValueTask<GameLoginTicket?> IssueAsync(AccountAuthenticationResult authentication, CancellationToken cancellationToken = default)
+    public async ValueTask<GameLoginTicket?> IssueAsync(AccountAuthenticationResult authentication, RealmId realmId, CancellationToken cancellationToken = default)
     {
         ValidateAuthentication(authentication);
+        if (realmId.Value == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(realmId), "Ticket issuance requires a nonzero selected realm.");
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -35,7 +40,7 @@ public sealed class GameLoginTicketIssuer(IGameLoginTicketGrantStore grantStore,
                 throw new InvalidOperationException("The game-login ticket token generator returned a zero authentication key.");
             }
 
-            GameLoginTicketGrantRequest request = new(authentication.AccountId, authentication.Username!, sessionUid, authenticationKey);
+            GameLoginTicketGrantRequest request = new(authentication.AccountId, authentication.Username!, sessionUid, authenticationKey, realmId);
             GameLoginTicketGrantResult result = await _grantStore.TryGrantAsync(request, s_ticketLifetime, authentication.AccountStateRevision, authentication.PasswordCredentialRevision, cancellationToken).ConfigureAwait(false);
 
             switch (result.Status)

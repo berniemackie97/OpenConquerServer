@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 
 namespace OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
@@ -47,6 +48,12 @@ internal sealed class GameLoginTicketGrantStore(MySqlDataSource dataSource, Game
         bool credentialMatches = await LockAndValidatePasswordCredentialAsync(connection, transaction, request.AccountId, expectedPasswordCredentialRevision, cancellationToken).ConfigureAwait(false);
 
         if (!credentialMatches)
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            return GameLoginTicketGrantResult.AuthenticationStateChanged();
+        }
+
+        if (!await ValidateSelectedRealmAsync(connection, transaction, request.RealmId, cancellationToken).ConfigureAwait(false))
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             return GameLoginTicketGrantResult.AuthenticationStateChanged();
@@ -163,6 +170,17 @@ internal sealed class GameLoginTicketGrantStore(MySqlDataSource dataSource, Game
         return reader.GetUInt64(0) == expectedPasswordCredentialRevision;
     }
 
+
+    private static async ValueTask<bool> ValidateSelectedRealmAsync(MySqlConnection connection, MySqlTransaction transaction, RealmId realmId, CancellationToken cancellationToken)
+    {
+        await using MySqlCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT `availability` FROM `realms` WHERE `realm_id` = @realm_id FOR SHARE;";
+        command.Parameters.Add("@realm_id", MySqlDbType.UInt32).Value = realmId.Value;
+        object? availability = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return availability is byte value && value == (byte)RealmAvailability.Enabled;
+    }
+
     private static async ValueTask InsertTicketAsync(MySqlConnection connection, MySqlTransaction transaction, GameLoginTicketGrantRequest request, long ticketLifetimeMicroseconds, byte[] authenticationKeyVerifier, ushort authenticationKeyVerifierKeyId, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
@@ -172,6 +190,7 @@ internal sealed class GameLoginTicketGrantStore(MySqlDataSource dataSource, Game
             INSERT INTO `game_login_tickets`
                 (`session_uid`,
                  `account_id`,
+                 `realm_id`,
                  `username`,
                  `issued_at_utc`,
                  `expires_at_utc`,
@@ -180,6 +199,7 @@ internal sealed class GameLoginTicketGrantStore(MySqlDataSource dataSource, Game
             VALUES
                 (@session_uid,
                  @account_id,
+                 @realm_id,
                  @username,
                  UTC_TIMESTAMP(6),
                  TIMESTAMPADD(MICROSECOND, @ticket_lifetime_microseconds, UTC_TIMESTAMP(6)),
@@ -189,6 +209,7 @@ internal sealed class GameLoginTicketGrantStore(MySqlDataSource dataSource, Game
 
         command.Parameters.Add("@session_uid", MySqlDbType.UInt32).Value = request.SessionUid;
         command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = request.AccountId;
+        command.Parameters.Add("@realm_id", MySqlDbType.UInt32).Value = request.RealmId.Value;
         command.Parameters.Add("@username", MySqlDbType.VarChar, AccountCredentialPolicy.MaximumUsernameLength).Value = request.Username;
         command.Parameters.Add("@ticket_lifetime_microseconds", MySqlDbType.Int64).Value = ticketLifetimeMicroseconds;
         command.Parameters.Add("@authentication_key_verifier", MySqlDbType.Binary, GameLoginTicketAuthenticationKeyVerifier.VerifierSize).Value = authenticationKeyVerifier;

@@ -5,6 +5,7 @@ using MySqlConnector;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
 using OpenConquer.Application.Accounts.Mutations;
 using OpenConquer.Domain.Accounts;
+using OpenConquer.Domain.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts;
 using OpenConquer.Infrastructure.Persistence.Accounts.Audit;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
@@ -761,10 +762,12 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
 
         command.CommandText = """
             INSERT INTO `game_login_tickets`
-                (`session_uid`, `account_id`, `username`, `issued_at_utc`, `expires_at_utc`,
+                (`realm_id`,
+                 `session_uid`, `account_id`, `username`, `issued_at_utc`, `expires_at_utc`,
                  `authentication_key_verifier`, `authentication_key_verifier_key_id`)
             VALUES
-                (@session_uid, @account_id, @username, @issued_at_utc, @expires_at_utc,
+                (1,
+                 @session_uid, @account_id, @username, @issued_at_utc, @expires_at_utc,
                  @authentication_key_verifier, @authentication_key_verifier_key_id);
             """;
 
@@ -819,7 +822,7 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
 
     private static GameLoginTicketGrantRequest CreateGrantRequest(AccountRecord account)
     {
-        return new GameLoginTicketGrantRequest(account.AccountId, account.Username, NextSessionUid(), NextAuthenticationKey());
+        return new GameLoginTicketGrantRequest(account.AccountId, account.Username, NextSessionUid(), NextAuthenticationKey(), new RealmId(1));
     }
 
     private static GameLoginTicketAuthenticationKeyRing CreateAuthenticationKeyRing()

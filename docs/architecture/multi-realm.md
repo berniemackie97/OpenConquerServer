@@ -14,14 +14,24 @@ Distinct UI rows can select the same logical realm; the database has one row per
 
 The table is deliberately owned by a SQL-only EF migration rather than the `AccountDbContext` entity model: runtime access is a single parameterized lookup through the existing keyed `MySqlDataSource`, and operators manage changes separately. The model snapshot remains unchanged because it contains only EF-mapped tables; do not generate a second EF `realms` entity or migration without first deciding to transfer schema ownership. MySQL enforces realm name uniqueness and fundamental integrity; the registry refuses malformed rows rather than inventing endpoint defaults.
 
-`IRealmRegistry.FindByNameAsync` returns a validated immutable registration or `null` for an unknown name. AccountServer now requires the native 1060 name to resolve to an enabled registry row whose endpoint exactly matches its currently configured static 1055 redirect. Invalid or mismatched selection returns a generic authentication failure before credential verification and ticket creation. Registry failures are not converted into success. This does **not** bind tickets to a realm or authorize cross-realm redemption. The static endpoint restriction must be replaced only together with the full realm-bound ticket enforcement and routing cutover.
+`IRealmRegistry.FindByNameAsync` returns a validated immutable registration or `null` for an unknown name. AccountServer now requires the native 1060 name to resolve to an enabled registry row whose endpoint exactly matches its currently configured static 1055 redirect. Invalid or mismatched selection returns a generic authentication failure before credential verification and ticket creation. Registry failures are not converted into success. Accounts v4 binds tickets to the authoritative selected realm and rejects cross-realm redemption. The static endpoint restriction must be replaced only together with the full realm-bound ticket enforcement and routing cutover.
 
 ## Pending security gates
 
-The pre-issuance lookup gate is implemented. Before enabling multiple GameServer destinations: bind newly issued tickets to the selected stable realm ID, require that exact realm at atomic redemption, and reject all pre-migration/unbound tickets. The next schema migration **must be Accounts v4**, because the registry is already committed as v3; two distinct deployed schema shapes may not share one version.
+The native pre-issuance lookup gate and Accounts v4 realm-bound ticket cutover are implemented. Before enabling multiple GameServer destinations, integrate dynamic endpoint selection and enforce its routing invariants; packet 1055 still advertises one statically configured endpoint.
 
-Game schema v10 adds an operator-provisioned one-row binding in each separate Game database, checked against the configured GameServer realm before world publication. Cross-realm ticket redemption must still be denied before character lookup in a subsequent slice. Neither a shared Game database nor a distributed control plane is needed.
+Game schema v10 adds an operator-provisioned one-row binding in each separate Game database, checked against the configured GameServer realm before world publication. Cross-realm ticket redemption is rejected during the locked, atomic ticket-consumption transaction, before character lookup. Neither a shared Game database nor a distributed control plane is needed.
 
 ## Operational integrity
 
-See [database migrations](../operations/database-migrations.md). Deploy schema v3 with the AccountServer and GameServer stopped; hosts reject schema v2 afterward. Migration does not create a default realm, because unknown endpoint addresses and world identities must never be guessed. An administrator provisions the first row deliberately, with runtime accounts granted `SELECT` only. Maintain regular backups and protect the database and signing/HMAC credentials independently.
+See [database migrations](../operations/database-migrations.md). Deploy schema v4 with the AccountServer and every GameServer stopped; hosts reject older schema versions afterward. Migration does not create a default realm, because unknown endpoint addresses and world identities must never be guessed. An administrator provisions the first row deliberately, with runtime accounts granted `SELECT` only. Maintain regular backups and protect the database and signing/HMAC credentials independently.
+
+## Accounts schema v4 — realm-bound tickets
+
+The native 1060 selection is validated before credentials. The selected immutable `RealmId`
+is propagated to ticket grant and persisted with each new ticket. Under the same transaction
+that consumes the single-use ticket, GameServer redemption checks the stored `realm_id`
+against the configured and database-verified GameServer realm. A mismatch does not consume
+the ticket and does not authorize a character. Pre-v4 outstanding tickets are invalidated
+by the migration instead of receiving a guessed realm. The existing static redirect is
+unchanged; this is not dynamic multi-realm routing.

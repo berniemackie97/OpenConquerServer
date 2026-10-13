@@ -1,5 +1,6 @@
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Domain.Realms;
 
 namespace OpenConquer.Application.Tests.Accounts.GameLogin.Issuance;
 
@@ -31,7 +32,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new();
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => issuer.IssueAsync(AccountAuthenticationResult.InvalidCredentials(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<ArgumentException>(() => issuer.IssueAsync(AccountAuthenticationResult.InvalidCredentials(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, tokens.SessionUidGenerationCount);
         Assert.Equal(0, tokens.AuthenticationKeyGenerationCount);
@@ -45,7 +46,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new();
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => issuer.IssueAsync(AccountAuthenticationResult.Banned(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<ArgumentException>(() => issuer.IssueAsync(AccountAuthenticationResult.Banned(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, tokens.SessionUidGenerationCount);
         Assert.Equal(0, tokens.AuthenticationKeyGenerationCount);
@@ -62,7 +63,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new();
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), cancellation.Token).AsTask());
 
         Assert.Equal(0, tokens.SessionUidGenerationCount);
         Assert.Equal(0, tokens.AuthenticationKeyGenerationCount);
@@ -76,7 +77,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [0x1020_3040u], authenticationKeys: [0x5060_7080u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken);
+        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken);
 
         GameLoginTicket granted = Assert.IsType<GameLoginTicket>(ticket);
         GameLoginTicketGrantRequest request = Assert.Single(store.Requests);
@@ -107,7 +108,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [0u], authenticationKeys: [123u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, tokens.SessionUidGenerationCount);
         Assert.Equal(0, tokens.AuthenticationKeyGenerationCount);
@@ -121,7 +122,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [123u], authenticationKeys: [0u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, tokens.SessionUidGenerationCount);
         Assert.Equal(1, tokens.AuthenticationKeyGenerationCount);
@@ -135,7 +136,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u], authenticationKeys: [303u, 404u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken);
+        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken);
 
         GameLoginTicket granted = Assert.IsType<GameLoginTicket>(ticket);
 
@@ -161,7 +162,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u], authenticationKeys: [303u, 404u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken);
+        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken);
 
         Assert.Null(ticket);
         Assert.Equal(1, store.GrantCount);
@@ -176,7 +177,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u, 303u], authenticationKeys: [404u, 505u, 606u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken);
+        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken);
 
         Assert.Null(ticket);
         Assert.Equal(2, store.GrantCount);
@@ -203,7 +204,7 @@ public sealed class GameLoginTicketIssuerTests
 
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAsync<GameLoginTicketAllocationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<GameLoginTicketAllocationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(8, store.GrantCount);
         Assert.Equal(8, tokens.SessionUidGenerationCount);
@@ -217,7 +218,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u], authenticationKeys: [303u, 404u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAsync<IOException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<IOException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, store.GrantCount);
         Assert.Equal(1, tokens.SessionUidGenerationCount);
@@ -230,7 +231,7 @@ public sealed class GameLoginTicketIssuerTests
         FakeGrantStore store = new() { ResultFactory = static (_, _) => default };
         GameLoginTicketIssuer issuer = new(store, new SequenceTokenGenerator());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, store.GrantCount);
     }
@@ -249,7 +250,7 @@ public sealed class GameLoginTicketIssuerTests
 
         GameLoginTicketIssuer issuer = new(store, new SequenceTokenGenerator());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, store.GrantCount);
     }
@@ -268,7 +269,7 @@ public sealed class GameLoginTicketIssuerTests
 
         GameLoginTicketIssuer issuer = new(store, new SequenceTokenGenerator());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, store.GrantCount);
     }
@@ -282,7 +283,7 @@ public sealed class GameLoginTicketIssuerTests
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u], authenticationKeys: [303u, 404u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), cancellation.Token).AsTask());
 
         Assert.Equal(1, store.GrantCount);
         Assert.Equal(1, tokens.SessionUidGenerationCount);
@@ -297,7 +298,7 @@ public sealed class GameLoginTicketIssuerTests
         FakeGrantStore store = new(GameLoginTicketGrantStatus.Granted) { OnGrant = cancellation.Cancel };
         GameLoginTicketIssuer issuer = new(store, new SequenceTokenGenerator());
 
-        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), cancellation.Token);
+        GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), cancellation.Token);
 
         Assert.NotNull(ticket);
         Assert.True(cancellation.IsCancellationRequested);
