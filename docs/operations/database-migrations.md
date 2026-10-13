@@ -9,6 +9,7 @@ start on a mismatch. They never migrate on their own.
 | -------- | ------: | --------------------------------------------- |
 | Accounts |       1 | `20260906043138_InitialAccountSchema`         |
 | Accounts |       2 | `20260907004603_ProtectGameLoginTicketAuthenticationKey` |
+| Accounts |       3 | `20261013010000_AddRealmRegistry`             |
 | Game     |       1 | `20260914210346_InitialGameSchema`            |
 | Game     |       2 | `20260922025854_UseSignedCharacterPkPoints`   |
 | Game     |       3 | `20260923223920_RetainPreRebirthLevel`        |
@@ -79,6 +80,15 @@ the same migration again. Do not mark it complete manually.
 |       7 | Adds `weapon_skills`                       | An incompatible table already exists               |
 |       8 | Adds `magic`                               | An incompatible table already exists               |
 |       9 | Adds `syndicates`, `syndicate_memberships` | An incompatible table already exists               |
+
+### Accounts version 3: realm registry
+
+The operator-owned `realms` table uses a SQL-only EF migration and deliberately has no EF model
+entity. An interrupted `CREATE TABLE` may leave a committed table with old migration history.
+The migration refuses to overwrite any existing table; inspect its exact DDL and recover under
+operator control rather than silently guessing. See [realm registry](realm-registry.md) for
+provisioning, validation and runtime grants. Accounts schema v3 does not bind tickets yet; that
+requires a new schema version when implemented.
 
 ### Version 2: signed PK points
 
@@ -155,6 +165,9 @@ Downgrades remove data, so each one refuses to run if it would destroy rows:
 | 4 → 3     | `items`                          | Always destructive; no guard       |
 | 3 → 2     | `pre_rebirth_level`              | Always destructive; no guard       |
 | 2 → 1     | Signed `pk_points`               | Any value is negative              |
+
+Accounts v3 → v2 is deliberately blocked: dropping `realms` could destroy operator identities.
+Restore a verified backup or write an independently reviewed, data-preserving downgrade.
 
 A downgrade that stops partway can be resumed by running it again through EF. Before any downgrade,
 read the migration's `Down` method, confirm what will be lost, and take a backup.

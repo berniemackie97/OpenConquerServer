@@ -127,6 +127,11 @@ public sealed class AccountDatabaseFixture : IAsyncLifetime
                 ON `{DatabaseName}`.`schema_compatibility`
                 TO '{RuntimeUserName}'@'%'
                 """,
+            $"""
+                GRANT SELECT
+                ON `{DatabaseName}`.`realms`
+                TO '{RuntimeUserName}'@'%'
+                """,
         ];
 
         foreach (string grant in grants)
