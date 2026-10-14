@@ -188,12 +188,29 @@ internal sealed partial class GameConnectionWorkerPool(
                         return;
                     }
 
-                    if (frame.PacketId != GameWalkPacket.PacketIdentifier || !GameWalkPacket.TryParse(frame.Packet.Span, out GameWalkPacket walk))
+                    if (frame.PacketId == GameWalkPacket.PacketIdentifier)
                     {
-                        throw new InvalidDataException("The GameServer received an unsupported or malformed gameplay frame.");
+                        if (!GameWalkPacket.TryParse(frame.Packet.Span, out GameWalkPacket walk))
+                        {
+                            throw new InvalidDataException("The GameServer received a malformed native walk packet.");
+                        }
+
+                        await session.ProcessWalkAsync(walk, cancellationToken).ConfigureAwait(false);
+                        continue;
                     }
 
-                    await session.ProcessWalkAsync(walk, cancellationToken).ConfigureAwait(false);
+                    if (frame.PacketId == GameAction.PacketIdentifier)
+                    {
+                        if (!GamePositionReport.TryParse(frame, out GamePositionReport report))
+                        {
+                            throw new InvalidDataException("The GameServer received an unsupported native action packet.");
+                        }
+
+                        await session.ProcessPositionReportAsync(report, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    throw new InvalidDataException("The GameServer received an unsupported gameplay packet.");
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || session.IsStopping)

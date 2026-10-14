@@ -39,12 +39,20 @@ client **only after** the partition commits a permitted move. A refused move or 
 is not acknowledged. Malformed or unsupported gameplay traffic closes the session. The client
 is authoritative for neither its own entity ID nor its tile location.
 
+## Native position reconciliation (Slice #144)
+
+The authenticated world session now accepts only native 10010 subtype 100/146 as
+client position reports, never movement authority. It remembers a bounded history of
+server-committed tiles and uses native subtype 108 for conservative self-correction
+after repeated reports of never-authorized positions. See
+[position synchronization](position-synchronization.md).
+
 ## Remaining production gates
 
 This is an **eight-direction walking ingress**, not a complete movement or multiplayer release.
 Native 24-direction running, jump requests, dynamic occupancy/elevation restrictions, movement
-replication to other characters, authoritative position persistence across relog, and correction
-policy remain unimplemented. Do not claim complete gameplay support or deploy as an MMO movement
+replication to other characters, and authoritative position persistence across relog
+remain unimplemented. Position correction is limited to repeated divergence reports. Do not claim complete gameplay support or deploy as an MMO movement
 system until those requirements are satisfied and tested. No new schema, speculative wire fields,
 or cross-partition movement are introduced in this slice.
 
