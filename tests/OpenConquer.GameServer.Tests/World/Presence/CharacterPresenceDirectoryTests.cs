@@ -149,6 +149,52 @@ public sealed class CharacterPresenceDirectoryTests
         Assert.False(recovery.IsRevoked);
     }
 
+    [Fact]
+    public void Revoke_EndsPresenceAndSignalsTheRegistration()
+    {
+        CharacterPresenceDirectory directory = new();
+        ICharacterPresenceLease registration = directory.Register(CharacterId);
+        ICharacterPresenceRevoker revoker = directory;
+
+        Assert.True(revoker.Revoke(CharacterId));
+
+        Assert.False(directory.IsOnline(CharacterId));
+        Assert.True(registration.IsRevoked);
+        Assert.True(registration.RevocationToken.IsCancellationRequested);
+
+        registration.Dispose();
+
+        Assert.False(directory.IsOnline(CharacterId));
+    }
+
+    [Fact]
+    public void Revoke_ReturnsFalseWhenTheCharacterIsNotPresent()
+    {
+        CharacterPresenceDirectory directory = new();
+        using ICharacterPresenceLease other = directory.Register(OtherCharacterId);
+
+        Assert.False(directory.Revoke(CharacterId));
+
+        Assert.False(other.IsRevoked);
+        Assert.True(directory.IsOnline(OtherCharacterId));
+    }
+
+    [Fact]
+    public void Revoke_DoesNotAffectALaterRegistrationOfTheSameCharacter()
+    {
+        CharacterPresenceDirectory directory = new();
+        ICharacterPresenceLease revoked = directory.Register(CharacterId);
+
+        Assert.True(directory.Revoke(CharacterId));
+
+        using ICharacterPresenceLease replacement = directory.Register(CharacterId);
+        revoked.Dispose();
+
+        Assert.True(directory.IsOnline(CharacterId));
+        Assert.False(replacement.IsRevoked);
+        Assert.False(directory.Revoke(OtherCharacterId));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(CharacterIdentityPolicy.FirstPlayerEntityId - 1)]

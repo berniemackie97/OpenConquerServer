@@ -16,6 +16,9 @@ public enum LoginAccountAuthenticationFailureCode : uint
     /// <summary>"The Server is down."</summary>
     ServerDown = 10,
 
+    /// <summary>"Please try again later."; TQ's refusal while the account is still playing in another realm.</summary>
+    AlreadyOnline = 11,
+
     /// <summary>"This account has been banned."</summary>
     Banned = 12,
 

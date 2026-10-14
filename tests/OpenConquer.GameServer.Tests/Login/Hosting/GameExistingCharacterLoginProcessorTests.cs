@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Hydration;
@@ -19,7 +20,9 @@ using OpenConquer.GameServer.Login.Bootstrap.Social;
 using OpenConquer.GameServer.Login.Bootstrap.Syndicates;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Hosting;
+using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.Tests.Login.Bootstrap;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
@@ -115,7 +118,7 @@ public sealed class GameExistingCharacterLoginProcessorTests
             fixture.QueueRequest(step);
         }
 
-        await using WorldSession session = await fixture.ProcessAsync();
+        await using WorldSession session = Assert.IsType<WorldSession>(await fixture.ProcessAsync());
 
         string[] responses = fixture.Harness.ReadServerPackets().Select(Convert.ToHexString).ToArray();
 
@@ -139,6 +142,52 @@ public sealed class GameExistingCharacterLoginProcessorTests
 
         Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
         Assert.False(fixture.Presence.IsOnline(CharacterId));
+    }
+
+    [Fact]
+    public async Task AdmittedSession_AccountLoggedInFromAnotherRealm_SendsTheKickNoticeAndReleasesTheAccount()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+        WorldSession session = await fixture.LogInAsync();
+
+        Assert.True(fixture.Presence.Revoke(CharacterId));
+        await session.Completion.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+        byte[] notice = Assert.Single(fixture.Harness.ReadServerPackets());
+
+        Assert.Equal(GameKickoutNoticePacket.PacketIdentifier, LoginStepHarness.ReadPacketId(notice));
+        Assert.Equal((uint)GameKickoutReason.OtherLogin, BinaryPrimitives.ReadUInt32LittleEndian(notice.AsSpan(4)));
+        Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
+        Assert.Equal([(LoginStepHarness.AccountId, fixture.Harness.Connection.SessionUid)], fixture.AccountSessions.Left);
+    }
+
+    [Fact]
+    public async Task AdmittedSession_AccountLoggedInAgainInThisRealm_SendsTheKickNotice()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+        WorldSession session = await fixture.LogInAsync();
+
+        using ICharacterPresenceLease replacement = fixture.Presence.Register(CharacterId);
+        await session.Completion.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+        byte[] notice = Assert.Single(fixture.Harness.ReadServerPackets());
+
+        Assert.Equal(GameKickoutNoticePacket.PacketIdentifier, LoginStepHarness.ReadPacketId(notice));
+        Assert.True(fixture.Presence.IsOnline(CharacterId));
+    }
+
+    [Fact]
+    public async Task AdmittedSession_OwnDisconnect_ClosesWithoutTheKickNotice()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+        WorldSession session = await fixture.LogInAsync();
+
+        await session.DisposeAsync();
+
+        Assert.Empty(fixture.Harness.ReadServerPackets());
+        Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Single(fixture.AccountSessions.Left);
     }
 
     [Theory]
@@ -195,7 +244,7 @@ public sealed class GameExistingCharacterLoginProcessorTests
             fixture.QueueRequest(step);
         }
 
-        Task<WorldSession> login = fixture.ProcessAsync();
+        Task<WorldSession?> login = fixture.ProcessAsync();
 
         await WaitForResponsesThroughAsync(fixture.Harness, FriendsStep);
 
@@ -218,7 +267,7 @@ public sealed class GameExistingCharacterLoginProcessorTests
             fixture.QueueRequest(step);
         }
 
-        Task<WorldSession> login = fixture.ProcessAsync();
+        Task<WorldSession?> login = fixture.ProcessAsync();
 
         await fixture.Store.LoadBlocked.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -228,6 +277,25 @@ public sealed class GameExistingCharacterLoginProcessorTests
 
         Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
         Assert.True(fixture.Presence.IsOnline(CharacterId));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AccountPlayingInAnotherRealm_ReturnsNoSessionWithoutRunningTheBootstrap()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync(admitAccountSession: false);
+
+        for (int step = 0; step < s_loadsByStep.Length; step++)
+        {
+            fixture.QueueRequest(step);
+        }
+
+        WorldSession? session = await fixture.ProcessAsync();
+
+        Assert.Null(session);
+        Assert.Empty(fixture.Store.Loads);
+        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
+        Assert.Single(fixture.AccountSessions.Entered);
     }
 
     [Fact]
@@ -280,19 +348,20 @@ public sealed class GameExistingCharacterLoginProcessorTests
     private sealed class LoginFixture : IAsyncDisposable
     {
         private LoginFixture(LoginStepHarness harness, CharacterLoginProfile profile, WorldMapContent map, WorldRuntime runtime,
-            FakeCharacterStore store, CharacterLoginHandoffResult handoff)
+            FakeCharacterStore store, RecordingAccountSessionStore accountSessions, CharacterLoginHandoffResult handoff)
         {
             Harness = harness;
             Profile = profile;
             Map = map;
             Runtime = runtime;
             Store = store;
+            AccountSessions = accountSessions;
             Handoff = handoff;
 
             LoginStepHarness.FixedTimeProvider time = new(s_utcNow);
 
             Processor = new GameExistingCharacterLoginProcessor(
-                new ExistingCharacterBootstrapProcessor(Presence, WorldMapTestContent.CreateCatalog(map)),
+                new ExistingCharacterBootstrapProcessor(Presence, TestAccountSessions.Create(accountSessions), WorldMapTestContent.CreateCatalog(map), Metrics),
                 new ExistingCharacterEnterMapProcessor(new LoginStepHarness.FixedGameTickSource(ServerTick)),
                 new ExistingCharacterMapStateAppliedProcessor(),
                 new ExistingCharacterItemSetProcessor(store, time),
@@ -311,11 +380,13 @@ public sealed class GameExistingCharacterLoginProcessorTests
         public WorldMapContent Map { get; }
         public WorldRuntime Runtime { get; }
         public FakeCharacterStore Store { get; }
+        public RecordingAccountSessionStore AccountSessions { get; }
+        public GameLoginMetrics Metrics { get; } = new();
         public CharacterLoginHandoffResult Handoff { get; }
         public GameExistingCharacterLoginProcessor Processor { get; }
 
         public static async Task<LoginFixture> CreateAsync(Exception? disposeFailure = null, uint profileMapId = LoginStepHarness.MapId,
-            string? blockedLoad = null)
+            string? blockedLoad = null, bool admitAccountSession = true)
         {
             LoginStepHarness harness = await LoginStepHarness.CreateAsync(disposeFailure);
             CharacterLoginProfile profile = LoginStepHarness.CreateProfile(profileMapId, x: 0, y: 0);
@@ -325,10 +396,26 @@ public sealed class GameExistingCharacterLoginProcessorTests
 
             CharacterLoginHandoffResult handoff = new(harness.Connection, CharacterLoginResolution.ExistingCharacter(profile));
 
-            return new LoginFixture(harness, profile, map, runtime, new FakeCharacterStore(blockedLoad), handoff);
+            return new LoginFixture(harness, profile, map, runtime, new FakeCharacterStore(blockedLoad),
+                new RecordingAccountSessionStore { AdmitEntries = admitAccountSession }, handoff);
         }
 
-        public Task<WorldSession> ProcessAsync() => Processor.ProcessAsync(Handoff, TestContext.Current.CancellationToken).AsTask();
+        public Task<WorldSession?> ProcessAsync() => Processor.ProcessAsync(Handoff, TestContext.Current.CancellationToken).AsTask();
+
+        /// <summary>
+        /// Runs the whole login and discards its responses, leaving an admitted session.
+        /// </summary>
+        public async Task<WorldSession> LogInAsync()
+        {
+            for (int step = 0; step < s_loadsByStep.Length; step++)
+            {
+                QueueRequest(step);
+            }
+
+            WorldSession session = Assert.IsType<WorldSession>(await ProcessAsync());
+            Harness.ReadServerPackets();
+            return session;
+        }
 
         public void QueueRequest(int step)
         {
@@ -353,6 +440,7 @@ public sealed class GameExistingCharacterLoginProcessorTests
         {
             await Harness.DisposeAsync();
             await Runtime.DisposeAsync();
+            Metrics.Dispose();
         }
     }
 

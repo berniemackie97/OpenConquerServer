@@ -37,7 +37,7 @@ public sealed class GameNetworkConfigurationTests
     }
 
     [Fact]
-    public async Task ConfigureServices_NetworkEnabledHostRegistersWorldThenIngressThenRealmStatus()
+    public async Task ConfigureServices_NetworkEnabledHostRegistersWorldThenAccountSessionsThenIngressThenRealmStatus()
     {
         GameServerConfiguration configuration = CreateEnabledConfiguration();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
@@ -52,6 +52,7 @@ public sealed class GameNetworkConfigurationTests
 
             Assert.Collection(services,
                 service => Assert.IsType<GameServerWorldHostedService>(service),
+                service => Assert.IsType<AccountSessionKickHostedService>(service),
                 service => Assert.IsType<GameLoginRuntimeHostedService>(service),
                 service => Assert.IsType<RealmStatusHostedService>(service));
         }

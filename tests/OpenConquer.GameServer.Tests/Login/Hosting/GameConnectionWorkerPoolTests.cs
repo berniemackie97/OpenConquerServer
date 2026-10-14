@@ -18,6 +18,7 @@ using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
@@ -194,7 +195,8 @@ public sealed class GameConnectionWorkerPoolTests
                 localeTag: 0x6E45, hardwareAddress: 0x0000665544332211, resourceVersion: 5517, session: connectionSession);
 
             CharacterLoginProfile profile = CreateProfile();
-            ExistingCharacterGameConnection character = new(authenticated, profile, presence.Register(CharacterId));
+            ExistingCharacterGameConnection character = new(authenticated, profile, presence.Register(CharacterId),
+                TestAccountSessions.CreateLease(authenticated.AccountId, authenticated.SessionUid));
 
             ExistingCharacterBootstrapCompleteConnection bootstrap = new(character, map,
                 new CharacterItemSet(CharacterId, []),

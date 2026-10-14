@@ -30,6 +30,7 @@ issuing the ticket.
 | Enabled, GameServer not reporting               | Failure code 10, "The Server is down."              |
 | Maintenance                                     | Failure code 70, "Server Locked"                    |
 | Disabled, unknown or malformed                  | Failure code 10, "The Server is down."              |
+| Account still playing in another realm          | Failure code 11, "Please try again later."; that realm disconnects it, so the next attempt gets in |
 
 A registry change applies to the next login. Players already in the world stay connected, and a
 ticket issued before the change can still be redeemed until it expires five minutes later. A
@@ -111,8 +112,8 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 
 | User                              | Database          | Privileges                                                                                 |
 | --------------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms`, `realm_status` |
-| GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT, INSERT, UPDATE, DELETE` on `realm_status`; `SELECT` on `schema_compatibility` |
+| AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms`, `realm_status`, `account_sessions`; `INSERT, UPDATE` on `account_session_kicks` |
+| GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT, INSERT, UPDATE, DELETE` on `realm_status`, `account_sessions`, `account_session_kicks`; `SELECT` on `schema_compatibility` |
 | GameServer runtime, each realm    | Its Game database | `SELECT` on `characters`, `items`, `social_relations`, `weapon_skills`, `magic`, `syndicates`, `syndicate_memberships`, `schema_compatibility`, `realm_binding` |
 | GameServer creation, each realm   | Its Game database | `SELECT, INSERT` on `characters`                                                           |
 | Administrator                     | Both              | Schema changes and writes to `realms` and `realm_binding`; never used by a server          |
@@ -120,7 +121,7 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 Give each realm its own Game database users, so that one GameServer's credentials cannot reach another
 realm's characters. All realms remain one trust domain on the Accounts side: every GameServer holds the
 ticket verification keys, can read and delete any realm's tickets, and could write another realm's
-status report. Realms run by different parties
+status report, account session records or kicks. Realms run by different parties
 need separate deployments.
 
 ## Several realms on one machine

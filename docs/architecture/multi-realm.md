@@ -47,6 +47,31 @@ TQ's world servers kept a connection open to the AccountServer and reported, eve
 
 The report is advisory. The GameServer still enforces its own capacity: a login that arrives while the realm is full or busy is answered with a login-channel talk (`1004`, channel 2101) and the connection is closed, the way TQ's world server refused it. The 5517 client shows that text as a login error. TQ let accounts at or below a configured GM account ID bypass full and busy; there are no staff accounts yet, so nothing bypasses the limit.
 
+## One realm at a time
+
+An account plays in one realm at a time. TQ's AccountServer kept an online table that its world servers filled. A login
+for an account still online in another world sent that world a kick (fee message type 4) and was refused with code 11,
+"Please try again later."; the player's retry got through once the old world had let the account go. The AccountServer
+did not refuse a login to the world the account was already in; that world dealt with it. Here:
+
+| | |
+| --- | --- |
+| Record | Accounts v6 `account_sessions`: one row per account naming the realm, character and login session it plays in. The GameServer writes it when an existing character's login passes the map check and removes it when that connection closes. |
+| AccountServer | After authentication, if the account's record names another realm that is reporting status, it queues a kick for that realm in `account_session_kicks` and refuses with code `11`. |
+| GameServer | Writes the record in a transaction that locks the account's row. If another reporting realm holds it, the GameServer queues the same kick and refuses with a login-channel talk, "Your account is still online. Please try again later.", so two realms entered at the same moment cannot both admit the account. A record held by this realm or by a realm that is not reporting is taken over. |
+| Kick | Each GameServer reads its kicks every second. A kicked account that is connected receives the kick notice (`1115`, reason 0) and is disconnected; its record goes with the connection. A kicked account that is not connected only has its leftover record removed. |
+| Start and stop | A GameServer removes all of its realm's records and kicks when it starts and when it stops. |
+
+A second login to the same realm replaces the first at once, and the replaced session also receives `1115`. TQ's
+world server instead kicked the session it had and refused the new login too, so the player had to log in a third
+time; replacing it is a deliberate difference. TQ could also hold a logged-out account for a configured delay
+(`REJOINTIMEWAITSECS`) before letting it into another world; there is no such delay here.
+
+The 5517 client turns `1115` reason 0 into its "logged in from another location" state, but its packaged login screen has no
+handler for that state, so the player sees the client's usual "disconnected" text. The notice is sent because it is the
+client's own message for this case; TQ's 2008 world server used a talk on channel 2100 instead, which the 5517 client
+puts in its character-creation queue.
+
 ## Routing and remaining deployment gates
 
 The native pre-issuance lookup gate, Accounts v4 realm-bound ticket cutover and registry-directed successful 1055 routing are implemented. Each additional realm needs its own provisioned Game database, numeric realm binding, reachable endpoint and secrets; [Realm operations](../operations/realms.md) is the procedure. The registry is a configuration source, not a health check or an automatic realm provisioning system.

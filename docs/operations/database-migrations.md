@@ -12,6 +12,7 @@ start on a mismatch. They never migrate on their own.
 | Accounts |       3 | `20261013010000_AddRealmRegistry`             |
 | Accounts |       4 | `20261013050000_BindGameLoginTicketsToRealm`  |
 | Accounts |       5 | `20261013070000_AddRealmStatus`               |
+| Accounts |       6 | `20261013090000_AddAccountSessions`           |
 | Game     |       1 | `20260914210346_InitialGameSchema`            |
 | Game     |       2 | `20260922025854_UseSignedCharacterPkPoints`   |
 | Game     |       3 | `20260923223920_RetainPreRebirthLevel`        |
@@ -184,6 +185,16 @@ Restore a verified backup or write an independently reviewed, data-preserving do
 
 A downgrade that stops partway can be resumed by running it again through EF. Before any downgrade,
 read the migration's `Down` method, confirm what will be lost, and take a backup.
+
+### Accounts version 6: account sessions
+
+Adds `account_sessions`, one row per account naming the realm it plays in, and
+`account_session_kicks`, the requests that ask a realm to disconnect an account. Both hold only live
+login state, which every GameServer clears when it starts, so the migration starts with empty tables
+and its downgrade drops them. Stop the AccountServer and every GameServer before migrating either way.
+Grant the AccountServer `SELECT` on `account_sessions` and `INSERT, UPDATE` on
+`account_session_kicks`, and each GameServer `SELECT, INSERT, UPDATE, DELETE` on both; see
+[Realm operations](realms.md#grants).
 
 ### Accounts version 5: realm status
 

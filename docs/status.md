@@ -22,6 +22,8 @@ implemented parts work and link here rather than repeating this list.
   GameServer endpoint.
 - Realm load at login: a realm whose GameServer is not reporting is refused with 10, one reporting
   busy with 20 and one reporting full with 21, before and again after credential verification.
+- One realm at a time: a login for an account still playing in another realm is refused with 11 and
+  that realm is asked to disconnect it.
 
 ### GameServer
 
@@ -33,6 +35,10 @@ implemented parts work and link here rather than repeating this list.
 - World runtime: one partition per map, a shared scheduler, bounded command queues, and
   generation-fenced character admission and removal.
 - Hand-off from a completed login into a supervised world session with revocable realm presence.
+- Account session records in the Accounts database, so an account plays in one realm at a time:
+  logins are refused while another realm holds the account, kick requests from other realms
+  disconnect the session with the native kick notice (1115), and a realm's records are cleared when
+  its GameServer starts and stops.
 - Native 5517 eight-direction walk packet 10005 parsing, authenticated world-session gating,
   server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
 - Partition-owned eight-direction walking state mutation with native 5517 direction ordering,
@@ -41,7 +47,7 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 5 and Game schema version 10, both checked at startup.
+- Accounts schema version 6 and Game schema version 10, both checked at startup.
 - Realm status reporting: each network-enabled GameServer reports its load (normal, busy at a
   saturated map partition, full at the character limit) and online count to the Accounts database
   on a fixed interval, and withdraws the report on shutdown. While full or busy it refuses logins

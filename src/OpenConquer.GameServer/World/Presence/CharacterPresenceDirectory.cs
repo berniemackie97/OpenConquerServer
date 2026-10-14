@@ -2,7 +2,7 @@ using OpenConquer.Domain.Characters;
 
 namespace OpenConquer.GameServer.World.Presence;
 
-internal sealed class CharacterPresenceDirectory : ICharacterPresenceReader, ICharacterPresenceRegistrar
+internal sealed class CharacterPresenceDirectory : ICharacterPresenceReader, ICharacterPresenceRegistrar, ICharacterPresenceRevoker
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<uint, Registration> _registrations = [];
@@ -40,6 +40,26 @@ internal sealed class CharacterPresenceDirectory : ICharacterPresenceReader, ICh
         }
 
         return registration;
+    }
+
+    public bool Revoke(uint characterId)
+    {
+        ValidateCharacterId(characterId);
+
+        Registration? revoked;
+
+        lock (_gate)
+        {
+            if (!_registrations.Remove(characterId, out revoked))
+            {
+                return false;
+            }
+
+            revoked.MarkRevoked();
+        }
+
+        revoked.SignalRevocation();
+        return true;
     }
 
     public bool IsOnline(uint characterId)

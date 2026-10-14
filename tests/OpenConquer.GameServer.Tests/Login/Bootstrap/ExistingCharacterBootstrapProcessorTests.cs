@@ -1,16 +1,22 @@
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
+using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
+using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Login.Observability;
+using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Framing;
@@ -33,14 +39,17 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     private const ulong MapFlags = 0x1122334455667788;
 
     private static readonly IPAddress s_remoteAddress = IPAddress.Parse("192.0.2.44");
+    private static readonly GameLoginMetrics s_metrics = new();
 
     [Fact]
     public void Constructor_NullDependencies_AreRejected()
     {
         WorldMapContentCatalog catalog = CreateCatalog();
 
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(null!, catalog));
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), null!));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(null!, TestAccountSessions.Create(), catalog, s_metrics));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), null!, catalog, s_metrics));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), TestAccountSessions.Create(), null!, s_metrics));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), TestAccountSessions.Create(), catalog, null!));
     }
 
     [Fact]
@@ -51,10 +60,10 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
         CharacterPresenceDirectory presence = new();
         WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
-        ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(map));
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(), WorldMapTestContent.CreateCatalog(map), s_metrics);
         int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
 
-        ExistingCharacterLoginContext result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+        ExistingCharacterLoginContext result = Assert.IsType<ExistingCharacterLoginContext>(await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
 
         Assert.Same(profile, result.Connection.Profile);
         Assert.True(presence.IsOnline(profile.Identity.CharacterId));
@@ -87,6 +96,74 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_RecordsTheAccountSessionAndReleasesItWithTheConnection()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        RecordingAccountSessionStore sessions = new();
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory(), TestAccountSessions.Create(sessions), CreateCatalog(), s_metrics);
+
+        ExistingCharacterLoginContext result = Assert.IsType<ExistingCharacterLoginContext>(await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
+
+        Assert.Equal([(AccountId, profile.Identity.CharacterId, SessionUid)], sessions.Entered);
+        Assert.Empty(sessions.Left);
+
+        await result.DisposeAsync();
+
+        Assert.Equal([(AccountId, SessionUid)], sessions.Left);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_KickArrivingWhileTheAccountIsRecorded_RevokesTheLoginAndKeepsItsRecord()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        CharacterPresenceDirectory presence = new();
+        RecordingAccountSessionStore sessions = new();
+        AccountSessionKickHostedService kicks = new(sessions, presence, TimeProvider.System, new GameServerFailureState(),
+            NullLogger<AccountSessionKickHostedService>.Instance);
+        sessions.QueueKicks(new AccountSessionKick(AccountId, profile.Identity.CharacterId, SessionUid));
+        sessions.OnEnter = () => new ValueTask(kicks.ProcessKicksAsync(TestContext.Current.CancellationToken));
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(sessions), CreateCatalog(), s_metrics);
+
+        await using ExistingCharacterLoginContext result = Assert.IsType<ExistingCharacterLoginContext>(
+            await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
+
+        Assert.True(result.Connection.IsRevoked);
+        Assert.Empty(sessions.Left);
+
+        await result.DisposeAsync();
+
+        Assert.Equal([(AccountId, SessionUid)], sessions.Left);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AccountPlayingInAnotherRealm_RefusesWithLoginChannelTalkBeforeBootstrap()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        CharacterPresenceDirectory presence = new();
+        RecordingAccountSessionStore sessions = new() { AdmitEntries = false };
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(sessions), CreateCatalog(), s_metrics);
+
+        ExistingCharacterLoginContext? result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        Assert.False(presence.IsOnline(profile.Identity.CharacterId));
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.Empty(sessions.Left);
+
+        byte[] plaintext = fixture.Client.DecryptServerBytes(fixture.Transport.SentBytes[fixture.AuthenticationBoundary..]);
+
+        Assert.Equal([GameChatPacket.PacketIdentifier], ReadPacketIds(plaintext));
+        Assert.Equal(0x835, BinaryPrimitives.ReadUInt16LittleEndian(plaintext.AsSpan(WireFrameHeader.Size + sizeof(uint))));
+        Assert.NotEqual(-1, plaintext.AsSpan().IndexOf("Your account is still online. Please try again later."u8));
+    }
+
+    [Fact]
     public async Task ProcessAsync_UnavailableWorldMap_RejectsBeforeBootstrapAndDisposesConnection()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();
@@ -94,7 +171,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
         CharacterPresenceDirectory presence = new();
         WorldMapContent unavailableMap = WorldMapTestContent.Create(MapId + 1, MapDataId, MapFlags);
-        ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(unavailableMap));
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(), WorldMapTestContent.CreateCatalog(unavailableMap), s_metrics);
         int receiveCallCountBeforeBootstrap = fixture.Transport.ReceiveCallCount;
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
@@ -116,7 +193,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
         CharacterPresenceDirectory presence = new();
         WorldMapContent unavailableMap = WorldMapTestContent.Create(MapId + 1, MapDataId, MapFlags);
-        ExistingCharacterBootstrapProcessor processor = new(presence, WorldMapTestContent.CreateCatalog(unavailableMap));
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(), WorldMapTestContent.CreateCatalog(unavailableMap), s_metrics);
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
@@ -136,7 +213,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(CreateProfile()));
         ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
-        await using ExistingCharacterLoginContext result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+        await using ExistingCharacterLoginContext result = Assert.IsType<ExistingCharacterLoginContext>(await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
 
         int sentLengthAfterFirstBootstrap = fixture.Transport.SentBytes.Length;
 
@@ -155,7 +232,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         fixture.Transport.BlockSends();
 
-        Task<ExistingCharacterLoginContext> first = processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask();
+        Task<ExistingCharacterLoginContext?> first = processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask();
 
         await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -170,7 +247,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
             fixture.Transport.ReleaseSends();
         }
 
-        await using ExistingCharacterLoginContext result = await first;
+        await using ExistingCharacterLoginContext result = Assert.IsType<ExistingCharacterLoginContext>(await first);
 
         Assert.Equal(0, fixture.Transport.DisposeCount);
 
@@ -210,7 +287,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterPresenceDirectory presence = new();
         ExistingCharacterBootstrapProcessor processor = CreateProcessor(presence);
 
-        ExistingCharacterLoginContext result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
+        ExistingCharacterLoginContext result = Assert.IsType<ExistingCharacterLoginContext>(await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
 
         Assert.Equal(0, fixture.Transport.DisposeCount);
         Assert.True(presence.IsOnline(result.Profile.Identity.CharacterId));
@@ -264,7 +341,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
         fixture.Transport.BlockSends();
 
-        Task<ExistingCharacterLoginContext> processing = processor.ProcessAsync(handoff, cancellation.Token).AsTask();
+        Task<ExistingCharacterLoginContext?> processing = processor.ProcessAsync(handoff, cancellation.Token).AsTask();
 
         await fixture.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
         cancellation.Cancel();
@@ -298,7 +375,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
     private static ExistingCharacterBootstrapProcessor CreateProcessor(ICharacterPresenceRegistrar presence)
     {
-        return new ExistingCharacterBootstrapProcessor(presence, CreateCatalog());
+        return new ExistingCharacterBootstrapProcessor(presence, TestAccountSessions.Create(), CreateCatalog(), s_metrics);
     }
 
     private static WorldMapContentCatalog CreateCatalog()

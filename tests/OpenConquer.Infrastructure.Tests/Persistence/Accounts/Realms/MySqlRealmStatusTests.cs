@@ -97,7 +97,7 @@ public sealed class MySqlRealmStatusTests(AccountDatabaseFixture database)
     }
 
     private ServiceProvider CreatePublisherServices(RealmId realm) =>
-        new ServiceCollection().AddAccountPersistence(database.RuntimeConnectionString).AddRealmStatusPublisher(realm).BuildServiceProvider();
+        new ServiceCollection().AddAccountPersistence(database.RuntimeConnectionString).AddGameServerRealmServices(realm).BuildServiceProvider();
 
     private async Task<RealmId> InsertRealmAsync(uint id, string name)
     {

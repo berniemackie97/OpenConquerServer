@@ -10,6 +10,7 @@ using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
@@ -361,7 +362,8 @@ public sealed class WorldSessionAdmissionProcessorTests
         AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,
             localeTag: 0x6E45, hardwareAddress: 0x0000665544332211, resourceVersion: 5517, session: session);
         CharacterLoginProfile profile = CreateProfile(characterId);
-        ExistingCharacterGameConnection connection = new(authenticated, profile, presence.Register(characterId));
+        ExistingCharacterGameConnection connection = new(authenticated, profile, presence.Register(characterId),
+            TestAccountSessions.CreateLease(authenticated.AccountId, authenticated.SessionUid));
 
         return new ExistingCharacterBootstrapCompleteConnection(connection, map,
             new CharacterItemSet(characterId, []), new CharacterSocialRelationSet(characterId, []),

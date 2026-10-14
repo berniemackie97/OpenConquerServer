@@ -53,8 +53,9 @@ content from elsewhere, override the paths, for example
 2. Verify the Accounts database, then the Game database.
 3. Load and validate map definitions, terrain, and collision.
 4. Start the world runtime and publish it together with the content catalog.
-5. If ingress is enabled: load the item catalog, open the listener, start the login workers, and
-   start reporting the realm's load to the Accounts database.
+5. If ingress is enabled: remove the realm's account session records and kicks left by an earlier
+   run, start reading kicks from other realms, load the item catalog, open the listener, start the
+   login workers, and start reporting the realm's load to the Accounts database.
 
 Any failure stops later steps; the listener never opens on a partially ready server. Migrations are
 not applied. The startup limit is two minutes.
@@ -66,9 +67,11 @@ connection. World sessions have their own supervised lifetime.
 
 Shutdown first deletes the realm status report, so the AccountServer refuses new logins at once. It
 then cancels ingress, closes the listener, drains the admission queue and workers, and closes
-world sessions. It then unpublishes the world, stops the runtime, fails pending commands, joins the
-scheduler threads, and clears map state. Cleanup completes even if the host stops waiting. The
-host's one-minute shutdown limit bounds how long it waits, not how long cleanup runs.
+world sessions. It then stops reading kicks and removes the realm's account session records, so its
+players can log in to another realm at once. It then unpublishes the world, stops the runtime, fails
+pending commands, joins the scheduler threads, and clears map state. Cleanup completes even if the
+host stops waiting. The host's one-minute shutdown limit bounds how long it waits, not how long
+cleanup runs.
 
 The host exits with a nonzero code if the world runtime or the network runtime stops unexpectedly,
 or if a connection or world session cannot be cleaned up. Connections that close normally during
