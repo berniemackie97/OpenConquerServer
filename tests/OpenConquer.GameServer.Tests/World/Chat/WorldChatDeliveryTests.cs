@@ -45,7 +45,7 @@ public sealed class WorldChatDeliveryTests
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession bob = await world.AddAsync(1, "Bob", FirstMap);
+        ClientSession bob = await world.AddAsync(1, "Bobby", FirstMap);
         ClientSession carol = await world.AddAsync(2, "Carol", SecondMap);
         ClientSession dave = await world.AddAsync(3, "Dave", FirstMap, 40, 40);
         GameInboundChat request = new(GameInboundChat.LocalChannel, "ALL", "local message");
@@ -64,10 +64,10 @@ public sealed class WorldChatDeliveryTests
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession bob = await world.AddAsync(1, "Bob", SecondMap);
+        ClientSession bob = await world.AddAsync(1, "Bobby", SecondMap);
         ClientSession carol = await world.AddAsync(2, "Carol", SecondMap);
-        GameInboundChat request = new(GameInboundChat.WhisperChannel, "bOb", "private message");
-        GameChatPacket expected = WorldChatPacketFactory.Create(alice.Session.Ownership.CharacterId, "Alice", "Bob", request);
+        GameInboundChat request = new(GameInboundChat.WhisperChannel, "bObBy", "private message");
+        GameChatPacket expected = WorldChatPacketFactory.Create(alice.Session.Ownership.CharacterId, "Alice", "Bobby", request);
 
         await alice.Session.ProcessChatAsync(request, TestContext.Current.CancellationToken);
 
@@ -86,19 +86,19 @@ public sealed class WorldChatDeliveryTests
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession removed = await world.AddAsync(1, "Bob", SecondMap);
+        ClientSession removed = await world.AddAsync(1, "Bobby", SecondMap);
 
         await removed.Session.DisposeAsync();
         Assert.Null(world.Visibility.PublishChat(alice.Session,
-            new GameInboundChat(GameInboundChat.WhisperChannel, "Bob", "old owner")));
+            new GameInboundChat(GameInboundChat.WhisperChannel, "Bobby", "old owner")));
         Assert.Throws<InvalidDataException>(() => world.Visibility.PublishChat(removed.Session,
             new GameInboundChat(GameInboundChat.LocalChannel, "ALL", "stale")));
 
         // Delayed teardown of the old owner must not erase the new name registration.
-        ClientSession replacement = await world.AddAsync(3, "Bob", SecondMap);
+        ClientSession replacement = await world.AddAsync(3, "Bobby", SecondMap);
         world.Visibility.Leave(removed.Session);
-        GameInboundChat request = new(GameInboundChat.WhisperChannel, "bob", "new owner");
-        GameChatPacket expected = WorldChatPacketFactory.Create(alice.Session.Ownership.CharacterId, "Alice", "Bob", request);
+        GameInboundChat request = new(GameInboundChat.WhisperChannel, "bobby", "new owner");
+        GameChatPacket expected = WorldChatPacketFactory.Create(alice.Session.Ownership.CharacterId, "Alice", "Bobby", request);
 
         await alice.Session.ProcessChatAsync(request, TestContext.Current.CancellationToken);
         await replacement.ExpectPacketAsync(expected);
@@ -111,9 +111,9 @@ public sealed class WorldChatDeliveryTests
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
         await Assert.ThrowsAsync<InvalidOperationException>(() => world.AddAsync(1, "ALICE", SecondMap));
 
-        ClientSession bob = await world.AddAsync(2, "Bob", SecondMap);
+        ClientSession bob = await world.AddAsync(2, "Bobby", SecondMap);
         GameInboundChat request = new(GameInboundChat.WhisperChannel, "alice", "still online");
-        GameChatPacket expected = WorldChatPacketFactory.Create(bob.Session.Ownership.CharacterId, "Bob", "Alice", request);
+        GameChatPacket expected = WorldChatPacketFactory.Create(bob.Session.Ownership.CharacterId, "Bobby", "Alice", request);
         await bob.Session.ProcessChatAsync(request, TestContext.Current.CancellationToken);
         await alice.ExpectPacketAsync(expected);
     }
@@ -128,7 +128,7 @@ public sealed class WorldChatDeliveryTests
         await alice.Session.ProcessChatAsync(request, TestContext.Current.CancellationToken);
         await alice.ExpectPacketAsync(expectedWord);
 
-        ClientSession bob = await world.AddAsync(1, "Bob", FirstMap);
+        ClientSession bob = await world.AddAsync(1, "Bobby", FirstMap);
         IReadOnlyList<byte[]> firstFrames = await bob.WaitForFrameCountAsync(2);
         Assert.Equal((ushort)10014, PacketId(firstFrames[0]));
         Assert.Equal(GameChatPacket.PacketIdentifier, PacketId(firstFrames[1]));
@@ -167,7 +167,7 @@ public sealed class WorldChatDeliveryTests
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession slow = await world.AddAsync(1, "Bob", FirstMap);
+        ClientSession slow = await world.AddAsync(1, "Bobby", FirstMap);
 
         // Flush the admission spawn before blocking further peer writes.
         await slow.WaitForFrameCountAsync(1);
