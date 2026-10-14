@@ -188,6 +188,17 @@ internal sealed partial class GameConnectionWorkerPool(
                         return;
                     }
 
+                    if (frame.PacketId == GameChatPacket.PacketIdentifier)
+                    {
+                        if (!GameInboundChat.TryParse(frame, out GameInboundChat chat))
+                        {
+                            throw new InvalidDataException("The GameServer received a malformed native chat packet.");
+                        }
+
+                        await session.ProcessChatAsync(chat, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
                     if (frame.PacketId == GameWalkPacket.PacketIdentifier)
                     {
                         if (!GameWalkPacket.TryParse(frame.Packet.Span, out GameWalkPacket walk))

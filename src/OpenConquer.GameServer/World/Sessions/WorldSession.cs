@@ -4,6 +4,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Movement;
 using OpenConquer.GameServer.World.Visibility;
@@ -34,6 +35,7 @@ internal sealed class WorldSession : IAsyncDisposable
     private Task? _visibilityWrites;
     private readonly WorldWalkPacer _walkPacer = new();
     private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
+    private readonly WorldChatRateLimiter _chatRateLimiter = new();
     private readonly WorldPositionReconciler _positionReconciler;
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -234,6 +236,50 @@ internal sealed class WorldSession : IAsyncDisposable
             _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
             await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
             _visibility?.Moved(this, committed.Value, walk);
+        }
+    }
+
+    /// <summary>
+    /// Processes only proven native world-chat channels. Unknown valid channels are
+    /// deliberately not relayed as unscoped chat or used to forge control messages.
+    /// </summary>
+    internal async ValueTask ProcessChatAsync(GameInboundChat request, CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+
+        if (!request.IsSupported)
+        {
+            return;
+        }
+
+        if (request.IsWhisper)
+        {
+            // The ordinary client text box uses ALL even on a selected tab.
+            // Without an explicit target there is no safe whisper recipient.
+            if (request.Recipient == GameInboundChat.BroadcastRecipient)
+            {
+                return;
+            }
+        }
+        else if (request.Recipient != GameInboundChat.BroadcastRecipient)
+        {
+            throw new InvalidDataException("Local speech and role words must target ALL.");
+        }
+
+        // The reader is single-owner. Pacing preserves the final word and applies
+        // backpressure rather than allocating tasks or an unbounded fanout queue.
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        while (!_chatRateLimiter.TryAccept(Stopwatch.GetTimestamp(), out TimeSpan retryAfter))
+        {
+            await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
+            ThrowIfInactive();
+        }
+
+        ThrowIfInactive();
+        GameChatPacket? acknowledgement = _visibility?.PublishChat(this, request);
+        if (acknowledgement is not null)
+        {
+            await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
         }
     }
 

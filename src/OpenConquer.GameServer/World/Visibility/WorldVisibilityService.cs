@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Items;
+using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Protocol.Game.Packets;
@@ -16,6 +17,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
 {
     private readonly ILogger<WorldVisibilityService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly ConcurrentDictionary<uint, MapState> _maps = new();
+    private readonly ConcurrentDictionary<string, WorldSession> _onlineByName = new(StringComparer.OrdinalIgnoreCase);
 
     internal void ReportPeerWriteFailure(uint characterId, Exception exception) =>
         LogPeerWriteFailed(_logger, characterId, exception);
@@ -40,6 +42,12 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             // Add before links are created so neither side can observe a non-existent peer.
             map.Sessions.Add(id, session);
             map.Spawns.Add(id, spawn);
+            if (!_onlineByName.TryAdd(session.Profile.Identity.Name, session))
+            {
+                map.Sessions.Remove(id);
+                map.Spawns.Remove(id);
+                throw new InvalidOperationException("World visibility already contains this character name.");
+            }
             VisibilityChange transition;
             try
             {
@@ -49,12 +57,21 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             {
                 map.Sessions.Remove(id);
                 map.Spawns.Remove(id);
+                RemoveOnlineName(session);
                 throw;
             }
             foreach (uint otherId in transition.Entered)
             {
                 map.Sessions[otherId].QueueVisibilityPacket(new GamePlayerSpawnPacket(spawn));
+                if (map.RoleWords.TryGetValue(id, out GameChatPacket? entrantWord))
+                {
+                    map.Sessions[otherId].QueueVisibilityPacket(entrantWord);
+                }
                 session.QueueVisibilityPacket(new GamePlayerSpawnPacket(map.Spawns[otherId]));
+                if (map.RoleWords.TryGetValue(otherId, out GameChatPacket? existingWord))
+                {
+                    session.QueueVisibilityPacket(existingWord);
+                }
             }
         }
     }
@@ -91,7 +108,15 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             {
                 WorldSession observer = map.Sessions[observerId];
                 observer.QueueVisibilityPacket(new GamePlayerSpawnPacket(spawn));
+                if (map.RoleWords.TryGetValue(id, out GameChatPacket? movingWord))
+                {
+                    observer.QueueVisibilityPacket(movingWord);
+                }
                 session.QueueVisibilityPacket(new GamePlayerSpawnPacket(map.Spawns[observerId]));
+                if (map.RoleWords.TryGetValue(observerId, out GameChatPacket? observerWord))
+                {
+                    session.QueueVisibilityPacket(observerWord);
+                }
             }
             // At radius 18 the client continuously culls departed characters itself.
         }
@@ -132,6 +157,93 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
         }
     }
 
+    /// <summary>
+    /// Publishes authenticated local chat, character whispers and transient role words.
+    /// Direct recipients are verified against their current session registration.
+    /// No network I/O takes place under a map lock.
+    /// </summary>
+    public GameChatPacket? PublishChat(WorldSession sender, GameInboundChat request)
+    {
+        ArgumentNullException.ThrowIfNull(sender);
+        if (!request.IsSupported || sender.IsStopping ||
+            !_maps.TryGetValue(sender.Ownership.MapId, out MapState? map))
+        {
+            throw new InvalidDataException("Chat has no supported channel or active world owner.");
+        }
+
+        uint senderId = sender.Ownership.CharacterId;
+        if (request.IsWhisper)
+        {
+            // Do not hold the sender's map lock while looking up or publishing
+            // to a recipient in another map; lock ordering must stay acyclic.
+            lock (map.Gate)
+            {
+                EnsureCurrentSession(map, sender);
+            }
+
+            if (!_onlineByName.TryGetValue(request.Recipient, out WorldSession? target) || target.IsStopping ||
+                !_maps.TryGetValue(target.Ownership.MapId, out MapState? targetMap))
+            {
+                return null;
+            }
+
+            lock (targetMap.Gate)
+            {
+                if (!targetMap.Sessions.TryGetValue(target.Ownership.CharacterId, out WorldSession? current) ||
+                    !ReferenceEquals(current, target) || target.IsStopping)
+                {
+                    return null;
+                }
+
+                GameChatPacket packet = WorldChatPacketFactory.Create(senderId, sender.Profile.Identity.Name,
+                    target.Profile.Identity.Name, request);
+                if (sender.IsStopping)
+                {
+                    return null;
+                }
+                if (!ReferenceEquals(sender, target))
+                {
+                    target.QueueVisibilityPacket(packet);
+                }
+                return packet;
+            }
+        }
+
+        lock (map.Gate)
+        {
+            EnsureCurrentSession(map, sender);
+            GameChatPacket packet = WorldChatPacketFactory.Create(senderId, sender.Profile.Identity.Name,
+                GameInboundChat.BroadcastRecipient, request);
+            if (request.IsRoleWord)
+            {
+                map.RoleWords[senderId] = packet;
+            }
+
+            foreach (uint viewerId in map.Index.Observers(senderId))
+            {
+                map.Sessions[viewerId].QueueVisibilityPacket(packet);
+            }
+            return packet;
+        }
+    }
+
+    private static void EnsureCurrentSession(MapState map, WorldSession session)
+    {
+        if (!map.Sessions.TryGetValue(session.Ownership.CharacterId, out WorldSession? current) ||
+            !ReferenceEquals(current, session) || session.IsStopping)
+        {
+            throw new InvalidDataException("Chat cannot publish from a stale world session.");
+        }
+    }
+
+    private void RemoveOnlineName(WorldSession session)
+    {
+        // Value-sensitive removal ensures a delayed old-session cleanup cannot
+        // evict a newer session registered under the same character name.
+        ICollection<KeyValuePair<string, WorldSession>> entries = _onlineByName;
+        entries.Remove(new KeyValuePair<string, WorldSession>(session.Profile.Identity.Name, session));
+    }
+
     public void Leave(WorldSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -149,6 +261,8 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             uint[] observers = map.Index.Leave(id);
             map.Sessions.Remove(id);
             map.Spawns.Remove(id);
+            map.RoleWords.Remove(id);
+            RemoveOnlineName(session);
             GameActionPacket removal = new(id, parameterPair: 0, actionParameter: 0,
                 timestamp: unchecked((uint)Environment.TickCount64), action: 135, direction: 0,
                 positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
@@ -210,5 +324,6 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
         public MapVisibilityIndex Index { get; } = new();
         public Dictionary<uint, WorldSession> Sessions { get; } = [];
         public Dictionary<uint, GamePlayerSpawnSnapshot> Spawns { get; } = [];
+        public Dictionary<uint, GameChatPacket> RoleWords { get; } = [];
     }
 }
