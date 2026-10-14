@@ -86,6 +86,7 @@ a missing or malformed report does not revoke the ticket.
 | Account state changed before the ticket grant    |          `1` |
 | Selected realm unknown, malformed or disabled    |         `10` |
 | Selected realm has no current status report      |         `10` |
+| Account still playing in another realm           |         `11` |
 | Banned account                                   |         `12` |
 | Selected realm reports busy                      |         `20` |
 | Selected realm reports full                      |         `21` |
@@ -131,6 +132,8 @@ kept after redemption.
 
 While the realm is full or busy, the capacity gate answers an authenticated login with a `1004` talk
 on the login channel (2101) and closes the connection; see [Multi-realm](multi-realm.md#realm-status).
+The bootstrap processor answers the same way, before sending any bootstrap packet, when the account is
+still playing in another realm; see [Multi-realm](multi-realm.md#one-realm-at-a-time).
 
 Character lookup uses only the account ID established by the ticket; nothing the client sends
 selects which character is loaded. An account without a character is routed to character
@@ -159,6 +162,7 @@ Session cleanup failures are handled the same way.
 | `openconquer.game_server.login.connection.completions`           | Login reached the world          |
 | `openconquer.game_server.login.connection.not_admitted`          | Login ended without reaching the world (disconnect, rejected ticket, no character) |
 | `openconquer.game_server.login.connection.realm_load_refusals`   | Login refused because the realm was full or busy (also counted as not admitted) |
+| `openconquer.game_server.login.connection.account_online_refusals` | Login refused because the account was playing in another realm (also counted as not admitted) |
 | `openconquer.game_server.login.connection.failures`              | Login failed                     |
 | `openconquer.game_server.login.connection.timeouts`              | Login exceeded its timeout       |
 | `openconquer.game_server.login.connection.duration`              | Login duration in milliseconds   |

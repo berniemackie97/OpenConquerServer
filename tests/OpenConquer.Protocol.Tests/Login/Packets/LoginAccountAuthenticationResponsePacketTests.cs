@@ -12,6 +12,8 @@ public sealed class LoginAccountAuthenticationResponsePacketTests
 
         Assert.Equal(10u, (uint)LoginAccountAuthenticationFailureCode.ServerDown);
 
+        Assert.Equal(11u, (uint)LoginAccountAuthenticationFailureCode.AlreadyOnline);
+
         Assert.Equal(12u, (uint)LoginAccountAuthenticationFailureCode.Banned);
 
         Assert.Equal(20u, (uint)LoginAccountAuthenticationFailureCode.ServerBusy);

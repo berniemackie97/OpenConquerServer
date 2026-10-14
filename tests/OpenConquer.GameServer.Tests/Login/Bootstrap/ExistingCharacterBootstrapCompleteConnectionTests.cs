@@ -10,6 +10,7 @@ using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Presence;
 
@@ -256,7 +257,8 @@ public sealed class ExistingCharacterBootstrapCompleteConnectionTests
         CharacterLoginProfile profile = CreateProfile();
         CharacterPresenceDirectory presence = new();
 
-        return new ExistingCharacterGameConnection(authenticated, profile, presence.Register(profile.Identity.CharacterId));
+        return new ExistingCharacterGameConnection(authenticated, profile, presence.Register(profile.Identity.CharacterId),
+            TestAccountSessions.CreateLease(authenticated.AccountId, authenticated.SessionUid));
     }
 
     private static CharacterLoginProfile CreateProfile()

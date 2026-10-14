@@ -7,6 +7,7 @@ using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Presence;
@@ -99,7 +100,8 @@ internal sealed class LoginStepHarness : IAsyncDisposable
         profile ??= CreateProfile();
 
         WorldMapContent map = WorldMapTestContent.Create(profile.Location.MapId, MapDataId, MapFlags);
-        ExistingCharacterGameConnection connection = new(Connection, profile, Presence.Register(profile.Identity.CharacterId));
+        ExistingCharacterGameConnection connection = new(Connection, profile, Presence.Register(profile.Identity.CharacterId),
+            TestAccountSessions.CreateLease(Connection.AccountId, Connection.SessionUid));
         _login = new ExistingCharacterLoginContext(connection, map);
 
         return _login;

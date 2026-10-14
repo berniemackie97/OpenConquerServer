@@ -15,16 +15,25 @@ namespace OpenConquer.GameServer.World.Sessions;
 /// Owns an authenticated connection, its completed login snapshots, and one authoritative world residency.
 /// Revocation and world shutdown initiate the same supervised, idempotent teardown.
 /// </summary>
+/// <remarks>
+/// Presence is revoked only when the account logs in again, here or in another realm. The session then sends
+/// the native kick notice (1115) before closing, as the 5517 client expects when it is logged out by another login.
+/// </remarks>
 internal sealed class WorldSession : IAsyncDisposable
 {
+    private static readonly GameKickoutNoticePacket s_otherLoginNotice = new(GameKickoutReason.OtherLogin, "Your account was logged in from another location.");
+    private static readonly TimeSpan s_noticeTimeout = TimeSpan.FromSeconds(2);
+
     private readonly ExistingCharacterGameConnection _connection;
     private readonly WorldRuntime _runtime;
     private readonly WorldWalkPacer _walkPacer = new();
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
     private CancellationTokenRegistration _presenceRegistration;
     private CancellationTokenRegistration _runtimeRegistration;
     private int _disposalStarted;
+    private int _supersededByLogin;
 
     internal WorldSession(WorldRuntime runtime, ExistingCharacterGameConnection connection, ExistingCharacterBootstrapCompleteConnection bootstrap,
         WorldCharacterOwnership ownership)
@@ -50,7 +59,7 @@ internal sealed class WorldSession : IAsyncDisposable
 
     internal void Activate()
     {
-        CancellationTokenRegistration presence = _connection.RevocationToken.UnsafeRegister(static state => ((WorldSession)state!).BeginDispose(), this);
+        CancellationTokenRegistration presence = _connection.RevocationToken.UnsafeRegister(static state => ((WorldSession)state!).OnPresenceRevoked(), this);
         CancellationTokenRegistration runtime;
 
         try
@@ -82,7 +91,11 @@ internal sealed class WorldSession : IAsyncDisposable
             runtime.Dispose();
         }
 
-        if (_connection.IsRevoked || !_runtime.IsRunning)
+        if (_connection.IsRevoked)
+        {
+            OnPresenceRevoked();
+        }
+        else if (!_runtime.IsRunning)
         {
             BeginDispose();
         }
@@ -157,21 +170,54 @@ internal sealed class WorldSession : IAsyncDisposable
         ThrowIfInactive();
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
 
+        await _writeGate.WaitAsync(linked.Token).ConfigureAwait(false);
+
         try
         {
             await _connection.WriteAsync(packet, linked.Token).ConfigureAwait(false);
         }
         catch (Exception operationFailure)
         {
+            _writeGate.Release();
             await FailConnectionAsync(operationFailure).ConfigureAwait(false);
             throw;
         }
+
+        _writeGate.Release();
     }
 
     public ValueTask DisposeAsync()
     {
         BeginDispose();
         return new ValueTask(_completion.Task);
+    }
+
+    // Best effort: the client is told why it was disconnected, but a connection that cannot take one more frame
+    // within the time limit is closed without it.
+    private async Task SendOtherLoginNoticeAsync()
+    {
+        using CancellationTokenSource timeout = new(s_noticeTimeout);
+
+        try
+        {
+            await _writeGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        try
+        {
+            await _connection.WriteFarewellAsync(s_otherLoginNotice, timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or InvalidOperationException)
+        {
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     private async Task FailConnectionAsync(Exception operationFailure)
@@ -184,6 +230,21 @@ internal sealed class WorldSession : IAsyncDisposable
         {
             throw new AggregateException("World-session I/O failed and cleanup also failed.", operationFailure, cleanupFailure);
         }
+    }
+
+    private void OnPresenceRevoked()
+    {
+        lock (_gate)
+        {
+            // The session's own teardown also releases its presence; only a revocation that arrives first
+            // means that another login took the account over.
+            if (_disposalStarted == 0)
+            {
+                Volatile.Write(ref _supersededByLogin, 1);
+            }
+        }
+
+        BeginDispose();
     }
 
     private void BeginDispose()
@@ -203,6 +264,11 @@ internal sealed class WorldSession : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         List<Exception> failures = [];
+
+        if (Volatile.Read(ref _supersededByLogin) != 0)
+        {
+            await SendOtherLoginNoticeAsync().ConfigureAwait(false);
+        }
 
         try
         {

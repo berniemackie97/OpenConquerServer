@@ -58,11 +58,11 @@ the deployment's secret store.
 ## Database
 
 The Accounts database must already exist on MySQL 8.4 with character set `utf8mb4` and collation
-`utf8mb4_0900_as_cs`, migrated to schema version 5
-(`20261013070000_AddRealmStatus`). The server never migrates on startup;
+`utf8mb4_0900_as_cs`, migrated to schema version 6
+(`20261013090000_AddAccountSessions`). The server never migrates on startup;
 see [Database migrations](database-migrations.md). The runtime database account needs only the
-permissions for normal account operations, the readiness check, and `SELECT` on `realms` and
-`realm_status`.
+permissions for normal account operations, the readiness check, `SELECT` on `realms`,
+`realm_status` and `account_sessions`, and `INSERT, UPDATE` on `account_session_kicks`.
 
 ## Running
 

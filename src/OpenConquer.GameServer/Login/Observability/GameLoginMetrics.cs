@@ -13,6 +13,7 @@ internal sealed class GameLoginMetrics : IDisposable
     private readonly Counter<long> _completed;
     private readonly Counter<long> _notAdmitted;
     private readonly Counter<long> _realmLoadRefused;
+    private readonly Counter<long> _accountOnlineRefused;
     private readonly Counter<long> _failed;
     private readonly Counter<long> _timedOut;
     private readonly UpDownCounter<long> _worldSessions;
@@ -26,6 +27,7 @@ internal sealed class GameLoginMetrics : IDisposable
         _completed = _meter.CreateCounter<long>("openconquer.game_server.login.connection.completions");
         _notAdmitted = _meter.CreateCounter<long>("openconquer.game_server.login.connection.not_admitted");
         _realmLoadRefused = _meter.CreateCounter<long>("openconquer.game_server.login.connection.realm_load_refusals");
+        _accountOnlineRefused = _meter.CreateCounter<long>("openconquer.game_server.login.connection.account_online_refusals");
         _failed = _meter.CreateCounter<long>("openconquer.game_server.login.connection.failures");
         _timedOut = _meter.CreateCounter<long>("openconquer.game_server.login.connection.timeouts");
         _worldSessions = _meter.CreateUpDownCounter<long>("openconquer.game_server.world_sessions.active");
@@ -36,6 +38,7 @@ internal sealed class GameLoginMetrics : IDisposable
     public void RecordSourceRejected() => _sourceRejected.Add(1);
     public void RecordCapacityRejected() => _capacityRejected.Add(1);
     public void RecordRealmLoadRefused() => _realmLoadRefused.Add(1);
+    public void RecordAccountOnlineRefused() => _accountOnlineRefused.Add(1);
 
     public void RecordCompleted(double durationMilliseconds)
     {

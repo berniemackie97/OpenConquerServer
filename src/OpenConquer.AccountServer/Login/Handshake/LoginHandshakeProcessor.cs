@@ -8,6 +8,7 @@ using OpenConquer.AccountServer.Login.Handshake.Authentication;
 using OpenConquer.AccountServer.Login.Handshake.PostAuthentication;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Realms;
 using OpenConquer.Domain.Realms;
 using OpenConquer.Protocol.Login.Packets;
@@ -15,7 +16,7 @@ using OpenConquer.Protocol.Login.Packets;
 namespace OpenConquer.AccountServer.Login.Handshake;
 
 internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticator, GameLoginTicketIssuer ticketIssuer, IRealmRegistry realmRegistry,
-    IRealmStatusDirectory realmStatus, LoginHandshakeConfiguration configuration)
+    IRealmStatusDirectory realmStatus, IAccountSessionKickRequester accountSessions, LoginHandshakeConfiguration configuration)
 {
     private const ushort ProtectedAccountRequestPacketId = 1084;
     private const ushort MobileAccountRequestPacketId = 1098;
@@ -24,6 +25,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
     private readonly GameLoginTicketIssuer _ticketIssuer = ticketIssuer ?? throw new ArgumentNullException(nameof(ticketIssuer));
     private readonly IRealmRegistry _realmRegistry = realmRegistry ?? throw new ArgumentNullException(nameof(realmRegistry));
     private readonly IRealmStatusDirectory _realmStatus = realmStatus ?? throw new ArgumentNullException(nameof(realmStatus));
+    private readonly IAccountSessionKickRequester _accountSessions = accountSessions ?? throw new ArgumentNullException(nameof(accountSessions));
     private readonly LoginHandshakeConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
     public async ValueTask ProcessAsync(LoginConnectionSession session, CancellationToken cancellationToken = default)
@@ -114,6 +116,15 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         if (currentRealm.Id != selection.Realm.Id)
         {
             await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.ServerDown, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // As TQ's AccountServer did, refuse a login while the account is still playing in another realm and ask
+        // that realm to disconnect it, so that the player's next attempt gets in. Another login to the same realm
+        // proceeds; its GameServer replaces the older session itself.
+        if (await _accountSessions.TryKickFromOtherRealmAsync(authentication.AccountId, currentRealm.Id, cancellationToken).ConfigureAwait(false))
+        {
+            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.AlreadyOnline, cancellationToken).ConfigureAwait(false);
             return;
         }
 

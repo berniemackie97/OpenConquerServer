@@ -3,7 +3,9 @@ using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Handshake;
@@ -31,9 +33,12 @@ public sealed class ExistingCharacterGameConnectionTests
         CharacterPresenceDirectory directory = new();
         using ICharacterPresenceLease presence = directory.Register(CharacterId);
 
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(null!, profile, presence));
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(connection, null!, presence));
-        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(connection, profile, null!));
+        AccountSessionLease accountSession = CreateAccountSession();
+
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(null!, profile, presence, accountSession));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(connection, null!, presence, accountSession));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(connection, profile, null!, accountSession));
+        Assert.Throws<ArgumentNullException>(() => new ExistingCharacterGameConnection(connection, profile, presence, null!));
 
         await connection.DisposeAsync();
     }
@@ -46,7 +51,7 @@ public sealed class ExistingCharacterGameConnectionTests
         CharacterPresenceDirectory directory = new();
         using ICharacterPresenceLease presence = directory.Register(CharacterId);
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(() => new ExistingCharacterGameConnection(connection, CreateProfile(accountId: AccountId + 1), presence));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new ExistingCharacterGameConnection(connection, CreateProfile(accountId: AccountId + 1), presence, CreateAccountSession()));
 
         Assert.Equal("profile", exception.ParamName);
 
@@ -61,7 +66,7 @@ public sealed class ExistingCharacterGameConnectionTests
         CharacterPresenceDirectory directory = new();
         using ICharacterPresenceLease presence = directory.Register(OtherCharacterId);
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(() => new ExistingCharacterGameConnection(connection, CreateProfile(), presence));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new ExistingCharacterGameConnection(connection, CreateProfile(), presence, CreateAccountSession()));
 
         Assert.Equal("presenceLease", exception.ParamName);
 
@@ -76,7 +81,7 @@ public sealed class ExistingCharacterGameConnectionTests
         CharacterLoginProfile profile = CreateProfile();
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, profile, presence);
+        ExistingCharacterGameConnection owner = new(connection, profile, presence, CreateAccountSession());
 
         Assert.Same(profile, owner.Profile);
         Assert.False(owner.IsRevoked);
@@ -92,13 +97,57 @@ public sealed class ExistingCharacterGameConnectionTests
     }
 
     [Fact]
+    public async Task Constructor_AccountSessionBelongsToDifferentLogin_IsRejected()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        CharacterPresenceDirectory directory = new();
+        using ICharacterPresenceLease presence = directory.Register(CharacterId);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new ExistingCharacterGameConnection(connection, CreateProfile(), presence, TestAccountSessions.CreateLease(AccountId, SessionUid + 1)));
+
+        Assert.Equal("accountSession", exception.ParamName);
+
+        await connection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_RemovesTheAccountSessionRecordOnce()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        CharacterPresenceDirectory directory = new();
+        RecordingAccountSessionStore store = new();
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), directory.Register(CharacterId), TestAccountSessions.CreateLease(AccountId, SessionUid, store));
+
+        await owner.DisposeAsync();
+        await owner.DisposeAsync();
+
+        Assert.Equal([(AccountId, SessionUid)], store.Left);
+        Assert.False(directory.IsOnline(CharacterId));
+    }
+
+    [Fact]
+    public async Task WriteFarewellAsync_IsOnlyAllowedAfterRevocation()
+    {
+        FakeGameTransportConnection transport = new();
+        AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
+        CharacterPresenceDirectory directory = new();
+        await using ExistingCharacterGameConnection owner = new(connection, CreateProfile(), directory.Register(CharacterId), CreateAccountSession());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            owner.WriteFarewellAsync(new GameKickoutNoticePacket(GameKickoutReason.OtherLogin, string.Empty), TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Fact]
     public async Task ReplacementPresence_RevokesOldOwnerWithoutAllowingStaleCleanupToRemoveReplacement()
     {
         FakeGameTransportConnection transport = new();
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
         using ICharacterPresenceLease replacement = directory.Register(CharacterId);
 
@@ -121,7 +170,7 @@ public sealed class ExistingCharacterGameConnectionTests
         AuthenticatedGameConnection connection = await CreateSecuredConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
         Task readTask = owner.ReadAsync(TestContext.Current.CancellationToken).AsTask();
 
@@ -147,7 +196,7 @@ public sealed class ExistingCharacterGameConnectionTests
         AuthenticatedGameConnection connection = await CreateSecuredConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cancellation.Cancel();
 
@@ -168,7 +217,7 @@ public sealed class ExistingCharacterGameConnectionTests
         AuthenticatedGameConnection connection = await CreateSecuredConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
         int boundary = transport.SentBytes.Length;
 
         transport.BlockSends();
@@ -194,7 +243,7 @@ public sealed class ExistingCharacterGameConnectionTests
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
         Task disposal = owner.DisposeAsync().AsTask();
 
@@ -219,7 +268,7 @@ public sealed class ExistingCharacterGameConnectionTests
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
         Task first = owner.DisposeAsync().AsTask();
 
@@ -245,7 +294,7 @@ public sealed class ExistingCharacterGameConnectionTests
         AuthenticatedGameConnection connection = await CreateSecuredConnectionAsync(transport);
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease presence = directory.Register(CharacterId);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
         Task disposal = owner.DisposeAsync().AsTask();
 
@@ -270,7 +319,7 @@ public sealed class ExistingCharacterGameConnectionTests
         FakeGameTransportConnection transport = new(disposeFailure: connectionFailure);
         AuthenticatedGameConnection connection = await CreateConnectionAsync(transport);
         FakePresenceLease presence = new(CharacterId, presenceFailure);
-        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence);
+        ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
         AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => owner.DisposeAsync().AsTask());
 
@@ -280,6 +329,8 @@ public sealed class ExistingCharacterGameConnectionTests
         Assert.True(presence.IsRevoked);
         Assert.Equal(1, transport.DisposeCount);
     }
+
+    private static AccountSessionLease CreateAccountSession() => TestAccountSessions.CreateLease(AccountId, SessionUid);
 
     private static async Task<AuthenticatedGameConnection> CreateConnectionAsync(FakeGameTransportConnection transport)
     {

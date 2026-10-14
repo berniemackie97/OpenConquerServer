@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.Authentication.State;
 using OpenConquer.Application.Accounts.Mutations;
+using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Realms;
 using OpenConquer.Infrastructure.Persistence.Accounts.Authentication;
 using OpenConquer.Infrastructure.Persistence.Accounts.Context;
@@ -9,6 +10,7 @@ using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Persistence.Accounts.Mutations;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Infrastructure.Persistence.Accounts.Realms;
+using OpenConquer.Infrastructure.Persistence.Accounts.Sessions;
 
 namespace OpenConquer.Infrastructure.DependencyInjection;
 
@@ -37,6 +39,7 @@ public static class AccountPersistenceServiceCollectionExtensions
         services.AddSingleton<IAccountMutationStore>(provider => new AccountMutationStore(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<IRealmRegistry>(provider => new MySqlRealmRegistry(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<IRealmStatusDirectory>(provider => new MySqlRealmStatusDirectory(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
+        services.AddSingleton<IAccountSessionKickRequester>(provider => new MySqlAccountSessionKickRequester(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<AccountDatabaseReadinessVerifier>();
         services.AddSingleton<IAccountDatabaseReadinessVerifier>(provider => provider.GetRequiredService<AccountDatabaseReadinessVerifier>());
 

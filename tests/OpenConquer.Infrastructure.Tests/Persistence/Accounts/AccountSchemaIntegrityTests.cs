@@ -27,6 +27,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
         "CK_account_audit_events_reason_code",
         "CK_account_password_credentials_password_hash",
         "CK_account_password_credentials_revision",
+        "CK_account_sessions_character_id",
+        "CK_account_sessions_session_uid",
         "CK_game_login_tickets_expiration",
         "CK_game_login_tickets_realm_id",
         "CK_game_login_tickets_session_uid",

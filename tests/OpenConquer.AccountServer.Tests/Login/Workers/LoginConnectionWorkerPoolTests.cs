@@ -3,6 +3,7 @@ using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Realms;
 using OpenConquer.Domain.Realms;
 using OpenConquer.Transport.Admission;
@@ -211,7 +212,13 @@ public sealed class LoginConnectionWorkerPoolTests
     private static LoginHandshakeProcessor CreateProcessor(TimeSpan? phaseTimeout = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new UnusedGrantStore(), new UnusedTokenGenerator());
-        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new UnusedRealmStatusDirectory(), new LoginHandshakeConfiguration(phaseTimeout ?? TimeSpan.FromSeconds(10)));
+        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new UnusedRealmStatusDirectory(), new UnusedKickRequester(), new LoginHandshakeConfiguration(phaseTimeout ?? TimeSpan.FromSeconds(10)));
+    }
+
+    private sealed class UnusedKickRequester : IAccountSessionKickRequester
+    {
+        public ValueTask<bool> TryKickFromOtherRealmAsync(uint accountId, RealmId selectedRealm, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Account session lookup was not expected.");
     }
 
     private sealed class UnusedRealmStatusDirectory : IRealmStatusDirectory

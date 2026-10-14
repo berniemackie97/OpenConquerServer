@@ -141,6 +141,16 @@ public sealed class AccountDatabaseFixture : IAsyncLifetime
                 ON `{DatabaseName}`.`realm_status`
                 TO '{RuntimeUserName}'@'%'
                 """,
+            $"""
+                GRANT SELECT, INSERT, UPDATE, DELETE
+                ON `{DatabaseName}`.`account_sessions`
+                TO '{RuntimeUserName}'@'%'
+                """,
+            $"""
+                GRANT SELECT, INSERT, UPDATE, DELETE
+                ON `{DatabaseName}`.`account_session_kicks`
+                TO '{RuntimeUserName}'@'%'
+                """,
         ];
 
         foreach (string grant in grants)

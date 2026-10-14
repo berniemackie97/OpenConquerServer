@@ -5,6 +5,7 @@ using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 
 namespace OpenConquer.GameServer.Tests.Login.Bootstrap;
@@ -19,7 +20,7 @@ public sealed class ExistingCharacterLoginContextTests
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         await using ExistingCharacterGameConnection connection = new(harness.Connection, LoginStepHarness.CreateProfile(),
-            harness.Presence.Register(CharacterId));
+            harness.Presence.Register(CharacterId), TestAccountSessions.CreateLease(harness.Connection.AccountId, harness.Connection.SessionUid));
         WorldMapContent otherMap = WorldMapTestContent.Create(LoginStepHarness.MapId + 1, LoginStepHarness.MapDataId, LoginStepHarness.MapFlags);
 
         Assert.Throws<ArgumentException>(() => new ExistingCharacterLoginContext(connection, otherMap));

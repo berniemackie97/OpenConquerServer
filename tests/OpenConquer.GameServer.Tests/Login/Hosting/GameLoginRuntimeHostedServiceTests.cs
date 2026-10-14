@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Realms;
 using OpenConquer.Application.World;
@@ -12,6 +13,7 @@ using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.Tests.Configuration;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
@@ -29,7 +31,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
         TestListener listener = new();
         int listenerCalls = 0;
 
-        IHost host = CreateHost(items, listener, () => Interlocked.Increment(ref listenerCalls));
+        IHost host = CreateHost(items, listener, new RecordingAccountSessionStore(), () => Interlocked.Increment(ref listenerCalls));
 
         try
         {
@@ -52,10 +54,11 @@ public sealed class GameLoginRuntimeHostedServiceTests
     {
         ItemRepository items = new();
         TestListener listener = new();
+        RecordingAccountSessionStore accountSessions = new();
         int listenerCalls = 0;
         IHost? host = null;
 
-        host = CreateHost(items, listener, () =>
+        host = CreateHost(items, listener, accountSessions, () =>
         {
             Assert.Equal(1, items.Calls);
             Assert.True(host!.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld().Runtime.IsRunning);
@@ -68,6 +71,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
             Assert.Collection(services,
                 service => Assert.IsType<GameServerWorldHostedService>(service),
+                service => Assert.IsType<AccountSessionKickHostedService>(service),
                 service => Assert.IsType<GameLoginRuntimeHostedService>(service),
                 service => Assert.IsType<RealmStatusHostedService>(service));
 
@@ -75,6 +79,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
             Assert.Equal(1, listenerCalls);
             Assert.Equal(1, items.Calls);
+            Assert.Equal(1, accountSessions.ResetCount);
             Assert.True(host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld().Runtime.IsRunning);
 
             ItemTypeCatalog published = host.Services.GetRequiredService<GameServerItemCatalogState>().GetRequiredCatalog();
@@ -84,6 +89,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
             await host.StopAsync(TestContext.Current.CancellationToken);
 
             Assert.Equal(1, listener.DisposeCount);
+            Assert.Equal(2, accountSessions.ResetCount);
             Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld());
             Assert.Null(host.Services.GetRequiredService<GameServerFailureState>().Failure);
         }
@@ -98,7 +104,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
     {
         ItemRepository items = new();
         TestListener listener = new();
-        IHost host = CreateHost(items, listener, static () => { });
+        IHost host = CreateHost(items, listener, new RecordingAccountSessionStore(), static () => { });
 
         try
         {
@@ -125,7 +131,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
         }
     }
 
-    private static IHost CreateHost(ItemRepository items, TestListener listener, Action onListenerCreated)
+    private static IHost CreateHost(ItemRepository items, TestListener listener, IAccountSessionStore accountSessions, Action onListenerCreated)
     {
         GameServerConfiguration configuration = GameServerConfiguration.Load(
             GameServerConfigurationTests.CreateConfiguration(values =>
@@ -153,6 +159,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
         builder.Services.AddSingleton<IGameDatabaseReadinessVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IGameRealmBindingVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IRealmStatusPublisher, NullRealmStatusPublisher>();
+        builder.Services.AddSingleton(accountSessions);
 
         builder.Services.AddSingleton<MapRepositories>();
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(provider => provider.GetRequiredService<MapRepositories>());

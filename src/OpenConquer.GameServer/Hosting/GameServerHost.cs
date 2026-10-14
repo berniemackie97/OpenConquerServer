@@ -112,7 +112,7 @@ internal static class GameServerHost
         RealmStatusOptions realmStatus, RealmId realmId)
     {
         services.AddItemTypeCatalogContent(items);
-        services.AddRealmStatusPublisher(realmId);
+        services.AddGameServerRealmServices(realmId);
 
         services.AddSingleton(network);
         services.AddSingleton<GameServerItemCatalogState>();
@@ -127,6 +127,8 @@ internal static class GameServerHost
         services.AddSingleton<CharacterPresenceDirectory>();
         services.AddSingleton<ICharacterPresenceReader>(provider => provider.GetRequiredService<CharacterPresenceDirectory>());
         services.AddSingleton<ICharacterPresenceRegistrar>(provider => provider.GetRequiredService<CharacterPresenceDirectory>());
+        services.AddSingleton<ICharacterPresenceRevoker>(provider => provider.GetRequiredService<CharacterPresenceDirectory>());
+        services.AddSingleton<RealmAccountSessions>();
 
         services.AddSingleton<IGameTickSource, SystemGameTickSource>();
 
@@ -163,6 +165,9 @@ internal static class GameServerHost
 
         services.AddSingleton(_ => new TransportConnectionAdmissionQueue(network.AdmissionCapacity));
         services.AddSingleton<GameLoginMetrics>();
+
+        // Clears this realm's account session records before ingress opens and after it closes.
+        services.AddHostedService<AccountSessionKickHostedService>();
         services.AddHostedService<GameLoginRuntimeHostedService>();
 
         // Registered after ingress so that the realm is reported available only once its listener is open,

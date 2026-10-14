@@ -27,11 +27,20 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
     private readonly ExistingCharacterStatisticsRequestProcessor _statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
     private readonly WorldSessionAdmissionProcessor _admission = admission ?? throw new ArgumentNullException(nameof(admission));
 
-    public async ValueTask<WorldSession> ProcessAsync(CharacterLoginHandoffResult handoff, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Returns <see langword="null"/> when the login was refused because its account is still playing in another realm.
+    /// </summary>
+    public async ValueTask<WorldSession?> ProcessAsync(CharacterLoginHandoffResult handoff, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handoff);
 
-        ExistingCharacterLoginContext login = await _bootstrap.ProcessAsync(handoff, cancellationToken).ConfigureAwait(false);
+        ExistingCharacterLoginContext? login = await _bootstrap.ProcessAsync(handoff, cancellationToken).ConfigureAwait(false);
+
+        if (login is null)
+        {
+            return null;
+        }
+
         ExistingCharacterBootstrapCompleteConnection completed;
 
         try
