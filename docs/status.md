@@ -45,7 +45,8 @@ implemented parts work and link here rather than repeating this list.
   and conservative native 108 correction after repeated divergence; no report is echoed.
 - Partition-owned eight-direction walking state mutation with native 5517 direction ordering,
   composed static collision, generation fencing, and a cancellable-before-acceptance command API.
-  Native walking ingress is connected; multiplayer movement replication remains unavailable.
+  Native walking ingress is connected; nearby player visibility, peer-spawn, walking relay and
+  disconnect removal are now wired through bounded per-session delivery.
 
 ### Persistence and content
 
@@ -79,10 +80,10 @@ implemented parts work and link here rather than repeating this list.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
-- Remaining gameplay routing: native 24-direction movement, jumping, movement replication,
+- Remaining gameplay routing: native 24-direction movement, jumping, non-player replication,
   position persistence, combat, NPCs, trading, and chat. Position correction is limited
   to repeated drift reports from the authenticated local character.
-- World simulation: monsters, timers, visibility, and map transfers. Dynamic occupancy and elevation
+- World simulation: monsters, timers, NPC/monster/ground-item visibility, and map transfers. Dynamic occupancy and elevation
   constraints for movement also remain unresolved.
 - Seven map identities from the original data that could not be resolved (see
   [content](content/README.md)).

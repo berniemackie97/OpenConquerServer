@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.Threading.Channels;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Movement;
+using OpenConquer.GameServer.World.Visibility;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Protocol.Serialization;
@@ -26,6 +28,10 @@ internal sealed class WorldSession : IAsyncDisposable
 
     private readonly ExistingCharacterGameConnection _connection;
     private readonly WorldRuntime _runtime;
+    private readonly WorldVisibilityService? _visibility;
+    private readonly Channel<IPacket>? _visibilityMailbox;
+    private readonly CancellationTokenSource _visibilityStopping = new();
+    private Task? _visibilityWrites;
     private readonly WorldWalkPacer _walkPacer = new();
     private readonly WorldPositionReconciler _positionReconciler;
     private readonly Lock _gate = new();
@@ -37,7 +43,7 @@ internal sealed class WorldSession : IAsyncDisposable
     private int _supersededByLogin;
 
     internal WorldSession(WorldRuntime runtime, ExistingCharacterGameConnection connection, ExistingCharacterBootstrapCompleteConnection bootstrap,
-        WorldCharacterOwnership ownership)
+        WorldCharacterOwnership ownership, WorldVisibilityService? visibility = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
@@ -49,6 +55,16 @@ internal sealed class WorldSession : IAsyncDisposable
         }
 
         Ownership = ownership;
+        _visibility = visibility;
+        if (visibility is not null)
+        {
+            _visibilityMailbox = Channel.CreateBounded<IPacket>(new BoundedChannelOptions(256)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            });
+        }
         _positionReconciler = new WorldPositionReconciler(bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
     }
 
@@ -93,6 +109,11 @@ internal sealed class WorldSession : IAsyncDisposable
             runtime.Dispose();
         }
 
+        if (_visibilityMailbox is not null)
+        {
+            _visibilityWrites = Task.Run(PumpVisibilityAsync);
+        }
+
         if (_connection.IsRevoked)
         {
             OnPresenceRevoked();
@@ -111,6 +132,78 @@ internal sealed class WorldSession : IAsyncDisposable
         if (!_runtime.IsRunning)
         {
             throw new InvalidOperationException("The authoritative world runtime is stopping.");
+        }
+    }
+
+    internal void EnterVisibility()
+    {
+        ThrowIfInactive();
+        _visibility?.Enter(this);
+    }
+
+    internal void QueryVisibleEntity(uint subjectId)
+    {
+        ThrowIfInactive();
+        _visibility?.Query(this, subjectId);
+    }
+
+    /// <summary>Only the world visibility index may enqueue peer packets.</summary>
+    internal void QueueVisibilityPacket(IPacket packet)
+    {
+        if (IsStopping || _visibilityMailbox is null)
+        {
+            return;
+        }
+        if (!_visibilityMailbox.Writer.TryWrite(packet))
+        {
+            // A slow peer cannot retain unbounded visibility history or stall other players.
+            BeginDispose();
+        }
+    }
+
+    private async Task PumpVisibilityAsync()
+    {
+        if (_visibilityMailbox is null)
+        {
+            return;
+        }
+        try
+        {
+            await foreach (IPacket packet in _visibilityMailbox.Reader.ReadAllAsync(_visibilityStopping.Token).ConfigureAwait(false))
+            {
+                using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
+                    _visibilityStopping.Token, _runtime.StoppingToken);
+                await _writeGate.WaitAsync(linked.Token).ConfigureAwait(false);
+                try
+                {
+                    if (IsStopping)
+                    {
+                        return;
+                    }
+                    // Do not call WorldSession.WriteAsync here: its fail-and-await-cleanup path
+                    // would await this pump and deadlock session disposal.
+                    await _connection.WriteAsync(packet, linked.Token).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _writeGate.Release();
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_visibilityStopping.IsCancellationRequested || _runtime.StoppingToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            // Delivery failure belongs to the recipient; never fault the sender or map partition.
+            try
+            {
+                _visibility?.ReportPeerWriteFailure(Ownership.CharacterId, exception);
+            }
+            finally
+            {
+                BeginDispose();
+            }
         }
     }
 
@@ -139,6 +232,7 @@ internal sealed class WorldSession : IAsyncDisposable
         {
             _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
             await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
+            _visibility?.Moved(this, committed.Value, walk);
         }
     }
 
@@ -307,6 +401,33 @@ internal sealed class WorldSession : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         List<Exception> failures = [];
+
+        try
+        {
+            _visibility?.Leave(this);
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+
+        _visibilityMailbox?.Writer.TryComplete();
+        try
+        {
+            await _visibilityStopping.CancelAsync().ConfigureAwait(false);
+            if (_visibilityWrites is not null)
+            {
+                await _visibilityWrites.ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+        finally
+        {
+            _visibilityStopping.Dispose();
+        }
 
         if (Volatile.Read(ref _supersededByLogin) != 0)
         {

@@ -201,13 +201,22 @@ internal sealed partial class GameConnectionWorkerPool(
 
                     if (frame.PacketId == GameAction.PacketIdentifier)
                     {
-                        if (!GamePositionReport.TryParse(frame, out GamePositionReport report))
+                        if (GamePositionReport.TryParse(frame, out GamePositionReport report))
                         {
-                            throw new InvalidDataException("The GameServer received an unsupported native action packet.");
+                            await session.ProcessPositionReportAsync(report, cancellationToken).ConfigureAwait(false);
+                            continue;
                         }
 
-                        await session.ProcessPositionReportAsync(report, cancellationToken).ConfigureAwait(false);
-                        continue;
+                        if (frame.Header.Length == GameAction.FixedPacketLength &&
+                            GameAction.TryParse(frame, out GameAction query, out _) &&
+                            query.Action == 102 && query.StringCount == 0 &&
+                            query.EntityId == session.Ownership.CharacterId && query.ParameterPair != 0)
+                        {
+                            session.QueryVisibleEntity(query.ParameterPair);
+                            continue;
+                        }
+
+                        throw new InvalidDataException("The GameServer received an unsupported native action packet.");
                     }
 
                     throw new InvalidDataException("The GameServer received an unsupported gameplay packet.");

@@ -32,7 +32,7 @@ and relevant to the existing eight-direction walking path.
 
 ## Limits
 
-A finite history cannot cover arbitrarily delayed packets. Live visibility replication, running,
+A finite history cannot cover arbitrarily delayed packets. NPC/monster visibility, running,
 jumping, cross-map transitions, occupancy/elevation rules, position durability across relogins,
 and anti-cheat action against persistent divergence remain **unimplemented**. The three-report
 threshold and one-second correction cooldown are conservative server policies, not recovered TQ
