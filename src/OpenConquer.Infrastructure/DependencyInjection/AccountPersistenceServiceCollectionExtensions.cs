@@ -36,6 +36,7 @@ public static class AccountPersistenceServiceCollectionExtensions
         services.AddSingleton<IAccountAuthenticationRepository, AccountAuthenticationRepository>();
         services.AddSingleton<IAccountMutationStore>(provider => new AccountMutationStore(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<IRealmRegistry>(provider => new MySqlRealmRegistry(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
+        services.AddSingleton<IRealmStatusDirectory>(provider => new MySqlRealmStatusDirectory(provider.GetRequiredKeyedService<MySqlDataSource>(RawMySqlDataSourceKey)));
         services.AddSingleton<AccountDatabaseReadinessVerifier>();
         services.AddSingleton<IAccountDatabaseReadinessVerifier>(provider => provider.GetRequiredService<AccountDatabaseReadinessVerifier>());
 

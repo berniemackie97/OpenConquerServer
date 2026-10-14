@@ -36,6 +36,8 @@ public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
         "CK_realms_protocol_server_name",
         "CK_realms_public_game_address",
         "CK_realms_public_game_port",
+        "CK_realm_status_lifetime",
+        "CK_realm_status_load_state",
         "CK_schema_compatibility_component_name",
         "CK_schema_compatibility_migration_id",
         "CK_schema_compatibility_schema_version",

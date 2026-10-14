@@ -23,10 +23,29 @@ A refused selection uses the native failure codes whose client text describes th
 | Selection | Code | Client text |
 | --- | ---: | --- |
 | Unknown, malformed or `Disabled` | `10` | "The Server is down." |
+| Enabled, but its GameServer has no current status report | `10` | "The Server is down." |
+| GameServer reports busy | `20` | "Server is busy." |
+| GameServer reports full | `21` | "Server is busy. Please try again, later." |
 | `Maintenance` | `70` | "Server Locked" |
-| Removed, disabled or given a different ID during authentication | `10` / `70` | as above |
 
-Unknown and disabled share one reply, so retiring a realm by disabling or by deleting its row looks the same to players. The check runs before credential verification, so it reveals nothing about accounts. Which codes the original TQ AccountServer used for these states is not recoverable (its binary is unavailable); the client only maps code to text. A realm disabled in the instant between the post-authentication lookup and the locked ticket grant still fails with code `1`, because the grant reports every lost precondition as one outcome.
+The same check runs again after authentication, so a realm that is disabled, fills up or stops while a password is verified is still refused before a ticket is granted. Unknown and disabled share one reply, so retiring a realm by disabling or by deleting its row looks the same to players. The check runs before credential verification, so it reveals nothing about accounts.
+
+Codes 10, 20 and 21 are the ones TQ's AccountServer sent for an unknown or unlinked world, a busy world and a full world (its source, not the shipped binary, is the evidence; the codes match the 5517 client's text table one to one). TQ had no maintenance state; 70 is the client's own text for it. A realm disabled in the instant between the post-authentication lookup and the locked ticket grant still fails with code `1`, because the grant reports every lost precondition as one outcome.
+
+## Realm status
+
+TQ's world servers kept a connection open to the AccountServer and reported, every 30 seconds, their online count and whether they were full or busy; a world whose connection dropped was treated as down. Here each GameServer writes the same report to the Accounts database `realm_status` table instead:
+
+| | |
+| --- | --- |
+| Interval | `GameServer:RealmStatus:ReportInterval` (default 10 seconds) |
+| Lifetime | Three intervals, in database time. A report that is not refreshed in time stops counting, and the realm reads as down. |
+| Full | Resident characters reached `GameServer:World:MaxCharacters` |
+| Busy | A map partition's command queue is full and refusing work (TQ: a map group's message backlog passed 5,000) |
+| Start | First report once the listener is open |
+| Stop | Report deleted before the listener closes, so logins are refused at once |
+
+The report is advisory. The GameServer still enforces its own capacity: a login that arrives while the realm is full or busy is answered with a login-channel talk (`1004`, channel 2101) and the connection is closed, the way TQ's world server refused it. The 5517 client shows that text as a login error. TQ let accounts at or below a configured GM account ID bypass full and busy; there are no staff accounts yet, so nothing bypasses the limit.
 
 ## Routing and remaining deployment gates
 

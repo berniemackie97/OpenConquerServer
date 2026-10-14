@@ -54,6 +54,19 @@ internal sealed class WorldScheduler : IAsyncDisposable
         return _partitions.TryGetValue(mapId, out partition);
     }
 
+    public bool HasSaturatedPartition()
+    {
+        foreach (WorldPartition partition in _partitions.Values)
+        {
+            if (partition.IsSaturated)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public void Start()
     {
         lock (_gate)

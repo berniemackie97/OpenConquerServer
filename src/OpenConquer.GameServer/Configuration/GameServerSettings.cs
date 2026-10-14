@@ -7,6 +7,7 @@ internal sealed class GameServerSettings
     public WorldSettings World { get; set; } = new();
     public GameLoginTicketSettings GameLoginTickets { get; set; } = new();
     public NetworkSettings Network { get; set; } = new();
+    public RealmStatusSettings RealmStatus { get; set; } = new();
     public ItemContentSettings Items { get; set; } = new();
     public CharacterCreationSettings? CharacterCreation { get; set; }
 
@@ -127,6 +128,14 @@ internal sealed class GameServerSettings
         }
 
         public TimeSpan ConnectionTimeout
+        {
+            get; set;
+        }
+    }
+
+    internal sealed class RealmStatusSettings
+    {
+        public TimeSpan ReportInterval
         {
             get; set;
         }

@@ -37,6 +37,20 @@ internal sealed class WorldPartition
 
     public WorldMapContent Map => _map.Map;
 
+    /// <summary>
+    /// Gets whether the ordinary command queue is full, so that new commands are being refused.
+    /// </summary>
+    public bool IsSaturated
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pending.Count >= _capacity;
+            }
+        }
+    }
+
     public WorldPartitionEnqueueResult TryEnqueue(IWorldPartitionCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);

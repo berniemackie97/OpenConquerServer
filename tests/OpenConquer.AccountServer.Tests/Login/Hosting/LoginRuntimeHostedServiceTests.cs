@@ -181,7 +181,7 @@ public sealed class LoginRuntimeHostedServiceTests
     private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue queue, LoginRuntimeMetrics metrics, out FatalBackgroundServiceFailureState fatalFailureState, IAccountLoginConnectionLimiter? connectionLimiter = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new ThrowingGameLoginTicketGrantStore(), new TestGameLoginTicketTokenGenerator());
-        LoginHandshakeProcessor handshakeProcessor = new(new ThrowingAccountAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(TimeSpan.FromSeconds(5)));
+        LoginHandshakeProcessor handshakeProcessor = new(new ThrowingAccountAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new UnusedRealmStatusDirectory(), new LoginHandshakeConfiguration(TimeSpan.FromSeconds(5)));
         fatalFailureState = new FatalBackgroundServiceFailureState();
 
         return new LoginRuntimeHostedService(
@@ -331,6 +331,12 @@ public sealed class LoginRuntimeHostedServiceTests
         {
             return ValueTask.FromException<AccountAuthenticationResult>(new InvalidOperationException("Authentication should not be reached by runtime lifecycle tests."));
         }
+    }
+
+    private sealed class UnusedRealmStatusDirectory : IRealmStatusDirectory
+    {
+        public ValueTask<RealmLoad?> FindCurrentLoadAsync(RealmId realmId, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Realm status lookup was not expected.");
     }
 
     private sealed class UnusedRealmRegistry : IRealmRegistry

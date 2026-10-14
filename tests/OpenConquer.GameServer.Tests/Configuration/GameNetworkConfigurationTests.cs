@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Hosting;
+using OpenConquer.GameServer.Realms;
 
 namespace OpenConquer.GameServer.Tests.Configuration;
 
@@ -24,6 +25,11 @@ public sealed class GameNetworkConfigurationTests
         Assert.Equal(8, network.WorkerCount);
         Assert.Equal(TimeSpan.FromSeconds(45), network.ConnectionTimeout);
 
+        RealmStatusOptions realmStatus = Assert.IsType<RealmStatusOptions>(configuration.RealmStatus);
+
+        Assert.Equal(TimeSpan.FromSeconds(10), realmStatus.ReportInterval);
+        Assert.Equal(TimeSpan.FromSeconds(30), realmStatus.ReportLifetime);
+
         Assert.NotNull(configuration.ItemTypes);
         Assert.Equal(Path.GetFullPath("content/items/item-types.json", Path.GetTempPath()), configuration.ItemTypes.FilePath);
         Assert.Equal(16_777_216, configuration.ItemTypes.MaximumFileLengthBytes);
@@ -31,7 +37,7 @@ public sealed class GameNetworkConfigurationTests
     }
 
     [Fact]
-    public async Task ConfigureServices_NetworkEnabledHostRegistersWorldBeforeIngress()
+    public async Task ConfigureServices_NetworkEnabledHostRegistersWorldThenIngressThenRealmStatus()
     {
         GameServerConfiguration configuration = CreateEnabledConfiguration();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
@@ -46,7 +52,8 @@ public sealed class GameNetworkConfigurationTests
 
             Assert.Collection(services,
                 service => Assert.IsType<GameServerWorldHostedService>(service),
-                service => Assert.IsType<GameLoginRuntimeHostedService>(service));
+                service => Assert.IsType<GameLoginRuntimeHostedService>(service),
+                service => Assert.IsType<RealmStatusHostedService>(service));
         }
         finally
         {
@@ -79,6 +86,8 @@ public sealed class GameNetworkConfigurationTests
     [InlineData("GameServer:Items:MaximumFileBytes", "0")]
     [InlineData("GameServer:Items:MaximumDefinitions", "0")]
     [InlineData("GameServer:Items:FilePath", "")]
+    [InlineData("GameServer:RealmStatus:ReportInterval", "00:00:00")]
+    [InlineData("GameServer:RealmStatus:ReportInterval", "00:05:01")]
     public void Load_NetworkEnabledRejectsInvalidConfiguration(string key, string value)
     {
         Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(
@@ -97,6 +106,7 @@ public sealed class GameNetworkConfigurationTests
             GameServerConfigurationTests.CreateConfiguration(), Path.GetTempPath());
 
         Assert.Null(configuration.Network);
+        Assert.Null(configuration.RealmStatus);
         Assert.Null(configuration.ItemTypes);
     }
 
@@ -129,6 +139,7 @@ public sealed class GameNetworkConfigurationTests
         values["GameServer:Network:MaximumConnectionsPerSource"] = "4";
         values["GameServer:Network:WorkerCount"] = "8";
         values["GameServer:Network:ConnectionTimeout"] = "00:00:45";
+        values["GameServer:RealmStatus:ReportInterval"] = "00:00:10";
 
         values["GameServer:Items:FilePath"] = "content/items/item-types.json";
         values["GameServer:Items:MaximumFileBytes"] = "16777216";

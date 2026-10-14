@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -13,7 +14,8 @@ using OpenConquer.Protocol.Login.Packets;
 
 namespace OpenConquer.AccountServer.Login.Handshake;
 
-internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticator, GameLoginTicketIssuer ticketIssuer, IRealmRegistry realmRegistry, LoginHandshakeConfiguration configuration)
+internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticator, GameLoginTicketIssuer ticketIssuer, IRealmRegistry realmRegistry,
+    IRealmStatusDirectory realmStatus, LoginHandshakeConfiguration configuration)
 {
     private const ushort ProtectedAccountRequestPacketId = 1084;
     private const ushort MobileAccountRequestPacketId = 1098;
@@ -21,6 +23,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
     private readonly IAccountAuthenticator _authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
     private readonly GameLoginTicketIssuer _ticketIssuer = ticketIssuer ?? throw new ArgumentNullException(nameof(ticketIssuer));
     private readonly IRealmRegistry _realmRegistry = realmRegistry ?? throw new ArgumentNullException(nameof(realmRegistry));
+    private readonly IRealmStatusDirectory _realmStatus = realmStatus ?? throw new ArgumentNullException(nameof(realmStatus));
     private readonly LoginHandshakeConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
     public async ValueTask ProcessAsync(LoginConnectionSession session, CancellationToken cancellationToken = default)
@@ -62,20 +65,20 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         LoginAccountRequest request = readResult.Request ?? throw new InvalidOperationException("Account-request reader reported success without returning a request.");
         AccountAuthenticationResult authentication = default;
-        RealmRegistration? selectedRealm;
+        RealmAdmission selection;
 
         using (request)
         {
-            selectedRealm = await FindRealmAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
-            if (selectedRealm is { Availability: RealmAvailability.Enabled })
+            selection = await AdmitRealmAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
+            if (selection.IsAdmitted)
             {
                 authentication = await AuthenticateAsync(request, remoteAddress, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        if (selectedRealm is not { Availability: RealmAvailability.Enabled })
+        if (!selection.IsAdmitted)
         {
-            await SendFailureAsync(session, GetUnavailableRealmFailure(selectedRealm), cancellationToken).ConfigureAwait(false);
+            await SendFailureAsync(session, selection.Refusal, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -96,19 +99,21 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
             throw new InvalidOperationException($"Account authenticator returned unsupported status {authentication.Status}.");
         }
 
-        // Authentication can take long enough for operators to change a realm's
-        // availability or public endpoint. Recheck before granting a ticket.
-        RealmRegistration? currentRealm = await FindRealmAsync(selectedRealm.ProtocolName.Value, cancellationToken).ConfigureAwait(false);
+        // Authentication can take long enough for operators to change a realm's availability
+        // or endpoint, or for its GameServer to fill up or stop. Recheck before granting a ticket.
+        RealmAdmission current = await AdmitRealmAsync(selection.Realm.ProtocolName.Value, cancellationToken).ConfigureAwait(false);
 
-        if (currentRealm is null || currentRealm.Id != selectedRealm.Id)
+        if (!current.IsAdmitted)
         {
-            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.ServerDown, cancellationToken).ConfigureAwait(false);
+            await SendFailureAsync(session, current.Refusal, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        if (currentRealm.Availability != RealmAvailability.Enabled)
+        RealmRegistration currentRealm = current.Realm;
+
+        if (currentRealm.Id != selection.Realm.Id)
         {
-            await SendFailureAsync(session, GetUnavailableRealmFailure(currentRealm), cancellationToken).ConfigureAwait(false);
+            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.ServerDown, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -126,6 +131,32 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         await ReadPostAuthenticationReportsAsync(session, ticket.SessionUid, cancellationToken).ConfigureAwait(false);
     }
 
+    // The codes follow TQ's AccountServer: 10 for a realm that is unknown or whose GameServer is not
+    // reporting, 20 when it reports busy and 21 when it reports full. Unknown, malformed and disabled
+    // selections share one reply, so retiring a realm by disabling or by removing its registration looks
+    // the same to players. Maintenance (70, "Server Locked") has no TQ counterpart.
+    private async ValueTask<RealmAdmission> AdmitRealmAsync(string serverName, CancellationToken cancellationToken)
+    {
+        RealmRegistration? realm = await FindRealmAsync(serverName, cancellationToken).ConfigureAwait(false);
+
+        if (realm is not { Availability: RealmAvailability.Enabled })
+        {
+            return RealmAdmission.Refuse(realm?.Availability == RealmAvailability.Maintenance
+                ? LoginAccountAuthenticationFailureCode.ServerLocked
+                : LoginAccountAuthenticationFailureCode.ServerDown);
+        }
+
+        RealmLoad? load = await _realmStatus.FindCurrentLoadAsync(realm.Id, cancellationToken).ConfigureAwait(false);
+
+        return load switch
+        {
+            RealmLoad.Normal => RealmAdmission.Admit(realm),
+            RealmLoad.Busy => RealmAdmission.Refuse(LoginAccountAuthenticationFailureCode.ServerBusy),
+            RealmLoad.Full => RealmAdmission.Refuse(LoginAccountAuthenticationFailureCode.ServerFull),
+            _ => RealmAdmission.Refuse(LoginAccountAuthenticationFailureCode.ServerDown),
+        };
+    }
+
     private async ValueTask<RealmRegistration?> FindRealmAsync(string serverName, CancellationToken cancellationToken)
     {
         ProtocolServerName protocolName;
@@ -141,16 +172,6 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         RealmRegistration? realm = await _realmRegistry.FindByNameAsync(protocolName, cancellationToken).ConfigureAwait(false);
 
         return realm is not null && realm.ProtocolName == protocolName ? realm : null;
-    }
-
-    // The client renders these as "Server Locked" and "The Server is down.". Unknown,
-    // malformed and disabled selections share one reply, so retiring a realm by
-    // disabling or by removing its registration looks the same to players.
-    private static LoginAccountAuthenticationFailureCode GetUnavailableRealmFailure(RealmRegistration? realm)
-    {
-        return realm?.Availability == RealmAvailability.Maintenance
-            ? LoginAccountAuthenticationFailureCode.ServerLocked
-            : LoginAccountAuthenticationFailureCode.ServerDown;
     }
 
     private async ValueTask<AccountAuthenticationResult> AuthenticateAsync(LoginAccountRequest request, IPAddress remoteAddress, CancellationToken cancellationToken)
@@ -193,5 +214,14 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
     private static ValueTask SendFailureAsync(LoginConnectionSession session, LoginAccountAuthenticationFailureCode failureCode, CancellationToken cancellationToken)
     {
         return session.WriteAsync(LoginAccountAuthenticationResponsePacket.Failure(failureCode), cancellationToken);
+    }
+
+    private readonly record struct RealmAdmission(RealmRegistration? Realm, LoginAccountAuthenticationFailureCode Refusal)
+    {
+        [MemberNotNullWhen(true, nameof(Realm))]
+        public bool IsAdmitted => Realm is not null;
+
+        public static RealmAdmission Admit(RealmRegistration realm) => new(realm, default);
+        public static RealmAdmission Refuse(LoginAccountAuthenticationFailureCode refusal) => new(null, refusal);
     }
 }

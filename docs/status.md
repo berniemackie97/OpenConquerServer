@@ -20,6 +20,8 @@ implemented parts work and link here rather than repeating this list.
   advertise the selected registration's IPv4 address and port. Refused selections reply with the
   native "server down" (10) and "server locked" (70) codes; the AccountServer has no static
   GameServer endpoint.
+- Realm load at login: a realm whose GameServer is not reporting is refused with 10, one reporting
+  busy with 20 and one reporting full with 21, before and again after credential verification.
 
 ### GameServer
 
@@ -39,7 +41,11 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 4 and Game schema version 10, both checked at startup.
+- Accounts schema version 5 and Game schema version 10, both checked at startup.
+- Realm status reporting: each network-enabled GameServer reports its load (normal, busy at a
+  saturated map partition, full at the character limit) and online count to the Accounts database
+  on a fixed interval, and withdraws the report on shutdown. While full or busy it refuses logins
+  with the native login-channel talk.
 - GameServer validates a configured realm ID against its Game database's operator-provisioned binding before world publication.
 - Operator-controlled Accounts DB realm registry keyed by the exact native protocol server name,
   with case-sensitive uniqueness, explicit availability, a stable internal realm ID, IPv4 endpoint,
@@ -60,9 +66,8 @@ implemented parts work and link here rather than repeating this list.
 
 ## Not yet implemented
 
-- Automated realm provisioning and realm health: realms are added and changed by an operator
-  following [Realm operations](operations/realms.md); nothing reports GameServer health or load
-  back to the AccountServer, so a full or stopped GameServer is not refused at login.
+- Automated realm provisioning: realms are added and changed by an operator following
+  [Realm operations](operations/realms.md).
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.

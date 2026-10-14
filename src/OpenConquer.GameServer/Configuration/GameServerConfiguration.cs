@@ -21,7 +21,7 @@ internal sealed class GameServerConfiguration
     private GameServerConfiguration(RealmId realmId, string accountConnectionString, string gameConnectionString,
         MapDefinitionCatalogFileOptions mapDefinitions, string terrainDirectory, string collisionDirectory,
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
-        GameNetworkOptions? network, ItemTypeCatalogFileOptions? itemTypes,
+        GameNetworkOptions? network, RealmStatusOptions? realmStatus, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
         CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString)
     {
@@ -35,6 +35,7 @@ internal sealed class GameServerConfiguration
         CollisionLimits = collisionLimits;
         World = world;
         Network = network;
+        RealmStatus = realmStatus;
         ItemTypes = itemTypes;
         ActiveVerificationKeyId = activeVerificationKeyId;
         VerificationKeys = Array.AsReadOnly(verificationKeys);
@@ -52,6 +53,12 @@ internal sealed class GameServerConfiguration
     public MapCollisionLoadLimits CollisionLimits { get; }
     public WorldExecutionOptions World { get; }
     public GameNetworkOptions? Network { get; }
+
+    /// <summary>
+    /// Gets the realm status reporting configuration. Present exactly when network ingress is enabled,
+    /// because a GameServer that accepts no logins must not be reported as available.
+    /// </summary>
+    public RealmStatusOptions? RealmStatus { get; }
     public ItemTypeCatalogFileOptions? ItemTypes { get; }
     public ushort ActiveVerificationKeyId { get; }
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
@@ -113,6 +120,7 @@ internal sealed class GameServerConfiguration
 
             KeyValuePair<ushort, string>[] keys = CreateVerificationKeys(ticketSettings.VerificationKeys);
             GameNetworkOptions? network = null;
+            RealmStatusOptions? realmStatus = null;
             ItemTypeCatalogFileOptions? itemTypes = null;
 
             if (networkSettings.Enabled)
@@ -126,6 +134,11 @@ internal sealed class GameServerConfiguration
                 network = new GameNetworkOptions(new IPEndPoint(bindAddress, networkSettings.Port),
                     networkSettings.ListenBacklog, networkSettings.AdmissionCapacity,
                     networkSettings.MaximumConnectionsPerSource, networkSettings.WorkerCount, networkSettings.ConnectionTimeout);
+
+                GameServerSettings.RealmStatusSettings realmStatusSettings = settings.RealmStatus
+                    ?? throw new ArgumentException("GameServer realm status configuration is missing.");
+
+                realmStatus = new RealmStatusOptions(realmStatusSettings.ReportInterval);
 
                 GameServerSettings.ItemContentSettings itemSettings = settings.Items
                     ?? throw new ArgumentException("GameServer item-type content configuration is missing.");
@@ -156,7 +169,7 @@ internal sealed class GameServerConfiguration
 
             return new GameServerConfiguration(realmId, accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
-                network, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
+                network, realmStatus, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
                 characterCreationConnectionString);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
