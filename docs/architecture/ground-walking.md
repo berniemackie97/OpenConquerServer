@@ -47,10 +47,19 @@ server-committed tiles and uses native subtype 108 for conservative self-correct
 after repeated reports of never-authorized positions. See
 [position synchronization](position-synchronization.md).
 
+## Native facing and avatar action (Slice #146)
+
+Authenticated fixed-layout native `10010` actions `79` (turn) and `81` (pose)
+now update the per-map peer presentation state, acknowledge the local player,
+and relay only to existing observers. Player spawn `10014` now carries the
+current action at native offset `+0x5B`, rather than always zero. Walking
+resets the cached pose to standing, exactly as the 5517-era walk handler does.
+See [native avatar actions](native-avatar-actions.md).
+
 ## Remaining production gates
 
 This is an **eight-direction walking ingress**, not a complete movement or multiplayer release.
-Native 24-direction running, jump requests, dynamic occupancy/elevation restrictions, movement
+Native 24-direction running, jump requests (including jump-specific elevation gates), movement
 replication for NPCs/monsters/ground items, and authoritative position persistence across relog
 remain unimplemented. Player spawn and local walking replication are now implemented in Slice #145. Position correction is limited to repeated divergence reports. Do not claim complete gameplay support or deploy as an MMO movement
 system until those requirements are satisfied and tested. No new schema, speculative wire fields,

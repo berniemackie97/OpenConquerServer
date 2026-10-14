@@ -74,7 +74,13 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             {
                 return;
             }
-            GamePlayerSpawnSnapshot spawn = map.Spawns[id] with { X = committed.X, Y = committed.Y, Direction = packet.DirectionIndex };
+            GamePlayerSpawnSnapshot spawn = map.Spawns[id] with
+            {
+                X = committed.X,
+                Y = committed.Y,
+                Direction = packet.DirectionIndex,
+                Action = GameAvatarAction.StandingPose,
+            };
             VisibilityChange change = map.Index.Move(id, committed.X, committed.Y);
             map.Spawns[id] = spawn;
             foreach (uint observerId in change.Retained)
@@ -88,6 +94,41 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 session.QueueVisibilityPacket(new GamePlayerSpawnPacket(map.Spawns[observerId]));
             }
             // At radius 18 the client continuously culls departed characters itself.
+        }
+    }
+
+    /// <summary>
+    /// Publishes an authenticated, nonpositional 5517 avatar action to current observers.
+    /// The spawn cache is updated under the same lock used for membership transitions.
+    /// </summary>
+    public void AvatarAction(WorldSession session, GameAvatarAction request, GameActionPacket acknowledgement)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(acknowledgement);
+        if (session.IsStopping || request.EntityId != session.Ownership.CharacterId ||
+            acknowledgement.EntityId != request.EntityId || acknowledgement.Action != request.Kind ||
+            !_maps.TryGetValue(session.Ownership.MapId, out MapState? map))
+        {
+            throw new InvalidDataException("Avatar action has no authenticated active visibility owner.");
+        }
+
+        lock (map.Gate)
+        {
+            uint id = session.Ownership.CharacterId;
+            if (!map.Sessions.TryGetValue(id, out WorldSession? current) || !ReferenceEquals(current, session))
+            {
+                throw new InvalidDataException("Avatar action cannot mutate another world session's visibility state.");
+            }
+
+            GamePlayerSpawnSnapshot spawn = map.Spawns[id];
+            map.Spawns[id] = request.Kind == GameAvatarAction.DirectionAction
+                ? spawn with { Direction = request.Direction }
+                : spawn with { Action = request.Pose };
+
+            foreach (uint viewerId in map.Index.Observers(id))
+            {
+                map.Sessions[viewerId].QueueVisibilityPacket(acknowledgement);
+            }
         }
     }
 

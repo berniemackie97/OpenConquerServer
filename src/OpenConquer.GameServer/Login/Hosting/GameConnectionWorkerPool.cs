@@ -216,6 +216,12 @@ internal sealed partial class GameConnectionWorkerPool(
                             continue;
                         }
 
+                        if (GameAvatarAction.TryParse(frame, out GameAvatarAction avatar))
+                        {
+                            await session.ProcessAvatarActionAsync(avatar, cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
                         throw new InvalidDataException("The GameServer received an unsupported native action packet.");
                     }
 

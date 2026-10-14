@@ -33,6 +33,7 @@ internal sealed class WorldSession : IAsyncDisposable
     private readonly CancellationTokenSource _visibilityStopping = new();
     private Task? _visibilityWrites;
     private readonly WorldWalkPacer _walkPacer = new();
+    private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
     private readonly WorldPositionReconciler _positionReconciler;
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -234,6 +235,40 @@ internal sealed class WorldSession : IAsyncDisposable
             await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
             _visibility?.Moved(this, committed.Value, walk);
         }
+    }
+
+    /// <summary>
+    /// Applies a verified 5517 facing or pose request without changing world position.
+    /// Peer delivery uses the existing bounded visibility mailbox.
+    /// </summary>
+    internal async ValueTask ProcessAvatarActionAsync(GameAvatarAction request, CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+        if (request.EntityId != Ownership.CharacterId ||
+            (request.Kind == GameAvatarAction.DirectionAction && request.Direction >= 8) ||
+            (request.Kind == GameAvatarAction.PoseAction && !GameAvatarAction.IsSupportedPose(request.Pose)) ||
+            request.Kind is not (GameAvatarAction.DirectionAction or GameAvatarAction.PoseAction))
+        {
+            throw new InvalidDataException("An avatar action is invalid or does not belong to the authenticated character.");
+        }
+
+        // Cosmetic requests fan out to other clients; reject abusive floods before
+        // allocating a world read or visibility publication.
+        if (!_avatarActionLimiter.TryAccept(Stopwatch.GetTimestamp()))
+        {
+            return;
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        if (await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false) is null)
+        {
+            throw new InvalidDataException("An avatar action has no authoritative world owner.");
+        }
+
+        ThrowIfInactive();
+        GameActionPacket acknowledgement = request.CreateAcknowledgement();
+        _visibility?.AvatarAction(this, request, acknowledgement);
+        await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

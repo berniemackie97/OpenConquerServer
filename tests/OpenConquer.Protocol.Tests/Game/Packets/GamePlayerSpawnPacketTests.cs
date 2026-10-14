@@ -30,6 +30,7 @@ public sealed class GamePlayerSpawnPacketTests
         Assert.Equal((ushort)500, BinaryPrimitives.ReadUInt16LittleEndian(wire.AsSpan(0x56)));
         Assert.Equal((ushort)750, BinaryPrimitives.ReadUInt16LittleEndian(wire.AsSpan(0x58)));
         Assert.Equal((byte)6, wire[0x5A]);
+        Assert.Equal(100u, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(0x5B)));
         Assert.Equal((byte)2, wire[0x62]);
         Assert.Equal((ushort)101, BinaryPrimitives.ReadUInt16LittleEndian(wire.AsSpan(0x63)));
         Assert.Equal((ushort)7, BinaryPrimitives.ReadUInt16LittleEndian(wire.AsSpan(0xA7)));
@@ -48,6 +49,16 @@ public sealed class GamePlayerSpawnPacketTests
         Assert.Equal(4 + 214 + 1 + 4 + 10, wire.Length);
     }
 
+    [Fact]
+    public void Encode_CarriesServerAuthorizedFacingAndPoseForLateObservers()
+    {
+        GamePlayerSpawnPacket packet = new(Create(1_000_000, "Valid") with { Direction = 7, Action = 250 });
+        byte[] wire = new byte[GameWireFrameEncoder.GetFrameLength(packet)];
+        GameWireFrameEncoder.WriteFrame(packet, wire);
+        Assert.Equal((byte)7, wire[0x5A]);
+        Assert.Equal(250u, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(0x5B)));
+    }
+
     [Theory]
     [InlineData(0u, "Valid")]
     [InlineData(999_999u, "Valid")]
@@ -57,6 +68,16 @@ public sealed class GamePlayerSpawnPacketTests
     {
         GamePlayerSpawnSnapshot snapshot = Create(id, name);
         Assert.Throws<ArgumentOutOfRangeException>(() => new GamePlayerSpawnPacket(snapshot));
+    }
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(65536u)]
+    [InlineData(99999u)]
+    public void Encode_RejectsUnprovenSpawnPose(uint pose)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new GamePlayerSpawnPacket(Create(1_000_000, "Valid") with { Action = pose }));
     }
 
     [Fact]
