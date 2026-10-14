@@ -2,15 +2,17 @@ using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Execution;
+using OpenConquer.GameServer.World.Visibility;
 
 namespace OpenConquer.GameServer.World.Sessions;
 
 /// <summary>
 /// Transfers a completed existing-character bootstrap into exactly one authoritative world session.
 /// </summary>
-internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime)
+internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null)
 {
     private readonly WorldRuntime _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+    private readonly WorldVisibilityService? _visibility = visibility;
 
     public async ValueTask<WorldSession> ProcessAsync(ExistingCharacterBootstrapCompleteConnection bootstrap, CancellationToken cancellationToken = default)
     {
@@ -40,7 +42,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime)
             cancellationToken.ThrowIfCancellationRequested();
             connection.ThrowIfRevoked();
 
-            session = new WorldSession(_runtime, connection, bootstrap, ownership.Value);
+            session = new WorldSession(_runtime, connection, bootstrap, ownership.Value, _visibility);
             _runtime.TrackSession(ownership.Value, session.Completion);
             connection = null;
             ownership = null;
@@ -48,6 +50,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime)
             session.Activate();
             cancellationToken.ThrowIfCancellationRequested();
             session.ThrowIfInactive();
+            session.EnterVisibility();
 
             return session;
         }

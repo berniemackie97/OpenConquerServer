@@ -23,6 +23,7 @@ using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
+using OpenConquer.GameServer.World.Visibility;
 using OpenConquer.Infrastructure.Content.Items;
 using OpenConquer.Infrastructure.DependencyInjection;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
@@ -153,6 +154,7 @@ internal static class GameServerHost
         services.AddSingleton<ExistingCharacterSilentInfoReportProcessor>();
         services.AddSingleton<ExistingCharacterStatisticsRequestProcessor>();
 
+        services.AddSingleton<WorldVisibilityService>();
         services.AddSingleton<WorldSessionAdmissionProcessor>();
         services.AddSingleton<GameExistingCharacterLoginProcessor>();
         services.AddSingleton<GameLoginConnectionProcessor>();

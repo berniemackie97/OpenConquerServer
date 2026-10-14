@@ -51,8 +51,8 @@ after repeated reports of never-authorized positions. See
 
 This is an **eight-direction walking ingress**, not a complete movement or multiplayer release.
 Native 24-direction running, jump requests, dynamic occupancy/elevation restrictions, movement
-replication to other characters, and authoritative position persistence across relog
-remain unimplemented. Position correction is limited to repeated divergence reports. Do not claim complete gameplay support or deploy as an MMO movement
+replication for NPCs/monsters/ground items, and authoritative position persistence across relog
+remain unimplemented. Player spawn and local walking replication are now implemented in Slice #145. Position correction is limited to repeated divergence reports. Do not claim complete gameplay support or deploy as an MMO movement
 system until those requirements are satisfied and tested. No new schema, speculative wire fields,
 or cross-partition movement are introduced in this slice.
 
