@@ -19,12 +19,12 @@ using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.GameServer.World.Visibility;
+using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
 using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Handshake;
 using OpenConquer.Protocol.Game.Packets;
-using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.Tests.World.Chat;
@@ -130,7 +130,7 @@ public sealed class WorldChatDeliveryTests
 
         ClientSession bob = await world.AddAsync(1, "Bob", FirstMap);
         IReadOnlyList<byte[]> firstFrames = await bob.WaitForFrameCountAsync(2);
-        Assert.Equal(GamePlayerSpawnPacket.PacketIdentifier, PacketId(firstFrames[0]));
+        Assert.Equal((ushort)10014, PacketId(firstFrames[0]));
         Assert.Equal(GameChatPacket.PacketIdentifier, PacketId(firstFrames[1]));
         Assert.True(FrameMatches(firstFrames[1], expectedWord));
 

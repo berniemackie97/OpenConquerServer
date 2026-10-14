@@ -48,11 +48,18 @@ session leave removes the mapping by **identity**, preventing stale-session clea
 from deleting a newer registration. No sockets or awaits occur under the map
 lock. The existing bounded peer FIFO disconnects slow consumers.
 
-Each session accepts up to four chat messages per one-second accounting
-window. When exhausted, the serialized session reader delays with cancellation
-instead of silently losing final chat/word state, preserving TCP backpressure
-without a new scheduler, unbounded queue, or per-packet task. This is a protective
-operational bound, not a claim about retail chat cadence. No database migration,
+Each session accepts up to four correctly framed chat messages per one-second
+accounting window, **including unsupported channels and unaddressed whispers**.
+This ingress accounting happens before routing or rejection so ignored traffic
+cannot bypass the budget. When exhausted, the serialized session reader delays
+with cancellation instead of losing messages or growing an unbounded queue.
+This is a protective operational bound, not a claim about retail chat cadence.
+
+Deterministic multiplayer tests exercise actual admitted world sessions over
+negotiated encrypted fake transports, covering local visibility and map isolation,
+cross-map whispers, offline/stale/duplicate name handling, late-observer role
+words and spawn ordering, unsupported-channel pacing, and slow-recipient teardown.
+Retail two-client presentation verification remains a separate release gate. No database migration,
 new secret, or runtime configuration change is required.
 
 ## Deliberate release gates

@@ -247,6 +247,17 @@ internal sealed class WorldSession : IAsyncDisposable
     {
         ThrowIfInactive();
 
+        // Charge all well-formed inbound chat traffic, including unsupported
+        // channels and unaddressed whispers, before selecting a delivery path.
+        // One serialized reader applies backpressure without an auxiliary queue.
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        while (!_chatRateLimiter.TryAccept(Stopwatch.GetTimestamp(), out TimeSpan retryAfter))
+        {
+            await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
+            ThrowIfInactive();
+        }
+
+        ThrowIfInactive();
         if (!request.IsSupported)
         {
             return;
@@ -266,16 +277,6 @@ internal sealed class WorldSession : IAsyncDisposable
             throw new InvalidDataException("Local speech and role words must target ALL.");
         }
 
-        // The reader is single-owner. Pacing preserves the final word and applies
-        // backpressure rather than allocating tasks or an unbounded fanout queue.
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        while (!_chatRateLimiter.TryAccept(Stopwatch.GetTimestamp(), out TimeSpan retryAfter))
-        {
-            await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
-            ThrowIfInactive();
-        }
-
-        ThrowIfInactive();
         GameChatPacket? acknowledgement = _visibility?.PublishChat(this, request);
         if (acknowledgement is not null)
         {
