@@ -41,9 +41,11 @@ implemented parts work and link here rather than repeating this list.
   its GameServer starts and stops.
 - Native 5517 eight-direction walk packet 10005 parsing, authenticated world-session gating,
   server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
+- Authenticated 10010 position reports (subtypes 100/146), bounded authorized-tile history,
+  and conservative native 108 correction after repeated divergence; no report is echoed.
 - Partition-owned eight-direction walking state mutation with native 5517 direction ordering,
   composed static collision, generation fencing, and a cancellable-before-acceptance command API.
-  This is not connected to gameplay packets and does not provide movement pacing or replication.
+  Native walking ingress is connected; multiplayer movement replication remains unavailable.
 
 ### Persistence and content
 
@@ -78,7 +80,8 @@ implemented parts work and link here rather than repeating this list.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
 - Remaining gameplay routing: native 24-direction movement, jumping, movement replication,
-  position persistence/correction, combat, NPCs, trading, and chat.
+  position persistence, combat, NPCs, trading, and chat. Position correction is limited
+  to repeated drift reports from the authenticated local character.
 - World simulation: monsters, timers, visibility, and map transfers. Dynamic occupancy and elevation
   constraints for movement also remain unresolved.
 - Seven map identities from the original data that could not be resolved (see

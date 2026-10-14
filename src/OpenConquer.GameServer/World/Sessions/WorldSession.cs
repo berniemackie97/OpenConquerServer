@@ -27,6 +27,7 @@ internal sealed class WorldSession : IAsyncDisposable
     private readonly ExistingCharacterGameConnection _connection;
     private readonly WorldRuntime _runtime;
     private readonly WorldWalkPacer _walkPacer = new();
+    private readonly WorldPositionReconciler _positionReconciler;
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
@@ -48,6 +49,7 @@ internal sealed class WorldSession : IAsyncDisposable
         }
 
         Ownership = ownership;
+        _positionReconciler = new WorldPositionReconciler(bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
     }
 
     public ExistingCharacterBootstrapCompleteConnection Bootstrap { get; }
@@ -135,8 +137,49 @@ internal sealed class WorldSession : IAsyncDisposable
 
         if (committed is not null)
         {
+            _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
             await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Reconciles unsolicited native position reports without trusting their coordinates.
+    /// Only a repeated mismatch can elicit a native 108 correction; reports are never echoed.
+    /// </summary>
+    internal async ValueTask ProcessPositionReportAsync(GamePositionReport report, CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+
+        if (report.EntityId != Ownership.CharacterId || report.Action is not
+            (GamePositionReport.IdleReportAction or GamePositionReport.CorrectionReplyAction))
+        {
+            throw new InvalidDataException("A position report does not match the authenticated character or native action.");
+        }
+
+        if (!_positionReconciler.ShouldCorrect(report.X, report.Y, Stopwatch.GetTimestamp()))
+        {
+            return;
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldCharacterSnapshot? snapshot = await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false);
+
+        if (snapshot is null)
+        {
+            throw new InvalidDataException("The authenticated character no longer has authoritative world ownership.");
+        }
+
+        _positionReconciler.RecordAuthorized(snapshot.Value.X, snapshot.Value.Y);
+
+        if (snapshot.Value.X == report.X && snapshot.Value.Y == report.Y)
+        {
+            return;
+        }
+
+        GameActionPacket correction = new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
+            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
+            positionX: snapshot.Value.X, positionY: snapshot.Value.Y, data1: 0, data2: 0, flag: 0);
+        await WriteAsync(correction, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
