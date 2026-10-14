@@ -97,8 +97,8 @@ The operator-owned `realms` table uses a SQL-only EF migration and deliberately 
 entity. An interrupted `CREATE TABLE` may leave a committed table with old migration history.
 The migration refuses to overwrite any existing table; inspect its exact DDL and recover under
 operator control rather than silently guessing. See [realm registry](realm-registry.md) for
-provisioning, validation and runtime grants. Accounts schema v3 does not bind tickets yet; that
-requires a new schema version when implemented.
+provisioning, validation and runtime grants. Accounts version 4 binds tickets to realms (below).
+Adding a realm, including its Game database, is covered in [Realm operations](realms.md).
 
 ### Version 2: signed PK points
 

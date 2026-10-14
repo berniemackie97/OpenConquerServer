@@ -60,10 +60,9 @@ implemented parts work and link here rather than repeating this list.
 
 ## Not yet implemented
 
-- End-to-end multi-realm deployment/operations: additional GameServer processes, independently
-  provisioned Game databases, publicly reachable endpoints, lifecycle/health management and
-  authoritative world-content readiness for each destination. Packet 1055 selection is implemented;
-  actual realm deployment remains explicitly operator-controlled.
+- Automated realm provisioning and realm health: realms are added and changed by an operator
+  following [Realm operations](operations/realms.md); nothing reports GameServer health or load
+  back to the AccountServer, so a full or stopped GameServer is not refused at login.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.

@@ -11,6 +11,7 @@ validated before the host is built.
 
 | Setting                                            | Purpose                                                       |
 | -------------------------------------------------- | ------------------------------------------------------------- |
+| `GameServer:RealmId`                               | Realm this server hosts; must match the Game database binding (required) |
 | `ConnectionStrings:Accounts`                       | Accounts database: ticket redemption and readiness            |
 | `ConnectionStrings:Game`                           | Game database: characters and readiness                       |
 | `GameServer:GameLoginTickets:ActiveVerificationKeyId`, `VerificationKeys` | Same keys as the AccountServer         |
@@ -33,7 +34,8 @@ validated before the host is built.
 | `GameServer:Network:ConnectionTimeout`             | Time allowed from accept to world entry (default 1 minute)    |
 
 For local development, set the connection strings and keys with `dotnet user-secrets` against
-`src/OpenConquer.GameServer`, as for the AccountServer. Use the same key IDs and keys.
+`src/OpenConquer.GameServer`, as for the AccountServer. Use the same key IDs and keys. Each realm
+runs its own GameServer; see [Realm operations](realms.md) for running more than one.
 
 ## Content
 

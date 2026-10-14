@@ -17,14 +17,15 @@ permanent identities, not names derived from the display label. The client-selec
 `local-realm` is **not** packet 1060 `LocalRealm`, and neither is numeric `1`.
 
 Apply the guarded SQL using a privileged **administrative** MySQL session. The
-preflight guards require both exact schema markers, no conflicting identity and no
+preflight guards require Accounts schema v3 or later and Game schema v10 or later (the
+versions that add `realms` and `realm_binding`), no conflicting identity and no
 existing realm binding, and abort before either insert. Review the full transaction
 first. The transaction covers both databases only when hosted on the same MySQL
 instance; do not treat it as a distributed transaction across separate instances.
 
 Run the accompanying `ops/provision-localrealm.sql` with the actual MySQL
 administrative credentials, for example from a MySQL Workbench SQL editor.
-It validates both schema markers, that neither `realm_id=1` nor `LocalRealm`
+It validates both schema versions, that neither `realm_id=1` nor `LocalRealm`
 has been registered, and that the Game database contains no binding. It then
 inserts the two records within one transaction. **Never edit the SQL to
 replace conflicting records.** Procedure creation requires administrative
@@ -54,9 +55,7 @@ listeners only when the corresponding server is running.
 ## Security boundary
 
 The signed client directory establishes the selected AccountServer and native
-protocol server name; Caddy does not run game services. The AccountServer now
-refuses unknown/unavailable realm names and mismatched **static** GameServer
-endpoints. **Tickets are still not realm-bound** and an unrelated GameServer
-configured against the shared Accounts DB may still redeem an unbound ticket.
-Do not expose additional realm destinations until account-ticket schema v4 and
-realm-bound atomic redemption are implemented and verified.
+protocol server name; Caddy does not run game services. The AccountServer refuses
+unknown or unavailable realm names, binds every ticket to the selected realm and
+redirects to that realm's registered endpoint; a GameServer redeems only tickets
+bound to its own realm. To add a second realm, follow [Realm operations](realms.md).

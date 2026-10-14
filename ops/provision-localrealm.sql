@@ -6,9 +6,7 @@ DELIMITER $$
 CREATE PROCEDURE `openconquer_accounts`.`provision_localrealm_once`()
 BEGIN
     DECLARE accounts_version BIGINT UNSIGNED;
-    DECLARE accounts_migration VARCHAR(150);
     DECLARE game_version BIGINT UNSIGNED;
-    DECLARE game_migration VARCHAR(150);
     DECLARE existing_accounts INT DEFAULT 0;
     DECLARE existing_game INT DEFAULT 0;
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -18,17 +16,16 @@ BEGIN
     END;
 
     START TRANSACTION;
-    SELECT schema_version, migration_id INTO accounts_version, accounts_migration
+    SELECT schema_version INTO accounts_version
         FROM `openconquer_accounts`.`schema_compatibility`
         WHERE component_name = 'accounts' FOR UPDATE;
-    SELECT schema_version, migration_id INTO game_version, game_migration
+    SELECT schema_version INTO game_version
         FROM `openconquer_game`.`schema_compatibility`
         WHERE component_name = 'game' FOR UPDATE;
-    IF accounts_version IS NULL OR accounts_version <> 3
-        OR accounts_migration <> '20261013010000_AddRealmRegistry'
-        OR game_version IS NULL OR game_version <> 10
-        OR game_migration <> '20261013030000_AddGameRealmBinding' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Incorrect Accounts/Game migration markers';
+    -- realms arrives in Accounts v3 and realm_binding in Game v10.
+    IF accounts_version IS NULL OR accounts_version < 3
+        OR game_version IS NULL OR game_version < 10 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Accounts schema v3 and Game schema v10 or later are required';
     END IF;
 
     SELECT COUNT(*) INTO existing_accounts FROM `openconquer_accounts`.`realms`
