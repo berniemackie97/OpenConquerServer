@@ -246,20 +246,21 @@ internal sealed class WorldSession : IAsyncDisposable
         ThrowIfInactive();
         if (request.EntityId != Ownership.CharacterId ||
             (request.Kind == GameAvatarAction.DirectionAction && request.Direction >= 8) ||
-            (request.Kind == GameAvatarAction.PoseAction && !GameAvatarAction.IsSupportedPose(request.Pose)) ||
+            (request.Kind == GameAvatarAction.PoseAction &&
+             (!GameAvatarAction.IsSupportedPose(request.Pose) || request.Direction >= 8)) ||
             request.Kind is not (GameAvatarAction.DirectionAction or GameAvatarAction.PoseAction))
         {
             throw new InvalidDataException("An avatar action is invalid or does not belong to the authenticated character.");
         }
 
-        // Cosmetic requests fan out to other clients; reject abusive floods before
-        // allocating a world read or visibility publication.
-        if (!_avatarActionLimiter.TryAccept(Stopwatch.GetTimestamp()))
-        {
-            return;
-        }
-
+        // Backpressure the serialized reader instead of losing the final pose/facing.
+        // A single cancellation-aware wait preserves order without an auxiliary queue.
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        while (!_avatarActionLimiter.TryAccept(Stopwatch.GetTimestamp(), out TimeSpan retryAfter))
+        {
+            await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
+            ThrowIfInactive();
+        }
         if (await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false) is null)
         {
             throw new InvalidDataException("An avatar action has no authoritative world owner.");

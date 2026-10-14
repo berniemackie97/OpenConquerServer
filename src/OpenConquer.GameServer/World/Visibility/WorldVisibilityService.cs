@@ -123,7 +123,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             GamePlayerSpawnSnapshot spawn = map.Spawns[id];
             map.Spawns[id] = request.Kind == GameAvatarAction.DirectionAction
                 ? spawn with { Direction = request.Direction }
-                : spawn with { Action = request.Pose };
+                : spawn with { Action = request.Pose, Direction = request.Direction };
 
             foreach (uint viewerId in map.Index.Observers(id))
             {
