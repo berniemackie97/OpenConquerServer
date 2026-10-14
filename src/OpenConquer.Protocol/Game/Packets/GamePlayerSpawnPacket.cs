@@ -24,6 +24,10 @@ public sealed class GamePlayerSpawnPacket : IPacket
         {
             throw new ArgumentOutOfRangeException(nameof(player), "An eight-direction spawn requires direction 0 through 7.");
         }
+        if (player.Action > ushort.MaxValue || !GameAvatarAction.IsSupportedPose((ushort)player.Action))
+        {
+            throw new ArgumentOutOfRangeException(nameof(player), "A player spawn requires a native 5517 action type.");
+        }
         _encodedNameLength = WireTextEncodingResolver.Resolve(WireTextEncoding.Ansi).GetByteCount(player.Name);
         if (_encodedNameLength is < 1 or > 15)
         {
@@ -57,7 +61,7 @@ public sealed class GamePlayerSpawnPacket : IPacket
         writer.WriteUInt16(p.X);
         writer.WriteUInt16(p.Y);
         writer.WriteByte(p.Direction);
-        writer.Reserve(4); // No action/emote id.
+        writer.WriteUInt32(p.Action); // Native 5517 action at frame +0x5B.
         writer.Reserve(3);
         writer.WriteByte(p.RebirthCount);
         writer.WriteUInt16(p.Level);
@@ -92,4 +96,4 @@ public sealed record GamePlayerSpawnSnapshot(
     uint EntityId, string Name, uint Appearance, ushort Hair, ushort X, ushort Y, byte Direction,
     uint Life, ushort Level, byte RebirthCount, ushort FirstProfession, ushort PreviousProfession,
     ushort Profession, ushort TitleId, uint SyndicateId, uint HeadwearItemType,
-    uint ArmorItemType, uint LeftHandItemType, uint RightHandItemType);
+    uint ArmorItemType, uint LeftHandItemType, uint RightHandItemType, uint Action = 100);

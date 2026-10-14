@@ -61,6 +61,24 @@ public sealed class MapVisibilityIndexTests
     }
 
     [Fact]
+    public void ObserverSnapshotChangesOnlyWithSymmetricMembership()
+    {
+        MapVisibilityIndex index = new();
+        index.Enter(7, 100, 100);
+        index.Enter(8, 118, 118);
+        index.Enter(9, 99, 100);
+        index.Enter(10, 150, 150);
+
+        Assert.Equal(new uint[] { 8, 9 }, index.Observers(7));
+        index.Move(9, 150, 150);
+        Assert.Equal(new uint[] { 8 }, index.Observers(7));
+        index.Leave(8);
+        Assert.Empty(index.Observers(7));
+        Assert.Empty(index.Observers(8));
+        Assert.Equal(4 - 1, index.Count);
+    }
+
+    [Fact]
     public void QueryCanOnlySeeCurrentlyKnownPeers()
     {
         MapVisibilityIndex index = new();
