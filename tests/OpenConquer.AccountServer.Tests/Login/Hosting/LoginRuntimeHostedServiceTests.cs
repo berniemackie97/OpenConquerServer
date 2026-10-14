@@ -181,7 +181,7 @@ public sealed class LoginRuntimeHostedServiceTests
     private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue queue, LoginRuntimeMetrics metrics, out FatalBackgroundServiceFailureState fatalFailureState, IAccountLoginConnectionLimiter? connectionLimiter = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new ThrowingGameLoginTicketGrantStore(), new TestGameLoginTicketTokenGenerator());
-        LoginHandshakeProcessor handshakeProcessor = new(new ThrowingAccountAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(IPAddress.Loopback, 5816, TimeSpan.FromSeconds(5)));
+        LoginHandshakeProcessor handshakeProcessor = new(new ThrowingAccountAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new LoginHandshakeConfiguration(TimeSpan.FromSeconds(5)));
         fatalFailureState = new FatalBackgroundServiceFailureState();
 
         return new LoginRuntimeHostedService(

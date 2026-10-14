@@ -55,8 +55,9 @@ revoke existing tickets. An explicit password reset does revoke them.
 The native 1060 realm name is validated against the live realm registry before password
 verification. A successful verification triggers a second registry read to reject realm
 removal, disablement or identity substitution and to select the latest endpoint. A
-successful packet 1055 advertises that registration's concrete IPv4 address and port;
-failure responses retain the configured legacy endpoint and original failure codes.
+successful packet 1055 advertises that registration's concrete IPv4 address and port.
+Refused selections reply with the native realm-availability codes listed in
+[Multi-realm](multi-realm.md#availability-replies).
 The current ticket grant independently verifies that the same realm ID remains enabled
 under a shared database lock before committing the realm-bound ticket. Routing does
 not provision realms or probe GameServer health; operator deployment remains required.

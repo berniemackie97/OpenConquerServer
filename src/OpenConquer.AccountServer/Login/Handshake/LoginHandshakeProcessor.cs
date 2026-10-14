@@ -66,16 +66,16 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         using (request)
         {
-            selectedRealm = await FindSelectedRealmAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
-            if (selectedRealm is not null)
+            selectedRealm = await FindRealmAsync(request.ServerName, cancellationToken).ConfigureAwait(false);
+            if (selectedRealm is { Availability: RealmAvailability.Enabled })
             {
                 authentication = await AuthenticateAsync(request, remoteAddress, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        if (selectedRealm is null)
+        if (selectedRealm is not { Availability: RealmAvailability.Enabled })
         {
-            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.InvalidCredentials, cancellationToken).ConfigureAwait(false);
+            await SendFailureAsync(session, GetUnavailableRealmFailure(selectedRealm), cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -98,11 +98,17 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         // Authentication can take long enough for operators to change a realm's
         // availability or public endpoint. Recheck before granting a ticket.
-        RealmRegistration? currentRealm = await FindSelectedRealmAsync(selectedRealm.ProtocolName.Value, cancellationToken).ConfigureAwait(false);
+        RealmRegistration? currentRealm = await FindRealmAsync(selectedRealm.ProtocolName.Value, cancellationToken).ConfigureAwait(false);
 
         if (currentRealm is null || currentRealm.Id != selectedRealm.Id)
         {
-            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.InvalidCredentials, cancellationToken).ConfigureAwait(false);
+            await SendFailureAsync(session, LoginAccountAuthenticationFailureCode.ServerDown, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (currentRealm.Availability != RealmAvailability.Enabled)
+        {
+            await SendFailureAsync(session, GetUnavailableRealmFailure(currentRealm), cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -120,7 +126,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
         await ReadPostAuthenticationReportsAsync(session, ticket.SessionUid, cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask<RealmRegistration?> FindSelectedRealmAsync(string serverName, CancellationToken cancellationToken)
+    private async ValueTask<RealmRegistration?> FindRealmAsync(string serverName, CancellationToken cancellationToken)
     {
         ProtocolServerName protocolName;
         try
@@ -134,10 +140,17 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
 
         RealmRegistration? realm = await _realmRegistry.FindByNameAsync(protocolName, cancellationToken).ConfigureAwait(false);
 
-        // Fail closed for unknown/unavailable/noncanonical selections. The selected
-        // endpoint is authoritative only for a successful native 1055 response.
-        return realm is { Availability: RealmAvailability.Enabled }
-            && realm.ProtocolName == protocolName ? realm : null;
+        return realm is not null && realm.ProtocolName == protocolName ? realm : null;
+    }
+
+    // The client renders these as "Server Locked" and "The Server is down.". Unknown,
+    // malformed and disabled selections share one reply, so retiring a realm by
+    // disabling or by removing its registration looks the same to players.
+    private static LoginAccountAuthenticationFailureCode GetUnavailableRealmFailure(RealmRegistration? realm)
+    {
+        return realm?.Availability == RealmAvailability.Maintenance
+            ? LoginAccountAuthenticationFailureCode.ServerLocked
+            : LoginAccountAuthenticationFailureCode.ServerDown;
     }
 
     private async ValueTask<AccountAuthenticationResult> AuthenticateAsync(LoginAccountRequest request, IPAddress remoteAddress, CancellationToken cancellationToken)
@@ -176,8 +189,9 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
     {
         _ = await new LoginPostAuthenticationReportReader(session).ReadAsync(sessionUid, _configuration.PhaseTimeout, cancellationToken).ConfigureAwait(false);
     }
-    private ValueTask SendFailureAsync(LoginConnectionSession session, LoginAccountAuthenticationFailureCode failureCode, CancellationToken cancellationToken)
+
+    private static ValueTask SendFailureAsync(LoginConnectionSession session, LoginAccountAuthenticationFailureCode failureCode, CancellationToken cancellationToken)
     {
-        return session.WriteAsync(LoginAccountAuthenticationResponsePacket.Failure(failureCode, _configuration.GameServerPort, _configuration.GameServerIp), cancellationToken);
+        return session.WriteAsync(LoginAccountAuthenticationResponsePacket.Failure(failureCode), cancellationToken);
     }
 }

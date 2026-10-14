@@ -57,7 +57,6 @@ internal sealed class AccountServerConfiguration
         try
         {
             IPAddress bindAddress = ParseRequiredIpv4(settings.Network.BindAddress, $"{SectionName}:Network:BindAddress");
-            IPAddress gameServerAddress = ParseRequiredIpv4(settings.Network.GameServerAddress, $"{SectionName}:Network:GameServerAddress");
 
             int loginPort = ValidatePort(settings.Network.LoginPort, $"{SectionName}:Network:LoginPort");
             int listenBacklog = ValidatePositive(settings.Network.ListenBacklog, $"{SectionName}:Network:ListenBacklog");
@@ -65,7 +64,7 @@ internal sealed class AccountServerConfiguration
 
             AccountLoginConnectionProtectionOptions loginConnectionProtection = new(settings.Admission.MaximumConcurrentConnectionsPerSource);
             LoginConnectionWorkerPoolConfiguration workerPool = new(settings.Workers.Count, settings.Workers.ConnectionTimeout);
-            LoginHandshakeConfiguration handshake = new(gameServerAddress, settings.Network.GameServerPort, settings.Handshake.PhaseTimeout);
+            LoginHandshakeConfiguration handshake = new(settings.Handshake.PhaseTimeout);
 
             AccountAuthenticationProtectionOptions authenticationProtection = new(settings.AuthenticationProtection.RequestLimitPerSource,
                 settings.AuthenticationProtection.RequestWindow, settings.AuthenticationProtection.MaximumConcurrentRequestsPerSource,

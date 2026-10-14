@@ -16,8 +16,6 @@ internal sealed class AccountServerSettings
         public string? BindAddress { get; set; }
         public int LoginPort { get; set; }
         public int ListenBacklog { get; set; }
-        public string? GameServerAddress { get; set; }
-        public int GameServerPort { get; set; }
     }
 
     internal sealed class AdmissionSettings

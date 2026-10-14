@@ -16,8 +16,6 @@ internal static class AccountServerTestConfiguration
             ["AccountServer:Network:BindAddress"] = "127.0.0.1",
             ["AccountServer:Network:LoginPort"] = "9958",
             ["AccountServer:Network:ListenBacklog"] = "512",
-            ["AccountServer:Network:GameServerAddress"] = "127.0.0.1",
-            ["AccountServer:Network:GameServerPort"] = "5816",
 
             ["AccountServer:Admission:Capacity"] = "1024",
             ["AccountServer:Admission:MaximumConcurrentConnectionsPerSource"] = "6",
