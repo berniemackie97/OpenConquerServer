@@ -14,8 +14,9 @@ all on MySQL 8.4, with no foreign keys between Accounts and Game.
 | Game     | Characters, items, friends and enemies, weapon skills, magic, syndicates and memberships; realm binding | 10 |
 
 The GameServer currently trusts the account ID only because it came from redeeming a ticket. That
-redemption is the link between the two databases. Tickets are **not yet realm-bound**, but the GameServer now verifies its configured realm identity
-against the single-row Game database binding before world publication. See [multi-realm](multi-realm.md).
+redemption is the link between the two databases. Tickets are bound to a realm, and the GameServer
+verifies its configured realm identity against the single-row Game database binding before world
+publication. See [multi-realm](multi-realm.md).
 
 Both databases use the `utf8mb4` character set and `utf8mb4_0900_as_cs` collation. Character and
 syndicate names use binary collation so uniqueness is exact. The `realms` table additionally uses
@@ -142,5 +143,6 @@ ON `openconquer_game`.`characters`
 TO 'openconquer_game_creation'@'%';
 ```
 
-The AccountServer runtime identity also needs `SELECT` on `realms`, but no DML privilege for that
-operator-managed table.
+The AccountServer runtime identity also needs `SELECT` on `realms` and `realm_status`, but no DML
+privilege for either. Each GameServer's Accounts identity needs `SELECT, INSERT, UPDATE, DELETE` on
+`realm_status` to report its own realm.

@@ -19,6 +19,12 @@ public enum LoginAccountAuthenticationFailureCode : uint
     /// <summary>"This account has been banned."</summary>
     Banned = 12,
 
+    /// <summary>"Server is busy."</summary>
+    ServerBusy = 20,
+
+    /// <summary>"Server is busy. Please try again, later."; TQ's server-full refusal.</summary>
+    ServerFull = 21,
+
     /// <summary>"Invalid Account ID"</summary>
     InvalidAccount = 57,
 

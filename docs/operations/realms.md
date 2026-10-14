@@ -22,15 +22,21 @@ realm.
 The AccountServer reads the registry for every login, before checking the password and again before
 issuing the ticket.
 
-| Registry state for the selected name | Login result                                       |
-| ------------------------------------ | -------------------------------------------------- |
-| Enabled                              | Ticket bound to the realm, redirect to its endpoint |
-| Maintenance                          | Failure code 70, "Server Locked"                   |
-| Disabled, unknown or malformed       | Failure code 10, "The Server is down."             |
+| State of the selected realm                     | Login result                                        |
+| ----------------------------------------------- | --------------------------------------------------- |
+| Enabled, GameServer reporting normal load       | Ticket bound to the realm, redirect to its endpoint |
+| Enabled, GameServer reporting busy              | Failure code 20, "Server is busy."                  |
+| Enabled, GameServer reporting full              | Failure code 21, "Server is busy. Please try again, later." |
+| Enabled, GameServer not reporting               | Failure code 10, "The Server is down."              |
+| Maintenance                                     | Failure code 70, "Server Locked"                    |
+| Disabled, unknown or malformed                  | Failure code 10, "The Server is down."              |
 
-A change applies to the next login. Players already in the world stay connected, and a ticket issued
-before the change can still be redeemed until it expires five minutes later. To close a realm at
-once, set it to Maintenance and then stop its GameServer.
+A registry change applies to the next login. Players already in the world stay connected, and a
+ticket issued before the change can still be redeemed until it expires five minutes later. A
+GameServer reports its load every `GameServer:RealmStatus:ReportInterval` (10 seconds by default) and
+deletes its report when it shuts down, so a stopped realm refuses logins at once; one that crashes
+is refused within three intervals. To close a realm at once, set it to Maintenance and then stop its
+GameServer.
 
 ## Adding a realm
 
@@ -73,7 +79,8 @@ as an administrator.
    AccountServer. See [GameServer operations](game-server.md).
 
 7. Start the GameServer. It refuses to start unless `GameServer:RealmId` matches the database's
-   binding.
+   binding, and once its listener is open it starts reporting the realm's load. Until the first report
+   the AccountServer answers logins to the realm with "The Server is down."
 
 8. Publish the realm in the client catalog with `protocolServerName` = `SecondRealm` and the
    **AccountServer** endpoint as its account host and port. Clients never connect to a GameServer
@@ -104,15 +111,16 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 
 | User                              | Database          | Privileges                                                                                 |
 | --------------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms` |
-| GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`                |
+| AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms`, `realm_status` |
+| GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT, INSERT, UPDATE, DELETE` on `realm_status`; `SELECT` on `schema_compatibility` |
 | GameServer runtime, each realm    | Its Game database | `SELECT` on `characters`, `items`, `social_relations`, `weapon_skills`, `magic`, `syndicates`, `syndicate_memberships`, `schema_compatibility`, `realm_binding` |
 | GameServer creation, each realm   | Its Game database | `SELECT, INSERT` on `characters`                                                           |
 | Administrator                     | Both              | Schema changes and writes to `realms` and `realm_binding`; never used by a server          |
 
 Give each realm its own Game database users, so that one GameServer's credentials cannot reach another
 realm's characters. All realms remain one trust domain on the Accounts side: every GameServer holds the
-ticket verification keys and can read and delete any realm's tickets. Realms run by different parties
+ticket verification keys, can read and delete any realm's tickets, and could write another realm's
+status report. Realms run by different parties
 need separate deployments.
 
 ## Several realms on one machine

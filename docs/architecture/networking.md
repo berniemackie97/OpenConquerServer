@@ -85,7 +85,10 @@ a missing or malformed report does not revoke the ticket.
 | Protected or mobile login request (unsupported)  |          `1` |
 | Account state changed before the ticket grant    |          `1` |
 | Selected realm unknown, malformed or disabled    |         `10` |
+| Selected realm has no current status report      |         `10` |
 | Banned account                                   |         `12` |
+| Selected realm reports busy                      |         `20` |
+| Selected realm reports full                      |         `21` |
 | Malformed credential request or unknown packet   |         `57` |
 | Selected realm in maintenance                    |         `70` |
 
@@ -114,6 +117,7 @@ A login worker takes each connection through these stages:
 ```text
 GameConnectionSession          key exchange, then encrypted framing on the same stream
 GameConnectionAuthenticator    login proof (1052) and single-use ticket redemption
+GameLoginCapacityGate          refusal while the realm is full or busy
 CharacterLoginHandoffProcessor character lookup by the authenticated account
 ExistingCharacterBootstrapProcessor and the Login/Bootstrap stages
 WorldSessionAdmissionProcessor admission into the world runtime
@@ -124,6 +128,9 @@ encryption, so encrypted bytes that arrive in the same read as the key-exchange 
 lost. The encryption is what the client supports; it does not authenticate the server or protect
 message integrity. Identity comes from redeeming the ticket, and the raw authentication key is not
 kept after redemption.
+
+While the realm is full or busy, the capacity gate answers an authenticated login with a `1004` talk
+on the login channel (2101) and closes the connection; see [Multi-realm](multi-realm.md#realm-status).
 
 Character lookup uses only the account ID established by the ticket; nothing the client sends
 selects which character is loaded. An account without a character is routed to character
@@ -151,6 +158,7 @@ Session cleanup failures are handled the same way.
 | `openconquer.game_server.login.admission.capacity_rejections`    | Admission queue full             |
 | `openconquer.game_server.login.connection.completions`           | Login reached the world          |
 | `openconquer.game_server.login.connection.not_admitted`          | Login ended without reaching the world (disconnect, rejected ticket, no character) |
+| `openconquer.game_server.login.connection.realm_load_refusals`   | Login refused because the realm was full or busy (also counted as not admitted) |
 | `openconquer.game_server.login.connection.failures`              | Login failed                     |
 | `openconquer.game_server.login.connection.timeouts`              | Login exceeded its timeout       |
 | `openconquer.game_server.login.connection.duration`              | Login duration in milliseconds   |

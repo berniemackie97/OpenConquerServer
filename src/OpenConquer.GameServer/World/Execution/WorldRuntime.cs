@@ -48,6 +48,27 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
     public CancellationToken StoppingToken => _stoppingSignal.Token;
 
+    public int MaxCharacters => _maxCharacters;
+
+    /// <summary>
+    /// Gets the number of characters holding a reserved or active world residency.
+    /// </summary>
+    public int ResidentCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _owners.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether any map partition is refusing new commands because its queue is full.
+    /// </summary>
+    public bool IsCongested => _scheduler.HasSaturatedPartition();
+
     public bool TryGetMap(uint mapId, [NotNullWhen(true)] out WorldMapContent? map)
     {
         if (_scheduler.TryGetPartition(mapId, out WorldPartition? partition))

@@ -30,6 +30,24 @@ public sealed class WorldPartitionTests
     }
 
     [Fact]
+    public void IsSaturated_ReportsAFullOrdinaryQueueUntilItDrains()
+    {
+        Channel<WorldPartition> ready = CreateReadyChannel();
+        WorldPartition partition = CreatePartition(ready.Writer, capacity: 2);
+
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, partition.TryEnqueue(new WorldPartitionCommand<int>(_ => 1)));
+        Assert.False(partition.IsSaturated);
+
+        Assert.Equal(WorldPartitionEnqueueResult.Accepted, partition.TryEnqueue(new WorldPartitionCommand<int>(_ => 2)));
+        Assert.True(partition.IsSaturated);
+
+        Assert.True(ready.Reader.TryRead(out _));
+        partition.ExecuteTurn();
+
+        Assert.False(partition.IsSaturated);
+    }
+
+    [Fact]
     public void ExecuteTurn_ProcessesCommandsInAcceptanceOrder()
     {
         Channel<WorldPartition> ready = CreateReadyChannel();

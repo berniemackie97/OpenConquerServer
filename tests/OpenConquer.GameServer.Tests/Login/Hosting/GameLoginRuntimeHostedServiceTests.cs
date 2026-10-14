@@ -2,12 +2,14 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Items.Catalog;
+using OpenConquer.Application.Realms;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Items;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Hosting;
+using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.Tests.Configuration;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.World;
@@ -66,7 +68,8 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
             Assert.Collection(services,
                 service => Assert.IsType<GameServerWorldHostedService>(service),
-                service => Assert.IsType<GameLoginRuntimeHostedService>(service));
+                service => Assert.IsType<GameLoginRuntimeHostedService>(service),
+                service => Assert.IsType<RealmStatusHostedService>(service));
 
             await host.StartAsync(TestContext.Current.CancellationToken);
 
@@ -135,6 +138,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
                 values["GameServer:Network:MaximumConnectionsPerSource"] = "2";
                 values["GameServer:Network:WorkerCount"] = "2";
                 values["GameServer:Network:ConnectionTimeout"] = "00:00:05";
+                values["GameServer:RealmStatus:ReportInterval"] = "00:00:10";
 
                 values["GameServer:Items:FilePath"] = "content/items/item-types.json";
                 values["GameServer:Items:MaximumFileBytes"] = "16777216";
@@ -148,6 +152,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
         builder.Services.AddSingleton<IAccountDatabaseReadinessVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IGameDatabaseReadinessVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IGameRealmBindingVerifier, ReadyDatabase>();
+        builder.Services.AddSingleton<IRealmStatusPublisher, NullRealmStatusPublisher>();
 
         builder.Services.AddSingleton<MapRepositories>();
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(provider => provider.GetRequiredService<MapRepositories>());
@@ -174,6 +179,13 @@ public sealed class GameLoginRuntimeHostedServiceTests
         {
             host.Dispose();
         }
+    }
+
+    private sealed class NullRealmStatusPublisher : IRealmStatusPublisher
+    {
+        public ValueTask PublishAsync(RealmLoad load, int onlineCount, TimeSpan lifetime, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+        public ValueTask WithdrawAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
     }
 
     private sealed class ReadyDatabase : IAccountDatabaseReadinessVerifier, IGameDatabaseReadinessVerifier, IGameRealmBindingVerifier

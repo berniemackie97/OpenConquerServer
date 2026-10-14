@@ -6,6 +6,7 @@ using OpenConquer.Application.Items.Resolution;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Handshake;
+using OpenConquer.GameServer.Login.Admission;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Items;
@@ -17,7 +18,9 @@ using OpenConquer.GameServer.Login.Bootstrap.Syndicates;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Login.Observability;
+using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.Time;
+using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Infrastructure.Content.Items;
@@ -98,14 +101,18 @@ internal static class GameServerHost
         {
             ItemTypeCatalogFileOptions items = configuration.ItemTypes
                 ?? throw new InvalidOperationException("Network-enabled GameServer configuration requires canonical item-type content.");
+            RealmStatusOptions realmStatus = configuration.RealmStatus
+                ?? throw new InvalidOperationException("Network-enabled GameServer configuration requires realm status reporting.");
 
-            ConfigureNetworkServices(services, network, items);
+            ConfigureNetworkServices(services, network, items, realmStatus, configuration.RealmId);
         }
     }
 
-    private static void ConfigureNetworkServices(IServiceCollection services, GameNetworkOptions network, ItemTypeCatalogFileOptions items)
+    private static void ConfigureNetworkServices(IServiceCollection services, GameNetworkOptions network, ItemTypeCatalogFileOptions items,
+        RealmStatusOptions realmStatus, RealmId realmId)
     {
         services.AddItemTypeCatalogContent(items);
+        services.AddRealmStatusPublisher(realmId);
 
         services.AddSingleton(network);
         services.AddSingleton<GameServerItemCatalogState>();
@@ -122,6 +129,11 @@ internal static class GameServerHost
         services.AddSingleton<ICharacterPresenceRegistrar>(provider => provider.GetRequiredService<CharacterPresenceDirectory>());
 
         services.AddSingleton<IGameTickSource, SystemGameTickSource>();
+
+        services.AddSingleton(realmStatus);
+        services.AddSingleton<IRealmLoadSource>(provider => new WorldRealmLoadSource(provider.GetRequiredService<WorldRuntime>()));
+        services.AddSingleton<Func<IRealmLoadSource>>(provider => () => provider.GetRequiredService<IRealmLoadSource>());
+        services.AddSingleton<GameLoginCapacityGate>();
 
         services.AddSingleton<GameTransportHandshakeProcessor>();
         services.AddSingleton<GameConnectionAuthenticator>();
@@ -152,5 +164,9 @@ internal static class GameServerHost
         services.AddSingleton(_ => new TransportConnectionAdmissionQueue(network.AdmissionCapacity));
         services.AddSingleton<GameLoginMetrics>();
         services.AddHostedService<GameLoginRuntimeHostedService>();
+
+        // Registered after ingress so that the realm is reported available only once its listener is open,
+        // and withdrawn before ingress stops.
+        services.AddHostedService<RealmStatusHostedService>();
     }
 }
