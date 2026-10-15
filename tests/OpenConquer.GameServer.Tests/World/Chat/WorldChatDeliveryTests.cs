@@ -60,6 +60,50 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
+    public async Task NativeTwoTileMovement_RelaysUnmodifiedPacketToVisibleObserver()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 1, 1);
+        await bobby.WaitForFrameCountAsync(1);
+
+        GameWalkPacket movement = new(0xA1B2_C306, alice.Session.Ownership.CharacterId,
+            GameWalkPacket.TwentyFourDirectionSelector, 100, 0xDEAD_BEEFu);
+        byte[] expected = new byte[GameWireFrameEncoder.GetFrameLength(movement)];
+        GameWireFrameEncoder.WriteFrame(movement, expected);
+
+        await alice.Session.ProcessWalkAsync(movement, TestContext.Current.CancellationToken);
+
+        IReadOnlyList<byte[]> observed = await bobby.WaitForFrameCountAsync(2);
+        Assert.Contains(observed, frame => frame.AsSpan().SequenceEqual(expected));
+        IReadOnlyList<byte[]> echoed = await alice.WaitForFrameCountAsync(2);
+        Assert.Contains(echoed, frame => frame.AsSpan().SequenceEqual(expected));
+    }
+
+    [Fact]
+    public async Task LocalSpeech_ReachesNewObserverAfterNativeTwoTileMovement()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 20, 0);
+        Assert.Empty(alice.AvailableFrames());
+        Assert.Empty(bobby.AvailableFrames());
+
+        GameWalkPacket movement = new(6, alice.Session.Ownership.CharacterId,
+            GameWalkPacket.TwentyFourDirectionSelector, 100, 0);
+        await alice.Session.ProcessWalkAsync(movement, TestContext.Current.CancellationToken);
+
+        IReadOnlyList<byte[]> observed = await bobby.WaitForFrameCountAsync(1);
+        Assert.Equal((ushort)10014, PacketId(observed[0]));
+
+        GameInboundChat chat = new(GameInboundChat.LocalChannel, "ALL", "now nearby");
+        GameChatPacket expected = WorldChatPacketFactory.Create(alice.Session.Ownership.CharacterId,
+            "Alice", "ALL", chat);
+        await alice.Session.ProcessChatAsync(chat, TestContext.Current.CancellationToken);
+        await bobby.ExpectPacketAsync(expected);
+    }
+
+    [Fact]
     public async Task Whisper_UsesCanonicalNameAcrossMapsWithoutPublishingToOtherPlayers()
     {
         await using ChatWorld world = new();

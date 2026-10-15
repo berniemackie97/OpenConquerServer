@@ -218,18 +218,19 @@ internal sealed class WorldSession : IAsyncDisposable
     {
         ThrowIfInactive();
 
-        if (walk.EntityId != Ownership.CharacterId || walk.DirectionIndex >= 8 || walk.CommandSelector == GameWalkPacket.TwentyFourDirectionSelector)
+        if (walk.EntityId != Ownership.CharacterId)
         {
-            throw new InvalidDataException("A walk command does not match the authenticated character or supported native direction mode.");
+            throw new InvalidDataException("A walk command does not match the authenticated character.");
         }
 
-        if (!_walkPacer.TryAccept(walk.MovementTick, Stopwatch.GetTimestamp()))
+        if (!_walkPacer.TryAccept(walk.MovementTick, Stopwatch.GetTimestamp(), walk.IsTwentyFourDirection))
         {
             return;
         }
 
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex, linked.Token).ConfigureAwait(false);
+        WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex,
+            walk.CommandSelector, linked.Token).ConfigureAwait(false);
 
         if (committed is not null)
         {

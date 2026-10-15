@@ -318,14 +318,17 @@ internal sealed class WorldRuntime : IAsyncDisposable
     /// Queues one native 5517 eight-direction step under the exact active ownership token.
     /// This is not a substitute for authenticated packet validation, anti-replay, or movement pacing.
     /// </summary>
-    public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, CancellationToken cancellationToken = default)
+    public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, CancellationToken cancellationToken = default) =>
+        TryWalkCharacterAsync(ownership, directionIndex, commandSelector: 0, cancellationToken: cancellationToken);
+
+    public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || directionIndex >= 8)
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || directionIndex >= (commandSelector == 9 ? 24 : 8))
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
@@ -335,7 +338,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 throw new InvalidOperationException("An active character references a missing world partition.");
             }
 
-            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map => map.TryWalk(ownership, directionIndex));
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map => map.TryWalk(ownership, directionIndex, commandSelector));
 
             return partition.TryEnqueue(command) switch
             {

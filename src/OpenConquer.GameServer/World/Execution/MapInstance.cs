@@ -10,6 +10,13 @@ internal sealed class MapInstance(WorldMapContent map)
 {
     private static readonly sbyte[] s_walkDeltaX = [0, -1, -1, -1, 0, 1, 1, 1];
     private static readonly sbyte[] s_walkDeltaY = [1, 1, 0, -1, -1, -1, 0, 1];
+
+    // CMsgEntityAction__Process selector-9 tables at native 5517 addresses
+    // 0x86C804 / 0x86C864, corroborated by OpenConquerPublic's MsgEntityAction10005.
+    private static readonly sbyte[] s_twoTileDeltaX =
+        [0, -2, -2, -2, 0, 2, 2, 2, -1, -2, -2, -1, 1, 2, 2, 1, -1, -2, -2, -1, 1, 2, 2, 1];
+    private static readonly sbyte[] s_twoTileDeltaY =
+        [2, 2, 0, -2, -2, -2, 0, 2, 2, 1, -1, -2, -2, -1, 1, 2, 2, 1, -1, -2, -2, -1, 1, 2];
     private readonly Dictionary<uint, WorldCharacterSnapshot> _characters = [];
 
     public WorldMapContent Map { get; } = map ?? throw new ArgumentNullException(nameof(map));
@@ -55,20 +62,25 @@ internal sealed class MapInstance(WorldMapContent map)
     }
 
     /// <summary>
-    /// Applies one 5517 eight-direction ground step. This is a partition-owned primitive, not an ingress authorization policy.
+    /// Applies one verified native 5517 direction-table delta under exclusive partition
+    /// ownership. The full selector selects the 24-entry table only when exactly nine.
     /// </summary>
-    public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex)
+    public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector = 0)
     {
-        if (directionIndex >= s_walkDeltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)
+        bool twoTile = commandSelector == 9;
+        sbyte[] deltaX = twoTile ? s_twoTileDeltaX : s_walkDeltaX;
+        sbyte[] deltaY = twoTile ? s_twoTileDeltaY : s_walkDeltaY;
+        if (directionIndex >= deltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)
             || current.Ownership != ownership)
         {
             return null;
         }
 
-        int x = current.X + s_walkDeltaX[directionIndex];
-        int y = current.Y + s_walkDeltaY[directionIndex];
+        int x = current.X + deltaX[directionIndex];
+        int y = current.Y + deltaY[directionIndex];
 
-        if ((uint)x > ushort.MaxValue || (uint)y > ushort.MaxValue || !Map.Collision.IsStaticallyPassable(x, y))
+        if ((uint)x > ushort.MaxValue || (uint)y > ushort.MaxValue || !Map.Collision.IsStaticallyPassable(x, y) ||
+            (twoTile && !HasClearTwoTilePath(current, deltaX[directionIndex], deltaY[directionIndex])))
         {
             return null;
         }
@@ -76,6 +88,24 @@ internal sealed class MapInstance(WorldMapContent map)
         WorldCharacterSnapshot moved = current with { X = (ushort)x, Y = (ushort)y };
         _characters[ownership.CharacterId] = moved;
         return moved;
+    }
+
+    // A two-tile selector must not let an unauthenticated rider traverse a
+    // statically blocked intervening cell. For asymmetric (2,1)/(1,2) motion
+    // both plausible interior cells are checked conservatively. This is a
+    // defensive server rule pending native mounted collision verification.
+    private bool HasClearTwoTilePath(WorldCharacterSnapshot current, int dx, int dy)
+    {
+        int sx = Math.Sign(dx);
+        int sy = Math.Sign(dy);
+        if (Math.Abs(dx) == 2)
+        {
+            return Map.Collision.IsStaticallyPassable(current.X + sx, current.Y) &&
+                (dy == 0 || Map.Collision.IsStaticallyPassable(current.X + sx, current.Y + sy));
+        }
+
+        return Map.Collision.IsStaticallyPassable(current.X, current.Y + sy) &&
+            (dx == 0 || Map.Collision.IsStaticallyPassable(current.X + sx, current.Y + sy));
     }
 
     public void Clear() => _characters.Clear();

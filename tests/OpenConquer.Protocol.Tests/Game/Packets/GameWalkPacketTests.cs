@@ -31,7 +31,9 @@ public sealed class GameWalkPacketTests
     {
         Assert.True(GameWalkPacket.TryParse(CreatePacket(selector: 8), out _));
         Assert.True(GameWalkPacket.TryParse(CreatePacket(selector: 10), out _));
-        Assert.False(GameWalkPacket.TryParse(CreatePacket(selector: 9), out _));
+        Assert.True(GameWalkPacket.TryParse(CreatePacket(selector: 9), out GameWalkPacket twoTile));
+        Assert.True(twoTile.IsTwentyFourDirection);
+        Assert.Equal((byte)7, twoTile.DirectionIndex);
     }
 
     [Fact]
@@ -53,9 +55,26 @@ public sealed class GameWalkPacketTests
     [InlineData(8u)]
     [InlineData(255u)]
     [InlineData(0x0100_0008u)]
-    public void TryParse_RejectsInvalidEightDirectionIndex(uint direction)
+    public void TryParse_NormalizesTheNativeLowDirectionByte(uint direction)
     {
-        Assert.False(GameWalkPacket.TryParse(CreatePacket(packedDirection: direction), out _));
+        Assert.True(GameWalkPacket.TryParse(CreatePacket(packedDirection: direction), out GameWalkPacket walk));
+        Assert.Equal((byte)(unchecked((byte)direction) % 8), walk.DirectionIndex);
+        Assert.Equal(direction, walk.PackedDirection);
+    }
+
+    [Theory]
+    [InlineData(0u, 0)]
+    [InlineData(23u, 23)]
+    [InlineData(24u, 0)]
+    [InlineData(47u, 23)]
+    [InlineData(0xA1B2_C3FFu, 15)]
+    public void TryParse_NormalizesOnlyLowByteForExactSelectorNine(uint packed, byte expected)
+    {
+        Assert.True(GameWalkPacket.TryParse(CreatePacket(packedDirection: packed, selector: 9), out GameWalkPacket walk));
+        Assert.True(walk.IsTwentyFourDirection);
+        Assert.Equal(expected, walk.DirectionIndex);
+        Assert.Equal((byte)(expected % 8), walk.FacingDirection);
+        Assert.Equal(packed, walk.PackedDirection);
     }
 
     [Fact]

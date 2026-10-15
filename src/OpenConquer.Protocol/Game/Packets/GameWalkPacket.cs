@@ -4,7 +4,7 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// Native 5517 MsgEntityAction (10005) eight-direction walk request and acknowledgement.
+/// Native 5517 MsgEntityAction (10005) eight- or twenty-four-direction movement.
 /// The acknowledgement echoes the original request only after authoritative movement commits.
 /// </summary>
 public readonly record struct GameWalkPacket(uint PackedDirection, uint EntityId, uint CommandSelector, uint MovementTick, uint MapState) : IPacket
@@ -15,7 +15,11 @@ public readonly record struct GameWalkPacket(uint PackedDirection, uint EntityId
 
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PacketLength - sizeof(ushort) * 2;
-    public byte DirectionIndex => unchecked((byte)PackedDirection);
+    // The retail handler compares the complete selector to exactly nine, then
+    // normalizes only the low direction byte against the selected table length.
+    public bool IsTwentyFourDirection => CommandSelector == TwentyFourDirectionSelector;
+    public byte DirectionIndex => (byte)(unchecked((byte)PackedDirection) % (IsTwentyFourDirection ? 24 : 8));
+    public byte FacingDirection => (byte)(DirectionIndex % 8);
 
     public static bool TryParse(ReadOnlySpan<byte> packet, out GameWalkPacket walk)
     {
@@ -31,9 +35,7 @@ public readonly record struct GameWalkPacket(uint PackedDirection, uint EntityId
         uint entityId = BinaryPrimitives.ReadUInt32LittleEndian(packet[8..]);
         uint selector = BinaryPrimitives.ReadUInt32LittleEndian(packet[12..]);
 
-        // The native client uses a different 24-direction delta table when selector == 9.
-        // Never reinterpret that selector as an eight-direction step.
-        if (entityId == 0 || selector == TwentyFourDirectionSelector || (byte)packedDirection >= 8)
+        if (entityId == 0)
         {
             return false;
         }
