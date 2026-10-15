@@ -95,7 +95,9 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             {
                 X = committed.X,
                 Y = committed.Y,
-                Direction = packet.DirectionIndex,
+                // Spawn 10014 exposes an eight-direction facing even when
+                // movement 10005 uses the 24-entry displacement table.
+                Direction = packet.FacingDirection,
                 Action = GameAvatarAction.StandingPose,
             };
             VisibilityChange change = map.Index.Move(id, committed.X, committed.Y);

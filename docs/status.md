@@ -39,11 +39,12 @@ implemented parts work and link here rather than repeating this list.
   logins are refused while another realm holds the account, kick requests from other realms
   disconnect the session with the native kick notice (1115), and a realm's records are cleared when
   its GameServer starts and stops.
-- Native 5517 eight-direction walk packet 10005 parsing, authenticated world-session gating,
+- Native 5517 10005 eight- and 24-direction movement parsing, authenticated world-session gating,
   server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
+  Selector-9 two-tile movement has a conservative two-interval limit until mounted-state authority exists.
 - Authenticated 10010 position reports (subtypes 100/146), bounded authorized-tile history,
   and conservative native 108 correction after repeated divergence; no report is echoed.
-- Partition-owned eight-direction walking state mutation with native 5517 direction ordering,
+- Partition-owned native eight- and 24-direction walking state mutation with native 5517 direction ordering,
   composed static collision, generation fencing, and a cancellable-before-acceptance command API.
   Native walking ingress is connected; nearby player visibility, peer-spawn, walking relay and
   disconnect removal are now wired through bounded per-session delivery.
@@ -85,7 +86,7 @@ implemented parts work and link here rather than repeating this list.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
-- Remaining gameplay routing: native 24-direction movement, jumping, non-player replication,
+- Remaining gameplay routing: mounted-status authority, jumping, non-player replication,
   position persistence, combat, NPCs, trading, nonlocal and group chat channels. Position correction is limited
   to repeated drift reports from the authenticated local character.
 - World simulation: monsters, timers, NPC/monster/ground-item visibility, and map transfers.

@@ -13,8 +13,9 @@ internal sealed class WorldWalkPacer
     private long _lastAcceptedTimestamp;
     private uint _lastAcceptedClientTick;
     private bool _hasAccepted;
+    private bool _lastTwoTileMove;
 
-    public bool TryAccept(uint clientTick, long serverTimestamp)
+    public bool TryAccept(uint clientTick, long serverTimestamp, bool twoTileMove = false)
     {
         if (_hasAccepted)
         {
@@ -27,7 +28,13 @@ internal sealed class WorldWalkPacer
                 return false;
             }
 
-            if (serverTimestamp < _lastAcceptedTimestamp || serverTimestamp - _lastAcceptedTimestamp < s_minimumIntervalTicks)
+            // Until mounted-state authorization is modeled, a two-tile step
+            // cannot double the unmounted walking speed by using the same
+            // admission interval. This is a server safety limit, not retail timing.
+            long minimumTicks = twoTileMove || _lastTwoTileMove
+                ? checked(2 * s_minimumIntervalTicks)
+                : s_minimumIntervalTicks;
+            if (serverTimestamp < _lastAcceptedTimestamp || serverTimestamp - _lastAcceptedTimestamp < minimumTicks)
             {
                 return false;
             }
@@ -35,6 +42,7 @@ internal sealed class WorldWalkPacer
 
         _lastAcceptedTimestamp = serverTimestamp;
         _lastAcceptedClientTick = clientTick;
+        _lastTwoTileMove = twoTileMove;
         _hasAccepted = true;
         return true;
     }

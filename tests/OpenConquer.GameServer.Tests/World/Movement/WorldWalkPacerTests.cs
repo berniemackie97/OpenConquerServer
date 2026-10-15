@@ -28,6 +28,21 @@ public sealed class WorldWalkPacerTests
     }
 
     [Fact]
+    public void TryAccept_TwoTileMovesAreBoundedAtDoubleTheNormalServerClockInterval()
+    {
+        WorldWalkPacer pacing = new();
+        long start = 1000;
+        long extended = checked(2 * s_interval);
+
+        Assert.True(pacing.TryAccept(10, start));
+        Assert.False(pacing.TryAccept(11, start + s_interval, twoTileMove: true));
+        Assert.True(pacing.TryAccept(11, start + extended, twoTileMove: true));
+        Assert.False(pacing.TryAccept(12, start + extended + s_interval));
+        Assert.True(pacing.TryAccept(12, start + extended * 2));
+        Assert.True(pacing.TryAccept(13, start + extended * 2 + s_interval));
+    }
+
+    [Fact]
     public void TryAccept_HandlesUInt32TickWrapWithoutReplayingOldRequests()
     {
         WorldWalkPacer pacing = new();
