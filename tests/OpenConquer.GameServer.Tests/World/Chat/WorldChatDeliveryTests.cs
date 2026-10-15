@@ -104,6 +104,38 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
+    public async Task NativeJump_AcknowledgesAndRelaysOnlyAfterAuthoritativeLanding()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 16, 0);
+        ClientSession carol = await world.AddAsync(2, "Carol", SecondMap);
+        GameAction action = new(alice.Session.Ownership.CharacterId, 16, 0x1234, 100,
+            GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0);
+        GameJumpAction jump = new(action);
+        GameActionPacket echo = jump.CreateAcknowledgement();
+        byte[] expected = new byte[GameWireFrameEncoder.GetFrameLength(echo)];
+        GameWireFrameEncoder.WriteFrame(echo, expected);
+
+        await alice.Session.ProcessJumpAsync(jump, TestContext.Current.CancellationToken);
+        await alice.ExpectFrameAsync(expected);
+        await bobby.ExpectFrameAsync(expected);
+        Assert.DoesNotContain(carol.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(expected));
+    }
+
+    [Fact]
+    public async Task NativeJump_RejectsForeignIdentityWithoutMoving()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        GameAction action = new(alice.Session.Ownership.CharacterId + 1, 16, 0, 100,
+            GameJumpAction.JumpAction, 0, 0, 0, 0, 0, 0, 0);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            alice.Session.ProcessJumpAsync(new GameJumpAction(action), TestContext.Current.CancellationToken).AsTask());
+        Assert.Empty(alice.AvailableFrames());
+    }
+
+    [Fact]
     public async Task Whisper_UsesCanonicalNameAcrossMapsWithoutPublishingToOtherPlayers()
     {
         await using ChatWorld world = new();
@@ -378,6 +410,16 @@ public sealed class WorldChatDeliveryTests
                 await Task.Delay(10, timeout.Token);
             }
             return _frames;
+        }
+
+        public async Task ExpectFrameAsync(byte[] expected)
+        {
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            while (!AvailableFrames().Any(frame => frame.AsSpan().SequenceEqual(expected)))
+            {
+                await Task.Delay(10, timeout.Token);
+            }
         }
 
         public async Task ExpectPacketAsync(GameChatPacket packet)

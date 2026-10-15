@@ -1,5 +1,6 @@
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
+using OpenConquer.Domain.World;
 
 namespace OpenConquer.GameServer.World.Execution;
 
@@ -106,6 +107,27 @@ internal sealed class MapInstance(WorldMapContent map)
 
         return Map.Collision.IsStaticallyPassable(current.X, current.Y + sy) &&
             (dx == 0 || Map.Collision.IsStaticallyPassable(current.X + sx, current.Y + sy));
+    }
+
+    /// <summary>Commits a native absolute-target jump on this map's exclusive partition turn.</summary>
+    public WorldCharacterSnapshot? TryJump(WorldCharacterOwnership ownership, ushort targetX, ushort targetY)
+    {
+        if (!_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current) ||
+            current.Ownership != ownership || (Map.Flags & 0x0200_0000UL) != 0 ||
+            !Map.Collision.IsStaticallyPassable(targetX, targetY))
+        {
+            return null;
+        }
+
+        int distance = MapDistance.RoundedTileDistance(current.X, current.Y, targetX, targetY);
+        if (distance is < 1 or > 16)
+        {
+            return null;
+        }
+
+        WorldCharacterSnapshot moved = current with { X = targetX, Y = targetY };
+        _characters[ownership.CharacterId] = moved;
+        return moved;
     }
 
     public void Clear() => _characters.Clear();

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Chat;
@@ -34,6 +35,7 @@ internal sealed class WorldSession : IAsyncDisposable
     private readonly CancellationTokenSource _visibilityStopping = new();
     private Task? _visibilityWrites;
     private readonly WorldWalkPacer _walkPacer = new();
+    private readonly WorldJumpIngressLimiter _jumpIngressLimiter = new();
     private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
     private readonly WorldChatRateLimiter _chatRateLimiter = new();
     private readonly WorldPositionReconciler _positionReconciler;
@@ -237,6 +239,46 @@ internal sealed class WorldSession : IAsyncDisposable
             _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
             await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
             _visibility?.Moved(this, committed.Value, walk);
+        }
+    }
+
+    /// <summary>Applies a native absolute-tile jump only after authoritative partition admission.</summary>
+    internal async ValueTask ProcessJumpAsync(GameJumpAction jump, CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+        if (jump.EntityId != Ownership.CharacterId || jump.Action.Action != GameJumpAction.JumpAction ||
+            jump.Action.StringCount != 0)
+        {
+            throw new InvalidDataException("Jump intent does not belong to the authenticated character.");
+        }
+
+        // The persisted profile does not contain active mounted status. This is
+        // ground-jump support only; mounted jump caps remain a release gate.
+        if ((Map.Flags & 0x0200_0000UL) != 0 ||
+            !_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()))
+        {
+            return;
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldCharacterSnapshot? before = await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false);
+        if (before is null)
+        {
+            throw new InvalidDataException("Jump intent has no active authoritative world owner.");
+        }
+        int distance = MapDistance.RoundedTileDistance(before.Value.X, before.Value.Y, jump.TargetX, jump.TargetY);
+        if (distance is < 1 or > 16 || !_walkPacer.TryAcceptJump(jump.Timestamp, Stopwatch.GetTimestamp(), distance))
+        {
+            return;
+        }
+        WorldCharacterSnapshot? committed = await _runtime.TryJumpCharacterAsync(Ownership,
+            jump.TargetX, jump.TargetY, linked.Token).ConfigureAwait(false);
+        if (committed is not null)
+        {
+            _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
+            GameActionPacket acknowledgement = jump.CreateAcknowledgement();
+            await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            _visibility?.Jumped(this, committed.Value, acknowledgement);
         }
     }
 

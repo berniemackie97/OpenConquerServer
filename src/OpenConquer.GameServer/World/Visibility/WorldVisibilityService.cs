@@ -6,6 +6,7 @@ using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Protocol.Game.Packets;
+using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.GameServer.World.Visibility;
 
@@ -76,10 +77,17 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
         }
     }
 
-    public void Moved(WorldSession session, WorldCharacterSnapshot committed, GameWalkPacket packet)
+    public void Moved(WorldSession session, WorldCharacterSnapshot committed, GameWalkPacket packet) =>
+        PublishMovement(session, committed, packet, packet.EntityId, packet.FacingDirection);
+
+    public void Jumped(WorldSession session, WorldCharacterSnapshot committed, GameActionPacket packet) =>
+        PublishMovement(session, committed, packet, packet.EntityId, (byte)(packet.Direction % 8));
+
+    private void PublishMovement(WorldSession session, WorldCharacterSnapshot committed,
+        IPacket packet, uint entityId, byte facing)
     {
         ArgumentNullException.ThrowIfNull(session);
-        if (session.IsStopping || committed.Ownership != session.Ownership || packet.EntityId != session.Ownership.CharacterId
+        if (session.IsStopping || committed.Ownership != session.Ownership || entityId != session.Ownership.CharacterId
             || !_maps.TryGetValue(session.Ownership.MapId, out MapState? map))
         {
             return;
@@ -97,7 +105,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 Y = committed.Y,
                 // Spawn 10014 exposes an eight-direction facing even when
                 // movement 10005 uses the 24-entry displacement table.
-                Direction = packet.FacingDirection,
+                Direction = facing,
                 Action = GameAvatarAction.StandingPose,
             };
             VisibilityChange change = map.Index.Move(id, committed.X, committed.Y);

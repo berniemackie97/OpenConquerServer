@@ -349,6 +349,35 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
     }
 
+    /// <summary>Submits one authenticated jump target under exact generation-fenced ownership.</summary>
+    public ValueTask<WorldCharacterSnapshot?> TryJumpCharacterAsync(WorldCharacterOwnership ownership,
+        ushort targetX, ushort targetY, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != ownership || entry.Removing)
+            {
+                return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
+            }
+            if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
+            {
+                throw new InvalidOperationException("An active character references a missing world partition.");
+            }
+
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(
+                map => map.TryJump(ownership, targetX, targetY));
+            return partition.TryEnqueue(command) switch
+            {
+                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
+                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
+                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
+            };
+        }
+    }
+
     public Task StopAsync()
     {
         lock (_gate)
