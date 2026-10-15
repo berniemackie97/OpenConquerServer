@@ -49,6 +49,9 @@ implemented parts work and link here rather than repeating this list.
   disconnect removal are now wired through bounded per-session delivery.
 - Native 5517 player turning (action 79) and enumerated pose/emote selection (action 81),
   authenticated, echoed and relayed to visible peers, with current state in future player spawns.
+- Native 5517 in-world 1004 local speech, directed same-realm character whispers, and
+  transient 64-byte role words, authenticated with bounded delivery and late-observer
+  synchronization (see [native chat](architecture/native-chat.md)).
 
 ### Persistence and content
 
@@ -83,7 +86,7 @@ implemented parts work and link here rather than repeating this list.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
 - Remaining gameplay routing: native 24-direction movement, jumping, non-player replication,
-  position persistence, combat, NPCs, trading, and chat. Position correction is limited
+  position persistence, combat, NPCs, trading, nonlocal and group chat channels. Position correction is limited
   to repeated drift reports from the authenticated local character.
 - World simulation: monsters, timers, NPC/monster/ground-item visibility, and map transfers.
   Jump-specific elevation and status effects remain unresolved; do not introduce a speculative
