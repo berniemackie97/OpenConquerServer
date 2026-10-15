@@ -23,7 +23,10 @@ current tile and rejects blocked/out-of-bounds landing cells using the composed
 static-collision layer. No packet is echoed for rejected jumps. Successful
 jumps record a legitimate reconciliation tile, echo the validated native fixed
 packet without changing its payload fields, and update peer visibility using the
-existing bounded per-recipient mailboxes. No map transfers or DB writes occur.
+existing bounded per-recipient mailboxes. Retained and newly visible observers
+receive the existing appropriate movement/spawn treatment; a departing observer
+also receives the final native jump action so its client can update the remote
+tile and perform its normal distance cull. No map transfers or DB writes occur.
 
 A separate per-session fixed-memory ingress gate drops jump intents exceeding eight
 per second before authoritative snapshot reads, including invalid targets.

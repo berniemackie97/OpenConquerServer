@@ -114,6 +114,10 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             {
                 map.Sessions[observerId].QueueVisibilityPacket(packet);
             }
+            foreach (uint observerId in change.Departed)
+            {
+                map.Sessions[observerId].QueueVisibilityPacket(packet);
+            }
             foreach (uint observerId in change.Entered)
             {
                 WorldSession observer = map.Sessions[observerId];

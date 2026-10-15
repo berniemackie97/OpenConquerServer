@@ -123,6 +123,43 @@ public sealed class WorldChatDeliveryTests
         Assert.DoesNotContain(carol.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(expected));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MovementCrossingVisibilityBoundary_RelaysFinalMotionToDepartingObserver(bool jump)
+    {
+        await using ChatWorld world = new();
+        // The two players are initially visible at exactly the native radius.
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 18, 1);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 0, 1);
+        await bobby.WaitForFrameCountAsync(1);
+
+        byte[] expected;
+        if (jump)
+        {
+            // Native absolute target: (34, 1), 16 tiles from Alice, now 34
+            // tiles from Bobby. A retained-only fanout silently loses this.
+            GameAction action = new(alice.Session.Ownership.CharacterId, (1u << 16) | 34u,
+                0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0);
+            GameJumpAction intent = new(action);
+            GameActionPacket acknowledgement = intent.CreateAcknowledgement();
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            GameWireFrameEncoder.WriteFrame(acknowledgement, expected);
+            await alice.Session.ProcessJumpAsync(intent, TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            // A one-tile eastward step crosses 18 -> 19 tiles.
+            GameWalkPacket intent = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(intent)];
+            GameWireFrameEncoder.WriteFrame(intent, expected);
+            await alice.Session.ProcessWalkAsync(intent, TestContext.Current.CancellationToken);
+        }
+
+        await bobby.ExpectFrameAsync(expected);
+        Assert.Single(bobby.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(expected));
+    }
+
     [Fact]
     public async Task NativeJump_RejectsForeignIdentityWithoutMoving()
     {
