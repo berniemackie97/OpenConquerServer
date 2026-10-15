@@ -321,7 +321,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
     public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, CancellationToken cancellationToken = default) =>
         TryWalkCharacterAsync(ownership, directionIndex, commandSelector: 0, cancellationToken: cancellationToken);
 
-    public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector, CancellationToken cancellationToken = default)
+    public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector, CancellationToken cancellationToken = default) =>
+        TryWalkCharacterAsync(ownership, directionIndex, commandSelector, onCommitted: null, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Applies the movement and schedules its replication within the same map-partition turn.
+    /// The callback must be synchronous and nonblocking; it may only enqueue bounded delivery.
+    /// </summary>
+    internal ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership,
+        byte directionIndex, uint commandSelector, Action<WorldCharacterSnapshot>? onCommitted, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
@@ -338,7 +346,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 throw new InvalidOperationException("An active character references a missing world partition.");
             }
 
-            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map => map.TryWalk(ownership, directionIndex, commandSelector));
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map =>
+            {
+                WorldCharacterSnapshot? committed = map.TryWalk(ownership, directionIndex, commandSelector);
+                if (committed is WorldCharacterSnapshot snapshot)
+                {
+                    onCommitted?.Invoke(snapshot);
+                }
+                return committed;
+            });
 
             return partition.TryEnqueue(command) switch
             {
@@ -351,7 +367,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
     /// <summary>Submits one authenticated jump target under exact generation-fenced ownership.</summary>
     public ValueTask<WorldCharacterSnapshot?> TryJumpCharacterAsync(WorldCharacterOwnership ownership,
-        ushort targetX, ushort targetY, CancellationToken cancellationToken = default)
+        ushort targetX, ushort targetY, CancellationToken cancellationToken = default) =>
+        TryJumpCharacterAsync(ownership, targetX, targetY, onCommitted: null, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Commits the landing and publishes its ordered delivery intents in one partition turn.
+    /// No network I/O is permitted in the callback.
+    /// </summary>
+    internal ValueTask<WorldCharacterSnapshot?> TryJumpCharacterAsync(WorldCharacterOwnership ownership,
+        ushort targetX, ushort targetY, Action<WorldCharacterSnapshot>? onCommitted, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
@@ -367,8 +391,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 throw new InvalidOperationException("An active character references a missing world partition.");
             }
 
-            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(
-                map => map.TryJump(ownership, targetX, targetY));
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map =>
+            {
+                WorldCharacterSnapshot? committed = map.TryJump(ownership, targetX, targetY);
+                if (committed is WorldCharacterSnapshot snapshot)
+                {
+                    onCommitted?.Invoke(snapshot);
+                }
+                return committed;
+            });
             return partition.TryEnqueue(command) switch
             {
                 WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),

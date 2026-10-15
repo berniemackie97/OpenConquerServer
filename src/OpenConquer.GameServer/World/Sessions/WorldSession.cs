@@ -152,7 +152,10 @@ internal sealed class WorldSession : IAsyncDisposable
         _visibility?.Query(this, subjectId);
     }
 
-    /// <summary>Only the world visibility index may enqueue peer packets.</summary>
+    /// <summary>
+    /// Ordered bounded game-world egress. Partition-committed movement and peer
+    /// replication enqueue here without awaiting a socket, preserving causal FIFO order.
+    /// </summary>
     internal void QueueVisibilityPacket(IPacket packet)
     {
         if (IsStopping || _visibilityMailbox is null)
@@ -231,14 +234,24 @@ internal sealed class WorldSession : IAsyncDisposable
         }
 
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldVisibilityService? visibility = _visibility;
+        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
+        {
+            // Both the self echo and peer replication are queued in this partition
+            // turn, before any subsequent movement can execute on this map.
+            QueueVisibilityPacket(walk);
+            visibility.Moved(this, snapshot, walk);
+        };
         WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex,
-            walk.CommandSelector, linked.Token).ConfigureAwait(false);
+            walk.CommandSelector, publish, linked.Token).ConfigureAwait(false);
 
         if (committed is not null)
         {
             _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
-            await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
-            _visibility?.Moved(this, committed.Value, walk);
+            if (visibility is null)
+            {
+                await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -271,14 +284,22 @@ internal sealed class WorldSession : IAsyncDisposable
         {
             return;
         }
+        GameActionPacket acknowledgement = jump.CreateAcknowledgement();
+        WorldVisibilityService? visibility = _visibility;
+        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
+        {
+            QueueVisibilityPacket(acknowledgement);
+            visibility.Jumped(this, snapshot, acknowledgement);
+        };
         WorldCharacterSnapshot? committed = await _runtime.TryJumpCharacterAsync(Ownership,
-            jump.TargetX, jump.TargetY, linked.Token).ConfigureAwait(false);
+            jump.TargetX, jump.TargetY, publish, linked.Token).ConfigureAwait(false);
         if (committed is not null)
         {
             _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
-            GameActionPacket acknowledgement = jump.CreateAcknowledgement();
-            await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
-            _visibility?.Jumped(this, committed.Value, acknowledgement);
+            if (visibility is null)
+            {
+                await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -323,7 +344,7 @@ internal sealed class WorldSession : IAsyncDisposable
         GameChatPacket? acknowledgement = _visibility?.PublishChat(this, request);
         if (acknowledgement is not null)
         {
-            await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -359,7 +380,7 @@ internal sealed class WorldSession : IAsyncDisposable
         ThrowIfInactive();
         GameActionPacket acknowledgement = request.CreateAcknowledgement();
         _visibility?.AvatarAction(this, request, acknowledgement);
-        await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+        await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -399,7 +420,7 @@ internal sealed class WorldSession : IAsyncDisposable
         GameActionPacket correction = new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
             timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
             positionX: snapshot.Value.X, positionY: snapshot.Value.Y, data1: 0, data2: 0, flag: 0);
-        await WriteAsync(correction, cancellationToken).ConfigureAwait(false);
+        await SendGameplayResponseAsync(correction, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
@@ -425,6 +446,22 @@ internal sealed class WorldSession : IAsyncDisposable
         }
 
         return frame;
+    }
+
+    /// <summary>
+    /// Keep local gameplay responses in the same per-session FIFO as peer spawns and
+    /// movement. Sessions without visibility preserve their original direct send.
+    /// </summary>
+    private ValueTask SendGameplayResponseAsync(IPacket packet, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfInactive();
+        if (_visibilityMailbox is null)
+        {
+            return WriteAsync(packet, cancellationToken);
+        }
+        QueueVisibilityPacket(packet);
+        return ValueTask.CompletedTask;
     }
 
     public async ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default)

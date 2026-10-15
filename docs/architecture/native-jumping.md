@@ -21,9 +21,11 @@ submits the absolute target to the **same generation-fenced partition** as walki
 The partition repeats the rounded range and map-flag checks against its actual
 current tile and rejects blocked/out-of-bounds landing cells using the composed
 static-collision layer. No packet is echoed for rejected jumps. Successful
-jumps record a legitimate reconciliation tile, echo the validated native fixed
-packet without changing its payload fields, and update peer visibility using the
-existing bounded per-recipient mailboxes. Retained and newly visible observers
+jumps record a legitimate reconciliation tile, enqueue an unchanged native fixed
+packet for local acknowledgement, and update peer visibility using the
+existing bounded per-recipient mailboxes. Movement publication executes inside the
+map partition's synchronous command turn; socket writes occur asynchronously after
+that turn. This prevents subsequent map moves overtaking their visibility updates. Retained and newly visible observers
 receive the existing appropriate movement/spawn treatment; a departing observer
 also receives the final native jump action so its client can update the remote
 tile and perform its normal distance cull. No map transfers or DB writes occur.

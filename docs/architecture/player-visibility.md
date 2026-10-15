@@ -34,7 +34,11 @@ server radius would create persistent disagreement.
 ## Output isolation and bounded work
 
 Per-map membership operations use a short lock for index bookkeeping and enqueuing only.
-No transport write occurs under the lock. Each world session has one bounded 256-packet FIFO
+Movement commits and their visibility transitions enqueue in the same exclusive
+map-partition turn; no socket operation is awaited between them. The local movement
+echo and peer movement/spawn packets use the same per-recipient FIFO as other
+gameplay acknowledgements, so subsequent application responses cannot overtake a
+pending movement echo. No transport write occurs under the lock. Each world session has one bounded 256-packet FIFO
 for peer visibility and a single writer using its existing outbound write semaphore. A full
 mailbox or transport failure closes only the slow recipient, releasing its world ownership;
 it cannot stall movement or disconnect the broadcaster. Shutdown cancels the sender before

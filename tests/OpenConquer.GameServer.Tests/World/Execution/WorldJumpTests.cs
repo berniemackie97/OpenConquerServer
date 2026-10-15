@@ -67,6 +67,49 @@ public sealed class WorldJumpTests
         Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task MovementPublicationFinishesBeforeNextPartitionTurn()
+    {
+        WorldMapContentCatalog maps = new([CreateMap()]);
+        await using WorldRuntime runtime = new(maps, new WorldExecutionOptions(1, 32, 8));
+        runtime.Start();
+        WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(CreateProfile(),
+            TestContext.Current.CancellationToken);
+        using ManualResetEventSlim publishing = new(false);
+        using ManualResetEventSlim release = new(false);
+
+        try
+        {
+            ValueTask<WorldCharacterSnapshot?> first = runtime.TryWalkCharacterAsync(owner, 6, 0,
+                _ =>
+                {
+                    publishing.Set();
+                    if (!release.Wait(TimeSpan.FromSeconds(8)))
+                    {
+                        throw new TimeoutException("Partition movement-publication test barrier expired.");
+                    }
+                }, TestContext.Current.CancellationToken);
+            Assert.True(publishing.Wait(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+            // A second movement of the same character cannot execute while
+            // the first publication is held at this deterministic barrier.
+            ValueTask<WorldCharacterSnapshot?> second = runtime.TryWalkCharacterAsync(owner, 0, 0,
+                _ => Assert.True(release.IsSet), TestContext.Current.CancellationToken);
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+            release.Set();
+
+            WorldCharacterSnapshot moved = Assert.IsType<WorldCharacterSnapshot>(await first);
+            WorldCharacterSnapshot movedAgain = Assert.IsType<WorldCharacterSnapshot>(await second);
+            Assert.Equal((3, 2), (moved.X, moved.Y));
+            Assert.Equal((3, 3), (movedAgain.X, movedAgain.Y));
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
     private static (ushort, ushort) Position(WorldCharacterSnapshot? snapshot)
     {
         WorldCharacterSnapshot value = Assert.IsType<WorldCharacterSnapshot>(snapshot);

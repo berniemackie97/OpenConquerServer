@@ -160,6 +160,47 @@ public sealed class WorldChatDeliveryTests
         Assert.Single(bobby.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(expected));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BlockedSenderSocket_DoesNotDelayAuthoritativeMovementOrPeerDelivery(bool jump)
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 12, 0);
+
+        // Finish the initial bidirectional spawn before blocking the mover's
+        // outgoing transport. A live socket must never hold the map scheduler.
+        await alice.WaitForFrameCountAsync(1);
+        await bobby.WaitForFrameCountAsync(1);
+        alice.Transport.BlockSends();
+
+        byte[] expected;
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        if (jump)
+        {
+            GameJumpAction intent = new(new GameAction(alice.Session.Ownership.CharacterId,
+                6, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0));
+            GameActionPacket acknowledgement = intent.CreateAcknowledgement();
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            GameWireFrameEncoder.WriteFrame(acknowledgement, expected);
+            await alice.Session.ProcessJumpAsync(intent, timeout.Token);
+        }
+        else
+        {
+            GameWalkPacket intent = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(intent)];
+            GameWireFrameEncoder.WriteFrame(intent, expected);
+            await alice.Session.ProcessWalkAsync(intent, timeout.Token);
+        }
+
+        // The peer sees the committed movement although the mover's self-echo
+        // is stalled on the network. No second reader or synthetic delivery hook.
+        await bobby.ExpectFrameAsync(expected);
+        Assert.False(bobby.Session.IsStopping);
+    }
+
     [Fact]
     public async Task NativeJump_RejectsForeignIdentityWithoutMoving()
     {
