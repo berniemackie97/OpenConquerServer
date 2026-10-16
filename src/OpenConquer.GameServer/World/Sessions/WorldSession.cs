@@ -243,6 +243,19 @@ internal sealed class WorldSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Accepts the native 1056/2 trade-quit notification. Trading is not implemented:
+    /// there is no exchange to release, response to send, or inventory to mutate.
+    /// </summary>
+    internal void ProcessTradeQuit(GameTradeQuitRequest request)
+    {
+        ThrowIfInactive();
+        if (request.EntityId != Ownership.CharacterId)
+        {
+            throw new InvalidDataException("Trade quit does not belong to the authenticated character.");
+        }
+    }
+
+    /// <summary>
     /// Applies exactly one authenticated eight-direction ground step. The packet is echoed
     /// only after the authoritative partition commits the new position.
     /// </summary>
@@ -449,14 +462,17 @@ internal sealed class WorldSession : IAsyncDisposable
             await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
             ThrowIfInactive();
         }
-        if (await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false) is null)
+        // Authorize and publish within one map-partition turn. A corpse cannot
+        // spoof a standing pose or facing, including in the late-observer cache.
+        GameActionPacket acknowledgement = request.CreateAcknowledgement();
+        bool authorized = await _runtime.TryPublishAvatarActionAsync(Ownership,
+            _ => _visibility?.AvatarAction(this, request, acknowledgement), linked.Token).ConfigureAwait(false);
+        if (!authorized)
         {
-            throw new InvalidDataException("An avatar action has no authoritative world owner.");
+            return;
         }
 
         ThrowIfInactive();
-        GameActionPacket acknowledgement = request.CreateAcknowledgement();
-        _visibility?.AvatarAction(this, request, acknowledgement);
         await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
     }
 

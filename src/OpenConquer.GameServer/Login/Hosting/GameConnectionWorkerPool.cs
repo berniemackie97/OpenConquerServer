@@ -210,6 +210,17 @@ internal sealed partial class GameConnectionWorkerPool(
                         continue;
                     }
 
+                    if (frame.PacketId == GameTradeQuitRequest.PacketIdentifier)
+                    {
+                        if (!GameTradeQuitRequest.TryParse(frame, out GameTradeQuitRequest quit))
+                        {
+                            throw new InvalidDataException("The GameServer received an unsupported or malformed native trade request.");
+                        }
+
+                        session.ProcessTradeQuit(quit);
+                        continue;
+                    }
+
                     if (frame.PacketId == GameAction.PacketIdentifier)
                     {
                         if (GameGhostTransitionRequest.TryParse(frame, out GameGhostTransitionRequest ghost))

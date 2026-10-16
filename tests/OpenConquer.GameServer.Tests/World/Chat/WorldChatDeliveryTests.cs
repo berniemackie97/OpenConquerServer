@@ -41,6 +41,57 @@ public sealed class WorldChatDeliveryTests
     private const uint FirstCharacter = CharacterIdentityPolicy.FirstPlayerEntityId;
 
     [Fact]
+    public async Task NativeTradeQuit_IsIdempotentAndCannotImpersonateAnotherPlayer()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        await corpse.WaitForFrameCountAsync(1);
+        GameTradeQuitRequest quit = new(corpse.Session.Ownership.CharacterId);
+
+        corpse.Session.ProcessTradeQuit(quit);
+        corpse.Session.ProcessTradeQuit(quit);
+
+        Assert.False(corpse.Session.IsStopping);
+        Assert.Single(corpse.AvailableFrames()); // Only the initial dead-status update.
+        Assert.Throws<InvalidDataException>(() =>
+            corpse.Session.ProcessTradeQuit(new GameTradeQuitRequest(corpse.Session.Ownership.CharacterId + 1)));
+        Assert.False(corpse.Session.IsStopping);
+    }
+
+    [Fact]
+    public async Task CorpseAvatarSpoof_CannotChangeLateObserverPoseOrReceiveAcknowledgement()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        ClientSession observer = await world.AddAsync(1, "Bobby", FirstMap, 5, 2);
+        await corpse.WaitForFrameCountAsync(2);
+        await observer.WaitForFrameCountAsync(1);
+
+        GameAvatarAction pose = new(corpse.Session.Ownership.CharacterId,
+            GameAvatarAction.PoseAction, 4, GameAvatarAction.StandingPose, 100);
+        GameAvatarAction facing = new(corpse.Session.Ownership.CharacterId,
+            GameAvatarAction.DirectionAction, 7, 0, 101);
+        await corpse.Session.ProcessAvatarActionAsync(pose, TestContext.Current.CancellationToken);
+        await corpse.Session.ProcessAvatarActionAsync(facing, TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(corpse.AvailableFrames(), frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) is
+                (GameAvatarAction.PoseAction or GameAvatarAction.DirectionAction));
+        Assert.DoesNotContain(observer.AvailableFrames(), frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) is
+                (GameAvatarAction.PoseAction or GameAvatarAction.DirectionAction));
+
+        ClientSession late = await world.AddAsync(2, "Carol", FirstMap, 8, 2);
+        IReadOnlyList<byte[]> frames = await late.WaitForFrameCountAsync(2);
+        byte[] spawn = Assert.Single(frames, frame => PacketId(frame) == 10014 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(8)) == corpse.Session.Ownership.CharacterId);
+        Assert.Equal(0x14Bu, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(0x5B)));
+        Assert.Equal((byte)0, spawn[0x5A]);
+        Assert.Equal(1UL << 5, BinaryPrimitives.ReadUInt64LittleEndian(spawn.AsSpan(0x16)));
+        Assert.False(corpse.Session.IsStopping);
+    }
+
+    [Fact]
     public async Task GhostTransition_PublishesNativeAttributesAndUpdatesLateObserverSpawn()
     {
         await using ChatWorld world = new();
@@ -78,6 +129,15 @@ public sealed class WorldChatDeliveryTests
         Assert.Equal(980001003u, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(4)));
         Assert.Equal(1UL << 5 | 1UL << 10, BinaryPrimitives.ReadUInt64LittleEndian(spawn.AsSpan(0x16)));
         Assert.Equal(100u, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(0x5B)));
+
+        // Ghosts (unlike corpses) remain authorized to change facing.
+        GameAvatarAction facing = new(corpse.Session.Ownership.CharacterId,
+            GameAvatarAction.DirectionAction, 3, 0, 101);
+        GameActionPacket facingEcho = facing.CreateAcknowledgement();
+        byte[] expectedFacing = new byte[GameWireFrameEncoder.GetFrameLength(facingEcho)];
+        GameWireFrameEncoder.WriteFrame(facingEcho, expectedFacing);
+        await corpse.Session.ProcessAvatarActionAsync(facing, TestContext.Current.CancellationToken);
+        await observer.ExpectFrameAsync(expectedFacing);
     }
 
     [Fact]

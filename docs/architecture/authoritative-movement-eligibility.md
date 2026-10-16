@@ -15,10 +15,10 @@ binaries are **not** retail 5517 authority and provide no mounted gameplay.
 
 The current world has authenticated character ownership, persisted life at
 admission, exclusive map-partition execution, native movement packet framing,
-server-clock pacing, and a bounded FIFO for client/peer delivery. It does **not**
-currently own active ride/ghost statuses or the vigor writer for packet `1033`
-mode 2. Therefore it cannot accept selector-9 movement simply because the
-client requested that packet format. Within the generation-fenced `WorldRuntime`
+server-clock pacing, and a bounded FIFO for client/peer delivery. It owns
+primary dead/ghost state for this slice, but not active riding status or the
+vigor writer for packet `1033` mode 2. Therefore it cannot accept selector-9
+movement simply because the client requested that packet format. Within the generation-fenced `WorldRuntime`
 entry point, a selector-9 request is rejected before enqueuing a movement command.
 The verified 24-direction tables remain in `MapInstance.TryWalk` as the
 map-displacement primitive, covered by unit tests. Only the runtime is the
@@ -53,12 +53,27 @@ paths are introduced.
   the network-reachable runtime denies selector 9 and does not mutate the tile.
 - An authorized ordinary ground walk still commits, self-echoes, and transitions
   interest membership in partition order.
-- A dead snapshot cannot walk, and a character admitted with life zero remains
-  immobile through the runtime without mutating its authoritative coordinates.
+- A corpse remains immobile and a dead-plus-ghost snapshot can walk via the
+  ordinary selector; neither can use unauthenticated mounted movement or jump.
 - The encrypted world-session test verifies an unauthenticated selector-9 walk
   yields native correction 108 and is never echoed or published to other clients.
 - Stale generation checks and the existing ground movement/visibility test suite
   remain valid.
+
+## World-session integration and corpse pose safety
+
+The 5517 client emits 1056 mode 2 when dead status is added, including
+when status is hydrated after login. The authenticated session now recognizes
+only the native 12-byte trade-quit form and checks the entity ID. There is no
+server trade state yet: accepting this idempotent notification performs no
+inventory, currency, partner, or account mutation and sends no fabricated ack.
+Other 1056 modes and malformed layouts remain unsupported and close the session.
+The native +10..11 bytes are opaque and deliberately not treated as zero-only.
+
+Corpse avatars cannot change facing or standing pose. Authorization and
+observer fanout occur in the same serialized map-partition turn as the ghost
+transition, preventing a corpse pose from being cached for late observers.
+Authenticated ghosts and living characters retain the existing avatar actions.
 
 ## Deliberate future work / release gates
 
