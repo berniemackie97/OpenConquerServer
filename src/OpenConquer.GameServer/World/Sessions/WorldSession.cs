@@ -238,10 +238,11 @@ internal sealed class WorldSession : IAsyncDisposable
         WorldVisibilityService? visibility = _visibility;
         Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
         {
-            // Both the self echo and peer replication are queued in this partition
-            // turn, before any subsequent movement can execute on this map.
-            QueueVisibilityPacket(walk);
+            // Publish committed movement first: a full sender mailbox may
+            // start teardown, but healthy observers must not lose this movement.
+            // Both deliveries are scheduled in this partition turn.
             visibility.Moved(this, snapshot, walk);
+            QueueVisibilityPacket(walk);
         };
         WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex,
             walk.CommandSelector, publish, linked.Token).ConfigureAwait(false);
@@ -297,8 +298,8 @@ internal sealed class WorldSession : IAsyncDisposable
         WorldVisibilityService? visibility = _visibility;
         Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
         {
-            QueueVisibilityPacket(acknowledgement);
             visibility.Jumped(this, snapshot, acknowledgement);
+            QueueVisibilityPacket(acknowledgement);
         };
         WorldCharacterSnapshot? committed = await _runtime.TryJumpCharacterAsync(Ownership,
             jump.TargetX, jump.TargetY, publish, linked.Token).ConfigureAwait(false);

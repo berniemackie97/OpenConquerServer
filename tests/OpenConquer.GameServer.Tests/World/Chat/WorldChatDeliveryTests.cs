@@ -108,7 +108,8 @@ public sealed class WorldChatDeliveryTests
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 16, 0);
+        // Keep Bobby visible without occupying Alice's landing tile (16, 0).
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 16, 1);
         ClientSession carol = await world.AddAsync(2, "Carol", SecondMap);
         GameAction action = new(alice.Session.Ownership.CharacterId, 16, 0x1234, 100,
             GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0);
@@ -270,6 +271,53 @@ public sealed class WorldChatDeliveryTests
         Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(24)));
         Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(26)));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(22)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SenderMailboxOverflow_DoesNotLoseCommittedMovementForHealthyObservers(bool jump)
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 12, 0);
+        await alice.WaitForFrameCountAsync(1);
+        await bobby.WaitForFrameCountAsync(1);
+
+        // Hold one outbound write in the transport, then fill the 256-packet
+        // mailbox. The movement's own echo is the overflow that starts teardown.
+        alice.Transport.BlockSends();
+        GameWalkPacket filler = new(6, alice.Session.Ownership.CharacterId, 0, 1, 0);
+        alice.Session.QueueVisibilityPacket(filler);
+        await alice.Transport.SendBlocked.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        for (int i = 0; i < 256; i++)
+        {
+            alice.Session.QueueVisibilityPacket(filler);
+        }
+
+        byte[] expected;
+        if (jump)
+        {
+            GameJumpAction request = new(new GameAction(alice.Session.Ownership.CharacterId,
+                6, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0));
+            GameActionPacket acknowledgement = request.CreateAcknowledgement();
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            GameWireFrameEncoder.WriteFrame(acknowledgement, expected);
+            await alice.Session.ProcessJumpAsync(request, TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            GameWalkPacket request = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(request)];
+            GameWireFrameEncoder.WriteFrame(request, expected);
+            await alice.Session.ProcessWalkAsync(request, TestContext.Current.CancellationToken);
+        }
+
+        // The sender is disconnected for backpressure, but map movement was
+        // already committed and the unaffected observer must receive it.
+        Assert.True(alice.Session.IsStopping);
+        await bobby.ExpectFrameAsync(expected);
+        Assert.False(bobby.Session.IsStopping);
     }
 
     [Fact]
