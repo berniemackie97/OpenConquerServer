@@ -212,6 +212,12 @@ internal sealed partial class GameConnectionWorkerPool(
 
                     if (frame.PacketId == GameAction.PacketIdentifier)
                     {
+                        if (GameGhostTransitionRequest.TryParse(frame, out GameGhostTransitionRequest ghost))
+                        {
+                            await session.ProcessGhostTransitionAsync(ghost, cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
                         if (GameJumpAction.TryParse(frame, out GameJumpAction jump))
                         {
                             await session.ProcessJumpAsync(jump, cancellationToken).ConfigureAwait(false);

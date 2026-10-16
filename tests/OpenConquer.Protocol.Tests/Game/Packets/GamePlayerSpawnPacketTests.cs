@@ -59,6 +59,31 @@ public sealed class GamePlayerSpawnPacketTests
         Assert.Equal(250u, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(0x5B)));
     }
 
+    [Fact]
+    public void Encode_GhostStatusAndCorpsePoseUseNative5517SpawnOffsets()
+    {
+        GamePlayerSpawnPacket corpse = new(Create(1_000_000, "Valid") with
+        {
+            StatusMaskLow = 1UL << 5,
+            Action = 0x14B,
+        });
+        byte[] wire = new byte[GameWireFrameEncoder.GetFrameLength(corpse)];
+        GameWireFrameEncoder.WriteFrame(corpse, wire);
+        Assert.Equal(1UL << 5, BinaryPrimitives.ReadUInt64LittleEndian(wire.AsSpan(0x16)));
+        Assert.Equal(0UL, BinaryPrimitives.ReadUInt64LittleEndian(wire.AsSpan(0x1E)));
+        Assert.Equal(0x14Bu, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(0x5B)));
+
+        GamePlayerSpawnPacket ghost = new(Create(1_000_000, "Valid") with
+        {
+            Appearance = 980001003,
+            StatusMaskLow = 1UL << 5 | 1UL << 10,
+        });
+        GameWireFrameEncoder.WriteFrame(ghost, wire);
+        Assert.Equal(980001003u, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(4)));
+        Assert.Equal(1UL << 5 | 1UL << 10, BinaryPrimitives.ReadUInt64LittleEndian(wire.AsSpan(0x16)));
+        Assert.Equal(100u, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(0x5B)));
+    }
+
     [Theory]
     [InlineData(0u, "Valid")]
     [InlineData(999_999u, "Valid")]

@@ -374,6 +374,43 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
     }
 
+    /// <summary>One generation-fenced ghost transition, serialized with all map movements.</summary>
+    internal ValueTask<WorldCharacterSnapshot?> TryEnterGhostAsync(WorldCharacterOwnership ownership,
+        long serverTimestamp, Action<WorldCharacterSnapshot>? onCommitted = null,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != ownership || entry.Removing)
+            {
+                return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
+            }
+            if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
+            {
+                throw new InvalidOperationException("An active character references a missing world partition.");
+            }
+
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map =>
+            {
+                WorldCharacterSnapshot? transitioned = map.TryEnterGhost(ownership, serverTimestamp);
+                if (transitioned is WorldCharacterSnapshot ghost)
+                {
+                    onCommitted?.Invoke(ghost);
+                }
+                return transitioned;
+            });
+            return partition.TryEnqueue(command) switch
+            {
+                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
+                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
+                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
+            };
+        }
+    }
+
     /// <summary>Submits one authenticated jump target under exact generation-fenced ownership.</summary>
     public ValueTask<WorldCharacterSnapshot?> TryJumpCharacterAsync(WorldCharacterOwnership ownership,
         ushort targetX, ushort targetY, CancellationToken cancellationToken = default) =>

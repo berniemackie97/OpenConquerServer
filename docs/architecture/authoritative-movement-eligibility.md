@@ -25,14 +25,20 @@ map-displacement primitive, covered by unit tests. Only the runtime is the
 client-reachable movement admission API; any future 24-direction authorization
 must be added there using server-owned state, never client-supplied flags.
 
-`MapInstance.TryWalk` also rejects movement for any admitted snapshot with
-`IsAlive == false`, regardless of requested direction and selector. This check
-runs inside the exclusive partition turn, so stale-session or out-of-order world
-state cannot authorize dead ground walking. `WorldRuntime.AdmitCharacterAsync`
-sets this field from the server's persisted life value, not from an inbound
-movement packet. Dead-with-ghost movement is intentionally denied until the
-server owns and synchronizes ghost status; this is a **fail-closed compatibility
-limitation**, not a claim that retail 5517 prohibits ghosts from walking.
+`MapInstance.TryWalk` accepts a living character or a corpse with a server-owned ghost
+flag, but no other dead character. Both status bits (dead index 5 and ghost index
+10) live in a native-width 128-bit primary mask on the partition-owned snapshot.
+Dead-without-ghost refuses movement; dead-plus-ghost permits only selector 0/ordinary
+walking. Ground jumping still requires life. The login HP value only establishes
+initial life/death; inbound movement does not set status. The verified 3-second
+client request 145 is now accepted idempotently after a monotonic corpse-delay
+check. It commits ghost status in the same exclusive partition execution lane.
+The initial dead mask is sent to the local client after login reset; the transition
+then publishes 10017 attribute 25 (full 128-bit mask), followed by attribute 11
+(lookface family 98/99), to the local client and current observers. The 10014
+spawn includes status mask and the verified corpse lying pose for late observers.
+Future death/combat/status systems must use this same owner and serialization path;
+no unauthorized client status writer exists.
 
 An authenticated refused command continues to use the existing native
 `10010/108` correction path. The client predicts its working tile immediately,
@@ -56,9 +62,9 @@ paths are introduced.
 
 ## Deliberate future work / release gates
 
-- A server-authoritative status owner, including 128-bit status-mask writers and
-  secondary status details (packet 2075 replaces the mask wholesale).
-- Lifecycle-coherent death/ghost, freeze, stun, flustered auto-wander, transformation,
+- General server-authoritative primary-status mutation beyond dead/ghost, including
+  blessing, freeze, stun, fly, and secondary status details (2075).
+- Combat-driven death, self/spell revival, freeze, stun, flustered auto-wander, transformation,
   flying, status-dependent cadence, and event-driven updates to living occupancy.
 - Server-owned mount equip/skill authorization, ride flag `0x32`, vigor current/max,
   cost/recovery rules, 1033-mode-2 update, selector-9 admission, and charge handling.
@@ -66,4 +72,9 @@ paths are introduced.
   correction/animation behavior. Later-version Long/Canyon/Fox implementations
   may inform server mechanics but are not evidence of retail 5517 packet layout.
 
-No claim of full status, ghost, or mounted parity is made by this slice.
+This slice implements the client-reachable corpse→ghost movement envelope, not
+combat-driven death, full status effects, self/spell revival, or riding. Initial
+zero-HP login status is a documented compatibility policy; retail 5517 reconnect
+handling is not proven. Native wire fields and the ghost walking gate are client
+verified; the 3-second server enforcement and lifecycle from persisted zero HP
+are deliberate defensive reconstruction decisions.

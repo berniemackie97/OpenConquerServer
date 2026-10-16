@@ -83,6 +83,43 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     public void Jumped(WorldSession session, WorldCharacterSnapshot committed, GameActionPacket packet) =>
         PublishMovement(session, committed, packet, packet.EntityId, (byte)(packet.Direction % 8));
 
+    /// <summary>Publishes a committed ghost transition and updates late-join spawn state.</summary>
+    internal void Ghosted(WorldSession session, WorldCharacterSnapshot ghost, uint ghostLook)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.IsStopping || ghost.Ownership != session.Ownership || !ghost.IsGhost ||
+            !_maps.TryGetValue(session.Ownership.MapId, out MapState? map))
+        {
+            return;
+        }
+        lock (map.Gate)
+        {
+            uint id = session.Ownership.CharacterId;
+            if (!map.Sessions.TryGetValue(id, out WorldSession? registered) || !ReferenceEquals(registered, session))
+            {
+                return;
+            }
+
+            GamePlayerSpawnSnapshot prior = map.Spawns[id];
+            map.Spawns[id] = prior with
+            {
+                Appearance = ghostLook,
+                StatusMaskLow = ghost.Status.Low,
+                StatusMaskHigh = ghost.Status.High,
+                Action = GameAvatarAction.StandingPose,
+            };
+            GameUserAttributePacket status = new(id, GameUserAttributePacket.PrimaryStatusAttribute,
+                ghost.Status.Low, ghost.Status.High);
+            GameUserAttributePacket appearance = new(id, GameUserAttributePacket.LookAttribute, ghostLook);
+            foreach (uint observerId in map.Index.Observers(id))
+            {
+                WorldSession observer = map.Sessions[observerId];
+                observer.QueueVisibilityPacket(status);
+                observer.QueueVisibilityPacket(appearance);
+            }
+        }
+    }
+
     private void PublishMovement(WorldSession session, WorldCharacterSnapshot committed,
         IPacket packet, uint entityId, byte facing)
     {
@@ -325,11 +362,14 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             }
         }
         uint syndicateId = session.Bootstrap.SyndicateState.Syndicate?.SyndicateId ?? 0;
-        return new GamePlayerSpawnSnapshot(
+        GamePlayerSpawnSnapshot spawn = new(
             profile.Identity.CharacterId, profile.Identity.Name, profile.Appearance.Composite, profile.Appearance.Hair,
             x, y, direction, profile.Vitals.Life, profile.Progression.Level, profile.Progression.RebirthCount,
             profile.Progression.FirstProfession, profile.Progression.PreviousProfession, profile.Progression.Profession,
             profile.TitleId, syndicateId, head, armor, left, right);
+        return profile.Vitals.Life == 0
+            ? spawn with { StatusMaskLow = 1UL << WorldPrimaryStatusMask.Dead, Action = 0x14B }
+            : spawn;
     }
 
     private sealed class MapState

@@ -24,7 +24,11 @@ public sealed class GamePlayerSpawnPacket : IPacket
         {
             throw new ArgumentOutOfRangeException(nameof(player), "An eight-direction spawn requires direction 0 through 7.");
         }
-        if (player.Action > ushort.MaxValue || !GameAvatarAction.IsSupportedPose((ushort)player.Action))
+        if (player.Action > ushort.MaxValue ||
+            (!GameAvatarAction.IsSupportedPose((ushort)player.Action) &&
+             !(player.Action == 0x14B &&
+               (player.StatusMaskLow & (1UL << 5)) != 0 &&
+               (player.StatusMaskLow & (1UL << 10)) == 0)))
         {
             throw new ArgumentOutOfRangeException(nameof(player), "A player spawn requires a native 5517 action type.");
         }
@@ -48,7 +52,10 @@ public sealed class GamePlayerSpawnPacket : IPacket
         writer.WriteUInt32(p.EntityId);
         writer.WriteUInt32(p.SyndicateId);
         writer.WriteUInt32(0); // Syndicate rank is deliberately unmodelled for spawn scaling.
-        writer.Reserve(18);
+        // The native status mask starts at frame +0x16, inside this original reserved area.
+        writer.Reserve(2);
+        writer.WriteUInt64(p.StatusMaskLow);
+        writer.WriteUInt64(p.StatusMaskHigh);
         writer.WriteUInt16(0); // No transform look.
         writer.WriteUInt32(p.HeadwearItemType);
         writer.Reserve(4);
@@ -96,4 +103,5 @@ public sealed record GamePlayerSpawnSnapshot(
     uint EntityId, string Name, uint Appearance, ushort Hair, ushort X, ushort Y, byte Direction,
     uint Life, ushort Level, byte RebirthCount, ushort FirstProfession, ushort PreviousProfession,
     ushort Profession, ushort TitleId, uint SyndicateId, uint HeadwearItemType,
-    uint ArmorItemType, uint LeftHandItemType, uint RightHandItemType, uint Action = 100);
+    uint ArmorItemType, uint LeftHandItemType, uint RightHandItemType, uint Action = 100,
+    ulong StatusMaskLow = 0, ulong StatusMaskHigh = 0);
