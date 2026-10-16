@@ -25,6 +25,18 @@ public sealed class GameJumpActionTests
     }
 
     [Theory]
+    [InlineData((byte)0, true, false)]
+    [InlineData((byte)1, false, true)]
+    [InlineData((byte)7, false, false)]
+    public void Parse_DistinguishesGroundJumpAndChargeAtWire36(byte flag, bool ground, bool charge)
+    {
+        using GameInboundFrame frame = Frame(GameJumpAction.JumpAction, flag: flag);
+        Assert.True(GameJumpAction.TryParse(frame, out GameJumpAction jump));
+        Assert.Equal(ground, jump.IsGroundJump);
+        Assert.Equal(charge, jump.IsMountedCharge);
+    }
+
+    [Theory]
     [InlineData((ushort)79, 0x11223344u, (byte)0, 38, (ushort)10010)]
     [InlineData((ushort)137, 0u, (byte)0, 38, (ushort)10010)]
     [InlineData((ushort)137, 0x11223344u, (byte)1, 38, (ushort)10010)]
@@ -39,7 +51,7 @@ public sealed class GameJumpActionTests
 
     private static GameInboundFrame Frame(ushort action, uint entity = 0x11223344u,
         byte strings = 0, int length = GameAction.FixedPacketLength,
-        ushort packetId = GameAction.PacketIdentifier)
+        ushort packetId = GameAction.PacketIdentifier, byte flag = 7)
     {
         byte[] wire = new byte[length];
         WireFrameHeader.Write(wire, checked((ushort)length), packetId);
@@ -53,7 +65,7 @@ public sealed class GameJumpActionTests
         BinaryPrimitives.WriteUInt16LittleEndian(wire.AsSpan(26), 20);
         BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(28), 0xCAFEBABEu);
         BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(32), 0x11223344u);
-        wire[36] = 7;
+        wire[36] = flag;
         wire[37] = strings;
         byte[] rented = ArrayPool<byte>.Shared.Rent(length);
         wire.CopyTo(rented, 0);

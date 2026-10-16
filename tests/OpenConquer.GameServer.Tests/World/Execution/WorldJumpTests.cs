@@ -110,33 +110,131 @@ public sealed class WorldJumpTests
         }
     }
 
+    [Theory]
+    [InlineData((short)200, true)]
+    [InlineData((short)201, false)]
+    public void GroundJump_EnforcesNativePeakElevationAtInclusiveBoundary(short peak, bool permitted)
+    {
+        MapTerrainCollisionOverride[] overrides =
+            [new(2 * 64 + 4, new MapBaseTerrainCell(0, 0, peak))];
+        MapInstance map = new(CreateMap(overrides: overrides));
+        WorldCharacterOwnership owner = new(CharacterId, MapId, 1);
+        map.Admit(owner, 2, 2);
+        Assert.Equal(permitted, map.TryJump(owner, 6, 2).HasValue);
+        Assert.Equal(permitted ? (6, 2) : (2, 2), Position(map.Find(owner)));
+    }
+
+    [Fact]
+    public void GroundJump_SamplesComposedDiagonalAndAllowsDescendingTerrain()
+    {
+        MapTerrainCollisionOverride[] overrides =
+        [
+            new(2 * 64 + 2, new MapBaseTerrainCell(0, 0, -100)),
+            new(4 * 64 + 4, new MapBaseTerrainCell(0, 0, 101)),
+        ];
+        MapInstance map = new(CreateMap(overrides: overrides));
+        WorldCharacterOwnership owner = new(CharacterId, MapId, 1);
+        map.Admit(owner, 2, 2);
+        Assert.Null(map.TryJump(owner, 6, 6)); // 201 above the source.
+        Assert.Equal((2, 2), Position(map.Find(owner)));
+        Assert.NotNull(map.TryJump(owner, 2, 6)); // A descent is not a forbidden climb.
+    }
+
+    [Fact]
+    public void GroundJump_BlocksLivingOccupantAndReleasesTileAfterMovementOrRemoval()
+    {
+        MapInstance map = new(CreateMap());
+        WorldCharacterOwnership mover = new(CharacterId, MapId, 1);
+        WorldCharacterOwnership occupant = new(CharacterId + 1, MapId, 2);
+        map.Admit(mover, 2, 2);
+        map.Admit(occupant, 6, 2);
+        Assert.Null(map.TryJump(mover, 6, 2));
+        Assert.NotNull(map.TryWalk(occupant, 6));
+        Assert.NotNull(map.TryJump(mover, 6, 2));
+        Assert.True(map.Remove(occupant));
+        Assert.NotNull(map.TryJump(mover, 8, 2));
+    }
+
+    [Fact]
+    public void GroundJump_IgnoresDeadLandingOccupantsAndRejectsDeadJumper()
+    {
+        MapInstance map = new(CreateMap());
+        WorldCharacterOwnership mover = new(CharacterId, MapId, 1);
+        WorldCharacterOwnership dead = new(CharacterId + 1, MapId, 2);
+        map.Admit(mover, 2, 2);
+        map.Admit(dead, 6, 2, isAlive: false);
+        Assert.NotNull(map.TryJump(mover, 6, 2));
+        Assert.Null(map.TryJump(dead, 7, 2));
+    }
+
+    [Fact]
+    public async Task RuntimeAdmission_DerivesLandingOccupancyFromPersistedLife()
+    {
+        WorldMapContentCatalog maps = new([CreateMap()]);
+        await using WorldRuntime runtime = new(maps, new WorldExecutionOptions(1, 32, 8));
+        runtime.Start();
+        WorldCharacterOwnership jumper = await runtime.AdmitCharacterAsync(CreateProfile(),
+            TestContext.Current.CancellationToken);
+        WorldCharacterOwnership dead = await runtime.AdmitCharacterAsync(
+            CreateProfile(characterId: CharacterId + 1, life: 0, x: 6, y: 2),
+            TestContext.Current.CancellationToken);
+        WorldCharacterSnapshot deadSnapshot = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.ReadCharacterAsync(dead, TestContext.Current.CancellationToken));
+        Assert.False(deadSnapshot.IsAlive);
+        Assert.NotNull(await runtime.TryJumpCharacterAsync(jumper, 6, 2,
+            TestContext.Current.CancellationToken));
+        Assert.True(await runtime.RemoveCharacterAsync(dead, TestContext.Current.CancellationToken));
+        Assert.True(await runtime.RemoveCharacterAsync(jumper, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void GroundJump_LivingOccupancyReferenceCountsSharedWalkingTiles()
+    {
+        MapInstance map = new(CreateMap());
+        WorldCharacterOwnership jumper = new(CharacterId, MapId, 1);
+        WorldCharacterOwnership first = new(CharacterId + 1, MapId, 2);
+        WorldCharacterOwnership second = new(CharacterId + 2, MapId, 3);
+        map.Admit(jumper, 2, 2);
+        map.Admit(first, 6, 2);
+        map.Admit(second, 5, 2);
+        Assert.NotNull(map.TryWalk(second, 6));
+        Assert.True(map.Remove(first));
+        Assert.Null(map.TryJump(jumper, 6, 2));
+        Assert.True(map.Remove(second));
+        Assert.NotNull(map.TryJump(jumper, 6, 2));
+    }
+
     private static (ushort, ushort) Position(WorldCharacterSnapshot? snapshot)
     {
         WorldCharacterSnapshot value = Assert.IsType<WorldCharacterSnapshot>(snapshot);
         return (value.X, value.Y);
     }
 
-    private static WorldMapContent CreateMap(bool forbidden = false, bool blocked = false)
+    private static WorldMapContent CreateMap(bool forbidden = false, bool blocked = false,
+        MapTerrainCollisionOverride[]? overrides = null)
     {
         const int size = 64;
         MapBaseTerrain terrain = new(1015, size, size,
             Enumerable.Repeat(new MapBaseTerrainCell(0, 0, 0), size * size), []);
-        MapTerrainCollisionOverride[] overrides = blocked
-            ? [new MapTerrainCollisionOverride(5 * size + 5, new MapBaseTerrainCell(0, 1, 0))]
-            : [];
+        MapTerrainCollisionOverride[] composed = overrides ?? [];
+        if (blocked && overrides is null)
+        {
+            composed = [new MapTerrainCollisionOverride(5 * size + 5, new MapBaseTerrainCell(0, 1, 0))];
+        }
         return new WorldMapContent(new MapDefinition(MapId, 1015, forbidden ? 0x0200_0000UL : 0),
-            new MapTerrainCollision(terrain, overrides));
+            new MapTerrainCollision(terrain, composed));
     }
 
-    private static CharacterLoginProfile CreateProfile()
+    private static CharacterLoginProfile CreateProfile(uint characterId = CharacterId, ushort life = 100,
+        ushort x = 2, ushort y = 2)
     {
-        CharacterLoginIdentity identity = new(CharacterId, 42, "Bernie");
+        CharacterLoginIdentity identity = new(characterId, 42, "Bernie");
         CharacterAppearance appearance = new(1003, 410);
         CharacterProgression progression = new(1, 0, 10, 0, 0, 0, 0);
         CharacterAttributes attributes = new(10, 10, 10, 10, 0);
-        CharacterVitals vitals = new(100, 0);
+        CharacterVitals vitals = new(life, 0);
         CharacterEconomy economy = new(0, 0, 0);
         return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals,
-            economy, 0, 0, 0, new CharacterLocation(MapId, 2, 2));
+            economy, 0, 0, 0, new CharacterLocation(MapId, x, y));
     }
 }

@@ -270,11 +270,12 @@ internal sealed class WorldSession : IAsyncDisposable
             throw new InvalidDataException("Jump intent does not belong to the authenticated character.");
         }
 
-        // The persisted profile does not contain active mounted status. This is
-        // ground-jump support only; mounted jump caps remain a release gate.
+        // Subtype 137 with wire +36 = 1 is a mounted charge, not a ground
+        // jump. We cannot authorize or echo it until active ride/vigor exists.
+        // Unknown nonzero variants also fail closed with native reconciliation.
         // Preserve the fixed-memory ingress budget even for prohibited maps.
         if (!_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()) ||
-            (Map.Flags & 0x0200_0000UL) != 0)
+            !jump.IsGroundJump || (Map.Flags & 0x0200_0000UL) != 0)
         {
             await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
             return;

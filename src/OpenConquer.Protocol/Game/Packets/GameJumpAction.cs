@@ -12,6 +12,9 @@ public readonly record struct GameJumpAction(GameAction Action)
     public ushort TargetX => unchecked((ushort)Action.ParameterPair);
     public ushort TargetY => unchecked((ushort)(Action.ParameterPair >> 16));
     public uint Timestamp => Action.Timestamp;
+    // Wire +36 selects mounted charge (1) versus ordinary ground jump (0).
+    public bool IsGroundJump => Action.Flag == 0;
+    public bool IsMountedCharge => Action.Flag == 1;
 
     public static bool TryParse(GameInboundFrame frame, out GameJumpAction request)
     {

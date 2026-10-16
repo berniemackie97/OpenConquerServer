@@ -204,7 +204,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             WorldPartitionCommand<WorldCharacterOwnership> command = new(
                 map =>
                 {
-                    map.Admit(ownership, profile.Location.X, profile.Location.Y);
+                    map.Admit(ownership, profile.Location.X, profile.Location.Y, profile.Vitals.Life != 0);
                     return ownership;
                 },
                 _ => ReleaseOwner(ownership));

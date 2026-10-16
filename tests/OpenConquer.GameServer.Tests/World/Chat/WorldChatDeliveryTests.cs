@@ -252,6 +252,26 @@ public sealed class WorldChatDeliveryTests
         Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(26)));
     }
 
+    [Theory]
+    [InlineData((byte)1)]
+    [InlineData((byte)7)]
+    public async Task MountedChargeOrUnknownVariant_CorrectsRatherThanEchoes(byte flag)
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 10, 10);
+        GameJumpAction intent = new(new GameAction(alice.Session.Ownership.CharacterId,
+            (10u << 16) | 14u, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0,
+            flag, 0));
+        await alice.Session.ProcessJumpAsync(intent, TestContext.Current.CancellationToken);
+
+        byte[] correction = Assert.Single(await alice.WaitForFrameCountAsync(1));
+        Assert.Equal((ushort)10010, PacketId(correction));
+        Assert.Equal((ushort)108, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(20)));
+        Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(24)));
+        Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(26)));
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(22)));
+    }
+
     [Fact]
     public async Task NativeJump_RejectsForeignIdentityWithoutMoving()
     {
