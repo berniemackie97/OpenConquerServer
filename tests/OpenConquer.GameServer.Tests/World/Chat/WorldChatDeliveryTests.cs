@@ -104,6 +104,235 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
+    public async Task NativeJump_AcknowledgesAndRelaysOnlyAfterAuthoritativeLanding()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        // Keep Bobby visible without occupying Alice's landing tile (16, 0).
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 16, 1);
+        ClientSession carol = await world.AddAsync(2, "Carol", SecondMap);
+        GameAction action = new(alice.Session.Ownership.CharacterId, 16, 0x1234, 100,
+            GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0);
+        GameJumpAction jump = new(action);
+        GameActionPacket echo = jump.CreateAcknowledgement();
+        byte[] expected = new byte[GameWireFrameEncoder.GetFrameLength(echo)];
+        GameWireFrameEncoder.WriteFrame(echo, expected);
+
+        await alice.Session.ProcessJumpAsync(jump, TestContext.Current.CancellationToken);
+        await alice.ExpectFrameAsync(expected);
+        await bobby.ExpectFrameAsync(expected);
+        Assert.DoesNotContain(carol.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(expected));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MovementCrossingVisibilityBoundary_RelaysFinalMotionToDepartingObserver(bool jump)
+    {
+        await using ChatWorld world = new();
+        // The two players are initially visible at exactly the native radius.
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 18, 1);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 0, 1);
+        await bobby.WaitForFrameCountAsync(1);
+
+        byte[] expected;
+        if (jump)
+        {
+            // Native absolute target: (34, 1), 16 tiles from Alice, now 34
+            // tiles from Bobby. A retained-only fanout silently loses this.
+            GameAction action = new(alice.Session.Ownership.CharacterId, (1u << 16) | 34u,
+                0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0);
+            GameJumpAction intent = new(action);
+            GameActionPacket acknowledgement = intent.CreateAcknowledgement();
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            GameWireFrameEncoder.WriteFrame(acknowledgement, expected);
+            await alice.Session.ProcessJumpAsync(intent, TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            // A one-tile eastward step crosses 18 -> 19 tiles.
+            GameWalkPacket intent = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(intent)];
+            GameWireFrameEncoder.WriteFrame(intent, expected);
+            await alice.Session.ProcessWalkAsync(intent, TestContext.Current.CancellationToken);
+        }
+
+        await bobby.ExpectFrameAsync(expected);
+        Assert.Single(bobby.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(expected));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BlockedSenderSocket_DoesNotDelayAuthoritativeMovementOrPeerDelivery(bool jump)
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 12, 0);
+
+        // Finish the initial bidirectional spawn before blocking the mover's
+        // outgoing transport. A live socket must never hold the map scheduler.
+        await alice.WaitForFrameCountAsync(1);
+        await bobby.WaitForFrameCountAsync(1);
+        alice.Transport.BlockSends();
+
+        byte[] expected;
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        if (jump)
+        {
+            GameJumpAction intent = new(new GameAction(alice.Session.Ownership.CharacterId,
+                6, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0));
+            GameActionPacket acknowledgement = intent.CreateAcknowledgement();
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            GameWireFrameEncoder.WriteFrame(acknowledgement, expected);
+            await alice.Session.ProcessJumpAsync(intent, timeout.Token);
+        }
+        else
+        {
+            GameWalkPacket intent = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(intent)];
+            GameWireFrameEncoder.WriteFrame(intent, expected);
+            await alice.Session.ProcessWalkAsync(intent, timeout.Token);
+        }
+
+        // The peer sees the committed movement although the mover's self-echo
+        // is stalled on the network. No second reader or synthetic delivery hook.
+        await bobby.ExpectFrameAsync(expected);
+        Assert.False(bobby.Session.IsStopping);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RejectedPredictedMovement_ImmediatelySendsNative108AuthoritativePosition(bool jump)
+    {
+        await using ChatWorld world = new();
+        // A blocked west step at x=0, or an in-range jump off the map
+        // from x=63, exercises the authoritative partition rejection path.
+        ushort startX = jump ? (ushort)63 : (ushort)0;
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, startX, 0);
+        if (jump)
+        {
+            GameJumpAction intent = new(new GameAction(alice.Session.Ownership.CharacterId,
+                64, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0));
+            await alice.Session.ProcessJumpAsync(intent, TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            GameWalkPacket intent = new(2, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            await alice.Session.ProcessWalkAsync(intent, TestContext.Current.CancellationToken);
+        }
+
+        IReadOnlyList<byte[]> received = await alice.WaitForFrameCountAsync(1);
+        byte[] correction = Assert.Single(received);
+        Assert.Equal((ushort)10010, PacketId(correction));
+        Assert.Equal((ushort)108, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(20)));
+        Assert.Equal(startX, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(24)));
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(26)));
+        Assert.Equal(alice.Session.Ownership.CharacterId, BinaryPrimitives.ReadUInt32LittleEndian(correction.AsSpan(4)));
+    }
+
+    [Fact]
+    public async Task RejectedMovementReplay_CorrectsToLastCommittedTile()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 10, 10);
+        GameWalkPacket first = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+        GameWalkPacket second = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+
+        await alice.Session.ProcessWalkAsync(first, TestContext.Current.CancellationToken);
+        await alice.Session.ProcessWalkAsync(second, TestContext.Current.CancellationToken);
+
+        IReadOnlyList<byte[]> received = await alice.WaitForFrameCountAsync(2);
+        Assert.Equal(2, received.Count);
+        Assert.Equal(GameWalkPacket.PacketIdentifier, PacketId(received[0]));
+        Assert.Equal((ushort)10010, PacketId(received[1]));
+        Assert.Equal((ushort)108, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(20)));
+        Assert.Equal((ushort)11, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(24)));
+        Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(26)));
+    }
+
+    [Theory]
+    [InlineData((byte)1)]
+    [InlineData((byte)7)]
+    public async Task MountedChargeOrUnknownVariant_CorrectsRatherThanEchoes(byte flag)
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 10, 10);
+        GameJumpAction intent = new(new GameAction(alice.Session.Ownership.CharacterId,
+            (10u << 16) | 14u, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0,
+            flag, 0));
+        await alice.Session.ProcessJumpAsync(intent, TestContext.Current.CancellationToken);
+
+        byte[] correction = Assert.Single(await alice.WaitForFrameCountAsync(1));
+        Assert.Equal((ushort)10010, PacketId(correction));
+        Assert.Equal((ushort)108, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(20)));
+        Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(24)));
+        Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(26)));
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(22)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SenderMailboxOverflow_DoesNotLoseCommittedMovementForHealthyObservers(bool jump)
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 12, 0);
+        await alice.WaitForFrameCountAsync(1);
+        await bobby.WaitForFrameCountAsync(1);
+
+        // Hold one outbound write in the transport, then fill the 256-packet
+        // mailbox. The movement's own echo is the overflow that starts teardown.
+        alice.Transport.BlockSends();
+        GameWalkPacket filler = new(6, alice.Session.Ownership.CharacterId, 0, 1, 0);
+        alice.Session.QueueVisibilityPacket(filler);
+        await alice.Transport.SendBlocked.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        for (int i = 0; i < 256; i++)
+        {
+            alice.Session.QueueVisibilityPacket(filler);
+        }
+
+        byte[] expected;
+        if (jump)
+        {
+            GameJumpAction request = new(new GameAction(alice.Session.Ownership.CharacterId,
+                6, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0));
+            GameActionPacket acknowledgement = request.CreateAcknowledgement();
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            GameWireFrameEncoder.WriteFrame(acknowledgement, expected);
+            await alice.Session.ProcessJumpAsync(request, TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            GameWalkPacket request = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            expected = new byte[GameWireFrameEncoder.GetFrameLength(request)];
+            GameWireFrameEncoder.WriteFrame(request, expected);
+            await alice.Session.ProcessWalkAsync(request, TestContext.Current.CancellationToken);
+        }
+
+        // The sender is disconnected for backpressure, but map movement was
+        // already committed and the unaffected observer must receive it.
+        Assert.True(alice.Session.IsStopping);
+        await bobby.ExpectFrameAsync(expected);
+        Assert.False(bobby.Session.IsStopping);
+    }
+
+    [Fact]
+    public async Task NativeJump_RejectsForeignIdentityWithoutMoving()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
+        GameAction action = new(alice.Session.Ownership.CharacterId + 1, 16, 0, 100,
+            GameJumpAction.JumpAction, 0, 0, 0, 0, 0, 0, 0);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            alice.Session.ProcessJumpAsync(new GameJumpAction(action), TestContext.Current.CancellationToken).AsTask());
+        Assert.Empty(alice.AvailableFrames());
+    }
+
+    [Fact]
     public async Task Whisper_UsesCanonicalNameAcrossMapsWithoutPublishingToOtherPlayers()
     {
         await using ChatWorld world = new();
@@ -378,6 +607,16 @@ public sealed class WorldChatDeliveryTests
                 await Task.Delay(10, timeout.Token);
             }
             return _frames;
+        }
+
+        public async Task ExpectFrameAsync(byte[] expected)
+        {
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            while (!AvailableFrames().Any(frame => frame.AsSpan().SequenceEqual(expected)))
+            {
+                await Task.Delay(10, timeout.Token);
+            }
         }
 
         public async Task ExpectPacketAsync(GameChatPacket packet)

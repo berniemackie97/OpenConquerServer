@@ -21,9 +21,12 @@ server radius would create persistent disagreement.
 - After a committed, acknowledged eight-direction walk, already-visible peers receive the native
   `10005` movement packet exactly once. A newly visible peer receives a `10014` spawn at the
   destination instead; sending both would move the peer one additional tile in the client.
-- On leaving visibility at exactly the native radius, no packet is needed: the client sweeps
-  distant roles each frame. A disconnect/kick/world shutdown while still in view sends
-  `MsgAction` (`10010`) subtype `135`, with the departed entity ID at wire `+4`.
+- When a committed move crosses beyond radius 18, a *previously observing* client receives
+  that final native movement packet. This updates its last-known remote tile so the client's
+  per-frame distance cull can remove the out-of-range role. A movement packet must not be
+  silently dropped solely because the observer was removed from the new interest set.
+  Disconnect/kick/world shutdown while still in view instead sends `MsgAction` (`10010`)
+  subtype `135`, with the departed entity ID at wire `+4`.
 - The client's `MsgAction` subtype `102` query identifies the unresolved peer in `ParameterPair`
   (wire `+8`) and the authenticated local player at `+4`. It receives `10014` only when the
   sender still has that peer in its recorded visibility set. No arbitrary ID lookup is exposed.
@@ -31,7 +34,11 @@ server radius would create persistent disagreement.
 ## Output isolation and bounded work
 
 Per-map membership operations use a short lock for index bookkeeping and enqueuing only.
-No transport write occurs under the lock. Each world session has one bounded 256-packet FIFO
+Movement commits and their visibility transitions enqueue in the same exclusive
+map-partition turn; no socket operation is awaited between them. The local movement
+echo and peer movement/spawn packets use the same per-recipient FIFO as other
+gameplay acknowledgements, so subsequent application responses cannot overtake a
+pending movement echo. No transport write occurs under the lock. Each world session has one bounded 256-packet FIFO
 for peer visibility and a single writer using its existing outbound write semaphore. A full
 mailbox or transport failure closes only the slow recipient, releasing its world ownership;
 it cannot stall movement or disconnect the broadcaster. Shutdown cancels the sender before

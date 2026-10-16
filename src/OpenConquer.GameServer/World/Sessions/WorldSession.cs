@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
+using OpenConquer.Domain.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Chat;
@@ -34,6 +35,7 @@ internal sealed class WorldSession : IAsyncDisposable
     private readonly CancellationTokenSource _visibilityStopping = new();
     private Task? _visibilityWrites;
     private readonly WorldWalkPacer _walkPacer = new();
+    private readonly WorldJumpIngressLimiter _jumpIngressLimiter = new();
     private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
     private readonly WorldChatRateLimiter _chatRateLimiter = new();
     private readonly WorldPositionReconciler _positionReconciler;
@@ -150,7 +152,10 @@ internal sealed class WorldSession : IAsyncDisposable
         _visibility?.Query(this, subjectId);
     }
 
-    /// <summary>Only the world visibility index may enqueue peer packets.</summary>
+    /// <summary>
+    /// Ordered bounded game-world egress. Partition-committed movement and peer
+    /// replication enqueue here without awaiting a socket, preserving causal FIFO order.
+    /// </summary>
     internal void QueueVisibilityPacket(IPacket packet)
     {
         if (IsStopping || _visibilityMailbox is null)
@@ -225,18 +230,90 @@ internal sealed class WorldSession : IAsyncDisposable
 
         if (!_walkPacer.TryAccept(walk.MovementTick, Stopwatch.GetTimestamp(), walk.IsTwentyFourDirection))
         {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldVisibilityService? visibility = _visibility;
+        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
+        {
+            // Publish committed movement first: a full sender mailbox may
+            // start teardown, but healthy observers must not lose this movement.
+            // Both deliveries are scheduled in this partition turn.
+            visibility.Moved(this, snapshot, walk);
+            QueueVisibilityPacket(walk);
+        };
         WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex,
-            walk.CommandSelector, linked.Token).ConfigureAwait(false);
+            walk.CommandSelector, publish, linked.Token).ConfigureAwait(false);
 
         if (committed is not null)
         {
             _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
-            await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
-            _visibility?.Moved(this, committed.Value, walk);
+            if (visibility is null)
+            {
+                await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        else
+        {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Applies a native absolute-tile jump only after authoritative partition admission.</summary>
+    internal async ValueTask ProcessJumpAsync(GameJumpAction jump, CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+        if (jump.EntityId != Ownership.CharacterId || jump.Action.Action != GameJumpAction.JumpAction ||
+            jump.Action.StringCount != 0)
+        {
+            throw new InvalidDataException("Jump intent does not belong to the authenticated character.");
+        }
+
+        // Subtype 137 with wire +36 = 1 is a mounted charge, not a ground
+        // jump. We cannot authorize or echo it until active ride/vigor exists.
+        // Unknown nonzero variants also fail closed with native reconciliation.
+        // Preserve the fixed-memory ingress budget even for prohibited maps.
+        if (!_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()) ||
+            !jump.IsGroundJump || (Map.Flags & 0x0200_0000UL) != 0)
+        {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldCharacterSnapshot? before = await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false);
+        if (before is null)
+        {
+            throw new InvalidDataException("Jump intent has no active authoritative world owner.");
+        }
+        int distance = MapDistance.RoundedTileDistance(before.Value.X, before.Value.Y, jump.TargetX, jump.TargetY);
+        if (distance is < 1 or > 16 || !_walkPacer.TryAcceptJump(jump.Timestamp, Stopwatch.GetTimestamp(), distance))
+        {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        GameActionPacket acknowledgement = jump.CreateAcknowledgement();
+        WorldVisibilityService? visibility = _visibility;
+        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
+        {
+            visibility.Jumped(this, snapshot, acknowledgement);
+            QueueVisibilityPacket(acknowledgement);
+        };
+        WorldCharacterSnapshot? committed = await _runtime.TryJumpCharacterAsync(Ownership,
+            jump.TargetX, jump.TargetY, publish, linked.Token).ConfigureAwait(false);
+        if (committed is not null)
+        {
+            _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
+            if (visibility is null)
+            {
+                await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        else
+        {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -281,7 +358,7 @@ internal sealed class WorldSession : IAsyncDisposable
         GameChatPacket? acknowledgement = _visibility?.PublishChat(this, request);
         if (acknowledgement is not null)
         {
-            await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+            await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -317,7 +394,7 @@ internal sealed class WorldSession : IAsyncDisposable
         ThrowIfInactive();
         GameActionPacket acknowledgement = request.CreateAcknowledgement();
         _visibility?.AvatarAction(this, request, acknowledgement);
-        await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+        await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -354,10 +431,7 @@ internal sealed class WorldSession : IAsyncDisposable
             return;
         }
 
-        GameActionPacket correction = new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
-            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
-            positionX: snapshot.Value.X, positionY: snapshot.Value.Y, data1: 0, data2: 0, flag: 0);
-        await WriteAsync(correction, cancellationToken).ConfigureAwait(false);
+        await SendGameplayResponseAsync(CreatePositionCorrection(snapshot.Value), cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
@@ -383,6 +457,56 @@ internal sealed class WorldSession : IAsyncDisposable
         }
 
         return frame;
+    }
+
+    /// <summary>
+    /// Replies to a refused locally predicted walk/jump with the authoritative tile.
+    /// Per-session limiting bounds snapshot reads and corrective egress under packet spam.
+    /// This is separate from unsolicited idle-position-report reconciliation.
+    /// </summary>
+    private async ValueTask CorrectRejectedMovementAsync(CancellationToken cancellationToken)
+    {
+        if (!_positionReconciler.TryReserveRejectedMovementCorrection(Stopwatch.GetTimestamp()))
+        {
+            // The reader closes protocol-abusive sessions: never leave a connected
+            // client on a rejected, locally predicted tile without a correction.
+            throw new InvalidDataException(
+                "Movement denial correction budget exhausted.");
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _runtime.StoppingToken);
+        WorldCharacterSnapshot? authoritative = await _runtime.ReadCharacterAsync(Ownership, linked.Token)
+            .ConfigureAwait(false);
+        if (authoritative is null)
+        {
+            throw new InvalidDataException("Rejected movement no longer has authoritative world ownership.");
+        }
+
+        _positionReconciler.RecordAuthorized(authoritative.Value.X, authoritative.Value.Y);
+        await SendGameplayResponseAsync(CreatePositionCorrection(authoritative.Value), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private GameActionPacket CreatePositionCorrection(WorldCharacterSnapshot position) =>
+        new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
+            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
+            positionX: position.X, positionY: position.Y, data1: 0, data2: 0, flag: 0);
+
+    /// <summary>
+    /// Keep local gameplay responses in the same per-session FIFO as peer spawns and
+    /// movement. Sessions without visibility preserve their original direct send.
+    /// </summary>
+    private ValueTask SendGameplayResponseAsync(IPacket packet, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfInactive();
+        if (_visibilityMailbox is null)
+        {
+            return WriteAsync(packet, cancellationToken);
+        }
+        QueueVisibilityPacket(packet);
+        return ValueTask.CompletedTask;
     }
 
     public async ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default)

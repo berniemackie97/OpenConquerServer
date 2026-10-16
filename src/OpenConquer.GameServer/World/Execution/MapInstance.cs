@@ -1,5 +1,6 @@
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
+using OpenConquer.Domain.World;
 
 namespace OpenConquer.GameServer.World.Execution;
 
@@ -17,11 +18,15 @@ internal sealed class MapInstance(WorldMapContent map)
         [0, -2, -2, -2, 0, 2, 2, 2, -1, -2, -2, -1, 1, 2, 2, 1, -1, -2, -2, -1, 1, 2, 2, 1];
     private static readonly sbyte[] s_twoTileDeltaY =
         [2, 2, 0, -2, -2, -2, 0, 2, 2, 1, -1, -2, -2, -1, 1, 2, 2, 1, -1, -2, -2, -1, 1, 2];
+    private const int GroundJumpMaximumClimb = 200;
     private readonly Dictionary<uint, WorldCharacterSnapshot> _characters = [];
+    // Map-partition-owned index. Counts allow ordinary walking to share tiles;
+    // only ground-jump landing tests require a vacant living-player tile.
+    private readonly Dictionary<(ushort X, ushort Y), int> _livingTileOccupancy = [];
 
     public WorldMapContent Map { get; } = map ?? throw new ArgumentNullException(nameof(map));
 
-    public void Admit(WorldCharacterOwnership ownership, ushort x, ushort y)
+    public void Admit(WorldCharacterOwnership ownership, ushort x, ushort y, bool isAlive = true)
     {
         if (ownership.MapId != Map.MapId)
         {
@@ -38,9 +43,22 @@ internal sealed class MapInstance(WorldMapContent map)
             throw new ArgumentOutOfRangeException(nameof(x), "Character position is outside the canonical map terrain.");
         }
 
-        if (!_characters.TryAdd(ownership.CharacterId, new WorldCharacterSnapshot(ownership, x, y)))
+        if (!_characters.TryAdd(ownership.CharacterId, new WorldCharacterSnapshot(ownership, x, y, isAlive)))
         {
             throw new InvalidOperationException($"Character {ownership.CharacterId} already belongs to map {Map.MapId}.");
+        }
+
+        if (isAlive)
+        {
+            try
+            {
+                AddLivingOccupant(x, y);
+            }
+            catch
+            {
+                _characters.Remove(ownership.CharacterId);
+                throw;
+            }
         }
     }
 
@@ -51,7 +69,15 @@ internal sealed class MapInstance(WorldMapContent map)
             return false;
         }
 
-        return _characters.Remove(ownership.CharacterId);
+        if (!_characters.Remove(ownership.CharacterId))
+        {
+            throw new InvalidOperationException("The exclusive map partition lost an authenticated occupant.");
+        }
+        if (current.IsAlive)
+        {
+            RemoveLivingOccupant(current.X, current.Y);
+        }
+        return true;
     }
 
     public WorldCharacterSnapshot? Find(WorldCharacterOwnership ownership)
@@ -86,6 +112,7 @@ internal sealed class MapInstance(WorldMapContent map)
         }
 
         WorldCharacterSnapshot moved = current with { X = (ushort)x, Y = (ushort)y };
+        RelocateLivingOccupant(current, moved.X, moved.Y);
         _characters[ownership.CharacterId] = moved;
         return moved;
     }
@@ -108,5 +135,93 @@ internal sealed class MapInstance(WorldMapContent map)
             (dx == 0 || Map.Collision.IsStaticallyPassable(current.X + sx, current.Y + sy));
     }
 
-    public void Clear() => _characters.Clear();
+    /// <summary>Commits a native absolute-target jump on this map's exclusive partition turn.</summary>
+    public WorldCharacterSnapshot? TryJump(WorldCharacterOwnership ownership, ushort targetX, ushort targetY)
+    {
+        if (!_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current) ||
+            current.Ownership != ownership || !current.IsAlive ||
+            (Map.Flags & 0x0200_0000UL) != 0 ||
+            !Map.Collision.IsStaticallyPassable(targetX, targetY))
+        {
+            return null;
+        }
+
+        int distance = MapDistance.RoundedTileDistance(current.X, current.Y, targetX, targetY);
+        if (distance is < 1 or > 16 ||
+            _livingTileOccupancy.ContainsKey((targetX, targetY)) ||
+            !IsGroundJumpElevationAllowed(current.X, current.Y, targetX, targetY))
+        {
+            return null;
+        }
+
+        WorldCharacterSnapshot moved = current with { X = targetX, Y = targetY };
+        RelocateLivingOccupant(current, targetX, targetY);
+        _characters[ownership.CharacterId] = moved;
+        return moved;
+    }
+
+    // Retail 5517 samples the rounded direct line, excluding the origin. Only
+    // upward peak-minus-origin elevation is capped (200 for a non-flying role).
+    // All samples use the composed collision terrain, not the unmodified DMap.
+    private bool IsGroundJumpElevationAllowed(ushort fromX, ushort fromY, ushort toX, ushort toY)
+    {
+        int startElevation = Map.Collision.GetEffectiveCell(fromX, fromY).Elevation;
+        int dx = (int)toX - fromX;
+        int dy = (int)toY - fromY;
+        int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+
+        for (int step = 1; step <= steps; step++)
+        {
+            int x = fromX + RoundedLineOffset(dx, step, steps);
+            int y = fromY + RoundedLineOffset(dy, step, steps);
+            if (Map.Collision.GetEffectiveCell(x, y).Elevation - startElevation > GroundJumpMaximumClimb)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Integer-only, nearest tile, midpoint away from the starting coordinate.
+    // Jump admission limits both axes to at most 16, so products are bounded.
+    private static int RoundedLineOffset(int delta, int step, int steps)
+    {
+        int rounded = ((Math.Abs(delta) * step * 2) + steps) / (steps * 2);
+        return delta < 0 ? -rounded : rounded;
+    }
+
+    private void AddLivingOccupant(ushort x, ushort y)
+    {
+        (ushort X, ushort Y) tile = (x, y);
+        _livingTileOccupancy[tile] = checked(_livingTileOccupancy.GetValueOrDefault(tile) + 1);
+    }
+
+    private void RemoveLivingOccupant(ushort x, ushort y)
+    {
+        (ushort X, ushort Y) tile = (x, y);
+        int remaining = _livingTileOccupancy[tile] - 1;
+        if (remaining == 0)
+        {
+            _livingTileOccupancy.Remove(tile);
+        }
+        else
+        {
+            _livingTileOccupancy[tile] = remaining;
+        }
+    }
+
+    private void RelocateLivingOccupant(WorldCharacterSnapshot current, ushort x, ushort y)
+    {
+        if (current.IsAlive && (current.X != x || current.Y != y))
+        {
+            AddLivingOccupant(x, y);
+            RemoveLivingOccupant(current.X, current.Y);
+        }
+    }
+
+    public void Clear()
+    {
+        _characters.Clear();
+        _livingTileOccupancy.Clear();
+    }
 }

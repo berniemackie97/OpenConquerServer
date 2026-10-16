@@ -12,6 +12,10 @@ internal sealed class WorldPositionReconciler
     private const int HistoryCapacity = 64;
     private const int DivergentReportsBeforeCorrection = 3;
     private static readonly long s_minimumCorrectionInterval = Stopwatch.Frequency;
+    // A bounded per-session correction budget preserves predict/reconcile semantics
+    // while disconnecting abusive clients instead of silently leaving them displaced.
+    internal const int MaximumRejectedCorrectionsPerSecond = 32;
+    private static readonly long s_rejectedMovementWindow = Stopwatch.Frequency;
 
     private readonly Tile[] _history = new Tile[HistoryCapacity];
     private int _next;
@@ -19,6 +23,8 @@ internal sealed class WorldPositionReconciler
     private int _divergentReports;
     private long _lastCorrectionTimestamp;
     private bool _hasCorrected;
+    private long _rejectedMovementWindowStart;
+    private int _rejectedMovementCount;
 
     public WorldPositionReconciler(ushort startX, ushort startY)
     {
@@ -38,6 +44,30 @@ internal sealed class WorldPositionReconciler
         _history[_next] = tile;
         _next = (_next + 1) % HistoryCapacity;
         _count = Math.Min(_count + 1, HistoryCapacity);
+    }
+
+    /// <summary>
+    /// Reserves a bounded immediate correction for a rejected movement intent.
+    /// The 5517 client predicts walking and jumping before its authoritative echo;
+    /// withholding that echo alone does not restore its locally animated tile.
+    /// </summary>
+    public bool TryReserveRejectedMovementCorrection(long serverTimestamp)
+    {
+        if (_rejectedMovementCount == 0 || serverTimestamp < _rejectedMovementWindowStart ||
+            serverTimestamp - _rejectedMovementWindowStart >= s_rejectedMovementWindow)
+        {
+            _rejectedMovementWindowStart = serverTimestamp;
+            _rejectedMovementCount = 1;
+            return true;
+        }
+
+        if (_rejectedMovementCount >= MaximumRejectedCorrectionsPerSecond)
+        {
+            return false;
+        }
+
+        _rejectedMovementCount++;
+        return true;
     }
 
     /// <summary>

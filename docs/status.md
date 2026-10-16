@@ -42,6 +42,10 @@ implemented parts work and link here rather than repeating this list.
 - Native 5517 10005 eight- and 24-direction movement parsing, authenticated world-session gating,
   server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
   Selector-9 two-tile movement has a conservative two-interval limit until mounted-state authority exists.
+- Native 5517 10010 subtype 137 absolute-target ground jump (1–16 rounded tiles), enforced
+  by authoritative map partition, map jump-prohibition flags, composed landing collision,
+  shared jump/walk pacing, post-commit self-echo and bounded peer replication; mounted-specific
+  caps and animation/elevation status remain unimplemented (see [native jumping](architecture/native-jumping.md)).
 - Authenticated 10010 position reports (subtypes 100/146), bounded authorized-tile history,
   and conservative native 108 correction after repeated divergence; no report is echoed.
 - Partition-owned native eight- and 24-direction walking state mutation with native 5517 direction ordering,
@@ -86,7 +90,7 @@ implemented parts work and link here rather than repeating this list.
 - Account registration and staff tooling.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
-- Remaining gameplay routing: mounted-status authority, jumping, non-player replication,
+- Remaining gameplay routing: mounted-status authority, mounted-jump caps, non-player replication,
   position persistence, combat, NPCs, trading, nonlocal and group chat channels. Position correction is limited
   to repeated drift reports from the authenticated local character.
 - World simulation: monsters, timers, NPC/monster/ground-item visibility, and map transfers.
