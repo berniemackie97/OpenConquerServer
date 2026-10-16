@@ -341,6 +341,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
 
+            // Selector 9 is a mounted movement command, not an unauthenticated
+            // two-tile speed mode. No server-owned ride/vigor state exists yet.
+            // Deny before occupying a partition command slot; the world session
+            // replies with native 108 to undo the client's predicted displacement.
+            if (commandSelector == 9)
+            {
+                return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
+            }
+
             if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
             {
                 throw new InvalidOperationException("An active character references a missing world partition.");

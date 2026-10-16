@@ -112,19 +112,25 @@ public sealed class NativeTwentyFourDirectionMovementTests
     }
 
     [Fact]
-    public async Task Runtime_Queues24DirectionStepUnderGenerationFence()
+    public async Task Runtime_RejectsMountedSelectorWithoutServerOwnedRideState()
     {
         WorldMapContentCatalog content = new([CreateMap()]);
         await using WorldRuntime runtime = new(content, new WorldExecutionOptions(1, 32, 8));
         runtime.Start();
         WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(CreateProfile(), TestContext.Current.CancellationToken);
 
-        WorldCharacterSnapshot moved = Assert.IsType<WorldCharacterSnapshot>(
-            await runtime.TryWalkCharacterAsync(owner, 23, 9, TestContext.Current.CancellationToken));
-        Assert.Equal((3, 4), (moved.X, moved.Y));
+        // Direction-table correctness is covered above independently of admission.
+        // A normal authenticated character must not acquire mounted speed by
+        // submitting selector 9 while no server-authoritative ride state exists.
+        Assert.Null(await runtime.TryWalkCharacterAsync(owner, 23, 9,
+            TestContext.Current.CancellationToken));
+        Assert.Equal((2, 2), Position(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken)));
         Assert.Null(await runtime.TryWalkCharacterAsync(owner with { Generation = owner.Generation + 1 }, 0, 9,
             TestContext.Current.CancellationToken));
-        Assert.Equal((3, 4), Position(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken)));
+
+        WorldCharacterSnapshot groundStep = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.TryWalkCharacterAsync(owner, 6, 0, TestContext.Current.CancellationToken));
+        Assert.Equal((3, 2), (groundStep.X, groundStep.Y));
         Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
     }
 

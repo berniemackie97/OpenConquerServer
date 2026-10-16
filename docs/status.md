@@ -41,7 +41,9 @@ implemented parts work and link here rather than repeating this list.
   its GameServer starts and stops.
 - Native 5517 10005 eight- and 24-direction movement parsing, authenticated world-session gating,
   server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
-  Selector-9 two-tile movement has a conservative two-interval limit until mounted-state authority exists.
+  Selector-9 tables are verified, but live selector-9 movement is denied until server-owned riding/vigor
+  authority exists. Ground walking is denied for characters with zero life at admission.
+  See [authoritative movement eligibility](architecture/authoritative-movement-eligibility.md).
 - Native 5517 10010 subtype 137 absolute-target ground jump (1–16 rounded tiles), enforced
   by authoritative map partition, map jump-prohibition flags, composed landing collision,
   shared jump/walk pacing, post-commit self-echo and bounded peer replication; mounted-specific

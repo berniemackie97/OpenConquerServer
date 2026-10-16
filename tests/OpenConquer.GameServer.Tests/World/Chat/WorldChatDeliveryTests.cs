@@ -60,37 +60,40 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
-    public async Task NativeTwoTileMovement_RelaysUnmodifiedPacketToVisibleObserver()
+    public async Task UnauthenticatedMountedMovement_ReceivesCorrectionWithoutPeerReplication()
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
         ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 1, 1);
+        await alice.WaitForFrameCountAsync(1);
         await bobby.WaitForFrameCountAsync(1);
 
-        GameWalkPacket movement = new(0xA1B2_C306, alice.Session.Ownership.CharacterId,
+        GameWalkPacket request = new(0xA1B2_C306, alice.Session.Ownership.CharacterId,
             GameWalkPacket.TwentyFourDirectionSelector, 100, 0xDEAD_BEEFu);
-        byte[] expected = new byte[GameWireFrameEncoder.GetFrameLength(movement)];
-        GameWireFrameEncoder.WriteFrame(movement, expected);
+        byte[] forbiddenEcho = new byte[GameWireFrameEncoder.GetFrameLength(request)];
+        GameWireFrameEncoder.WriteFrame(request, forbiddenEcho);
+        await alice.Session.ProcessWalkAsync(request, TestContext.Current.CancellationToken);
 
-        await alice.Session.ProcessWalkAsync(movement, TestContext.Current.CancellationToken);
-
-        IReadOnlyList<byte[]> observed = await bobby.WaitForFrameCountAsync(2);
-        Assert.Contains(observed, frame => frame.AsSpan().SequenceEqual(expected));
-        IReadOnlyList<byte[]> echoed = await alice.WaitForFrameCountAsync(2);
-        Assert.Contains(echoed, frame => frame.AsSpan().SequenceEqual(expected));
+        IReadOnlyList<byte[]> senderFrames = await alice.WaitForFrameCountAsync(2);
+        Assert.Contains(senderFrames, frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) == 108 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(24)) == 0 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(26)) == 0);
+        Assert.DoesNotContain(senderFrames, frame => frame.AsSpan().SequenceEqual(forbiddenEcho));
+        Assert.DoesNotContain(bobby.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(forbiddenEcho));
     }
 
     [Fact]
-    public async Task LocalSpeech_ReachesNewObserverAfterNativeTwoTileMovement()
+    public async Task LocalSpeech_ReachesNewObserverAfterNativeGroundStep()
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 20, 0);
+        // One eastward ground step brings Bob exactly to the native radius 18.
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 19, 0);
         Assert.Empty(alice.AvailableFrames());
         Assert.Empty(bobby.AvailableFrames());
 
-        GameWalkPacket movement = new(6, alice.Session.Ownership.CharacterId,
-            GameWalkPacket.TwentyFourDirectionSelector, 100, 0);
+        GameWalkPacket movement = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
         await alice.Session.ProcessWalkAsync(movement, TestContext.Current.CancellationToken);
 
         IReadOnlyList<byte[]> observed = await bobby.WaitForFrameCountAsync(1);

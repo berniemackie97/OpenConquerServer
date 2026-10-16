@@ -48,6 +48,36 @@ public sealed class WorldGroundWalkTests
     }
 
     [Fact]
+    public void TryWalk_DeadCharacterCannotMoveOrMutateAuthoritativePosition()
+    {
+        MapInstance map = new(CreateMap(MapId, 1015));
+        WorldCharacterOwnership owner = new(CharacterId, MapId, 1);
+        map.Admit(owner, 2, 2, isAlive: false);
+
+        Assert.Null(map.TryWalk(owner, 6));
+        Assert.Null(map.TryWalk(owner, 6, 9));
+        Assert.Equal((2, 2), GetPosition(map, owner));
+        Assert.False(Assert.IsType<WorldCharacterSnapshot>(map.Find(owner)).IsAlive);
+    }
+
+    [Fact]
+    public async Task Runtime_DeadPersistedCharacterCannotWalk()
+    {
+        await using WorldRuntime runtime = CreateRuntime();
+        runtime.Start();
+        WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(CreateProfile(2, 2, life: 0),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
+        WorldCharacterSnapshot snapshot = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken));
+        Assert.False(snapshot.IsAlive);
+        Assert.Equal((ushort)2, snapshot.X);
+        Assert.Equal((ushort)2, snapshot.Y);
+        Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void TryWalk_ComposedSceneryBlock_RefusesWithoutChangingPosition()
     {
         MapInstance map = new(CreateMap(MapId, 1015, blocked: true));
@@ -179,14 +209,14 @@ public sealed class WorldGroundWalkTests
         return new WorldRuntime(maps, new WorldExecutionOptions(2, 32, 8));
     }
 
-    private static CharacterLoginProfile CreateProfile(ushort x, ushort y)
+    private static CharacterLoginProfile CreateProfile(ushort x, ushort y, ushort life = 100)
     {
         CharacterLoginIdentity identity = new(CharacterId, 42, "Bernie");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
         CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0,
             previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
         CharacterAttributes attributes = new(10, 10, 10, 10, 0);
-        CharacterVitals vitals = new(100, 0);
+        CharacterVitals vitals = new(life, 0);
         CharacterEconomy economy = new(0, 0, 0);
         CharacterLocation location = new(MapId, x, y);
 

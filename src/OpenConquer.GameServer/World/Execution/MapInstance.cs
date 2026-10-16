@@ -90,6 +90,8 @@ internal sealed class MapInstance(WorldMapContent map)
     /// <summary>
     /// Applies one verified native 5517 direction-table delta under exclusive partition
     /// ownership. The full selector selects the 24-entry table only when exactly nine.
+    /// This is the map displacement primitive; network-facing selector-9 authorization
+    /// is denied in WorldRuntime until the server owns riding/vigor state.
     /// </summary>
     public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector = 0)
     {
@@ -97,7 +99,7 @@ internal sealed class MapInstance(WorldMapContent map)
         sbyte[] deltaX = twoTile ? s_twoTileDeltaX : s_walkDeltaX;
         sbyte[] deltaY = twoTile ? s_twoTileDeltaY : s_walkDeltaY;
         if (directionIndex >= deltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)
-            || current.Ownership != ownership)
+            || current.Ownership != ownership || !current.IsAlive)
         {
             return null;
         }
