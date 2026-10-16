@@ -201,6 +201,57 @@ public sealed class WorldChatDeliveryTests
         Assert.False(bobby.Session.IsStopping);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RejectedPredictedMovement_ImmediatelySendsNative108AuthoritativePosition(bool jump)
+    {
+        await using ChatWorld world = new();
+        // A blocked west step at x=0, or an in-range jump off the map
+        // from x=63, exercises the authoritative partition rejection path.
+        ushort startX = jump ? (ushort)63 : (ushort)0;
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, startX, 0);
+        if (jump)
+        {
+            GameJumpAction intent = new(new GameAction(alice.Session.Ownership.CharacterId,
+                64, 0, 100, GameJumpAction.JumpAction, 6, 0, 0, 0, 0, 0, 0));
+            await alice.Session.ProcessJumpAsync(intent, TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            GameWalkPacket intent = new(2, alice.Session.Ownership.CharacterId, 0, 100, 0);
+            await alice.Session.ProcessWalkAsync(intent, TestContext.Current.CancellationToken);
+        }
+
+        IReadOnlyList<byte[]> received = await alice.WaitForFrameCountAsync(1);
+        byte[] correction = Assert.Single(received);
+        Assert.Equal((ushort)10010, PacketId(correction));
+        Assert.Equal((ushort)108, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(20)));
+        Assert.Equal(startX, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(24)));
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(correction.AsSpan(26)));
+        Assert.Equal(alice.Session.Ownership.CharacterId, BinaryPrimitives.ReadUInt32LittleEndian(correction.AsSpan(4)));
+    }
+
+    [Fact]
+    public async Task RejectedMovementReplay_CorrectsToLastCommittedTile()
+    {
+        await using ChatWorld world = new();
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 10, 10);
+        GameWalkPacket first = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+        GameWalkPacket second = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
+
+        await alice.Session.ProcessWalkAsync(first, TestContext.Current.CancellationToken);
+        await alice.Session.ProcessWalkAsync(second, TestContext.Current.CancellationToken);
+
+        IReadOnlyList<byte[]> received = await alice.WaitForFrameCountAsync(2);
+        Assert.Equal(2, received.Count);
+        Assert.Equal(GameWalkPacket.PacketIdentifier, PacketId(received[0]));
+        Assert.Equal((ushort)10010, PacketId(received[1]));
+        Assert.Equal((ushort)108, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(20)));
+        Assert.Equal((ushort)11, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(24)));
+        Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(received[1].AsSpan(26)));
+    }
+
     [Fact]
     public async Task NativeJump_RejectsForeignIdentityWithoutMoving()
     {

@@ -6,6 +6,21 @@ namespace OpenConquer.GameServer.Tests.World.Movement;
 public sealed class WorldPositionReconcilerTests
 {
     [Fact]
+    public void RefusedPredictedMovement_CorrectionIsImmediateAndBoundedByServerClock()
+    {
+        WorldPositionReconciler state = new(100, 200);
+        long start = 1000;
+        for (int attempt = 0; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        {
+            Assert.True(state.TryReserveRejectedMovementCorrection(start));
+        }
+        Assert.False(state.TryReserveRejectedMovementCorrection(start));
+        Assert.False(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency - 1));
+        Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
+        Assert.True(state.TryReserveRejectedMovementCorrection(start - 1));
+    }
+
+    [Fact]
     public void MatchingInitialTileNeverTriggersCorrection()
     {
         WorldPositionReconciler state = new(100, 200);

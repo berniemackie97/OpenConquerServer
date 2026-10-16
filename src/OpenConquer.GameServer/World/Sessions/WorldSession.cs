@@ -230,6 +230,7 @@ internal sealed class WorldSession : IAsyncDisposable
 
         if (!_walkPacer.TryAccept(walk.MovementTick, Stopwatch.GetTimestamp(), walk.IsTwentyFourDirection))
         {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -253,6 +254,10 @@ internal sealed class WorldSession : IAsyncDisposable
                 await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
             }
         }
+        else
+        {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Applies a native absolute-tile jump only after authoritative partition admission.</summary>
@@ -267,9 +272,11 @@ internal sealed class WorldSession : IAsyncDisposable
 
         // The persisted profile does not contain active mounted status. This is
         // ground-jump support only; mounted jump caps remain a release gate.
-        if ((Map.Flags & 0x0200_0000UL) != 0 ||
-            !_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()))
+        // Preserve the fixed-memory ingress budget even for prohibited maps.
+        if (!_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()) ||
+            (Map.Flags & 0x0200_0000UL) != 0)
         {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -282,6 +289,7 @@ internal sealed class WorldSession : IAsyncDisposable
         int distance = MapDistance.RoundedTileDistance(before.Value.X, before.Value.Y, jump.TargetX, jump.TargetY);
         if (distance is < 1 or > 16 || !_walkPacer.TryAcceptJump(jump.Timestamp, Stopwatch.GetTimestamp(), distance))
         {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
         GameActionPacket acknowledgement = jump.CreateAcknowledgement();
@@ -300,6 +308,10 @@ internal sealed class WorldSession : IAsyncDisposable
             {
                 await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
             }
+        }
+        else
+        {
+            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -417,10 +429,7 @@ internal sealed class WorldSession : IAsyncDisposable
             return;
         }
 
-        GameActionPacket correction = new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
-            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
-            positionX: snapshot.Value.X, positionY: snapshot.Value.Y, data1: 0, data2: 0, flag: 0);
-        await SendGameplayResponseAsync(correction, cancellationToken).ConfigureAwait(false);
+        await SendGameplayResponseAsync(CreatePositionCorrection(snapshot.Value), cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
@@ -447,6 +456,40 @@ internal sealed class WorldSession : IAsyncDisposable
 
         return frame;
     }
+
+    /// <summary>
+    /// Replies to a refused locally predicted walk/jump with the authoritative tile.
+    /// Per-session limiting bounds snapshot reads and corrective egress under packet spam.
+    /// This is separate from unsolicited idle-position-report reconciliation.
+    /// </summary>
+    private async ValueTask CorrectRejectedMovementAsync(CancellationToken cancellationToken)
+    {
+        if (!_positionReconciler.TryReserveRejectedMovementCorrection(Stopwatch.GetTimestamp()))
+        {
+            // The reader closes protocol-abusive sessions: never leave a connected
+            // client on a rejected, locally predicted tile without a correction.
+            throw new InvalidDataException(
+                "Movement denial correction budget exhausted.");
+        }
+
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _runtime.StoppingToken);
+        WorldCharacterSnapshot? authoritative = await _runtime.ReadCharacterAsync(Ownership, linked.Token)
+            .ConfigureAwait(false);
+        if (authoritative is null)
+        {
+            throw new InvalidDataException("Rejected movement no longer has authoritative world ownership.");
+        }
+
+        _positionReconciler.RecordAuthorized(authoritative.Value.X, authoritative.Value.Y);
+        await SendGameplayResponseAsync(CreatePositionCorrection(authoritative.Value), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private GameActionPacket CreatePositionCorrection(WorldCharacterSnapshot position) =>
+        new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
+            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
+            positionX: position.X, positionY: position.Y, data1: 0, data2: 0, flag: 0);
 
     /// <summary>
     /// Keep local gameplay responses in the same per-session FIFO as peer spawns and

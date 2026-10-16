@@ -20,7 +20,13 @@ partition-owned snapshot, applies a shared movement pace/replay budget, and
 submits the absolute target to the **same generation-fenced partition** as walking.
 The partition repeats the rounded range and map-flag checks against its actual
 current tile and rejects blocked/out-of-bounds landing cells using the composed
-static-collision layer. No packet is echoed for rejected jumps. Successful
+static-collision layer. Rejected well-formed movement intents schedule a native
+`10010/108` correction to the current authoritative tile; they are never echoed.
+The 5517 client predicts movement in its working tile, so withholding an echo
+**does not** necessarily undo a refused local animation. Rejection corrections
+are per-session server-clock limited to 32 per second; excess movement-denial
+traffic closes the offending session rather than leaving the client displaced.
+Unauthenticated identity mismatches still fail closed. Successful
 jumps record a legitimate reconciliation tile, enqueue an unchanged native fixed
 packet for local acknowledgement, and update peer visibility using the
 existing bounded per-recipient mailboxes. Movement publication executes inside the
