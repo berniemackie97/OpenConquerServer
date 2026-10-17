@@ -97,6 +97,10 @@ implemented parts work and link here rather than repeating this list.
   column-restricted database identity. This is a tested persistence boundary,
   not an operational world transfer or live position-save pipeline. See
   [durable character location](architecture/durable-character-location.md).
+- Reversible map-transfer preflight: the world runtime reserves destination capacity,
+  fences new source positional/avatar mutations and drains a source-map command
+  barrier. No residency handoff, persistence, visibility change or client packets
+  are activated. See [transfer preflight](architecture/world-transfer-preflight.md).
 
 ## Not yet implemented
 
