@@ -12,10 +12,14 @@ public sealed class MapTransitionCatalog
 {
     private readonly FrozenDictionary<(uint MapId, uint PasswayIndex), MapTransitionDestination> _destinations;
 
+    /// <summary>The exact immutable map-content snapshot used to validate this catalog.</summary>
+    public WorldMapContentCatalog Maps { get; }
+
     public MapTransitionCatalog(IEnumerable<MapTransitionEntry> entries, WorldMapContentCatalog maps)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(maps);
+        Maps = maps;
 
         HashSet<(uint MapId, uint PasswayIndex)> expected = [];
         foreach (WorldMapContent map in maps.Maps)

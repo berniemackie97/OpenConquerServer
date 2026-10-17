@@ -12,6 +12,7 @@ namespace OpenConquer.GameServer.World.Execution;
 internal sealed class WorldRuntime : IAsyncDisposable
 {
     private readonly WorldScheduler _scheduler;
+    private readonly WorldMapContentCatalog _maps;
     private readonly Dictionary<uint, OwnershipEntry> _owners = [];
     private readonly Dictionary<uint, int> _mapPopulation = [];
     private readonly Dictionary<WorldCharacterOwnership, Task> _sessions = [];
@@ -30,6 +31,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
     public WorldRuntime(WorldMapContentCatalog maps, WorldExecutionOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        _maps = maps ?? throw new ArgumentNullException(nameof(maps));
 
         _scheduler = new WorldScheduler(maps, options, HandleSchedulerWorkerFailure);
         _maxCharacters = options.MaxCharacters;
@@ -70,6 +72,9 @@ internal sealed class WorldRuntime : IAsyncDisposable
     /// Gets whether any map partition is refusing new commands because its queue is full.
     /// </summary>
     public bool IsCongested => _scheduler.HasSaturatedPartition();
+
+    /// <summary>Requires the exact validated content snapshot, not matching numeric map identities.</summary>
+    internal bool UsesMapContent(WorldMapContentCatalog maps) => ReferenceEquals(_maps, maps);
 
     public bool TryGetMap(uint mapId, [NotNullWhen(true)] out WorldMapContent? map)
     {
