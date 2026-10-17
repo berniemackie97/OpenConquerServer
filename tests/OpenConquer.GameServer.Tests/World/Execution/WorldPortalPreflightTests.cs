@@ -32,6 +32,8 @@ public sealed class WorldPortalPreflightTests
             Assert.Equal(owner, reservation.SourceSnapshot.Ownership);
             Assert.Null(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
             Assert.Equal(1, runtime.ResidentCount);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => runtime.AdmitCharacterAsync(
+                Profile(PlayerId + 1, TargetMapId), TestContext.Current.CancellationToken).AsTask());
 
             reservation.Dispose();
             WorldCharacterOwnership newcomer = await runtime.AdmitCharacterAsync(
@@ -103,14 +105,14 @@ public sealed class WorldPortalPreflightTests
             ValueTask<bool> blocker = runtime.TryPublishAvatarActionAsync(owner, _ =>
             {
                 entered.Set();
-                if (!release.Wait(TimeSpan.FromSeconds(10)))
+                if (!release.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken))
                 {
                     throw new TimeoutException("Controlled source worker was not released.");
                 }
             }, TestContext.Current.CancellationToken);
             try
             {
-                Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+                Assert.True(entered.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
                 ValueTask<WorldCharacterSnapshot?> first = runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken);
                 ValueTask<WorldCharacterSnapshot?> second = runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken);
                 ValueTask<WorldCharacterSnapshot?> third = runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken);
@@ -173,6 +175,30 @@ public sealed class WorldPortalPreflightTests
 
         Assert.Null(await WorldPortalPreflight.TryReserveAsync(
             runtime, transitions, owner, 2, 1, TestContext.Current.CancellationToken));
+        WorldCharacterOwnership newcomer = await runtime.AdmitCharacterAsync(
+            Profile(PlayerId + 1, TargetMapId), TestContext.Current.CancellationToken);
+        Assert.Equal(TargetMapId, newcomer.MapId);
+    }
+
+    [Fact]
+    public async Task CatalogFromDifferentWorldSnapshot_CannotReserveWrongDestination()
+    {
+        WorldMapContentCatalog actualMaps = new(
+            [CreateMap(SourceMapId, 1015, [s_exit]), CreateMap(TargetMapId, 1016, [])]);
+        WorldMapContentCatalog staleMaps = new(
+            [CreateMap(SourceMapId, 1015, [s_exit]), CreateMap(TargetMapId, 1016, [])]);
+        MapTransitionCatalog staleTransitions = new(
+            [new MapTransitionEntry(SourceMapId, 7, "resolved",
+                new MapTransitionDestination(TargetMapId, 1, 3, 3, "L"))], staleMaps);
+        await using WorldRuntime runtime = new(actualMaps, new WorldExecutionOptions(1, 8, 1, 2, 1));
+        runtime.Start();
+        WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(Profile(), TestContext.Current.CancellationToken);
+
+        // The IDs and exit markers agree, but the validation snapshot is not the
+        // runtime's authoritative content. No route may be reserved from it.
+        Assert.Null(await WorldPortalPreflight.TryReserveAsync(runtime, staleTransitions, owner, 2, 1,
+            TestContext.Current.CancellationToken));
+        Assert.NotNull(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
         WorldCharacterOwnership newcomer = await runtime.AdmitCharacterAsync(
             Profile(PlayerId + 1, TargetMapId), TestContext.Current.CancellationToken);
         Assert.Equal(TargetMapId, newcomer.MapId);

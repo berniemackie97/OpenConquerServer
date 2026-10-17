@@ -21,15 +21,20 @@ and `0x63777D`). Packet hero coordinates and facing do not grant location author
 `WorldPortalPreflight.TryReserveAsync` is internal and must only be called for the
 exact authenticated world ownership token. It:
 
-1. Looks up the source map by server-owned `ownership.MapId`.
-2. Matches the candidate tile against the map's canonical native DMap exits.
+1. Requires the transition catalog to have been validated from the **exact same**
+   `WorldMapContentCatalog` object used to construct the runtime. Equal map IDs,
+   passway indices or separately loaded equivalent files are insufficient: a
+   mismatched catalog can otherwise authorize a stale route. This reference
+   identity check is fail-closed and does not compare mutable representations.
+2. Looks up the source map by server-owned `ownership.MapId`.
+3. Matches the candidate tile against the map's canonical native DMap exits.
    No matching marker, or more than one marker for that tile, fails closed.
-3. Resolves the **server-derived** `(mapId, passwayIndex)` through the immutable,
+4. Resolves the **server-derived** `(mapId, passwayIndex)` through the immutable,
    evidence-qualified `MapTransitionCatalog`. Unresolved or unrepresentable
    target coordinates fail closed; no inferred default is permitted.
-4. Uses #153 to reserve destination capacity and capture a FIFO source barrier
+5. Uses #153 to reserve destination capacity and capture a FIFO source barrier
    snapshot. Pending older movement completes before the snapshot.
-5. Confirms the authoritative source snapshot is alive and within one tile on
+6. Confirms the authoritative source snapshot is alive and within one tile on
    each axis of the candidate marker. A stale or moved-away source refunds the
    reservation. The returned lease is generation-fenced, temporary, and the
    caller must dispose it on every exit path.
@@ -55,7 +60,9 @@ ordering. No distributed transaction spans MySQL, world partitions and TCP.
 
 ## Verification
 
-The focused tests cover native marker matching, unresolved routes, off-radius
+The focused tests additionally reject a catalog constructed from a different
+world snapshot and prove that a live reservation occupies destination capacity.
+They cover native marker matching, unresolved routes, off-radius
 requests, duplicate-marker ambiguity, stale ownership, dead-source eligibility,
 destination reservation accounting, and movement queued ahead of the barrier.
 There is no schema migration, runtime configuration switch, or new protocol

@@ -18,7 +18,10 @@ internal static class WorldPortalPreflight
         ArgumentNullException.ThrowIfNull(transitions);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!runtime.TryGetMap(ownership.MapId, out var source))
+        // The catalog must have been validated against this exact immutable world snapshot.
+        // Matching map and passway IDs alone cannot establish destination authority.
+        if (!runtime.UsesMapContent(transitions.Maps) ||
+            !runtime.TryGetMap(ownership.MapId, out var source))
         {
             return null;
         }
