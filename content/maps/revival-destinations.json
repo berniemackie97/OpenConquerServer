@@ -1,0 +1,1454 @@
+{
+  "formatVersion": 1,
+  "maps": [
+    {
+      "mapId": 601,
+      "rebornMapId": 601,
+      "portal0X": 65,
+      "portal0Y": 55,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 700,
+      "rebornMapId": 700,
+      "portal0X": 40,
+      "portal0Y": 47,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1000,
+      "rebornMapId": 1000,
+      "portal0X": 499,
+      "portal0Y": 650,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1001,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1002,
+      "rebornMapId": 1002,
+      "portal0X": 430,
+      "portal0Y": 380,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1003,
+      "rebornMapId": 1002,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1004,
+      "rebornMapId": 1002,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1005,
+      "rebornMapId": 1005,
+      "portal0X": 51,
+      "portal0Y": 50,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1006,
+      "rebornMapId": 1002,
+      "portal0X": 37,
+      "portal0Y": 31,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1007,
+      "rebornMapId": 1002,
+      "portal0X": 25,
+      "portal0Y": 24,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1008,
+      "rebornMapId": 1002,
+      "portal0X": 22,
+      "portal0Y": 25,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1009,
+      "rebornMapId": 1002,
+      "portal0X": 22,
+      "portal0Y": 25,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1010,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1011,
+      "rebornMapId": 1011,
+      "portal0X": 193,
+      "portal0Y": 266,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1012,
+      "rebornMapId": 1020,
+      "portal0X": 25,
+      "portal0Y": 24,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1013,
+      "rebornMapId": 1011,
+      "portal0X": 22,
+      "portal0Y": 25,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1014,
+      "rebornMapId": 1011,
+      "portal0X": 22,
+      "portal0Y": 25,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1015,
+      "rebornMapId": 1015,
+      "portal0X": 717,
+      "portal0Y": 577,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1016,
+      "rebornMapId": 1011,
+      "portal0X": 22,
+      "portal0Y": 25,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1018,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1020,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1021,
+      "rebornMapId": 1002,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1025,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1026,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1027,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1028,
+      "rebornMapId": 1002,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1036,
+      "rebornMapId": 1036,
+      "portal0X": 303,
+      "portal0Y": 237,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1038,
+      "rebornMapId": 6001,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1039,
+      "rebornMapId": 1002,
+      "portal0X": 29,
+      "portal0Y": 72,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1040,
+      "rebornMapId": 1020,
+      "portal0X": 595,
+      "portal0Y": 383,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1041,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1042,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1043,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1044,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1045,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1046,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1047,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1048,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1049,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1050,
+      "rebornMapId": 1002,
+      "portal0X": 60,
+      "portal0Y": 108,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1051,
+      "rebornMapId": 1015,
+      "portal0X": 724,
+      "portal0Y": 573,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1052,
+      "rebornMapId": 1015,
+      "portal0X": 724,
+      "portal0Y": 573,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1060,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1061,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1062,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1063,
+      "rebornMapId": 1015,
+      "portal0X": 449,
+      "portal0Y": 358,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1070,
+      "rebornMapId": 1020,
+      "portal0X": 60,
+      "portal0Y": 566,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1072,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1075,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1076,
+      "rebornMapId": 1076,
+      "portal0X": 301,
+      "portal0Y": 488,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1077,
+      "rebornMapId": 1077,
+      "portal0X": 447,
+      "portal0Y": 347,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1078,
+      "rebornMapId": 1078,
+      "portal0X": 362,
+      "portal0Y": 115,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1080,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1081,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1090,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1091,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1092,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1093,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1094,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1095,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1100,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1101,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1102,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1103,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1104,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1105,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1106,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1107,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1108,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1109,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1201,
+      "rebornMapId": 1077,
+      "portal0X": 447,
+      "portal0Y": 347,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1202,
+      "rebornMapId": 1077,
+      "portal0X": 447,
+      "portal0Y": 347,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1204,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1205,
+      "rebornMapId": 1077,
+      "portal0X": 447,
+      "portal0Y": 347,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1207,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1208,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1210,
+      "rebornMapId": 1219,
+      "portal0X": 1017,
+      "portal0Y": 1294,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1211,
+      "rebornMapId": 1219,
+      "portal0X": 1017,
+      "portal0Y": 1294,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1212,
+      "rebornMapId": 1219,
+      "portal0X": 1017,
+      "portal0Y": 1294,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1213,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1214,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1215,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1216,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1217,
+      "rebornMapId": 1213,
+      "portal0X": 448,
+      "portal0Y": 272,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1218,
+      "rebornMapId": 1219,
+      "portal0X": 1003,
+      "portal0Y": 1278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1219,
+      "rebornMapId": 1213,
+      "portal0X": 1003,
+      "portal0Y": 1278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1300,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1351,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1352,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1353,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1354,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1451,
+      "rebornMapId": 1011,
+      "portal0X": 193,
+      "portal0Y": 266,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1500,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1501,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1502,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1505,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1506,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1508,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1511,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1515,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1516,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1518,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1525,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1526,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1528,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1550,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1551,
+      "rebornMapId": 1002,
+      "portal0X": 187,
+      "portal0Y": 162,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1700,
+      "rebornMapId": 1700,
+      "portal0X": 611,
+      "portal0Y": 645,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1782,
+      "rebornMapId": 1015,
+      "portal0X": 98,
+      "portal0Y": 22,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1783,
+      "rebornMapId": 1015,
+      "portal0X": 98,
+      "portal0Y": 22,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1784,
+      "rebornMapId": 1015,
+      "portal0X": 98,
+      "portal0Y": 22,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1785,
+      "rebornMapId": 1015,
+      "portal0X": 98,
+      "portal0Y": 22,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1786,
+      "rebornMapId": 1015,
+      "portal0X": 98,
+      "portal0Y": 22,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1787,
+      "rebornMapId": 1015,
+      "portal0X": 98,
+      "portal0Y": 22,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1791,
+      "rebornMapId": 1002,
+      "portal0X": 65,
+      "portal0Y": 55,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1792,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1794,
+      "rebornMapId": 1002,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1806,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1837,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1838,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1839,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1863,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1864,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1868,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1869,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1873,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1874,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1878,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1879,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1883,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1884,
+      "rebornMapId": 1002,
+      "portal0X": 400,
+      "portal0Y": 400,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1888,
+      "rebornMapId": 1888,
+      "portal0X": 40,
+      "portal0Y": 47,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1927,
+      "rebornMapId": 1000,
+      "portal0X": 471,
+      "portal0Y": 650,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1928,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1946,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1947,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1948,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1999,
+      "rebornMapId": 1000,
+      "portal0X": 471,
+      "portal0Y": 650,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2000,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2001,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2002,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2003,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2004,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2005,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2006,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2007,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2008,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2009,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2010,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2011,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2012,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2013,
+      "rebornMapId": 1011,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2020,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2021,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2022,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2023,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2024,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2025,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2026,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2027,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2028,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2029,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2030,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2031,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2032,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2033,
+      "rebornMapId": 1020,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2040,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2041,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2042,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2043,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2044,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2045,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2046,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2047,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2048,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2049,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2050,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2051,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2052,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2053,
+      "rebornMapId": 1000,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2054,
+      "rebornMapId": 1000,
+      "portal0X": 471,
+      "portal0Y": 650,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2055,
+      "rebornMapId": 2055,
+      "portal0X": 546,
+      "portal0Y": 573,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2056,
+      "rebornMapId": 2056,
+      "portal0X": 370,
+      "portal0Y": 646,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2060,
+      "rebornMapId": 2060,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2071,
+      "rebornMapId": 2071,
+      "portal0X": 127,
+      "portal0Y": 142,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2072,
+      "rebornMapId": 2072,
+      "portal0X": 127,
+      "portal0Y": 142,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2073,
+      "rebornMapId": 2073,
+      "portal0X": 127,
+      "portal0Y": 142,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2074,
+      "rebornMapId": 2074,
+      "portal0X": 127,
+      "portal0Y": 142,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2075,
+      "rebornMapId": 6001,
+      "portal0X": 0,
+      "portal0Y": 0,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2076,
+      "rebornMapId": 2076,
+      "portal0X": 39,
+      "portal0Y": 45,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2077,
+      "rebornMapId": 2077,
+      "portal0X": 39,
+      "portal0Y": 45,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 2078,
+      "rebornMapId": 2078,
+      "portal0X": 39,
+      "portal0Y": 45,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 4021,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 4022,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 4023,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 4024,
+      "rebornMapId": 1020,
+      "portal0X": 266,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 4025,
+      "rebornMapId": 1020,
+      "portal0X": 566,
+      "portal0Y": 565,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 5000,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 5002,
+      "rebornMapId": 1002,
+      "portal0X": 300,
+      "portal0Y": 278,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 6000,
+      "rebornMapId": 6000,
+      "portal0X": 29,
+      "portal0Y": 72,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 6001,
+      "rebornMapId": 6001,
+      "portal0X": 30,
+      "portal0Y": 76,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 6002,
+      "rebornMapId": 6002,
+      "portal0X": 29,
+      "portal0Y": 72,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 6010,
+      "rebornMapId": 6000,
+      "portal0X": 29,
+      "portal0Y": 72,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 6072,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 900000,
+      "rebornMapId": 1002,
+      "portal0X": 430,
+      "portal0Y": 378,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 910000,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    },
+    {
+      "mapId": 1000000,
+      "rebornMapId": 1002,
+      "portal0X": 410,
+      "portal0Y": 354,
+      "provenance": "LongV6270"
+    }
+  ]
+}
