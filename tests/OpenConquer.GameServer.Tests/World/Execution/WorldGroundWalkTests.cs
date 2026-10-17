@@ -48,6 +48,84 @@ public sealed class WorldGroundWalkTests
     }
 
     [Fact]
+    public void GhostTransition_RequiresDeadOwnerAndThreeSeconds_ThenAllowsOnlyWalking()
+    {
+        MapInstance map = new(CreateMap(MapId, 1015));
+        WorldCharacterOwnership owner = new(CharacterId, MapId, 1);
+        map.Admit(owner, 2, 2, isAlive: false);
+        WorldCharacterSnapshot corpse = Assert.IsType<WorldCharacterSnapshot>(map.Find(owner));
+
+        Assert.True(corpse.Status.Has(WorldPrimaryStatusMask.Dead));
+        Assert.False(corpse.IsGhost);
+        Assert.Null(map.TryEnterGhost(owner, corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency - 1));
+        Assert.Null(map.TryEnterGhost(owner with { Generation = 2 }, corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency));
+        WorldCharacterSnapshot ghost = Assert.IsType<WorldCharacterSnapshot>(map.TryEnterGhost(owner,
+            corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency));
+        Assert.True(ghost.IsGhost);
+        Assert.True(ghost.Status.Has(WorldPrimaryStatusMask.Dead));
+        Assert.True(ghost.Status.Has(WorldPrimaryStatusMask.Ghost));
+        Assert.Null(map.TryEnterGhost(owner, corpse.DeadSinceTimestamp + 5L * System.Diagnostics.Stopwatch.Frequency));
+        Assert.Null(map.TryJump(owner, 4, 2));
+        Assert.Null(map.TryWalk(owner, 6, 9));
+        Assert.NotNull(map.TryWalk(owner, 6));
+        Assert.Equal((3, 2), GetPosition(map, owner));
+    }
+
+    [Fact]
+    public async Task Runtime_GhostTransitionFencesStaleOwnerAndPublishesOnlyAfterCommit()
+    {
+        await using WorldRuntime runtime = CreateRuntime();
+        runtime.Start();
+        WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(CreateProfile(2, 2, life: 0),
+            TestContext.Current.CancellationToken);
+        WorldCharacterSnapshot corpse = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken));
+        long ready = corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency;
+        Assert.Null(await runtime.TryEnterGhostAsync(owner with { Generation = owner.Generation + 1 }, ready,
+            cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Null(await runtime.TryEnterGhostAsync(owner, ready - 1,
+            cancellationToken: TestContext.Current.CancellationToken));
+        WorldCharacterSnapshot? published = null;
+        WorldCharacterSnapshot ghost = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.TryEnterGhostAsync(owner, ready, snapshot => published = snapshot,
+                TestContext.Current.CancellationToken));
+        Assert.Equal(ghost, published);
+        Assert.NotNull(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
+        Assert.Null(await runtime.TryJumpCharacterAsync(owner, 5, 2, TestContext.Current.CancellationToken));
+        Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void TryWalk_DeadCharacterCannotMoveOrMutateAuthoritativePosition()
+    {
+        MapInstance map = new(CreateMap(MapId, 1015));
+        WorldCharacterOwnership owner = new(CharacterId, MapId, 1);
+        map.Admit(owner, 2, 2, isAlive: false);
+
+        Assert.Null(map.TryWalk(owner, 6));
+        Assert.Null(map.TryWalk(owner, 6, 9));
+        Assert.Equal((2, 2), GetPosition(map, owner));
+        Assert.False(Assert.IsType<WorldCharacterSnapshot>(map.Find(owner)).IsAlive);
+    }
+
+    [Fact]
+    public async Task Runtime_DeadPersistedCharacterCannotWalk()
+    {
+        await using WorldRuntime runtime = CreateRuntime();
+        runtime.Start();
+        WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(CreateProfile(2, 2, life: 0),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
+        WorldCharacterSnapshot snapshot = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken));
+        Assert.False(snapshot.IsAlive);
+        Assert.Equal((ushort)2, snapshot.X);
+        Assert.Equal((ushort)2, snapshot.Y);
+        Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void TryWalk_ComposedSceneryBlock_RefusesWithoutChangingPosition()
     {
         MapInstance map = new(CreateMap(MapId, 1015, blocked: true));
@@ -179,14 +257,14 @@ public sealed class WorldGroundWalkTests
         return new WorldRuntime(maps, new WorldExecutionOptions(2, 32, 8));
     }
 
-    private static CharacterLoginProfile CreateProfile(ushort x, ushort y)
+    private static CharacterLoginProfile CreateProfile(ushort x, ushort y, ushort life = 100)
     {
         CharacterLoginIdentity identity = new(CharacterId, 42, "Bernie");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
         CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0,
             previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
         CharacterAttributes attributes = new(10, 10, 10, 10, 0);
-        CharacterVitals vitals = new(100, 0);
+        CharacterVitals vitals = new(life, 0);
         CharacterEconomy economy = new(0, 0, 0);
         CharacterLocation location = new(MapId, x, y);
 

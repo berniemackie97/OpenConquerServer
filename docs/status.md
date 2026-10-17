@@ -41,7 +41,13 @@ implemented parts work and link here rather than repeating this list.
   its GameServer starts and stops.
 - Native 5517 10005 eight- and 24-direction movement parsing, authenticated world-session gating,
   server-clock pacing, replay resistance, partition-owned movement and post-commit self-acknowledgement.
-  Selector-9 two-tile movement has a conservative two-interval limit until mounted-state authority exists.
+  Selector-9 tables are verified, but live selector-9 movement is denied until server-owned riding/vigor
+  authority exists. Server-owned dead (5) and ghost (10) primary-status bits distinguish
+  immobile corpses from walking ghosts. Client action 145 is handled after the
+  corpse delay; 10017 attributes 25/11 and 10014 spawn reflect ghost state.
+  The native 1056/2 death-time trade quit is accepted as an idempotent no-op
+  until trade state exists; corpses cannot spoof facing or standing pose.
+  See [authoritative movement eligibility](architecture/authoritative-movement-eligibility.md).
 - Native 5517 10010 subtype 137 absolute-target ground jump (1–16 rounded tiles), enforced
   by authoritative map partition, map jump-prohibition flags, composed landing collision,
   shared jump/walk pacing, post-commit self-echo and bounded peer replication; mounted-specific
@@ -91,8 +97,8 @@ implemented parts work and link here rather than repeating this list.
 - Hosted character creation: verified walkable spawn, creation credential provisioning, native
   control exchange, authenticated creation processing, and same-session continuation.
 - Remaining gameplay routing: mounted-status authority, mounted-jump caps, non-player replication,
-  position persistence, combat, NPCs, trading, nonlocal and group chat channels. Position correction is limited
-  to repeated drift reports from the authenticated local character.
+  position persistence, combat, NPCs, complete trading, nonlocal and group chat channels.
+  Native position correction already handles refused predicted movement and bounded drift reports.
 - World simulation: monsters, timers, NPC/monster/ground-item visibility, and map transfers.
   Jump-specific elevation and status effects remain unresolved; do not introduce a speculative
   dynamic player-occupancy collision gate for normal walking.

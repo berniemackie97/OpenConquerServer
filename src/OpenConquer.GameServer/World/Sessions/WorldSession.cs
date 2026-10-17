@@ -140,6 +140,33 @@ internal sealed class WorldSession : IAsyncDisposable
         }
     }
 
+    /// <summary>Hydrates the local client's corpse status after login reset, before visibility entry.</summary>
+    internal async ValueTask SynchronizeInitialStatusAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+        if (Profile.Vitals.Life != 0)
+        {
+            return;
+        }
+
+        WorldCharacterSnapshot? current = await _runtime.ReadCharacterAsync(Ownership, cancellationToken).ConfigureAwait(false);
+        if (current is not WorldCharacterSnapshot snapshot || snapshot.IsAlive)
+        {
+            throw new InvalidDataException("The admitted corpse status does not match authoritative world residency.");
+        }
+
+        GameUserAttributePacket packet = new(Ownership.CharacterId, GameUserAttributePacket.PrimaryStatusAttribute,
+            snapshot.Status.Low, snapshot.Status.High);
+        if (_visibilityMailbox is not null)
+        {
+            QueueVisibilityPacket(packet);
+        }
+        else
+        {
+            await WriteAsync(packet, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     internal void EnterVisibility()
     {
         ThrowIfInactive();
@@ -216,6 +243,19 @@ internal sealed class WorldSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Accepts the native 1056/2 trade-quit notification. Trading is not implemented:
+    /// there is no exchange to release, response to send, or inventory to mutate.
+    /// </summary>
+    internal void ProcessTradeQuit(GameTradeQuitRequest request)
+    {
+        ThrowIfInactive();
+        if (request.EntityId != Ownership.CharacterId)
+        {
+            throw new InvalidDataException("Trade quit does not belong to the authenticated character.");
+        }
+    }
+
+    /// <summary>
     /// Applies exactly one authenticated eight-direction ground step. The packet is echoed
     /// only after the authoritative partition commits the new position.
     /// </summary>
@@ -259,6 +299,42 @@ internal sealed class WorldSession : IAsyncDisposable
         {
             await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Handles native 5517 request 145; the client never receives an action-145 echo.</summary>
+    internal async ValueTask ProcessGhostTransitionAsync(GameGhostTransitionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+        if (request.EntityId != Ownership.CharacterId)
+        {
+            throw new InvalidDataException("Ghost transition does not belong to the authenticated character.");
+        }
+
+        // Validate the appearance before a partition command can commit the status.
+        uint look = WorldGhostAppearance.FromBaseLook(Profile.Appearance.Composite);
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
+        WorldVisibilityService? visibility = _visibility;
+        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : ghost =>
+        {
+            visibility.Ghosted(this, ghost, look);
+            // The local client needs status before look, as in the older TQ server.
+            QueueVisibilityPacket(new GameUserAttributePacket(Ownership.CharacterId,
+                GameUserAttributePacket.PrimaryStatusAttribute, ghost.Status.Low, ghost.Status.High));
+            QueueVisibilityPacket(new GameUserAttributePacket(Ownership.CharacterId,
+                GameUserAttributePacket.LookAttribute, look));
+        };
+        WorldCharacterSnapshot? transitioned = await _runtime.TryEnterGhostAsync(Ownership,
+            Stopwatch.GetTimestamp(), publish, linked.Token).ConfigureAwait(false);
+        if (transitioned is WorldCharacterSnapshot snapshot && visibility is null)
+        {
+            await WriteAsync(new GameUserAttributePacket(Ownership.CharacterId,
+                GameUserAttributePacket.PrimaryStatusAttribute, snapshot.Status.Low, snapshot.Status.High),
+                cancellationToken).ConfigureAwait(false);
+            await WriteAsync(new GameUserAttributePacket(Ownership.CharacterId,
+                GameUserAttributePacket.LookAttribute, look), cancellationToken).ConfigureAwait(false);
+        }
+        // Too early, already ghosted, or no longer dead: idempotently ignore.
     }
 
     /// <summary>Applies a native absolute-tile jump only after authoritative partition admission.</summary>
@@ -386,14 +462,17 @@ internal sealed class WorldSession : IAsyncDisposable
             await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
             ThrowIfInactive();
         }
-        if (await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false) is null)
+        // Authorize and publish within one map-partition turn. A corpse cannot
+        // spoof a standing pose or facing, including in the late-observer cache.
+        GameActionPacket acknowledgement = request.CreateAcknowledgement();
+        bool authorized = await _runtime.TryPublishAvatarActionAsync(Ownership,
+            _ => _visibility?.AvatarAction(this, request, acknowledgement), linked.Token).ConfigureAwait(false);
+        if (!authorized)
         {
-            throw new InvalidDataException("An avatar action has no authoritative world owner.");
+            return;
         }
 
         ThrowIfInactive();
-        GameActionPacket acknowledgement = request.CreateAcknowledgement();
-        _visibility?.AvatarAction(this, request, acknowledgement);
         await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
     }
 

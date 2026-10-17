@@ -41,6 +41,140 @@ public sealed class WorldChatDeliveryTests
     private const uint FirstCharacter = CharacterIdentityPolicy.FirstPlayerEntityId;
 
     [Fact]
+    public async Task NativeTradeQuit_IsIdempotentAndCannotImpersonateAnotherPlayer()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        await corpse.WaitForFrameCountAsync(1);
+        GameTradeQuitRequest quit = new(corpse.Session.Ownership.CharacterId);
+
+        corpse.Session.ProcessTradeQuit(quit);
+        corpse.Session.ProcessTradeQuit(quit);
+
+        Assert.False(corpse.Session.IsStopping);
+        Assert.Single(corpse.AvailableFrames()); // Only the initial dead-status update.
+        Assert.Throws<InvalidDataException>(() =>
+            corpse.Session.ProcessTradeQuit(new GameTradeQuitRequest(corpse.Session.Ownership.CharacterId + 1)));
+        Assert.False(corpse.Session.IsStopping);
+    }
+
+    [Fact]
+    public async Task CorpseAvatarSpoof_CannotChangeLateObserverPoseOrReceiveAcknowledgement()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        ClientSession observer = await world.AddAsync(1, "Bobby", FirstMap, 5, 2);
+        await corpse.WaitForFrameCountAsync(2);
+        await observer.WaitForFrameCountAsync(1);
+
+        GameAvatarAction pose = new(corpse.Session.Ownership.CharacterId,
+            GameAvatarAction.PoseAction, 4, GameAvatarAction.StandingPose, 100);
+        GameAvatarAction facing = new(corpse.Session.Ownership.CharacterId,
+            GameAvatarAction.DirectionAction, 7, 0, 101);
+        await corpse.Session.ProcessAvatarActionAsync(pose, TestContext.Current.CancellationToken);
+        await corpse.Session.ProcessAvatarActionAsync(facing, TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(corpse.AvailableFrames(), frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) is
+                (GameAvatarAction.PoseAction or GameAvatarAction.DirectionAction));
+        Assert.DoesNotContain(observer.AvailableFrames(), frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) is
+                (GameAvatarAction.PoseAction or GameAvatarAction.DirectionAction));
+
+        ClientSession late = await world.AddAsync(2, "Carol", FirstMap, 8, 2);
+        IReadOnlyList<byte[]> frames = await late.WaitForFrameCountAsync(2);
+        byte[] spawn = Assert.Single(frames, frame => PacketId(frame) == 10014 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(8)) == corpse.Session.Ownership.CharacterId);
+        Assert.Equal(0x14Bu, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(0x5B)));
+        Assert.Equal((byte)0, spawn[0x5A]);
+        Assert.Equal(1UL << 5, BinaryPrimitives.ReadUInt64LittleEndian(spawn.AsSpan(0x16)));
+        Assert.False(corpse.Session.IsStopping);
+    }
+
+    [Fact]
+    public async Task GhostTransition_PublishesNativeAttributesAndUpdatesLateObserverSpawn()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        ClientSession observer = await world.AddAsync(1, "Bobby", FirstMap, 5, 2);
+        await corpse.WaitForFrameCountAsync(2);
+        await observer.WaitForFrameCountAsync(1);
+
+        // Integration exercises the real monotonic clock, while partition tests
+        // verify the exact 3000ms threshold without sleeping.
+        await Task.Delay(TimeSpan.FromMilliseconds(3100), TestContext.Current.CancellationToken);
+        await corpse.Session.ProcessGhostTransitionAsync(new GameGhostTransitionRequest(corpse.Session.Ownership.CharacterId),
+            TestContext.Current.CancellationToken);
+
+        IReadOnlyList<byte[]> peerFrames = await observer.WaitForFrameCountAsync(3);
+        Assert.Contains(peerFrames, frame => PacketId(frame) == 10017 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12)) == 25 &&
+            BinaryPrimitives.ReadUInt64LittleEndian(frame.AsSpan(16)) == (1UL << 5 | 1UL << 10));
+        Assert.Contains(peerFrames, frame => PacketId(frame) == 10017 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12)) == 11 &&
+            BinaryPrimitives.ReadUInt64LittleEndian(frame.AsSpan(16)) == 980001003u);
+        Assert.DoesNotContain(corpse.AvailableFrames(), frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) == 145);
+
+        GameWalkPacket ghostWalk = new(6, corpse.Session.Ownership.CharacterId, 0, 100, 0);
+        byte[] expectedWalk = new byte[GameWireFrameEncoder.GetFrameLength(ghostWalk)];
+        GameWireFrameEncoder.WriteFrame(ghostWalk, expectedWalk);
+        await corpse.Session.ProcessWalkAsync(ghostWalk, TestContext.Current.CancellationToken);
+        await observer.ExpectFrameAsync(expectedWalk);
+
+        ClientSession late = await world.AddAsync(2, "Carol", FirstMap, 8, 2);
+        IReadOnlyList<byte[]> lateFrames = await late.WaitForFrameCountAsync(2);
+        byte[] spawn = Assert.Single(lateFrames, frame => PacketId(frame) == 10014 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(8)) == corpse.Session.Ownership.CharacterId);
+        Assert.Equal(980001003u, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(4)));
+        Assert.Equal(1UL << 5 | 1UL << 10, BinaryPrimitives.ReadUInt64LittleEndian(spawn.AsSpan(0x16)));
+        Assert.Equal(100u, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(0x5B)));
+
+        // Ghosts (unlike corpses) remain authorized to change facing.
+        GameAvatarAction facing = new(corpse.Session.Ownership.CharacterId,
+            GameAvatarAction.DirectionAction, 3, 0, 101);
+        GameActionPacket facingEcho = facing.CreateAcknowledgement();
+        byte[] expectedFacing = new byte[GameWireFrameEncoder.GetFrameLength(facingEcho)];
+        GameWireFrameEncoder.WriteFrame(facingEcho, expectedFacing);
+        await corpse.Session.ProcessAvatarActionAsync(facing, TestContext.Current.CancellationToken);
+        await observer.ExpectFrameAsync(expectedFacing);
+    }
+
+    [Fact]
+    public async Task CorpseAdmission_SendsStatusToLocalClientAndPeerSpawnCarriesDeadMaskAndPose()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        IReadOnlyList<byte[]> ownFrames = await corpse.WaitForFrameCountAsync(1);
+        Assert.Contains(ownFrames, frame => PacketId(frame) == 10017 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12)) == 25 &&
+            BinaryPrimitives.ReadUInt64LittleEndian(frame.AsSpan(16)) == 1UL << 5);
+
+        ClientSession observer = await world.AddAsync(1, "Bobby", FirstMap, 5, 2);
+        IReadOnlyList<byte[]> other = await observer.WaitForFrameCountAsync(1);
+        byte[] spawn = Assert.Single(other, frame => PacketId(frame) == 10014 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(8)) == corpse.Session.Ownership.CharacterId);
+        Assert.Equal(1UL << 5, BinaryPrimitives.ReadUInt64LittleEndian(spawn.AsSpan(0x16)));
+        Assert.Equal(0x14Bu, BinaryPrimitives.ReadUInt32LittleEndian(spawn.AsSpan(0x5B)));
+    }
+
+    [Fact]
+    public async Task GhostRequest_CannotBypassCorpseDelay_AndDoesNotEchoAction145()
+    {
+        await using ChatWorld world = new();
+        ClientSession corpse = await world.AddAsync(0, "Alice", FirstMap, 2, 2, life: 0);
+        await corpse.WaitForFrameCountAsync(1);
+        await corpse.Session.ProcessGhostTransitionAsync(new GameGhostTransitionRequest(corpse.Session.Ownership.CharacterId),
+            TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(corpse.AvailableFrames(), frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) == 145);
+        Assert.DoesNotContain(corpse.AvailableFrames(), frame => PacketId(frame) == 10017 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12)) == 25 &&
+            BinaryPrimitives.ReadUInt64LittleEndian(frame.AsSpan(16)) == (1UL << 5 | 1UL << 10));
+        Assert.False(corpse.Session.IsStopping);
+    }
+
+    [Fact]
     public async Task LocalSpeech_ReachesOnlyPlayersOnTheVisibleMap()
     {
         await using ChatWorld world = new();
@@ -60,37 +194,40 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
-    public async Task NativeTwoTileMovement_RelaysUnmodifiedPacketToVisibleObserver()
+    public async Task UnauthenticatedMountedMovement_ReceivesCorrectionWithoutPeerReplication()
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
         ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 1, 1);
+        await alice.WaitForFrameCountAsync(1);
         await bobby.WaitForFrameCountAsync(1);
 
-        GameWalkPacket movement = new(0xA1B2_C306, alice.Session.Ownership.CharacterId,
+        GameWalkPacket request = new(0xA1B2_C306, alice.Session.Ownership.CharacterId,
             GameWalkPacket.TwentyFourDirectionSelector, 100, 0xDEAD_BEEFu);
-        byte[] expected = new byte[GameWireFrameEncoder.GetFrameLength(movement)];
-        GameWireFrameEncoder.WriteFrame(movement, expected);
+        byte[] forbiddenEcho = new byte[GameWireFrameEncoder.GetFrameLength(request)];
+        GameWireFrameEncoder.WriteFrame(request, forbiddenEcho);
+        await alice.Session.ProcessWalkAsync(request, TestContext.Current.CancellationToken);
 
-        await alice.Session.ProcessWalkAsync(movement, TestContext.Current.CancellationToken);
-
-        IReadOnlyList<byte[]> observed = await bobby.WaitForFrameCountAsync(2);
-        Assert.Contains(observed, frame => frame.AsSpan().SequenceEqual(expected));
-        IReadOnlyList<byte[]> echoed = await alice.WaitForFrameCountAsync(2);
-        Assert.Contains(echoed, frame => frame.AsSpan().SequenceEqual(expected));
+        IReadOnlyList<byte[]> senderFrames = await alice.WaitForFrameCountAsync(2);
+        Assert.Contains(senderFrames, frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) == 108 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(24)) == 0 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(26)) == 0);
+        Assert.DoesNotContain(senderFrames, frame => frame.AsSpan().SequenceEqual(forbiddenEcho));
+        Assert.DoesNotContain(bobby.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(forbiddenEcho));
     }
 
     [Fact]
-    public async Task LocalSpeech_ReachesNewObserverAfterNativeTwoTileMovement()
+    public async Task LocalSpeech_ReachesNewObserverAfterNativeGroundStep()
     {
         await using ChatWorld world = new();
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap);
-        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 20, 0);
+        // One eastward ground step brings Bob exactly to the native radius 18.
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 19, 0);
         Assert.Empty(alice.AvailableFrames());
         Assert.Empty(bobby.AvailableFrames());
 
-        GameWalkPacket movement = new(6, alice.Session.Ownership.CharacterId,
-            GameWalkPacket.TwentyFourDirectionSelector, 100, 0);
+        GameWalkPacket movement = new(6, alice.Session.Ownership.CharacterId, 0, 100, 0);
         await alice.Session.ProcessWalkAsync(movement, TestContext.Current.CancellationToken);
 
         IReadOnlyList<byte[]> observed = await bobby.WaitForFrameCountAsync(1);
@@ -485,7 +622,7 @@ public sealed class WorldChatDeliveryTests
 
         public WorldVisibilityService Visibility { get; } = new(NullLogger<WorldVisibilityService>.Instance);
 
-        public async Task<ClientSession> AddAsync(uint index, string name, uint mapId, ushort x = 0, ushort y = 0)
+        public async Task<ClientSession> AddAsync(uint index, string name, uint mapId, ushort x = 0, ushort y = 0, ushort life = 100)
         {
             FakeGameTransportConnection transport = new();
             GameConnectionSession connection = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
@@ -514,7 +651,7 @@ public sealed class WorldChatDeliveryTests
                 uint characterId = FirstCharacter + index;
                 uint accountId = 42 + index;
                 uint sessionUid = 0x10203040 + index;
-                CharacterLoginProfile profile = CreateProfile(characterId, accountId, name, mapId, x, y);
+                CharacterLoginProfile profile = CreateProfile(characterId, accountId, name, mapId, x, y, life);
                 AuthenticatedGameConnection authenticated = new(accountId, name, sessionUid,
                     0x6E45, 0x0000665544332211, 5517, connection);
                 ExistingCharacterGameConnection game = new(authenticated, profile, _presence.Register(characterId),
@@ -558,14 +695,14 @@ public sealed class WorldChatDeliveryTests
                 new MapTerrainCollision(terrain, []));
         }
 
-        private static CharacterLoginProfile CreateProfile(uint id, uint accountId, string name, uint mapId, ushort x, ushort y)
+        private static CharacterLoginProfile CreateProfile(uint id, uint accountId, string name, uint mapId, ushort x, ushort y, ushort life)
         {
             CharacterLoginIdentity identity = new(id, accountId, name);
             CharacterAppearance appearance = new(composite: 1003, hair: 410);
             CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0,
                 previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
             CharacterAttributes attributes = new(10, 10, 10, 10, 0);
-            CharacterVitals vitals = new(100, 0);
+            CharacterVitals vitals = new(life, 0);
             CharacterEconomy economy = new(0, 0, 0);
             CharacterLocation location = new(mapId, x, y);
             return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals,

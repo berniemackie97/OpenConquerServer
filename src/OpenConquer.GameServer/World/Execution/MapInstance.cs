@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.World;
@@ -43,7 +44,8 @@ internal sealed class MapInstance(WorldMapContent map)
             throw new ArgumentOutOfRangeException(nameof(x), "Character position is outside the canonical map terrain.");
         }
 
-        if (!_characters.TryAdd(ownership.CharacterId, new WorldCharacterSnapshot(ownership, x, y, isAlive)))
+        if (!_characters.TryAdd(ownership.CharacterId, new WorldCharacterSnapshot(ownership, x, y, isAlive,
+            WorldPrimaryStatusMask.ForAdmission(isAlive), isAlive ? 0 : Stopwatch.GetTimestamp())))
         {
             throw new InvalidOperationException($"Character {ownership.CharacterId} already belongs to map {Map.MapId}.");
         }
@@ -90,6 +92,8 @@ internal sealed class MapInstance(WorldMapContent map)
     /// <summary>
     /// Applies one verified native 5517 direction-table delta under exclusive partition
     /// ownership. The full selector selects the 24-entry table only when exactly nine.
+    /// This is the map displacement primitive; network-facing selector-9 authorization
+    /// is denied in WorldRuntime until the server owns riding/vigor state.
     /// </summary>
     public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector = 0)
     {
@@ -97,7 +101,7 @@ internal sealed class MapInstance(WorldMapContent map)
         sbyte[] deltaX = twoTile ? s_twoTileDeltaX : s_walkDeltaX;
         sbyte[] deltaY = twoTile ? s_twoTileDeltaY : s_walkDeltaY;
         if (directionIndex >= deltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)
-            || current.Ownership != ownership)
+            || current.Ownership != ownership || !current.CanWalk || (twoTile && !current.IsAlive))
         {
             return null;
         }
@@ -115,6 +119,23 @@ internal sealed class MapInstance(WorldMapContent map)
         RelocateLivingOccupant(current, moved.X, moved.Y);
         _characters[ownership.CharacterId] = moved;
         return moved;
+    }
+
+    /// <summary>Accepts a client ghost request only after the corpse delay, under the map owner.</summary>
+    public WorldCharacterSnapshot? TryEnterGhost(WorldCharacterOwnership ownership, long serverTimestamp)
+    {
+        if (!_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current) ||
+            current.Ownership != ownership || current.IsAlive || current.IsGhost ||
+            !current.Status.Has(WorldPrimaryStatusMask.Dead) || current.DeadSinceTimestamp == 0 ||
+            serverTimestamp < current.DeadSinceTimestamp ||
+            serverTimestamp - current.DeadSinceTimestamp < 3L * Stopwatch.Frequency)
+        {
+            return null;
+        }
+
+        WorldCharacterSnapshot ghost = current with { Status = current.Status.With(WorldPrimaryStatusMask.Ghost) };
+        _characters[ownership.CharacterId] = ghost;
+        return ghost;
     }
 
     // A two-tile selector must not let an unauthenticated rider traverse a

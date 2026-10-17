@@ -50,6 +50,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
             session.Activate();
             cancellationToken.ThrowIfCancellationRequested();
             session.ThrowIfInactive();
+            await session.SynchronizeInitialStatusAsync(cancellationToken).ConfigureAwait(false);
             session.EnterVisibility();
 
             return session;

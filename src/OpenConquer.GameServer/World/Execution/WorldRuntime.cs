@@ -341,6 +341,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
 
+            // Selector 9 is a mounted movement command, not an unauthenticated
+            // two-tile speed mode. No server-owned ride/vigor state exists yet.
+            // Deny before occupying a partition command slot; the world session
+            // replies with native 108 to undo the client's predicted displacement.
+            if (commandSelector == 9)
+            {
+                return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
+            }
+
             if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
             {
                 throw new InvalidOperationException("An active character references a missing world partition.");
@@ -356,6 +365,86 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 return committed;
             });
 
+            return partition.TryEnqueue(command) switch
+            {
+                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
+                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
+                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
+            };
+        }
+    }
+
+    /// <summary>
+    /// Authorizes and publishes a nonpositional avatar action in one exclusive
+    /// map-partition turn, ordered against corpse/ghost state transitions.
+    /// The callback may enqueue bounded delivery only; it must never await I/O.
+    /// </summary>
+    internal ValueTask<bool> TryPublishAvatarActionAsync(WorldCharacterOwnership ownership,
+        Action<WorldCharacterSnapshot> onAuthorized, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onAuthorized);
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != ownership || entry.Removing)
+            {
+                return ValueTask.FromResult(false);
+            }
+            if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
+            {
+                throw new InvalidOperationException("An active character references a missing world partition.");
+            }
+
+            WorldPartitionCommand<bool> command = new(map =>
+            {
+                WorldCharacterSnapshot? character = map.Find(ownership);
+                if (character is not WorldCharacterSnapshot snapshot || (!snapshot.IsAlive && !snapshot.IsGhost))
+                {
+                    return false;
+                }
+
+                onAuthorized(snapshot);
+                return true;
+            });
+            return partition.TryEnqueue(command) switch
+            {
+                WorldPartitionEnqueueResult.Accepted => new ValueTask<bool>(command.Completion),
+                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
+                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
+            };
+        }
+    }
+
+    /// <summary>One generation-fenced ghost transition, serialized with all map movements.</summary>
+    internal ValueTask<WorldCharacterSnapshot?> TryEnterGhostAsync(WorldCharacterOwnership ownership,
+        long serverTimestamp, Action<WorldCharacterSnapshot>? onCommitted = null,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != ownership || entry.Removing)
+            {
+                return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
+            }
+            if (!_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? partition))
+            {
+                throw new InvalidOperationException("An active character references a missing world partition.");
+            }
+
+            WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map =>
+            {
+                WorldCharacterSnapshot? transitioned = map.TryEnterGhost(ownership, serverTimestamp);
+                if (transitioned is WorldCharacterSnapshot ghost)
+                {
+                    onCommitted?.Invoke(ghost);
+                }
+                return transitioned;
+            });
             return partition.TryEnqueue(command) switch
             {
                 WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
