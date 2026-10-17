@@ -11,7 +11,7 @@ namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Characters;
 [Collection(GameSchemaDatabaseCollection.Name)]
 public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture database)
 {
-    private static int s_nextAccountId = 700_000;
+    private static int s_nextAccountId = 1_600_000;
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     [Fact]

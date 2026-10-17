@@ -49,14 +49,13 @@ entirely separate MySQL principal provisioned by an operator. Do not reuse the c
 creation principal (INSERT only), runtime reader, or administrative schema owner.
 
 Provision the dedicated identity using the deployment's approved secret-management process.
-After its account exists, the minimum table permission is column-scoped. The CAS
-predicate reads `character_id` and `account_id` without changing them, so MySQL 8.4
-requires `SELECT` on those two columns in addition to `UPDATE` on the three
-location columns:
+After its account exists, the minimum table permission is column-scoped. The CAS predicate reads all five location and identity columns. MySQL 8.4
+requires `SELECT` on every referenced predicate column, including the location
+columns being updated, in addition to column-scoped `UPDATE`:
 
 ```sql
 GRANT UPDATE (`map_id`, `position_x`, `position_y`),
-      SELECT (`character_id`, `account_id`)
+      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`)
 ON `<game_database>`.`characters`
 TO '<location_writer>'@'<restricted_host>';
 ```
