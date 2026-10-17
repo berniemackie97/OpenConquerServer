@@ -93,6 +93,10 @@ implemented parts work and link here rather than repeating this list.
   results instead of assumed spawn coordinates. See
   [revival destination authority](architecture/revival-destination-authority.md).
   This does not enable action 94, revival, or map transfer.
+- Opt-in durable character-location compare-and-swap writer for a dedicated
+  column-restricted database identity. This is a tested persistence boundary,
+  not an operational world transfer or live position-save pipeline. See
+  [durable character location](architecture/durable-character-location.md).
 
 ## Not yet implemented
 

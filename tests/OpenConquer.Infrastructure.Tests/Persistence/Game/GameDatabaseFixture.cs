@@ -12,6 +12,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
     internal const string DatabaseName = "openconquer_game_tests";
     private const string RuntimeUserName = "openconquer_game_runtime_tests";
     private const string CreationUserName = "openconquer_game_creation_tests";
+    private const string LocationWriterUserName = "openconquer_location_tests";
     private static readonly string s_administrativePassword = Guid.NewGuid().ToString("N");
 
     private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.4.11").WithDatabase(DatabaseName).WithUsername("root").WithPassword(s_administrativePassword).Build();
@@ -19,12 +20,14 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
     private ServiceProvider? _services;
     private string? _runtimeConnectionString;
     private string? _creationConnectionString;
+    private string? _locationWriterConnectionString;
 
     public ServiceProvider Services => _services ?? throw new InvalidOperationException("The game test database is not initialized.");
     public IDbContextFactory<GameDbContext> ContextFactory => Services.GetRequiredService<IDbContextFactory<GameDbContext>>();
     public string AdministrativeConnectionString => _container.GetConnectionString();
     public string RuntimeConnectionString => _runtimeConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
     public string CreationConnectionString => _creationConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
+    public string LocationWriterConnectionString => _locationWriterConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
     public ulong InitialCharacterAutoIncrement { get; private set; }
 
     public async ValueTask InitializeAsync()
@@ -40,6 +43,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             InitialCharacterAutoIncrement = await ReadCharacterAutoIncrementAsync(administrativeConnectionString);
             _runtimeConnectionString = await CreateRuntimeIdentityAsync(administrativeConnectionString);
             _creationConnectionString = await CreateCreationIdentityAsync(administrativeConnectionString);
+            _locationWriterConnectionString = await CreateLocationWriterIdentityAsync(administrativeConnectionString);
 
             _services = new ServiceCollection().AddGamePersistence(_runtimeConnectionString)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
@@ -65,6 +69,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             _services = null;
             _runtimeConnectionString = null;
             _creationConnectionString = null;
+            _locationWriterConnectionString = null;
             InitialCharacterAutoIncrement = 0;
 
             await _container.DisposeAsync();
@@ -178,5 +183,40 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 
         MySqlConnectionStringBuilder creationConnection = new(administrativeConnectionString) { UserID = CreationUserName, Password = password };
         return creationConnection.ConnectionString;
+    }
+
+    private static async Task<string> CreateLocationWriterIdentityAsync(string administrativeConnectionString)
+    {
+        string password = Guid.NewGuid().ToString("N");
+
+        await using MySqlConnection connection = new(administrativeConnectionString);
+        await connection.OpenAsync();
+
+        await using (MySqlCommand createUser = connection.CreateCommand())
+        {
+            createUser.CommandText = $"""
+                CREATE USER '{LocationWriterUserName}'@'%'
+                IDENTIFIED BY '{password}'
+                """;
+            await createUser.ExecuteNonQueryAsync();
+        }
+
+        await using (MySqlCommand grant = connection.CreateCommand())
+        {
+            grant.CommandText = $"""
+                GRANT UPDATE (`map_id`, `position_x`, `position_y`),
+                      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`)
+                ON `{DatabaseName}`.`characters`
+                TO '{LocationWriterUserName}'@'%'
+                """;
+            await grant.ExecuteNonQueryAsync();
+        }
+
+        MySqlConnectionStringBuilder locationWriterConnection = new(administrativeConnectionString)
+        {
+            UserID = LocationWriterUserName,
+            Password = password,
+        };
+        return locationWriterConnection.ConnectionString;
     }
 }
