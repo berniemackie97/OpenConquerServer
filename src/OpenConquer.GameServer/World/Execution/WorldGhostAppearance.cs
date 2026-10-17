@@ -5,10 +5,10 @@ internal static class WorldGhostAppearance
 {
     public static uint FromBaseLook(uint baseLook)
     {
-        // The base body/look composite must not already include a transformation family.
-        if (baseLook is 0 or >= 10_000_000)
+        // A face composite can exceed 10,000,000; only zero is invalid here.
+        if (baseLook == 0)
         {
-            throw new InvalidDataException("Ghost transformation requires an untransformed base lookface.");
+            throw new InvalidDataException("Ghost transformation requires a nonzero base lookface.");
         }
 
         uint sexDigit = baseLook % 10_000 / 1_000;

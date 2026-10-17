@@ -19,6 +19,7 @@ public sealed class WorldPrimaryStatusMaskTests
     [Theory]
     [InlineData(1003u, 980001003u)]
     [InlineData(2003u, 990002003u)]
+    [InlineData(10_001_003u, 990_001_003u)]
     public void GhostLookMatchesHistoricalTransformFamilies(uint baseLook, uint expected)
     {
         Assert.Equal(expected, WorldGhostAppearance.FromBaseLook(baseLook));
