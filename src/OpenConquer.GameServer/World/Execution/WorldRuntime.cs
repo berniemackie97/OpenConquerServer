@@ -21,6 +21,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
     private readonly Guid _runtimeId = Guid.NewGuid();
     private readonly int _maxCharacters;
     private readonly int _maxCharactersPerMap;
+    private readonly TimeSpan _transferPreflightTimeout;
     private ulong _nextGeneration;
     private bool _started;
     private bool _stopping;
@@ -33,6 +34,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         _scheduler = new WorldScheduler(maps, options, HandleSchedulerWorkerFailure);
         _maxCharacters = options.MaxCharacters;
         _maxCharactersPerMap = options.MaxCharactersPerMap;
+        _transferPreflightTimeout = options.TransferPreflightTimeout;
     }
 
     public bool IsRunning
@@ -315,6 +317,126 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
+    /// Reserves a target-map population slot and fences new source-map mutation commands.
+    /// An ordinary source-partition barrier snapshots state after previously accepted moves.
+    /// This is a reversible preflight only: it does not transfer residency or write persistence.
+    /// </summary>
+    internal async ValueTask<WorldTransferReservation?> TryReserveTransferAsync(WorldCharacterOwnership ownership,
+        uint destinationMapId, ushort targetX, ushort targetY, CancellationToken cancellationToken = default)
+    {
+        WorldTransferReservation reservation;
+        Task<WorldCharacterSnapshot?> barrierTask;
+
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null ||
+                destinationMapId == ownership.MapId ||
+                !_scheduler.TryGetPartition(ownership.MapId, out WorldPartition? sourcePartition) ||
+                !_scheduler.TryGetPartition(destinationMapId, out WorldPartition? destinationPartition) ||
+                !destinationPartition.Map.Collision.IsStaticallyPassable(targetX, targetY) ||
+                _mapPopulation.GetValueOrDefault(destinationMapId) >= _maxCharactersPerMap)
+            {
+                return null;
+            }
+
+            reservation = new WorldTransferReservation(this, ownership, destinationMapId, targetX, targetY);
+            WorldPartitionCommand<WorldCharacterSnapshot?> barrier = new(map => map.Find(ownership));
+
+            // This gate also protects normal admission and command enqueue. The source
+            // barrier is ordered after already accepted commands; later ones are denied.
+            entry.TransferReservation = reservation;
+            _mapPopulation[destinationMapId] = _mapPopulation.GetValueOrDefault(destinationMapId) + 1;
+            try
+            {
+                if (sourcePartition.TryEnqueue(barrier) != WorldPartitionEnqueueResult.Accepted)
+                {
+                    ReleaseTransferReservationCore(entry, reservation);
+                    return null;
+                }
+            }
+            catch
+            {
+                ReleaseTransferReservationCore(entry, reservation);
+                throw;
+            }
+
+            barrierTask = barrier.Completion;
+        }
+
+        try
+        {
+            WorldCharacterSnapshot? snapshot = await barrierTask.WaitAsync(_transferPreflightTimeout, cancellationToken).ConfigureAwait(false);
+            if (snapshot is not WorldCharacterSnapshot committed || !IsTransferReservationActive(reservation))
+            {
+                reservation.Dispose();
+                return null;
+            }
+
+            reservation.Complete(committed);
+            if (!IsTransferReservationActive(reservation))
+            {
+                reservation.Dispose();
+                return null;
+            }
+            return reservation;
+        }
+        catch
+        {
+            reservation.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Only a current, non-removing generation owns a preflight reservation.</summary>
+    internal bool IsTransferReservationActive(WorldTransferReservation reservation)
+    {
+        lock (_gate)
+        {
+            return _started && !_stopping && _scheduler.IsRunning &&
+                _owners.TryGetValue(reservation.SourceOwnership.CharacterId, out OwnershipEntry? entry) &&
+                entry.Ownership == reservation.SourceOwnership && !entry.Removing &&
+                ReferenceEquals(entry.TransferReservation, reservation);
+        }
+    }
+
+    /// <summary>Refunds a reservation once, including after owner removal or shutdown.</summary>
+    internal void CancelTransferReservation(WorldTransferReservation reservation)
+    {
+        lock (_gate)
+        {
+            if (_owners.TryGetValue(reservation.SourceOwnership.CharacterId, out OwnershipEntry? entry) &&
+                entry.Ownership == reservation.SourceOwnership)
+            {
+                ReleaseTransferReservationCore(entry, reservation);
+            }
+        }
+    }
+
+    private void ReleaseTransferReservationCore(OwnershipEntry entry, WorldTransferReservation? reservation)
+    {
+        if (reservation is null || !ReferenceEquals(entry.TransferReservation, reservation))
+        {
+            return;
+        }
+
+        entry.TransferReservation = null;
+        uint destinationMapId = reservation.DestinationMapId;
+        int remaining = _mapPopulation[destinationMapId] - 1;
+        if (remaining == 0)
+        {
+            _mapPopulation.Remove(destinationMapId);
+        }
+        else
+        {
+            _mapPopulation[destinationMapId] = remaining;
+        }
+    }
+
+    /// <summary>
     /// Queues one native 5517 eight-direction step under the exact active ownership token.
     /// This is not a substitute for authenticated packet validation, anti-replay, or movement pacing.
     /// </summary>
@@ -336,7 +458,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || directionIndex >= (commandSelector == 9 ? 24 : 8))
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null || directionIndex >= (commandSelector == 9 ? 24 : 8))
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
@@ -388,7 +510,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
             if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
-                entry.Ownership != ownership || entry.Removing)
+                entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null)
             {
                 return ValueTask.FromResult(false);
             }
@@ -427,7 +549,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
             if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
-                entry.Ownership != ownership || entry.Removing)
+                entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null)
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
@@ -471,7 +593,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
             if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
-                entry.Ownership != ownership || entry.Removing)
+                entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null)
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
@@ -649,6 +771,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         {
             if (_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) && entry.Ownership == ownership)
             {
+                ReleaseTransferReservationCore(entry, entry.TransferReservation);
                 _owners.Remove(ownership.CharacterId);
                 int remaining = _mapPopulation[ownership.MapId] - 1;
 
@@ -699,6 +822,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
     private sealed class OwnershipEntry(WorldCharacterOwnership ownership)
     {
         public WorldCharacterOwnership Ownership { get; } = ownership;
+
+        public WorldTransferReservation? TransferReservation { get; set; }
 
         public Task<bool>? RemovalTask
         {

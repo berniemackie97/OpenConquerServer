@@ -7,7 +7,7 @@ internal sealed class WorldExecutionOptions
     {
     }
 
-    public WorldExecutionOptions(int workerCount, int partitionQueueCapacity, int maxCommandsPerTurn, int maxCharacters, int maxCharactersPerMap)
+    public WorldExecutionOptions(int workerCount, int partitionQueueCapacity, int maxCommandsPerTurn, int maxCharacters, int maxCharactersPerMap, TimeSpan? transferPreflightTimeout = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(workerCount, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(partitionQueueCapacity, 1);
@@ -20,6 +20,13 @@ internal sealed class WorldExecutionOptions
         MaxCommandsPerTurn = maxCommandsPerTurn;
         MaxCharacters = maxCharacters;
         MaxCharactersPerMap = maxCharactersPerMap;
+        TimeSpan timeout = transferPreflightTimeout ?? TimeSpan.FromSeconds(10);
+        if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromSeconds(30))
+        {
+            throw new ArgumentOutOfRangeException(nameof(transferPreflightTimeout),
+                "Transfer preflight timeout must be positive and no longer than 30 seconds.");
+        }
+        TransferPreflightTimeout = timeout;
     }
 
     public int WorkerCount
@@ -41,6 +48,8 @@ internal sealed class WorldExecutionOptions
     {
         get;
     }
+
+    public TimeSpan TransferPreflightTimeout { get; }
 
     public int MaxCharactersPerMap
     {
