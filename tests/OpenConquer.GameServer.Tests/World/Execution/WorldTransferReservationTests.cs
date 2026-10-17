@@ -10,6 +10,7 @@ public sealed class WorldTransferReservationTests
 {
     private const uint SourceMapId = 1002;
     private const uint TargetMapId = 1011;
+    private const uint ThirdMapId = 1000;
     private const uint CharacterId = CharacterIdentityPolicy.FirstPlayerEntityId;
 
     [Fact]
@@ -49,15 +50,43 @@ public sealed class WorldTransferReservationTests
         await using WorldRuntime runtime = CreateRuntime(maxCharacters: 2, maxCharactersPerMap: 1);
         runtime.Start();
         WorldCharacterOwnership ownership = await runtime.AdmitCharacterAsync(Profile(CharacterId, SourceMapId), TestContext.Current.CancellationToken);
+        using ManualResetEventSlim entered = new(false);
+        using ManualResetEventSlim release = new(false);
 
-        ValueTask<WorldCharacterSnapshot?> previousStep = runtime.TryWalkCharacterAsync(ownership, 0, TestContext.Current.CancellationToken);
-        ValueTask<WorldTransferReservation?> preflight = runtime.TryReserveTransferAsync(ownership, TargetMapId, 1, 1, TestContext.Current.CancellationToken);
-        WorldCharacterSnapshot committed = Assert.IsType<WorldCharacterSnapshot>(await previousStep);
-        using WorldTransferReservation lease = Assert.IsType<WorldTransferReservation>(await preflight);
+        // Hold the source worker inside a prior partition turn. The movement and
+        // preflight barrier must both be pending when the preflight is enqueued.
+        ValueTask<bool> blocker = runtime.TryPublishAvatarActionAsync(ownership, _ =>
+        {
+            entered.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The controlled test worker was never released.");
+            }
+        }, TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+            ValueTask<WorldCharacterSnapshot?> previousStep = runtime.TryWalkCharacterAsync(ownership, 0, TestContext.Current.CancellationToken);
+            Assert.False(previousStep.IsCompleted);
+            ValueTask<WorldTransferReservation?> preflight = runtime.TryReserveTransferAsync(
+                ownership, TargetMapId, 1, 1, TestContext.Current.CancellationToken);
+            Assert.False(preflight.IsCompleted);
 
-        Assert.Equal((ushort)2, committed.Y);
-        Assert.Equal(committed, lease.SourceSnapshot);
-        Assert.Null(await runtime.TryWalkCharacterAsync(ownership, 4, TestContext.Current.CancellationToken));
+            // The fence must reject commands after preflight, even before the
+            // previously accepted movement and snapshot barrier have executed.
+            Assert.Null(await runtime.TryWalkCharacterAsync(ownership, 4, TestContext.Current.CancellationToken));
+            release.Set();
+            Assert.True(await blocker);
+            WorldCharacterSnapshot committed = Assert.IsType<WorldCharacterSnapshot>(await previousStep);
+            using WorldTransferReservation lease = Assert.IsType<WorldTransferReservation>(await preflight);
+            Assert.Equal((ushort)2, committed.Y);
+            Assert.Equal(committed, lease.SourceSnapshot);
+            Assert.Null(await runtime.TryWalkCharacterAsync(ownership, 4, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            release.Set();
+        }
     }
 
     [Fact]
@@ -75,6 +104,14 @@ public sealed class WorldTransferReservationTests
                 () => runtime.AdmitCharacterAsync(Profile(CharacterId + 1, TargetMapId), TestContext.Current.CancellationToken).AsTask());
             Assert.Null(await runtime.TryReserveTransferAsync(source, TargetMapId, 1, 1, TestContext.Current.CancellationToken));
             Assert.NotNull(await runtime.ReadCharacterAsync(source, TestContext.Current.CancellationToken));
+
+            // A destination reservation consumes target-map capacity, not a
+            // second global resident slot. This admission must actually succeed.
+            WorldCharacterOwnership third = await runtime.AdmitCharacterAsync(
+                Profile(CharacterId + 2, ThirdMapId), TestContext.Current.CancellationToken);
+            Assert.Equal(2, runtime.ResidentCount);
+            Assert.NotNull(await runtime.ReadCharacterAsync(third, TestContext.Current.CancellationToken));
+            Assert.True(await runtime.RemoveCharacterAsync(third, TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -140,11 +177,54 @@ public sealed class WorldTransferReservationTests
         lease.Dispose();
     }
 
-    private static WorldRuntime CreateRuntime(int maxCharacters, int maxCharactersPerMap)
+    [Fact]
+    public async Task StalledBarrier_TimesOutAndRefundsTargetSlotWithoutKeepingSourceFrozen()
+    {
+        await using WorldRuntime runtime = CreateRuntime(maxCharacters: 2, maxCharactersPerMap: 1,
+            transferPreflightTimeout: TimeSpan.FromMilliseconds(150));
+        runtime.Start();
+        WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(Profile(CharacterId, SourceMapId), TestContext.Current.CancellationToken);
+        using ManualResetEventSlim entered = new(false);
+        using ManualResetEventSlim release = new(false);
+        ValueTask<bool> blocker = runtime.TryPublishAvatarActionAsync(source, _ =>
+        {
+            entered.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The controlled test worker was never released.");
+            }
+        }, TestContext.Current.CancellationToken);
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+            Task<WorldTransferReservation?> preflight = runtime.TryReserveTransferAsync(
+                source, TargetMapId, 1, 1, TestContext.Current.CancellationToken).AsTask();
+            Assert.False(preflight.IsCompleted);
+            await Assert.ThrowsAsync<TimeoutException>(() => preflight);
+
+            // The worker is still blocked: these operations can only enqueue
+            // successfully if the timeout released both the fence and slot.
+            ValueTask<WorldCharacterSnapshot?> resumedWalk = runtime.TryWalkCharacterAsync(source, 0, TestContext.Current.CancellationToken);
+            Assert.False(resumedWalk.IsCompleted);
+            ValueTask<WorldCharacterOwnership> targetAdmission = runtime.AdmitCharacterAsync(
+                Profile(CharacterId + 1, TargetMapId), TestContext.Current.CancellationToken);
+            release.Set();
+            Assert.True(await blocker);
+            Assert.NotNull(await resumedWalk);
+            WorldCharacterOwnership admitted = await targetAdmission;
+            Assert.Equal(TargetMapId, admitted.MapId);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    private static WorldRuntime CreateRuntime(int maxCharacters, int maxCharactersPerMap, TimeSpan? transferPreflightTimeout = null)
     {
         WorldMapContentCatalog maps = WorldMapTestContent.CreateCatalog(
-            CreateMap(SourceMapId, 1015), CreateMap(TargetMapId, 1016));
-        return new WorldRuntime(maps, new WorldExecutionOptions(1, 4, 1, maxCharacters, maxCharactersPerMap));
+            CreateMap(SourceMapId, 1015), CreateMap(TargetMapId, 1016), CreateMap(ThirdMapId, 1017));
+        return new WorldRuntime(maps, new WorldExecutionOptions(1, 4, 1, maxCharacters, maxCharactersPerMap, transferPreflightTimeout));
     }
 
     private static WorldMapContent CreateMap(uint mapId, uint mapDataId)

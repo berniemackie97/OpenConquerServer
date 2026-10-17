@@ -21,6 +21,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
     private readonly Guid _runtimeId = Guid.NewGuid();
     private readonly int _maxCharacters;
     private readonly int _maxCharactersPerMap;
+    private readonly TimeSpan _transferPreflightTimeout;
     private ulong _nextGeneration;
     private bool _started;
     private bool _stopping;
@@ -33,6 +34,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         _scheduler = new WorldScheduler(maps, options, HandleSchedulerWorkerFailure);
         _maxCharacters = options.MaxCharacters;
         _maxCharactersPerMap = options.MaxCharactersPerMap;
+        _transferPreflightTimeout = options.TransferPreflightTimeout;
     }
 
     public bool IsRunning
@@ -367,7 +369,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
         try
         {
-            WorldCharacterSnapshot? snapshot = await barrierTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            WorldCharacterSnapshot? snapshot = await barrierTask.WaitAsync(_transferPreflightTimeout, cancellationToken).ConfigureAwait(false);
             if (snapshot is not WorldCharacterSnapshot committed || !IsTransferReservationActive(reservation))
             {
                 reservation.Dispose();

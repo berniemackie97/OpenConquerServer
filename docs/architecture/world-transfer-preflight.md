@@ -25,10 +25,15 @@ cross-map coordinator; do not mistake it for a completed transfer.
    `TryEnterGhostAsync`, and `TryPublishAvatarActionAsync` are denied while the lease
    is present; `ReadCharacterAsync` remains available. No blocking work executes
    inside a partition worker or the global ownership lock.
-5. Return the barrier's authoritative source snapshot only after execution completes.
+5. Await the barrier for the configured bounded preflight timeout (10 seconds by
+   default, configurable to at most 30 seconds). If it times out, throw
+   `TimeoutException` and immediately refund destination capacity and reopen
+   source command admission. Timeout does not claim a stuck partition worker
+   has resumed; the barrier is read-only if it eventually executes.
+6. Return the barrier's authoritative source snapshot only after execution completes.
    If the character was removed, the partition stopped, the caller canceled, or the
    lease lost authority during that interval, cancel/refund the reservation.
-6. `Dispose()` idempotently releases the target slot and reopens source mutators
+7. `Dispose()` idempotently releases the target slot and reopens source mutators
    **only if** the original ownership generation still exists. Session removal
    refunds the destination slot too; disposing an orphan lease cannot refund a
    replacement character's capacity. Shutdown invalidates all outstanding leases.
@@ -85,6 +90,8 @@ and verified 5517 response order. None is asserted operational here.
 - Removal revokes authority and refunds exactly one destination slot, without
   refunding capacity reserved by an unrelated new resident.
 - Pre-cancellation and runtime shutdown cannot leave an active lease.
+- A stalled barrier times out and releases capacity and source mutation fencing.
+- Barrier-ordering and global capacity tests use controlled partition blocking and a third map.
 
 The full .NET release build, formatter, EF model checks, unit/integration tests, and
 CI must pass before merge. Live two-client transfer testing is intentionally a future
