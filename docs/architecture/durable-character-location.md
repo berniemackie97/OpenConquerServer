@@ -49,10 +49,14 @@ entirely separate MySQL principal provisioned by an operator. Do not reuse the c
 creation principal (INSERT only), runtime reader, or administrative schema owner.
 
 Provision the dedicated identity using the deployment's approved secret-management process.
-After its account exists, the minimum table permission is column-scoped:
+After its account exists, the minimum table permission is column-scoped. The CAS
+predicate reads `character_id` and `account_id` without changing them, so MySQL 8.4
+requires `SELECT` on those two columns in addition to `UPDATE` on the three
+location columns:
 
 ```sql
-GRANT UPDATE (`map_id`, `position_x`, `position_y`)
+GRANT UPDATE (`map_id`, `position_x`, `position_y`),
+      SELECT (`character_id`, `account_id`)
 ON `<game_database>`.`characters`
 TO '<location_writer>'@'<restricted_host>';
 ```
@@ -67,6 +71,8 @@ for this new principal require an operations review before runtime registration.
 - One committed transition updates only the expected account/character location.
 - A stale expected location or foreign account cannot overwrite a committed position.
 - Competing writers for one old triple yield exactly one `Committed` and one `Conflict`.
+- The restricted location-writer principal successfully executes the CAS; it cannot update
+  other character columns or read unrelated fields.
 - The existing read-only runtime principal cannot issue the update.
 - Pre-dispatch cancellation never updates a character.
 - The registration is explicit and does not grant writes to default persistence services.
