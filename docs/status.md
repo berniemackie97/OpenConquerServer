@@ -88,6 +88,11 @@ implemented parts work and link here rather than repeating this list.
   startup map/coordinate bounds verification before world publication.
 - Evidence-qualified map-transition candidate catalog with 373 native exit identities; the catalog
   is validated offline and does not enable transfers.
+- Immutable historical revival-destination resolver: 207 Long-lineage reborn/portal records
+  are checked against loaded 5517 map identities and composed terrain, with explicit unsupported
+  results instead of assumed spawn coordinates. See
+  [revival destination authority](architecture/revival-destination-authority.md).
+  This does not enable action 94, revival, or map transfer.
 
 ## Not yet implemented
 
