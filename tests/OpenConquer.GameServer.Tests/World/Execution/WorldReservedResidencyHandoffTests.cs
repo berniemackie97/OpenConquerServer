@@ -56,9 +56,13 @@ public sealed class WorldReservedResidencyHandoffTests
     {
         await using WorldRuntime runtime = CreateRuntime(maxPerMap: 1);
         runtime.Start();
-        WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(Profile(CharacterId, SourceMapId), CancellationToken);
+        WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(Profile(CharacterId, SourceMapId, life: 0), CancellationToken);
+        WorldCharacterSnapshot corpse = Assert.IsType<WorldCharacterSnapshot>(
+            await runtime.ReadCharacterAsync(source, CancellationToken));
         WorldCharacterSnapshot ghost = Assert.IsType<WorldCharacterSnapshot>(
-            await runtime.TryEnterGhostAsync(source, System.Diagnostics.Stopwatch.GetTimestamp(), cancellationToken: CancellationToken));
+            await runtime.TryEnterGhostAsync(source,
+                corpse.DeadSinceTimestamp + 4L * System.Diagnostics.Stopwatch.Frequency,
+                cancellationToken: CancellationToken));
         Assert.True(ghost.IsGhost);
         using WorldTransferReservation reservation = Assert.IsType<WorldTransferReservation>(
             await runtime.TryReserveTransferAsync(source, TargetMapId, 1, 1, CancellationToken));
@@ -225,14 +229,14 @@ public sealed class WorldReservedResidencyHandoffTests
             new MapTerrainCollision(terrain, []));
     }
 
-    private static CharacterLoginProfile Profile(uint characterId, uint mapId)
+    private static CharacterLoginProfile Profile(uint characterId, uint mapId, ushort life = 100)
     {
         CharacterLoginIdentity identity = new(characterId, 42, "ResidencyTest");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
         CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0,
             previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
         CharacterAttributes attributes = new(10, 10, 10, 10, 0);
-        CharacterVitals vitals = new(100, 0);
+        CharacterVitals vitals = new(life, 0);
         CharacterEconomy economy = new(0, 0, 0);
         return new CharacterLoginProfile(identity, appearance, progression, attributes, vitals, economy,
             0, 0, 0, new CharacterLocation(mapId, 1, 1));

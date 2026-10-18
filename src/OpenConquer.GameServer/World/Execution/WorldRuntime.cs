@@ -431,11 +431,14 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
             WorldCharacterSnapshot snapshot = reservation.SourceSnapshot;
             if (snapshot.Ownership != source ||
-                !_scheduler.TryGetPartition(source.MapId, out sourcePartition) ||
-                !_scheduler.TryGetPartition(reservation.DestinationMapId, out destinationPartition))
+                !_scheduler.TryGetPartition(source.MapId, out WorldPartition? reservedSource) ||
+                !_scheduler.TryGetPartition(reservation.DestinationMapId, out WorldPartition? reservedDestination))
             {
                 throw new InvalidOperationException("A reserved transfer has lost its authoritative partition.");
             }
+
+            sourcePartition = reservedSource;
+            destinationPartition = reservedDestination;
             if (_nextGeneration == ulong.MaxValue)
             {
                 throw new InvalidOperationException("World character ownership generations are exhausted.");
