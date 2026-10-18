@@ -94,9 +94,10 @@ implemented parts work and link here rather than repeating this list.
   results instead of assumed spawn coordinates. See
   [revival destination authority](architecture/revival-destination-authority.md).
   This does not enable action 94, revival, or map transfer.
-- Opt-in durable character-location compare-and-swap writer for a dedicated
-  column-restricted database identity. This is a tested persistence boundary,
-  not an operational world transfer or live position-save pipeline. See
+- Opt-in durable character-location compare-and-swap writer and identity-bound location
+  observer sharing one dedicated, column-restricted database identity. Observations expose
+  only persisted coordinates, not proof of a prior uncertain commit; no world transfer or
+  live position-save pipeline is enabled. See
   [durable character location](architecture/durable-character-location.md).
 - Native action-85 portal candidate preflight: validated DMap exit-marker and transition
   evidence resolve only against the current world's immutable map-content snapshot, followed

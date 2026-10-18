@@ -41,6 +41,27 @@ proper generation-bound transfer lease or monotonic persistence version, the CAS
 must be callable only from the generation-fenced, single-writer world-transfer coordinator.
 This slice does NOT make arbitrary concurrent writers or replayed stale sessions safe.
 
+## Post-#152: bounded location observation (#156)
+
+The opt-in, dedicated location-writer credential also exposes an **identity-bound location
+observation** through `ICharacterLocationObservationStore.ObserveAsync(accountId, characterId)`.
+It issues one bounded, parameterized read of only `map_id`, `position_x`, and `position_y`,
+restricted by both `account_id` and `character_id`, returning null for either missing or
+foreign identities. Invalid player/account identities are rejected. The read honors caller
+cancellation; failures propagate and are never rewritten as an absent character. The writer
+and observer share one registered service/credential, and the GameServer's default read-only
+identity receives no new grants. There are no SQL migrations or network changes.
+
+**Observation is not reconciliation authority.** A matching destination could predate the
+CAS, arise from a different operation, or be observed while a previously dispatched update
+is still in flight. Even a matching expected location cannot prove the uncertain update was
+rolled back. The ABA limitation remains. The future coordinator must hold a generation-fenced
+single-writer lease, prevent late commits from outrunning its observations, and define a
+monotonic revision or other provable handoff protocol before treating a read as resolution.
+On an uncertain write, keep the affected session fenced/disconnected; never blindly retry,
+release the owner into another map, or send a 5517 transition acknowledgement based on an
+observation alone.
+
 ## Credential boundary
 
 The existing `AddGamePersistence()` / ordinary runtime identity is **read-only** and must
