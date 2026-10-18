@@ -97,7 +97,7 @@ client packet is produced.
 
 The sealed phase intentionally has only two outcomes: **confirmed relocation**, or
 **terminal world shutdown**. Write conflicts, database exceptions, read timeouts,
-negative/missing operation evidence, cancellation after dispatch, and failed world
+negative/missing operation evidence, caller cancellation after sealing, and failed world
 cutover all stop this runtime. A different marker or an unchanged revision cannot prove
 that a prior SQL command cannot still complete. A bounded adapter call may outlive its
 caller after timeout; shutting down the runtime prevents further in-process admission,

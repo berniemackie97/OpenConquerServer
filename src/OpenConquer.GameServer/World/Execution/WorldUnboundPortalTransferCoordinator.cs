@@ -55,7 +55,8 @@ internal static class WorldUnboundPortalTransferCoordinator
                 throw new InvalidOperationException("The world stopped after portal commit fencing.");
             }
 
-            using CancellationTokenSource writeDeadline = new(s_databaseOperationTimeout);
+            using CancellationTokenSource writeDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            writeDeadline.CancelAfter(s_databaseOperationTimeout);
             CharacterLocationWriteResult writeResult = await writes.TryCommitAsync(change, writeDeadline.Token)
                 .AsTask().WaitAsync(writeDeadline.Token).ConfigureAwait(false);
             if (writeResult != CharacterLocationWriteResult.Committed)
@@ -63,7 +64,8 @@ internal static class WorldUnboundPortalTransferCoordinator
                 throw new InvalidOperationException("The sealed portal write did not commit; source residency is no longer trustworthy.");
             }
 
-            using CancellationTokenSource readDeadline = new(s_databaseOperationTimeout);
+            using CancellationTokenSource readDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            readDeadline.CancelAfter(s_databaseOperationTimeout);
             PersistedCharacterLocation? observed = await observations.ObserveAsync(change.AccountId,
                     change.CharacterId, readDeadline.Token).AsTask().WaitAsync(readDeadline.Token)
                 .ConfigureAwait(false);

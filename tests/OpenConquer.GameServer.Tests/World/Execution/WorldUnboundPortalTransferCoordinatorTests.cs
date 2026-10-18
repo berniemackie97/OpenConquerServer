@@ -187,6 +187,90 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
         }
     }
 
+    [Fact]
+    public async Task CallerCancellationDuringUncooperativeWrite_StopsWorldWithoutReleasingSource()
+    {
+        (WorldRuntime runtime, MapTransitionCatalog catalog) = World();
+        await using (runtime)
+        {
+            runtime.Start();
+            CharacterLoginProfile profile = Profile();
+            WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(profile, Token);
+            using CancellationTokenSource cancelled = new();
+            TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<CharacterLocationWriteResult> blocked =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+            Writer writer = new((_, _) =>
+            {
+                entered.TrySetResult();
+                return new ValueTask<CharacterLocationWriteResult>(blocked.Task);
+            });
+            Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source,
+                new Observer((_, _, _) => ValueTask.FromResult<PersistedCharacterLocation?>(Initial())),
+                writer, cancelled.Token).AsTask();
+            try
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
+                Assert.Null(await runtime.TryWalkCharacterAsync(source, 0, Token));
+                cancelled.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+                Assert.False(runtime.IsRunning);
+                Assert.Equal(0, runtime.ResidentCount);
+                Assert.Equal(1, writer.Calls);
+            }
+            finally
+            {
+                cancelled.Cancel();
+                blocked.TrySetResult(CharacterLocationWriteResult.Conflict);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CallerCancellationDuringUncooperativeEvidenceRead_StopsWorld()
+    {
+        (WorldRuntime runtime, MapTransitionCatalog catalog) = World();
+        await using (runtime)
+        {
+            runtime.Start();
+            CharacterLoginProfile profile = Profile();
+            WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(profile, Token);
+            using CancellationTokenSource cancelled = new();
+            TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<PersistedCharacterLocation?> blocked =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+            int observations = 0;
+            Observer observer = new((_, _, _) =>
+            {
+                if (Interlocked.Increment(ref observations) == 1)
+                {
+                    return ValueTask.FromResult<PersistedCharacterLocation?>(Initial());
+                }
+                entered.TrySetResult();
+                return new ValueTask<PersistedCharacterLocation?>(blocked.Task);
+            });
+            Writer writer = new((_, _) => ValueTask.FromResult(CharacterLocationWriteResult.Committed));
+            Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source,
+                observer, writer, cancelled.Token).AsTask();
+            try
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
+                Assert.Null(await runtime.TryWalkCharacterAsync(source, 0, Token));
+                cancelled.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+                Assert.False(runtime.IsRunning);
+                Assert.Equal(0, runtime.ResidentCount);
+                Assert.Equal(2, observations);
+                Assert.Equal(1, writer.Calls);
+            }
+            finally
+            {
+                cancelled.Cancel();
+                blocked.TrySetResult(null);
+            }
+        }
+    }
+
     private static ValueTask<WorldCharacterOwnership?> Execute(WorldRuntime runtime, MapTransitionCatalog catalog,
         CharacterLoginProfile profile, WorldCharacterOwnership owner, ICharacterLocationObservationStore observations,
         ICharacterLocationWriteStore writer, CancellationToken token = default) =>
