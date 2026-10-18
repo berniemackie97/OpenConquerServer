@@ -65,6 +65,25 @@ ordinary barrier; in that case preflight resolves unavailable and cannot commit.
 - No locks are held across `await`; the partition command performs a read only.
   No DB or socket I/O is introduced into map workers.
 
+## Offline partition-residency handoff (#161)
+
+The runtime can now consume a completed reversible reservation for a character with **no active
+world session** and relocate its partition-owned snapshot. Destination admission retains alive,
+ghost, status and death timestamp; a generation rollover revokes the old map identity.
+Destination capacity is consumed exactly once by the existing reservation, and successful
+cutover refunds the source slot. The destination is staged before source removal; no new
+ownership capability becomes public until the source command completes. A failure before departure submission removes staged destination state before releasing
+the source fence. Once source departure submission is attempted, any failure terminates world
+execution: an error cannot prove that the source occupant remains present, so the runtime
+must not reopen source commands or publish an unverified owner.
+
+This API is internal and is **not** a live portal transfer. It deliberately rejects tracked
+world sessions because `WorldSession.Map`, `WorldSession.Ownership`, visibility state, and
+network bootstrap currently bind to a lifetime-immutable map. The operation does not write
+MySQL, consume an observed commit marker, send client packets, or promise crash-safe durable
+handoff. A real portal coordinator must add durable fencing/recovery and the native wire
+sequence before it can invoke this relocation for connected characters.
+
 ## Next mandatory slice — operational map transfer
 
 A subsequent PR must implement a cutover state machine that obtains a preflight lease
