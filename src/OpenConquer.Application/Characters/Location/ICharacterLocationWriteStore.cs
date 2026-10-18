@@ -1,7 +1,7 @@
 namespace OpenConquer.Application.Characters.Location;
 
 /// <summary>
-/// Persistent location compare-and-swap. A conflict does not imply whether the row was
+/// Revision-qualified persistent location compare-and-swap. A conflict does not imply whether the row was
 /// deleted, ownership changed, or another writer committed first. Unexpected failures
 /// have uncertain commit outcomes and MUST NOT be retried blindly.
 /// </summary>

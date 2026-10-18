@@ -80,6 +80,12 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                         .HasColumnType("tinyint unsigned")
                         .HasColumnName("level");
 
+                    b.Property<long>("LocationRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("location_revision");
+
                     b.Property<uint>("MapId")
                         .HasColumnType("int unsigned")
                         .HasColumnName("map_id");
@@ -165,6 +171,8 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                             t.HasCheckConstraint("CK_characters_level", "`level` BETWEEN 1 AND 140");
 
                             t.HasCheckConstraint("CK_characters_map_id", "`map_id` > 0");
+
+                            t.HasCheckConstraint("CK_characters_location_revision", "`location_revision` >= 0");
 
                             t.HasCheckConstraint("CK_characters_name_length", "CHAR_LENGTH(`name`) BETWEEN 4 AND 15");
 

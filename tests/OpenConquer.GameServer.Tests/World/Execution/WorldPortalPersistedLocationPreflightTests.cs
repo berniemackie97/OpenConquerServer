@@ -28,7 +28,7 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             {
                 Assert.Equal(AccountId, account);
                 Assert.Equal(CharacterId, character);
-                return ValueTask.FromResult<CharacterLocation?>(new CharacterLocation(SourceMapId, 4, 3));
+                return ValueTask.FromResult<PersistedCharacterLocation?>(new PersistedCharacterLocation(new CharacterLocation(SourceMapId, 4, 3), 9));
             });
 
             WorldPortalPersistedLocationReservation prepared = Assert.IsType<WorldPortalPersistedLocationReservation>(
@@ -43,7 +43,8 @@ public sealed class WorldPortalPersistedLocationPreflightTests
                 Assert.Equal((ushort)1, prepared.SourceSnapshot.X);
                 Assert.Equal((ushort)1, prepared.SourceSnapshot.Y);
                 Assert.Equal((SourceMapId, (ushort)4, (ushort)3),
-                    (prepared.PersistedSource.MapId, prepared.PersistedSource.X, prepared.PersistedSource.Y));
+                    (prepared.PersistedSource.Location.MapId, prepared.PersistedSource.Location.X, prepared.PersistedSource.Location.Y));
+                Assert.Equal(9, prepared.PersistedSource.Revision);
                 Assert.Equal(TargetMapId, prepared.DestinationMapId);
                 Assert.Equal((ushort)1, prepared.DestinationX);
                 Assert.Equal((ushort)1, prepared.DestinationY);
@@ -91,8 +92,8 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             runtime.Start();
             CharacterLoginProfile profile = Profile();
             WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(profile, TestContext.Current.CancellationToken);
-            ObservationStore observations = new((_, _, _) => ValueTask.FromResult<CharacterLocation?>(
-                differentMap ? new CharacterLocation(TargetMapId, 1, 1) : null));
+            ObservationStore observations = new((_, _, _) => ValueTask.FromResult<PersistedCharacterLocation?>(
+                differentMap ? new PersistedCharacterLocation(new CharacterLocation(TargetMapId, 1, 1), 0) : null));
 
             Assert.Null(await WorldPortalPersistedLocationPreflight.TryReserveAsync(runtime, transitions,
                 profile, owner, observations, 2, 1, TestContext.Current.CancellationToken));
@@ -137,11 +138,11 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             CharacterLoginProfile profile = Profile();
             WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(profile, TestContext.Current.CancellationToken);
             TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            TaskCompletionSource<CharacterLocation?> blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<PersistedCharacterLocation?> blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
             ObservationStore observations = new((_, _, _) =>
             {
                 entered.TrySetResult();
-                return new ValueTask<CharacterLocation?>(blocked.Task); // Deliberately ignores cancellation.
+                return new ValueTask<PersistedCharacterLocation?>(blocked.Task); // Deliberately ignores cancellation.
             });
             using CancellationTokenSource cancelled = new();
             Task<WorldPortalPersistedLocationReservation?> pending = WorldPortalPersistedLocationPreflight.TryReserveAsync(
@@ -160,7 +161,7 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             finally
             {
                 cancelled.Cancel();
-                blocked.TrySetResult(new CharacterLocation(SourceMapId, 1, 1));
+                blocked.TrySetResult(new PersistedCharacterLocation(new CharacterLocation(SourceMapId, 1, 1), 0));
             }
         }
     }
@@ -175,11 +176,11 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             CharacterLoginProfile profile = Profile();
             WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(profile, TestContext.Current.CancellationToken);
             TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            TaskCompletionSource<CharacterLocation?> blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<PersistedCharacterLocation?> blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
             ObservationStore observations = new((_, _, _) =>
             {
                 entered.TrySetResult();
-                return new ValueTask<CharacterLocation?>(blocked.Task);
+                return new ValueTask<PersistedCharacterLocation?>(blocked.Task);
             });
 
             Task<WorldPortalPersistedLocationReservation?> pending = WorldPortalPersistedLocationPreflight.TryReserveAsync(
@@ -188,7 +189,7 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             {
                 await entered.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
                 Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
-                blocked.TrySetResult(new CharacterLocation(SourceMapId, 1, 1));
+                blocked.TrySetResult(new PersistedCharacterLocation(new CharacterLocation(SourceMapId, 1, 1), 0));
                 Assert.Null(await pending);
                 Assert.Null(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken));
                 WorldCharacterOwnership other = await runtime.AdmitCharacterAsync(
@@ -197,18 +198,18 @@ public sealed class WorldPortalPersistedLocationPreflightTests
             }
             finally
             {
-                blocked.TrySetResult(new CharacterLocation(SourceMapId, 1, 1));
+                blocked.TrySetResult(new PersistedCharacterLocation(new CharacterLocation(SourceMapId, 1, 1), 0));
             }
         }
     }
 
-    private sealed class ObservationStore(Func<uint, uint, CancellationToken, ValueTask<CharacterLocation?>> observe)
+    private sealed class ObservationStore(Func<uint, uint, CancellationToken, ValueTask<PersistedCharacterLocation?>> observe)
         : ICharacterLocationObservationStore
     {
         private int _calls;
         public int Calls => Volatile.Read(ref _calls);
 
-        public ValueTask<CharacterLocation?> ObserveAsync(uint accountId, uint characterId,
+        public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _calls);

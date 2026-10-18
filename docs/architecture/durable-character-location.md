@@ -18,8 +18,9 @@ protocol semantics are asserted here.
 `CharacterLocationChange` carries the authenticated account ID, valid player entity ID,
 previous persisted location, and a distinct requested destination. It is deliberately
 **not** an authorization token. `ICharacterLocationWriteStore.TryCommitAsync` issues a single
-parameterized atomic UPDATE, matching **all** of `account_id`, `character_id`, old map,
-old X, and old Y, and changing only `map_id`, `position_x`, `position_y`.
+parameterized atomic UPDATE matching **all** of `account_id`, `character_id`, old map,
+old X, old Y and expected `location_revision`, atomically changing the three location
+columns and incrementing the revision. The expected revision is mandatory.
 
 - Exactly one row affected -> `Committed`.
 - Zero rows -> `Conflict`, including stale location, wrong account, or missing character;
@@ -27,7 +28,8 @@ old X, and old Y, and changing only `map_id`, `position_x`, `position_y`.
 - Any database exception after dispatch -> **uncertain outcome**. Do not retry blindly;
   halt the transfer and reconcile via a fresh authoritative read, closing the session if
   reconciliation is not provably safe.
-- No-op updates are rejected at the model boundary; affected-row semantics are explicitly
+- No-op updates and invalid revision expectations are rejected at the model boundary;
+  affected-row semantics are explicitly
   configured, not left to connection-string defaults.
 - Only the pre-dispatch connection and setup phase observes external cancellation.
   Once dispatched, canceling the caller does not establish that the UPDATE was undone.
@@ -35,18 +37,18 @@ old X, and old Y, and changing only `map_id`, `position_x`, `position_y`.
 - The store does no automatic retries, transactions spanning sockets, or inferred
   cross-map state changes. The UPDATE is itself atomic on one MySQL row.
 
-**Important ABA limitation:** matching `(map,x,y)` is not a monotonic revision. A character
-could eventually return to exactly the same triple. Until the coordinator introduces a
-proper generation-bound transfer lease or monotonic persistence version, the CAS store
-must be callable only from the generation-fenced, single-writer world-transfer coordinator.
-This slice does NOT make arbitrary concurrent writers or replayed stale sessions safe.
+**Historical ABA limitation (#152–#157):** coordinates alone cannot detect A → B → A.
+Slice #158 adds revision-qualified CAS to close stale coordinate replay for this writer.
+This does not authorize new world ownership or resolve uncertain writes: the transfer
+coordinator still requires a generation-fenced single-writer protocol.
 
 ## Post-#152: bounded location observation (#156)
 
 The opt-in, dedicated location-writer credential also exposes an **identity-bound location
 observation** through `ICharacterLocationObservationStore.ObserveAsync(accountId, characterId)`.
-It issues one bounded, parameterized read of only `map_id`, `position_x`, and `position_y`,
-restricted by both `account_id` and `character_id`, returning null for either missing or
+It issues one bounded, parameterized read of only `map_id`, `position_x`, `position_y`
+and (since #158) `location_revision`, restricted by both `account_id` and `character_id`,
+returning null for either missing or
 foreign identities. Invalid player/account identities are rejected. The read honors caller
 cancellation; failures propagate and are never rewritten as an absent character. The writer
 and observer share one registered service/credential, and the GameServer's default read-only
@@ -78,6 +80,29 @@ that an already-dispatched write cannot complete later. Preparing a result canno
 CAS dispatch, world ownership cutover, or a 5517 packet until a true transfer coordinator
 has a generation-bound single-writer protocol and a durable monotonic outcome boundary.
 
+## Monotonic location CAS revision (#158)
+
+Game schema v11 introduces a nonnegative signed `BIGINT location_revision` on each character,
+initially zero for existing records. **Every** successful dedicated location-writer CAS now
+matches account ID, character ID, old coordinates **and** expected revision, then atomically
+changes the three coordinates and advances revision by one. A stale proposal cannot replay
+after A → B → A because its old revision no longer matches. The application rejects
+`long.MaxValue` as an expected revision with `ArgumentOutOfRangeException`, so it
+cannot overflow. The dedicated principal needs column-
+scoped `SELECT` and `UPDATE` on `location_revision` in addition to its existing grants.
+
+The identity-bound observation now returns a `PersistedCharacterLocation` containing the
+coordinate and revision. Internal portal preparation retains both as one immutable result.
+An observation still cannot resolve an in-flight commit or serve as ownership authorization.
+No hot migration: stop all writers, back up, update the schema, update restricted grants,
+then deploy the v11 GameServer. The ordinary runtime identity remains read-only.
+
+**Remaining gap:** versions prevent ABA only for writers using this guarded CAS. Other
+administrative/direct SQL writes must follow an explicit revision-advance policy. An
+uncertain dispatched write may still finish after a later observation; a revision by
+itself is not a durable idempotency/commit receipt or a cross-map transaction. Do not
+retry unknown outcomes or enable map handoff until the coordinator handles these cases.
+
 ## Credential boundary
 
 The existing `AddGamePersistence()` / ordinary runtime identity is **read-only** and must
@@ -91,8 +116,8 @@ requires `SELECT` on every referenced predicate column, including the location
 columns being updated, in addition to column-scoped `UPDATE`:
 
 ```sql
-GRANT UPDATE (`map_id`, `position_x`, `position_y`),
-      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`)
+GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`),
+      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`)
 ON `<game_database>`.`characters`
 TO '<location_writer>'@'<restricted_host>';
 ```

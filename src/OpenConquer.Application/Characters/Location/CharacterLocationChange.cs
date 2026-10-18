@@ -9,7 +9,8 @@ namespace OpenConquer.Application.Characters.Location;
 /// </summary>
 public sealed class CharacterLocationChange
 {
-    public CharacterLocationChange(uint accountId, uint characterId, CharacterLocation expected, CharacterLocation destination)
+    public CharacterLocationChange(uint accountId, uint characterId, CharacterLocation expected,
+        CharacterLocation destination, long expectedRevision)
     {
         if (accountId == 0)
         {
@@ -21,6 +22,10 @@ public sealed class CharacterLocationChange
         }
         ArgumentNullException.ThrowIfNull(expected);
         ArgumentNullException.ThrowIfNull(destination);
+        if (expectedRevision < 0 || expectedRevision == long.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(expectedRevision));
+        }
         if (expected.MapId == destination.MapId && expected.X == destination.X && expected.Y == destination.Y)
         {
             throw new ArgumentException("A durable location transition must change at least one coordinate or map identity.", nameof(destination));
@@ -30,10 +35,12 @@ public sealed class CharacterLocationChange
         CharacterId = characterId;
         Expected = expected;
         Destination = destination;
+        ExpectedRevision = expectedRevision;
     }
 
     public uint AccountId { get; }
     public uint CharacterId { get; }
     public CharacterLocation Expected { get; }
     public CharacterLocation Destination { get; }
+    public long ExpectedRevision { get; }
 }
