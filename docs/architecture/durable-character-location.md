@@ -96,7 +96,7 @@ coordinate, revision, and (since #160) last successful operation ID. Internal po
 preparation retains this immutable result without authorizing commit.
 An observation still cannot resolve an in-flight commit or serve as ownership authorization.
 No hot migration: stop all writers, back up, update the schema, update restricted grants,
-then deploy the v11 GameServer. The ordinary runtime identity remains read-only.
+then deploy the v12 GameServer. The ordinary runtime identity remains read-only.
 
 **Remaining gap:** versions prevent ABA only for writers using this guarded CAS. Other
 administrative/direct SQL writes must follow an explicit revision-advance policy. An
@@ -109,8 +109,9 @@ retry unknown outcomes or enable map handoff until the coordinator handles these
 Game schema v12 adds nullable `last_location_operation_id BINARY(16)` to each character.
 The dedicated CAS requires a nonempty server-generated operation UUID, which is written
 atomically with the new coordinates and next monotonic revision. Its binary form is the
-16-byte .NET `Guid.ToByteArray()` representation; the reader reconstructs the same UUID. The location observation
-returns that UUID alongside the coordinates and revision. An exact match of UUID,
+16-byte big-endian UUID representation, matching `MySqlGuidFormat.Binary16`. The restricted
+writer encodes and decodes bytes explicitly, regardless of its caller's GUID settings.
+The location observation returns that UUID alongside the coordinates and revision. An exact match of UUID,
 `expected_revision + 1`, and destination is **positive evidence** that this operation
 committed. A different marker, absence of a marker, failed read, or unchanged revision
 must **never** be interpreted as evidence that the uncertain operation will not commit

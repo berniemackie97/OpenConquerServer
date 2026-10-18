@@ -86,7 +86,7 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                         .HasDefaultValue(0L)
                         .HasColumnName("location_revision");
 
-                    b.Property<byte[]>("LastLocationOperationId")
+                    b.Property<Guid?>("LastLocationOperationId")
                         .HasColumnType("binary(16)")
                         .HasColumnName("last_location_operation_id");
 

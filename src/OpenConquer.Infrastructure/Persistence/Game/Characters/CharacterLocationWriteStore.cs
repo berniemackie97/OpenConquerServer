@@ -20,7 +20,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         MySqlConnectionStringBuilder builder = new(GameDbContextOptionsConfiguration.CreateConnectionString(connectionString))
         {
             UseAffectedRows = true,
-            GuidFormat = MySqlGuidFormat.None, // Read the BINARY(16) receipt as raw bytes in a fixed encoding.
+            GuidFormat = MySqlGuidFormat.None, // Keep byte order explicit across all supported caller connection strings.
         };
         _connectionString = builder.ConnectionString;
     }
@@ -65,7 +65,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
             return null;
         }
 
-        Guid? operationId = reader.IsDBNull(4) ? null : new Guid(reader.GetFieldValue<byte[]>(4));
+        Guid? operationId = reader.IsDBNull(4) ? null : new Guid(reader.GetFieldValue<byte[]>(4), bigEndian: true);
         return new PersistedCharacterLocation(
             new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)), reader.GetInt64(3), operationId);
     }
@@ -105,7 +105,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.Parameters.AddWithValue("@expected_x", change.Expected.X);
         command.Parameters.AddWithValue("@expected_y", change.Expected.Y);
         command.Parameters.AddWithValue("@expected_revision", change.ExpectedRevision);
-        command.Parameters.AddWithValue("@operation_id", change.OperationId.ToByteArray());
+        command.Parameters.AddWithValue("@operation_id", change.OperationId.ToByteArray(bigEndian: true));
         command.Parameters.AddWithValue("@target_map_id", change.Destination.MapId);
         command.Parameters.AddWithValue("@target_x", change.Destination.X);
         command.Parameters.AddWithValue("@target_y", change.Destination.Y);

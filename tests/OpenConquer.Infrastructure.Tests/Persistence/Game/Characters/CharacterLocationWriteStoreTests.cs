@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Characters.Creation;
@@ -5,6 +6,7 @@ using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Infrastructure.DependencyInjection;
 using OpenConquer.Infrastructure.Persistence.Game.Characters;
+using OpenConquer.Infrastructure.Persistence.Game.Context;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Characters;
 
@@ -219,6 +221,45 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         PersistedCharacterLocation snapshot = Assert.IsType<PersistedCharacterLocation>(
             await store.ObserveAsync(account, character, CancellationToken));
         Assert.True(CharacterLocationCommitEvidence.IsConfirmed(change, snapshot));
+    }
+
+    [Fact]
+    public async Task Commit_OperationMarkerHasBinary16EncodingConsistentWithGameContext()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        Guid operationId = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
+        CharacterLocationChange change = new(account, character,
+            new CharacterLocation(1002, 431, 379), new CharacterLocation(1011, 193, 266), 0, operationId);
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(change, CancellationToken));
+
+        MySqlConnectionStringBuilder rawCredentials = new(database.AdministrativeConnectionString)
+        {
+            GuidFormat = MySqlGuidFormat.None,
+        };
+        await using MySqlConnection connection = new(rawCredentials.ConnectionString);
+        await connection.OpenAsync(CancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT `last_location_operation_id`
+            FROM `characters`
+            WHERE `character_id` = @character_id
+              AND `account_id` = @account_id
+            """;
+        command.Parameters.AddWithValue("@character_id", character);
+        command.Parameters.AddWithValue("@account_id", account);
+        byte[] stored = Assert.IsType<byte[]>(await command.ExecuteScalarAsync(CancellationToken));
+        Assert.Equal(operationId.ToByteArray(bigEndian: true), stored);
+
+        DbContextOptionsBuilder<GameDbContext> options = new();
+        GameDbContextOptionsConfiguration.Configure(options, database.AdministrativeConnectionString);
+        await using GameDbContext db = new(options.Options);
+        CharacterRecord record = await db.Characters.AsNoTracking()
+            .SingleAsync(candidate => candidate.CharacterId == character, CancellationToken);
+        Assert.Equal(operationId, record.LastLocationOperationId);
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(
+            change, await store.ObserveAsync(account, character, CancellationToken)));
     }
 
     [Fact]
