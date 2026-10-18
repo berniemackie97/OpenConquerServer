@@ -72,9 +72,10 @@ world session** and relocate its partition-owned snapshot. Destination admission
 ghost, status and death timestamp; a generation rollover revokes the old map identity.
 Destination capacity is consumed exactly once by the existing reservation, and successful
 cutover refunds the source slot. The destination is staged before source removal; no new
-ownership capability becomes public until the source command completes. A failed departure
-removes the staged destination before releasing the source fence. An unrecoverable removal or
-post-departure failure terminates world execution instead of publishing ambiguous ownership.
+ownership capability becomes public until the source command completes. A failure before departure submission removes staged destination state before releasing
+the source fence. Once source departure submission is attempted, any failure terminates world
+execution: an error cannot prove that the source occupant remains present, so the runtime
+must not reopen source commands or publish an unverified owner.
 
 This API is internal and is **not** a live portal transfer. It deliberately rejects tracked
 world sessions because `WorldSession.Map`, `WorldSession.Ownership`, visibility state, and

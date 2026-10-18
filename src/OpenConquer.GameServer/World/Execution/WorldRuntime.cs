@@ -470,7 +470,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
 
         bool arrived = false;
-        bool departed = false;
+        bool departureAttempted = false;
         bool completed = false;
         try
         {
@@ -489,6 +489,9 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 }
 
                 WorldPartitionCommand<bool> leave = new(map => map.Remove(source));
+                // A departure submission can race its completion or fail after partial dispatch.
+                // Once attempted, the source state is not safe to infer from an exception.
+                departureAttempted = true;
                 if (sourcePartition.TryEnqueueRemoval(leave) != WorldPartitionEnqueueResult.Accepted)
                 {
                     throw new InvalidOperationException("The source partition refused the transfer departure.");
@@ -496,8 +499,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 departure = leave.Completion;
             }
 
-            departed = await departure.ConfigureAwait(false);
-            if (!departed)
+            if (!await departure.ConfigureAwait(false))
             {
                 throw new InvalidOperationException("The source partition no longer owns the transferring character.");
             }
@@ -532,10 +534,11 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
         catch
         {
-            if (departed)
+            if (departureAttempted)
             {
-                // Source is already gone. Failure to publish the new generation requires
-                // a terminal world stop, not an attempt to reanimate the old owner.
+                // After source removal dispatch, even an error result cannot prove that
+                // the source occupant still exists. Stop instead of undoing the destination
+                // and reopening source commands against an unverified owner.
                 await StopAsync().ConfigureAwait(false);
             }
             else if (arrived)
