@@ -31,4 +31,5 @@ internal sealed class CharacterRecord
     public ushort PositionX { get; set; }
     public ushort PositionY { get; set; }
     public long LocationRevision { get; set; }
+    public Guid? LastLocationOperationId { get; set; }
 }

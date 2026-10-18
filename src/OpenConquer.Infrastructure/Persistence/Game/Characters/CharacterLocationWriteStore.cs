@@ -20,6 +20,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         MySqlConnectionStringBuilder builder = new(GameDbContextOptionsConfiguration.CreateConnectionString(connectionString))
         {
             UseAffectedRows = true,
+            GuidFormat = MySqlGuidFormat.None, // Keep byte order explicit across all supported caller connection strings.
         };
         _connectionString = builder.ConnectionString;
     }
@@ -48,7 +49,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.CommandTimeout = CommandTimeoutSeconds;
         command.CommandText =
             """
-            SELECT `map_id`, `position_x`, `position_y`, `location_revision`
+            SELECT `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`
             FROM `characters`
             WHERE `account_id` = @account_id
               AND `character_id` = @character_id
@@ -64,8 +65,9 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
             return null;
         }
 
+        Guid? operationId = reader.IsDBNull(4) ? null : new Guid(reader.GetFieldValue<byte[]>(4), bigEndian: true);
         return new PersistedCharacterLocation(
-            new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)), reader.GetInt64(3));
+            new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)), reader.GetInt64(3), operationId);
     }
 
     public async ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
@@ -86,7 +88,8 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
             SET `map_id` = @target_map_id,
                 `position_x` = @target_x,
                 `position_y` = @target_y,
-                `location_revision` = `location_revision` + 1
+                `location_revision` = `location_revision` + 1,
+                `last_location_operation_id` = @operation_id
             WHERE `character_id` = @character_id
               AND `account_id` = @account_id
               AND `map_id` = @expected_map_id
@@ -102,6 +105,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.Parameters.AddWithValue("@expected_x", change.Expected.X);
         command.Parameters.AddWithValue("@expected_y", change.Expected.Y);
         command.Parameters.AddWithValue("@expected_revision", change.ExpectedRevision);
+        command.Parameters.AddWithValue("@operation_id", change.OperationId.ToByteArray(bigEndian: true));
         command.Parameters.AddWithValue("@target_map_id", change.Destination.MapId);
         command.Parameters.AddWithValue("@target_x", change.Destination.X);
         command.Parameters.AddWithValue("@target_y", change.Destination.Y);
@@ -121,7 +125,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         catch (MySqlException exception)
         {
             throw new InvalidOperationException(
-                "Character-location persistence failed after dispatch. The commit outcome may be uncertain; stop the transfer and reconcile using a fresh authoritative read. Do not retry blindly.", exception);
+                "Character-location persistence failed after dispatch. Keep the transfer fenced: only exact operation ID, next revision and destination provide positive commit evidence. A different observation remains unresolved; do not retry.", exception);
         }
     }
 }
