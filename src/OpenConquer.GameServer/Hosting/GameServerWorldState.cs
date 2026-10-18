@@ -1,4 +1,5 @@
 using OpenConquer.Application.World;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.GameServer.World.Execution;
 
 namespace OpenConquer.GameServer.Hosting;
@@ -24,10 +25,29 @@ internal sealed class GameServerWorldState
         }
     }
 
-    internal void Publish(WorldMapContentCatalog maps, WorldRuntime runtime)
+    public MapTransitionCatalog GetRequiredTransitions()
+    {
+        lock (_gate)
+        {
+            if (_publication is not { } publication || !publication.Runtime.IsRunning)
+            {
+                throw new InvalidOperationException("The authoritative GameServer world is not ready.");
+            }
+
+            return publication.Transitions;
+        }
+    }
+
+    internal void Publish(WorldMapContentCatalog maps, MapTransitionCatalog transitions, WorldRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(maps);
+        ArgumentNullException.ThrowIfNull(transitions);
         ArgumentNullException.ThrowIfNull(runtime);
+
+        if (!ReferenceEquals(maps, transitions.Maps) || !runtime.UsesMapContent(maps))
+        {
+            throw new InvalidDataException("The transition catalog, map content and world runtime do not share one authoritative snapshot.");
+        }
 
         lock (_gate)
         {
@@ -41,7 +61,7 @@ internal sealed class GameServerWorldState
                 throw new InvalidOperationException("An inactive world runtime cannot be published.");
             }
 
-            _publication = new WorldPublication(maps, runtime);
+            _publication = new WorldPublication(maps, transitions, runtime);
         }
     }
 
@@ -58,5 +78,5 @@ internal sealed class GameServerWorldState
         }
     }
 
-    private sealed record WorldPublication(WorldMapContentCatalog Maps, WorldRuntime Runtime);
+    private sealed record WorldPublication(WorldMapContentCatalog Maps, MapTransitionCatalog Transitions, WorldRuntime Runtime);
 }

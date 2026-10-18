@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.World;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.World.Execution;
@@ -20,6 +21,7 @@ internal sealed partial class GameServerWorldHostedService(
     IGameRealmBindingVerifier realmBindingVerifier,
     RealmId realmId,
     WorldMapContentLoader contentLoader,
+    IMapTransitionCatalogRepository transitionRepository,
     WorldExecutionOptions options,
     GameServerCharacterCreationReadiness creationReadiness,
     GameServerWorldState worldState,
@@ -32,6 +34,7 @@ internal sealed partial class GameServerWorldHostedService(
     private readonly IGameRealmBindingVerifier _realmBindingVerifier = realmBindingVerifier ?? throw new ArgumentNullException(nameof(realmBindingVerifier));
     private readonly RealmId _realmId = realmId.Value != 0 ? realmId : throw new ArgumentException("A nonzero configured realm is required.", nameof(realmId));
     private readonly WorldMapContentLoader _contentLoader = contentLoader ?? throw new ArgumentNullException(nameof(contentLoader));
+    private readonly IMapTransitionCatalogRepository _transitionRepository = transitionRepository ?? throw new ArgumentNullException(nameof(transitionRepository));
     private readonly WorldExecutionOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly GameServerCharacterCreationReadiness _creationReadiness = creationReadiness ?? throw new ArgumentNullException(nameof(creationReadiness));
     private readonly GameServerWorldState _worldState = worldState ?? throw new ArgumentNullException(nameof(worldState));
@@ -68,6 +71,12 @@ internal sealed partial class GameServerWorldHostedService(
         cancellationToken.ThrowIfCancellationRequested();
 
         _creationReadiness.Validate(maps);
+        MapTransitionCatalog transitions = await _transitionRepository.LoadAsync(maps, cancellationToken).ConfigureAwait(false);
+        if (!ReferenceEquals(transitions.Maps, maps))
+        {
+            throw new InvalidDataException("Map-transition catalog was not validated against the authoritative world snapshot.");
+        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         WorldRuntime runtime = new(maps, _options);
 
@@ -84,7 +93,7 @@ internal sealed partial class GameServerWorldHostedService(
 
                 runtime.Start();
 
-                _worldState.Publish(maps, runtime);
+                _worldState.Publish(maps, transitions, runtime);
                 _runtime = runtime;
                 _monitor = ObserveRuntimeAsync(runtime, runtime.StoppingToken);
             }
@@ -111,6 +120,7 @@ internal sealed partial class GameServerWorldHostedService(
         }
 
         LogWorldReady(_logger, maps.Count);
+        LogTransitionsReady(_logger, transitions.Count, transitions.ResolvedCount);
 
         using Process process = Process.GetCurrentProcess();
 
@@ -236,6 +246,8 @@ internal sealed partial class GameServerWorldHostedService(
     private static partial void LogWorldStopped(ILogger logger);
     [LoggerMessage(EventId = 6004, Level = LogLevel.Critical, Message = "Authoritative GameServer world terminated unexpectedly.")]
     private static partial void LogUnexpectedWorldStop(ILogger logger, Exception exception);
+    [LoggerMessage(EventId = 6006, Level = LogLevel.Information, Message = "Authoritative map-transition catalog ready: {TransitionCount} native exits, {ResolvedCount} eligible candidates.")]
+    private static partial void LogTransitionsReady(ILogger logger, int transitionCount, int resolvedCount);
     [LoggerMessage(EventId = 6005, Level = LogLevel.Information, Message = "GameServer world startup measurements: {DurationMilliseconds} ms; managed heap {ManagedHeapBytes} bytes; working set {WorkingSetBytes} bytes.")]
     private static partial void LogWorldStartupMeasurements(ILogger logger, double durationMilliseconds, long managedHeapBytes, long workingSetBytes);
 }

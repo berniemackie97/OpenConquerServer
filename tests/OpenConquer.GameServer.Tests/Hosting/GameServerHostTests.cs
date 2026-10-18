@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenConquer.Application.World;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
@@ -29,6 +30,7 @@ public sealed class GameServerHostTests
             GameServerWorldState state = host.Services.GetRequiredService<GameServerWorldState>();
 
             Assert.Throws<InvalidOperationException>(() => state.GetRequiredWorld());
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredTransitions());
 
             Task startup = host.StartAsync(TestContext.Current.CancellationToken);
 
@@ -66,6 +68,9 @@ public sealed class GameServerHostTests
             Assert.True(maps.TryGet(1002, out WorldMapContent? canonical));
             Assert.True(runtime.TryGetMap(1002, out WorldMapContent? runtimeMap));
             Assert.Same(canonical, runtimeMap);
+            MapTransitionCatalog transitions = state.GetRequiredTransitions();
+            Assert.Same(maps, transitions.Maps);
+            Assert.Equal(0, transitions.Count);
             Assert.Equal(1, account.Calls);
             Assert.Equal(1, game.Calls);
             Assert.Equal(1, content.DefinitionCalls);
@@ -74,6 +79,7 @@ public sealed class GameServerHostTests
 
             Assert.False(runtime.IsRunning);
             Assert.Throws<InvalidOperationException>(() => state.GetRequiredWorld());
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredTransitions());
         }
         finally
         {
@@ -152,6 +158,46 @@ public sealed class GameServerHostTests
             Assert.Equal(1, game.Calls);
             Assert.Equal(0, content.DefinitionCalls);
             Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld());
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
+    [Fact]
+    public async Task Host_TransitionCatalogFailurePreventsWorldPublication()
+    {
+        IOException failure = new("transition catalog unavailable");
+        IHost host = CreateHost(new ControlledReadiness(), new ControlledReadiness(),
+            new ControlledContentRepositories(), transitionFailure: failure);
+        try
+        {
+            IOException observed = await Assert.ThrowsAsync<IOException>(
+                () => host.StartAsync(TestContext.Current.CancellationToken));
+            Assert.Same(failure, observed);
+            GameServerWorldState state = host.Services.GetRequiredService<GameServerWorldState>();
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredWorld());
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredTransitions());
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
+    [Fact]
+    public async Task Host_TransitionCatalogWithDifferentMapSnapshotCannotPublish()
+    {
+        IHost host = CreateHost(new ControlledReadiness(), new ControlledReadiness(),
+            new ControlledContentRepositories(), mismatchedTransitionContent: true);
+        try
+        {
+            InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(
+                () => host.StartAsync(TestContext.Current.CancellationToken));
+            Assert.Contains("authoritative world snapshot", failure.Message, StringComparison.Ordinal);
+            Assert.Throws<InvalidOperationException>(() =>
+                host.Services.GetRequiredService<GameServerWorldState>().GetRequiredTransitions());
         }
         finally
         {
@@ -367,7 +413,8 @@ public sealed class GameServerHostTests
     }
 
     private static IHost CreateHost(ControlledReadiness account, ControlledReadiness game, ControlledContentRepositories content,
-        ILogger<GameServerWorldHostedService>? logger = null, Exception? realmBindingFailure = null)
+        ILogger<GameServerWorldHostedService>? logger = null, Exception? realmBindingFailure = null,
+        Exception? transitionFailure = null, bool mismatchedTransitionContent = false)
     {
         GameServerConfiguration configuration = GameServerConfiguration.Load(GameServerConfigurationTests.CreateConfiguration(), Path.GetTempPath());
         HostApplicationBuilder builder = Host.CreateApplicationBuilder([]);
@@ -380,6 +427,7 @@ public sealed class GameServerHostTests
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(content);
         builder.Services.AddSingleton<IMapBaseTerrainCatalogRepository>(content);
         builder.Services.AddSingleton<IMapTerrainCollisionCatalogRepository>(content);
+        builder.Services.AddSingleton<IMapTransitionCatalogRepository>(new StubMapTransitionCatalogRepository(transitionFailure, mismatchedTransitionContent));
 
         if (logger is not null)
         {

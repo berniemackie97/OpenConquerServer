@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.World;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.Domain.World;
 using OpenConquer.GameServer.Configuration;
@@ -125,6 +126,7 @@ public sealed class GameServerCharacterCreationStartupTests
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(content);
         builder.Services.AddSingleton<IMapBaseTerrainCatalogRepository>(content);
         builder.Services.AddSingleton<IMapTerrainCollisionCatalogRepository>(content);
+        builder.Services.AddSingleton<IMapTransitionCatalogRepository>(new StubMapTransitionCatalogRepository());
 
         return builder.Build();
     }

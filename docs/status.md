@@ -87,7 +87,8 @@ implemented parts work and link here rather than repeating this list.
 - Optional strict starting-state configuration with required profession-family validation and
   startup map/coordinate bounds verification before world publication.
 - Evidence-qualified map-transition candidate catalog with 373 native exit identities; the catalog
-  is validated offline and does not enable transfers.
+  is loaded and validated against the exact canonical world snapshot before GameServer world
+  publication, and is unavailable once the world stops. It does not enable transfers.
 - Immutable historical revival-destination resolver: 207 Long-lineage reborn/portal records
   are checked against loaded 5517 map identities and composed terrain, with explicit unsupported
   results instead of assumed spawn coordinates. See
@@ -97,6 +98,9 @@ implemented parts work and link here rather than repeating this list.
   column-restricted database identity. This is a tested persistence boundary,
   not an operational world transfer or live position-save pipeline. See
   [durable character location](architecture/durable-character-location.md).
+- Native action-85 portal candidate preflight: validated DMap exit-marker and transition
+  evidence resolve only against the current world's immutable map-content snapshot, followed
+  by a reversible generation-fenced reservation. No live packet ingress or transfer is enabled.
 - Reversible map-transfer preflight: the world runtime reserves destination capacity,
   fences new source positional/avatar mutations and drains a source-map command
   barrier. No residency handoff, persistence, visibility change or client packets
