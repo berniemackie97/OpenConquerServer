@@ -84,6 +84,31 @@ MySQL, consume an observed commit marker, send client packets, or promise crash-
 handoff. A real portal coordinator must add durable fencing/recovery and the native wire
 sequence before it can invoke this relocation for connected characters.
 
+## Unbound portal transaction (#162)
+
+`WorldUnboundPortalTransferCoordinator` links authenticated portal preflight and persisted
+source observation to an exclusive, generation-scoped runtime commit seal. Once sealed,
+new sessions, direct removals, and reservation disposal cannot reopen source mutations.
+The coordinator submits one revision-qualified CAS with a fresh operation ID, rereads
+identity-scoped persisted state, requires **exact** operation/revision/destination evidence,
+and consumes the reserved destination through the #161 partition handoff. Its successful
+result is a new generation owner with a matching saved destination. No socket or native
+client packet is produced.
+
+The sealed phase intentionally has only two outcomes: **confirmed relocation**, or
+**terminal world shutdown**. Write conflicts, database exceptions, read timeouts,
+negative/missing operation evidence, cancellation after dispatch, and failed world
+cutover all stop this runtime. A different marker or an unchanged revision cannot prove
+that a prior SQL command cannot still complete. A bounded adapter call may outlive its
+caller after timeout; shutting down the runtime prevents further in-process admission,
+not late database completion or crash-safe cross-process fencing.
+
+This workflow is internal and accepts **only unbound characters**. It is not registered
+with live gameplay ingress, and it does not establish a durable cross-process lease,
+recovery journal, world-session rebinding, visibility cutover, or verified native 5517
+map-transition acknowledgement. A restarted realm must still be protected from a late
+pre-crash CAS before real transfers may be enabled. No active-session movement is claimed.
+
 ## Next mandatory slice — operational map transfer
 
 A subsequent PR must implement a cutover state machine that obtains a preflight lease

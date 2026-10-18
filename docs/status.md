@@ -99,7 +99,7 @@ implemented parts work and link here rather than repeating this list.
   Version-checked writes prevent stale coordinate ABA and monotonically advance revision,
   and now persist the exact winning operation ID with the revision. A matching observation
   confirms a specific completed operation; missing or mismatched evidence cannot resolve
-  an in-flight write. No world transfer or
+  an in-flight write. No live world transfer or
   live position-save pipeline is enabled. See
   [durable character location](architecture/durable-character-location.md).
 - Native action-85 portal candidate preflight: validated DMap exit-marker and transition
@@ -109,6 +109,11 @@ implemented parts work and link here rather than repeating this list.
   generation-fenced reversible destination reservation with the latest identity-scoped
   persisted-location observation; mismatches, cancellation and failures refund capacity.
   This is not a durable CAS commit, residency transfer, or live packet handling.
+- Internal sessionless portal transaction links authenticated native exit preflight,
+  persisted-source observation, a nonreleasable durable-write seal, one revision-qualified
+  operation-ID CAS, exact commit evidence, and generation-fenced destination handoff.
+  Any failure after the seal stops the world; it is not a live session transfer or
+  crash-safe cross-process fence. See [world transfer preflight](architecture/world-transfer-preflight.md).
 - Internal cross-map residency relocation for characters without active sessions: generation-fenced
   source departure, destination staging with preserved character status, capacity accounting,
   rollback, and terminal shutdown on an unrepairable cutover. No live ingress, durability, or
