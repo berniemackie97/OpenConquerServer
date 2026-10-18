@@ -5,6 +5,7 @@ using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Realms;
 using OpenConquer.Application.World;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Items;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
@@ -13,6 +14,7 @@ using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.Tests.Configuration;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Hosting;
 using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
@@ -50,6 +52,35 @@ public sealed class GameLoginRuntimeHostedServiceTests
     }
 
     [Fact]
+    public async Task Host_TransitionCatalogFailurePreventsItemAndNetworkStartup()
+    {
+        IOException failure = new("transition catalog unavailable");
+        ItemRepository items = new();
+        TestListener listener = new();
+        int listenerCalls = 0;
+        IHost host = CreateHost(items, listener, new RecordingAccountSessionStore(),
+            () => Interlocked.Increment(ref listenerCalls), new StubMapTransitionCatalogRepository(failure));
+
+        try
+        {
+            IOException observed = await Assert.ThrowsAsync<IOException>(
+                () => host.StartAsync(TestContext.Current.CancellationToken));
+
+            Assert.Same(failure, observed);
+            Assert.Equal(0, items.Calls);
+            Assert.Equal(0, listenerCalls);
+            Assert.Equal(0, listener.DisposeCount);
+            GameServerWorldState world = host.Services.GetRequiredService<GameServerWorldState>();
+            Assert.Throws<InvalidOperationException>(() => world.GetRequiredWorld());
+            Assert.Throws<InvalidOperationException>(() => world.GetRequiredTransitions());
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
+    [Fact]
     public async Task Host_StartsListenerOnlyAfterWorldAndItemContentReadiness()
     {
         ItemRepository items = new();
@@ -61,7 +92,9 @@ public sealed class GameLoginRuntimeHostedServiceTests
         host = CreateHost(items, listener, accountSessions, () =>
         {
             Assert.Equal(1, items.Calls);
-            Assert.True(host!.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld().Runtime.IsRunning);
+            GameServerWorldState world = host!.Services.GetRequiredService<GameServerWorldState>();
+            Assert.True(world.GetRequiredWorld().Runtime.IsRunning);
+            Assert.Same(world.GetRequiredWorld().Maps, world.GetRequiredTransitions().Maps);
             Interlocked.Increment(ref listenerCalls);
         });
 
@@ -91,6 +124,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
             Assert.Equal(1, listener.DisposeCount);
             Assert.Equal(2, accountSessions.ResetCount);
             Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredWorld());
+            Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<GameServerWorldState>().GetRequiredTransitions());
             Assert.Null(host.Services.GetRequiredService<GameServerFailureState>().Failure);
         }
         finally
@@ -131,7 +165,8 @@ public sealed class GameLoginRuntimeHostedServiceTests
         }
     }
 
-    private static IHost CreateHost(ItemRepository items, TestListener listener, IAccountSessionStore accountSessions, Action onListenerCreated)
+    private static IHost CreateHost(ItemRepository items, TestListener listener, IAccountSessionStore accountSessions,
+        Action onListenerCreated, IMapTransitionCatalogRepository? transitionRepository = null)
     {
         GameServerConfiguration configuration = GameServerConfiguration.Load(
             GameServerConfigurationTests.CreateConfiguration(values =>
@@ -165,6 +200,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
         builder.Services.AddSingleton<IMapDefinitionCatalogRepository>(provider => provider.GetRequiredService<MapRepositories>());
         builder.Services.AddSingleton<IMapBaseTerrainCatalogRepository>(provider => provider.GetRequiredService<MapRepositories>());
         builder.Services.AddSingleton<IMapTerrainCollisionCatalogRepository>(provider => provider.GetRequiredService<MapRepositories>());
+        builder.Services.AddSingleton<IMapTransitionCatalogRepository>(transitionRepository ?? new StubMapTransitionCatalogRepository());
 
         builder.Services.AddSingleton<IItemTypeCatalogRepository>(items);
         builder.Services.AddSingleton<Func<ITransportConnectionListener>>(_ => () =>

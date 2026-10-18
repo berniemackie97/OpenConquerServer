@@ -28,6 +28,21 @@ internal sealed class GameServerSettings
             get; set;
         }
 
+        public string? TransitionsPath
+        {
+            get; set;
+        }
+
+        public int MaximumTransitionFileBytes
+        {
+            get; set;
+        }
+
+        public int MaximumTransitions
+        {
+            get; set;
+        }
+
         public int MaximumDefinitionFileBytes
         {
             get; set;

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Resolution;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Handshake;
@@ -25,6 +26,7 @@ using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.GameServer.World.Visibility;
 using OpenConquer.Infrastructure.Content.Items;
+using OpenConquer.Infrastructure.Content.Maps;
 using OpenConquer.Infrastructure.DependencyInjection;
 using OpenConquer.Infrastructure.Security.Accounts.GameLogin;
 using OpenConquer.Transport.Admission;
@@ -79,6 +81,8 @@ internal static class GameServerHost
 
         services.AddWorldMapContent(configuration.MapDefinitions, configuration.TerrainDirectory,
             configuration.TerrainLimits, configuration.CollisionDirectory, configuration.CollisionLimits);
+        services.AddSingleton<IMapTransitionCatalogRepository>(_ => new FileMapTransitionCatalogRepository(
+            configuration.TransitionsPath, configuration.MaximumTransitionFileBytes, configuration.MaximumTransitions));
 
         services.AddSingleton(typeof(RealmId), configuration.RealmId);
         services.AddSingleton(configuration.World);
@@ -121,6 +125,7 @@ internal static class GameServerHost
 
         services.AddSingleton(provider => provider.GetRequiredService<GameServerWorldState>().GetRequiredWorld().Maps);
         services.AddSingleton(provider => provider.GetRequiredService<GameServerWorldState>().GetRequiredWorld().Runtime);
+        services.AddSingleton(provider => provider.GetRequiredService<GameServerWorldState>().GetRequiredTransitions());
 
         services.AddSingleton<ICharacterLoginResolver, CharacterLoginResolver>();
         services.AddSingleton<ICharacterItemSetResolver, CharacterItemSetResolver>();

@@ -44,11 +44,17 @@ recognized historical source, and an in-bounds, statically passable **composed c
 Unresolved rows may not contain an accidental fallback destination. Once loaded, lookups are
 immutable and allocation-free, keyed by the server-derived map ID and passway index.
 
-The loader is currently an **offline catalog-validation API**, exercised against the complete
-canonical map, terrain, and collision release by `MapTransitionContentTests`. This first slice does
-not add the catalog to GameServer startup or expose an ingress packet. A later map-transition
-runtime slice must make the file mandatory for world readiness and validate ownership, proximity,
-state transitions, visibility/rollback semantics, and packet ordering before enabling movement.
+The release is exercised against the complete canonical map, terrain, and collision content by
+`MapTransitionContentTests`. Since slice #155 the same bounded file is also a **mandatory
+GameServer world-startup input**: it is loaded after canonical maps, validated against that exact
+immutable map-content snapshot, and published with the running world. A missing, malformed,
+unsupported, incomplete or mismatched catalog prevents world readiness and ingress.
+The file is copied into the GameServer build and publish output; its path and limits are
+configured under `GameServer:Content`.
+
+The native action-85 resolver (#154) remains an internal reversible preflight only. The live
+map-transition coordinator must still handle durable state, ownership handoff, session/visibility,
+client packet order and failure reconciliation before any native portal request can move a player.
 Never pass a client-supplied index directly to `TryResolve`.
 
 This catalog is a curated projection, not a second runtime authority for terrain or collision.

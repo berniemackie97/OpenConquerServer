@@ -23,7 +23,8 @@ internal sealed class GameServerConfiguration
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
         GameNetworkOptions? network, RealmStatusOptions? realmStatus, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
-        CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString)
+        CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString,
+        string transitionsPath, int maximumTransitionFileBytes, int maximumTransitions)
     {
         RealmId = realmId;
         AccountConnectionString = accountConnectionString;
@@ -41,6 +42,9 @@ internal sealed class GameServerConfiguration
         VerificationKeys = Array.AsReadOnly(verificationKeys);
         CharacterCreationStartingState = characterCreationStartingState;
         CharacterCreationConnectionString = characterCreationConnectionString;
+        TransitionsPath = transitionsPath;
+        MaximumTransitionFileBytes = maximumTransitionFileBytes;
+        MaximumTransitions = maximumTransitions;
     }
 
     public RealmId RealmId { get; }
@@ -64,6 +68,9 @@ internal sealed class GameServerConfiguration
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
     public CharacterCreationStartingState? CharacterCreationStartingState { get; }
     public string? CharacterCreationConnectionString { get; }
+    public string TransitionsPath { get; }
+    public int MaximumTransitionFileBytes { get; }
+    public int MaximumTransitions { get; }
 
     public static GameServerConfiguration Load(IConfiguration configuration, string contentRootPath)
     {
@@ -102,6 +109,11 @@ internal sealed class GameServerConfiguration
 
             string terrainDirectory = ResolvePath(content.TerrainDirectory, root, $"{SectionName}:Content:TerrainDirectory");
             string collisionDirectory = ResolvePath(content.CollisionDirectory, root, $"{SectionName}:Content:CollisionDirectory");
+            string transitionsPath = ResolvePath(content.TransitionsPath, root, $"{SectionName}:Content:TransitionsPath");
+            int maximumTransitionFileBytes = ValidatePositive(content.MaximumTransitionFileBytes,
+                64 * 1024 * 1024, $"{SectionName}:Content:MaximumTransitionFileBytes");
+            int maximumTransitions = ValidatePositive(content.MaximumTransitions,
+                100_000, $"{SectionName}:Content:MaximumTransitions");
 
             int maximumCharacters = ValidatePositive(worldSettings.MaxCharacters, 1_000_000, $"{SectionName}:World:MaxCharacters");
             int maximumCharactersPerMap = ValidatePositive(worldSettings.MaxCharactersPerMap, maximumCharacters, $"{SectionName}:World:MaxCharactersPerMap");
@@ -170,7 +182,7 @@ internal sealed class GameServerConfiguration
             return new GameServerConfiguration(realmId, accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
                 network, realmStatus, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
-                characterCreationConnectionString);
+                characterCreationConnectionString, transitionsPath, maximumTransitionFileBytes, maximumTransitions);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
         {

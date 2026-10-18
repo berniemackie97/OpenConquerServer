@@ -4,7 +4,7 @@ using OpenConquer.Application.World.Transitions;
 
 namespace OpenConquer.Infrastructure.Content.Maps;
 
-public sealed class FileMapTransitionCatalogRepository
+public sealed class FileMapTransitionCatalogRepository : IMapTransitionCatalogRepository
 {
     public const int FormatVersion = 1;
 

@@ -26,6 +26,9 @@ public sealed class GameServerConfigurationTests
         Assert.Equal(Path.GetFullPath("content/maps/map-definitions.json", Path.GetTempPath()), configuration.MapDefinitions.FilePath);
         Assert.Equal(Path.GetFullPath("content/maps/terrains", Path.GetTempPath()), configuration.TerrainDirectory);
         Assert.Equal(Path.GetFullPath("content/maps/collision", Path.GetTempPath()), configuration.CollisionDirectory);
+        Assert.Equal(Path.GetFullPath("content/maps/map-transitions.json", Path.GetTempPath()), configuration.TransitionsPath);
+        Assert.Equal(1048576, configuration.MaximumTransitionFileBytes);
+        Assert.Equal(1000, configuration.MaximumTransitions);
     }
 
     [Fact]
@@ -60,6 +63,10 @@ public sealed class GameServerConfigurationTests
     [InlineData("GameServer:World:MaxCharactersPerMap", "1001")]
     [InlineData("GameServer:Content:MaximumDefinitionFileBytes", "0")]
     [InlineData("GameServer:Content:MaximumDefinitions", "100001")]
+    [InlineData("GameServer:Content:MaximumTransitionFileBytes", "0")]
+    [InlineData("GameServer:Content:MaximumTransitionFileBytes", "67108865")]
+    [InlineData("GameServer:Content:MaximumTransitions", "0")]
+    [InlineData("GameServer:Content:MaximumTransitions", "100001")]
     public void Load_InvalidResourceBudgetIsRejected(string key, string value)
     {
         IConfiguration configuration = CreateConfiguration(values => values[key] = value);
@@ -71,6 +78,7 @@ public sealed class GameServerConfigurationTests
     [InlineData("GameServer:Content:DefinitionsPath")]
     [InlineData("GameServer:Content:TerrainDirectory")]
     [InlineData("GameServer:Content:CollisionDirectory")]
+    [InlineData("GameServer:Content:TransitionsPath")]
     public void Load_MissingContentPathIsRejected(string key)
     {
         IConfiguration configuration = CreateConfiguration(values => values.Remove(key));
@@ -123,6 +131,9 @@ public sealed class GameServerConfigurationTests
             ["GameServer:Content:DefinitionsPath"] = "content/maps/map-definitions.json",
             ["GameServer:Content:TerrainDirectory"] = "content/maps/terrains",
             ["GameServer:Content:CollisionDirectory"] = "content/maps/collision",
+            ["GameServer:Content:TransitionsPath"] = "content/maps/map-transitions.json",
+            ["GameServer:Content:MaximumTransitionFileBytes"] = "1048576",
+            ["GameServer:Content:MaximumTransitions"] = "1000",
             ["GameServer:Content:MaximumDefinitionFileBytes"] = "16777216",
             ["GameServer:Content:MaximumDefinitions"] = "10000",
 

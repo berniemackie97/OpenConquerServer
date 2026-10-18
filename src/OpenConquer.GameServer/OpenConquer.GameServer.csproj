@@ -11,6 +11,11 @@
   <ItemGroup>
     <None Update="appsettings*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 
+    <Content Include="..\..\content\maps\map-transitions.json"
+             Link="content\maps\map-transitions.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+
     <Content Include="..\..\content\maps\map-definitions.json"
              Link="content\maps\map-definitions.json"
              CopyToOutputDirectory="PreserveNewest"
