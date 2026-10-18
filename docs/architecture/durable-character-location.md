@@ -86,8 +86,9 @@ Game schema v11 introduces a nonnegative signed `BIGINT location_revision` on ea
 initially zero for existing records. **Every** successful dedicated location-writer CAS now
 matches account ID, character ID, old coordinates **and** expected revision, then atomically
 changes the three coordinates and advances revision by one. A stale proposal cannot replay
-after A → B → A because its old revision no longer matches. At `long.MaxValue`, the write
-fails closed as a conflict rather than overflowing. The dedicated principal needs column-
+after A → B → A because its old revision no longer matches. The application rejects
+`long.MaxValue` as an expected revision with `ArgumentOutOfRangeException`, so it
+cannot overflow. The dedicated principal needs column-
 scoped `SELECT` and `UPDATE` on `location_revision` in addition to its existing grants.
 
 The identity-bound observation now returns a `PersistedCharacterLocation` containing the
