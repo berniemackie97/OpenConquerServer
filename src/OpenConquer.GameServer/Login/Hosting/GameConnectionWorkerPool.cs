@@ -14,7 +14,8 @@ using OpenConquer.Transport.Connections;
 namespace OpenConquer.GameServer.Login.Hosting;
 
 /// <summary>
-/// Runs bounded login work and supervises completed world-session lifetimes independently of login workers.
+/// Runs login work on a fixed set of workers and supervises world sessions separately once their logins
+/// complete.
 /// </summary>
 internal sealed partial class GameConnectionWorkerPool(
     TransportConnectionAdmissionQueue queue,

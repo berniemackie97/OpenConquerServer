@@ -3,9 +3,9 @@ using System.Diagnostics;
 namespace OpenConquer.GameServer.World.Movement;
 
 /// <summary>
-/// Per-session limit on observer-fanned cosmetic actions. The serialized session reader
-/// waits on exhaustion instead of dropping the final state or creating a second queue.
-/// This is an operational resource bound, not a retail 5517 animation-cadence rule.
+/// Per-session limit on facing and pose changes sent to observers. When it is used up the session's reader
+/// waits instead of dropping the latest state or starting a second queue. The limit protects the server; it
+/// isn't the client's animation timing.
 /// </summary>
 internal sealed class WorldAvatarActionLimiter
 {

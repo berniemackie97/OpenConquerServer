@@ -4,8 +4,8 @@ using OpenConquer.Application.World;
 namespace OpenConquer.Application.World.Revival;
 
 /// <summary>
-/// Resolves a historical map's reborn relationship against immutable, composed 5517 map terrain.
-/// No geometric nearest-town or portal-chain fallback is permitted.
+/// Looks up where a character revives on each map, from the historical reborn-map data checked against the
+/// 5517 terrain. There is no fallback to the nearest town or a portal chain.
 /// </summary>
 public sealed class RevivalDestinationCatalog
 {
@@ -49,8 +49,8 @@ public sealed class RevivalDestinationCatalog
     public int MapCount => _resolutions.Count;
 
     /// <summary>
-    /// Returns an explicit reason for unsupported destinations. Failed results never expose
-    /// a fallback coordinate that a caller could accidentally treat as authoritative.
+    /// Returns the destination, or the reason there is none. A failed result never carries a coordinate, so a
+    /// caller can't use one by mistake.
     /// </summary>
     public RevivalDestinationResolution Resolve(uint worldMapId) =>
         _resolutions.TryGetValue(worldMapId, out RevivalDestinationResolution result)

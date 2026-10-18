@@ -10,11 +10,10 @@ namespace OpenConquer.Application.Accounts.Authentication.Protection;
 public interface IAccountAuthenticationRequestLimiter
 {
     /// <summary>
-    /// Attempts to admit an authentication requestLease from a remote address.
+    /// Attempts to admit an authentication request from a remote address.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> when the requestLease is admitted; otherwise
-    /// <see langword="false"/>.
+    /// <see langword="true"/> when the request is admitted; otherwise <see langword="false"/>.
     /// </returns>
     bool TryBeginAuthentication(IPAddress remoteAddress, [NotNullWhen(true)] out IAccountAuthenticationRequestLease? requestLease);
 }

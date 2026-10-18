@@ -15,8 +15,8 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
     private readonly GameLoginTicketRedeemer _ticketRedeemer = ticketRedeemer ?? throw new ArgumentNullException(nameof(ticketRedeemer));
 
     /// <summary>
-    /// Takes ownership of <paramref name="session"/> and returns an authenticated
-    /// connection only when its first secured frame proves a valid login ticket.
+    /// Returns an authenticated connection if the first secured frame carries a valid login ticket. Takes over
+    /// <paramref name="session"/>.
     /// </summary>
     public async ValueTask<GameConnectionAuthenticationResult> AuthenticateAsync(GameConnectionSession session, CancellationToken cancellationToken = default)
     {

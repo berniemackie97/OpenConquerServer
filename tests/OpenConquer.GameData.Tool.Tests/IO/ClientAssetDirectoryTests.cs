@@ -138,19 +138,4 @@ public sealed class ClientAssetDirectoryTests
 
         Assert.Throws<InvalidDataException>(() => source.ReadMap("test.7z", stream => stream.ReadByte(), TestContext.Current.CancellationToken));
     }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                $"openconquer-client-map-source-{Guid.NewGuid():N}");
-
-            Directory.CreateDirectory(Path);
-        }
-
-        public string Path { get; }
-
-        public void Dispose() => Directory.Delete(Path, recursive: true);
-    }
 }

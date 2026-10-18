@@ -51,8 +51,8 @@ public sealed class WorldMapContentReleaseTests
         Assert.Equal(1730u, classPkArena.MapDataId);
         Assert.Equal(0x0030_010C_4015_0007UL, classPkArena.Flags);
 
-        // Historical 5095 terrain and FoxConquer 5517 independently mark this example spawn
-        // blocked. Pin the current release's composed 5517 collision as the operational authority.
+        // Historical 5095 terrain and FoxConquer 5517 both mark this example spawn blocked. This pins what the
+        // current 5517 collision release says.
         Assert.True(catalog.TryGet(1010, out WorldMapContent? birthVillage));
         Assert.Equal(1010u, birthVillage.MapDataId);
         Assert.False(birthVillage.Collision.IsStaticallyPassable(61, 101));

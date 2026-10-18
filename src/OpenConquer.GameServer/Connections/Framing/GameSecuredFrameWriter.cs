@@ -7,7 +7,7 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.GameServer.Connections.Framing;
 
 /// <summary>
-/// Serializes secured server-to-client GameServer frames into a caller-owned output pipeline.
+/// Encrypts and writes frames to the client once the GameServer connection is secured.
 /// </summary>
 internal sealed class GameSecuredFrameWriter
 {

@@ -1,8 +1,7 @@
 namespace OpenConquer.Protocol.Game.Cryptography;
 
 /// <summary>
-/// Owns the independent inbound and outbound CAST5 CFB-64 streams negotiated
-/// for one GameServer connection.
+/// The inbound and outbound CAST5 CFB-64 streams negotiated for one GameServer connection.
 /// </summary>
 public sealed class GameSessionCipher : IDisposable
 {

@@ -194,8 +194,8 @@ public sealed class WorldPortalPreflightTests
         runtime.Start();
         WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(Profile(), TestContext.Current.CancellationToken);
 
-        // The IDs and exit markers agree, but the validation snapshot is not the
-        // runtime's authoritative content. No route may be reserved from it.
+        // The IDs and exit markers agree, but the catalog was validated against different content than the runtime
+        // uses, so no route may be reserved from it.
         Assert.Null(await WorldPortalPreflight.TryReserveAsync(runtime, staleTransitions, owner, 2, 1,
             TestContext.Current.CancellationToken));
         Assert.NotNull(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));

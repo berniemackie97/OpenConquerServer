@@ -12,7 +12,7 @@ using OpenConquer.Transport.Pipelines;
 namespace OpenConquer.GameServer.Connections;
 
 /// <summary>
-/// Owns the transport, buffering, handshake transition, cipher, and secured I/O state for one GameServer connection.
+/// One GameServer connection: transport pumps, buffers, the handshake, the session cipher and secured framing.
 /// </summary>
 internal sealed class GameConnectionSession : IAsyncDisposable
 {
@@ -70,11 +70,11 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     public EndPoint RemoteEndPoint => _connection.RemoteEndPoint;
 
     /// <summary>
-    /// Takes ownership of <paramref name="connection"/> and starts the duplex transport pumps.
+    /// Starts the transport pumps for <paramref name="connection"/>.
     /// </summary>
     /// <remarks>
-    /// After argument validation, ownership of the connection transfers to this operation.
-    /// If opening fails, the connection and any created session resources are disposed before the failure is propagated.
+    /// The session takes over the connection. If opening fails, the connection is disposed before the exception
+    /// is rethrown.
     /// </remarks>
     public static async ValueTask<GameConnectionSession> OpenAsync(ITransportConnection connection, CancellationToken cancellationToken = default)
     {
@@ -113,7 +113,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sends the one bootstrap-encrypted Diffie-Hellman challenge before secured framing begins.
+    /// Sends the bootstrap-encrypted Diffie-Hellman challenge. This happens once, before secured framing starts.
     /// </summary>
     public async ValueTask SendHandshakeChallengeAsync(ReadOnlyMemory<byte> encryptedChallenge, CancellationToken cancellationToken = default)
     {
@@ -146,7 +146,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Reads and validates the one bootstrap-encrypted client Diffie-Hellman response.
+    /// Reads and validates the client's bootstrap-encrypted Diffie-Hellman response.
     /// </summary>
     public async ValueTask<string?> ReadClientKeyExchangeResponseAsync(CancellationToken cancellationToken = default)
     {
@@ -194,7 +194,8 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Transfers ownership of the negotiated session cipher and transitions this connection exactly once to secured framing.
+    /// Switches the connection to secured framing with the negotiated cipher, which the session takes over.
+    /// This can only happen once.
     /// </summary>
     public void CompleteHandshake(GameSessionCipher sessionCipher)
     {

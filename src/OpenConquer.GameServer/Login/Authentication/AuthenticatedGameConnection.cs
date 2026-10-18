@@ -7,8 +7,7 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.GameServer.Login.Authentication;
 
 /// <summary>
-/// Owns one authenticated GameServer connection and the canonical identity
-/// established by successful single-use game-login ticket redemption.
+/// A GameServer connection whose login ticket has been redeemed, with the account identity from that ticket.
 /// </summary>
 internal sealed class AuthenticatedGameConnection : IAsyncDisposable
 {
@@ -61,9 +60,9 @@ internal sealed class AuthenticatedGameConnection : IAsyncDisposable
     public ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default) => _session.WriteAsync(packet, cancellationToken);
 
     /// <summary>
-    /// Retains the minimum proof material needed to verify exactly one same-session
-    /// post-creation 1052, without redeeming the consumed ticket again.
-    /// Called only after successful ticket redemption.
+    /// Keeps just enough of the login proof to check the single repeat 1052 the client sends on the same
+    /// connection after creating a character, without redeeming the ticket again. Only called after the ticket
+    /// was redeemed.
     /// </summary>
     internal void ArmRepeatedLoginProof(GameLoginProof firstProof)
     {
@@ -87,8 +86,8 @@ internal sealed class AuthenticatedGameConnection : IAsyncDisposable
     }
 
     /// <summary>
-    /// Consumes the one permitted repeat attempt, including an incorrect attempt.
-    /// No account ticket store is consulted and no second attempt can succeed.
+    /// Uses up the one allowed repeat proof, whether or not it matches. The ticket store isn't consulted, and a
+    /// second attempt always fails.
     /// </summary>
     internal bool TryConsumeRepeatedLoginProof(GameLoginProof repeatedProof)
     {

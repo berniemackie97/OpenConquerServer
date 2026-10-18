@@ -1,12 +1,11 @@
 namespace OpenConquer.Protocol.Login.Credentials;
 
 /// <summary>
-/// Reproduces the Microsoft C runtime <c>srand</c>/<c>rand</c>
-/// sequence used by the login credential transforms.
+/// Reproduces the Microsoft C runtime <c>srand</c>/<c>rand</c> sequence used by the login credential
+/// transforms.
 /// </summary>
 /// <remarks>
-/// This is a deterministic compatibility primitive, not a cryptographically
-/// secure random-number generator.
+/// It matches the client's sequence exactly and is not a secure random generator.
 /// </remarks>
 internal struct MsvcCrtRandom
 {

@@ -8,7 +8,7 @@ using OpenConquer.Protocol.Game.Cryptography;
 namespace OpenConquer.Protocol.Game.Handshake;
 
 /// <summary>
-/// Owns one server-side Diffie-Hellman exchange for the GameServer transport.
+/// One server-side Diffie-Hellman exchange for a GameServer connection.
 /// </summary>
 public sealed class GameHandshakeExchange : IDisposable
 {
@@ -94,8 +94,7 @@ public sealed class GameHandshakeExchange : IDisposable
     }
 
     /// <summary>
-    /// Completes this exchange exactly once and transfers the negotiated
-    /// directional CAST state to a game session.
+    /// Finishes the exchange and returns the negotiated CAST streams for the session. Can only be called once.
     /// </summary>
     public GameSessionCipher Complete(string clientPublicKeyHex)
     {

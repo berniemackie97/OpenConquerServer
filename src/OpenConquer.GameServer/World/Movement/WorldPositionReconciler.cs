@@ -3,17 +3,17 @@ using System.Diagnostics;
 namespace OpenConquer.GameServer.World.Movement;
 
 /// <summary>
-/// Single-reader, bounded record of server-authorized tiles for native position reports.
-/// History accommodates client reports already in flight while earlier movement echoes arrive.
-/// This class never changes an authoritative world position.
+/// Remembers the tiles the server recently accepted for one session, so position reports the client sent
+/// before an echo arrived aren't mistaken for desync. Only the session's reader uses it, and it never moves
+/// the character.
 /// </summary>
 internal sealed class WorldPositionReconciler
 {
     private const int HistoryCapacity = 64;
     private const int DivergentReportsBeforeCorrection = 3;
     private static readonly long s_minimumCorrectionInterval = Stopwatch.Frequency;
-    // A bounded per-session correction budget preserves predict/reconcile semantics
-    // while disconnecting abusive clients instead of silently leaving them displaced.
+    // A per-session cap on corrections keeps predict-and-correct working while disconnecting clients that abuse
+    // it, rather than leaving them out of place.
     internal const int MaximumRejectedCorrectionsPerSecond = 32;
     private static readonly long s_rejectedMovementWindow = Stopwatch.Frequency;
 
@@ -47,9 +47,8 @@ internal sealed class WorldPositionReconciler
     }
 
     /// <summary>
-    /// Reserves a bounded immediate correction for a rejected movement intent.
-    /// The 5517 client predicts walking and jumping before its authoritative echo;
-    /// withholding that echo alone does not restore its locally animated tile.
+    /// Reserves an immediate correction for a refused move. The 5517 client animates walks and jumps before the
+    /// server echoes them, so withholding the echo isn't enough to put it back.
     /// </summary>
     public bool TryReserveRejectedMovementCorrection(long serverTimestamp)
     {
@@ -71,8 +70,8 @@ internal sealed class WorldPositionReconciler
     }
 
     /// <summary>
-    /// Returns true only after repeated, unmatched reports and the server-clock cooldown.
-    /// A known historical tile is an in-flight report, regardless of its distance from now.
+    /// True only after repeated reports that match no known tile, and after the cooldown. A tile in the recent
+    /// history counts as a report in flight, however far away it is now.
     /// </summary>
     public bool ShouldCorrect(ushort clientX, ushort clientY, long serverTimestamp)
     {

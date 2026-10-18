@@ -3,7 +3,6 @@ using System.Net;
 using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
-using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Handshake.Authentication;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Transport.Connections;
@@ -279,14 +278,6 @@ public sealed class LoginAccountRequestReaderTests
     private static void WriteAscii(string value, Span<byte> destination)
     {
         Encoding.ASCII.GetBytes(value, destination);
-    }
-
-    private sealed class FakeLoginSeedGenerator(uint seed) : ILoginSeedGenerator
-    {
-        public uint GenerateSeed()
-        {
-            return seed;
-        }
     }
 
     private sealed class TestTransportConnection : ITransportConnection

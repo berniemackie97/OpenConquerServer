@@ -5,8 +5,8 @@ using OpenConquer.Application.World.Transitions;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Reversible portal preparation that binds a canonical world reservation to an identity-scoped
-/// observation of the last persisted location. It is not a durable transfer coordinator.
+/// Prepares a portal move by pairing a world reservation with a fresh read of the character's saved
+/// location. All of it can be undone; it doesn't carry out the transfer.
 /// </summary>
 internal static class WorldPortalPersistedLocationPreflight
 {

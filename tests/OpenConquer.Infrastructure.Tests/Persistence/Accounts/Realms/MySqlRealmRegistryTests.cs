@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Realms;
 using OpenConquer.Domain.Realms;
-using OpenConquer.Infrastructure.Persistence.Accounts;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts.Realms;
 

@@ -1,6 +1,8 @@
 namespace OpenConquer.Application.World.Revival;
 
-/// <summary>Why the immutable, evidence-qualified catalog can or cannot resolve a normal revival.</summary>
+/// <summary>
+/// Why the revival catalog can or can't resolve a normal revival.
+/// </summary>
 public enum RevivalDestinationStatus
 {
     UnavailableWorldMap,

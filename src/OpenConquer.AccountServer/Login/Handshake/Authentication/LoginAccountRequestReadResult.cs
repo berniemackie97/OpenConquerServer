@@ -3,8 +3,7 @@ using OpenConquer.Protocol.Login.Packets;
 namespace OpenConquer.AccountServer.Login.Handshake.Authentication;
 
 /// <summary>
-/// Represents the result of consuming the account credential requestLease from a
-/// login connection.
+/// The result of reading the account credential request from a login connection.
 /// </summary>
 internal sealed class LoginAccountRequestReadResult
 {
@@ -18,12 +17,10 @@ internal sealed class LoginAccountRequestReadResult
     public LoginAccountRequestReadStatus Status { get; }
 
     /// <summary>
-    /// Gets the decoded requestLease when <see cref="Status"/> is
-    /// <see cref="LoginAccountRequestReadStatus.Success"/>.
+    /// The decoded request when <see cref="Status"/> is <see cref="LoginAccountRequestReadStatus.Success"/>.
     /// </summary>
     /// <remarks>
-    /// Ownership transfers to the caller. The requestLease contains mutable
-    /// password storage and must be disposed.
+    /// The caller must dispose it; it holds the password in mutable storage.
     /// </remarks>
     public LoginAccountRequest? Request { get; }
 

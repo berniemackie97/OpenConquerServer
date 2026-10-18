@@ -3,9 +3,8 @@ using System.Diagnostics;
 namespace OpenConquer.GameServer.World.Chat;
 
 /// <summary>
-/// Bounded per-session chat fanout. The serialized reader waits when saturated,
-/// so the last message is not silently discarded and TCP backpressure applies.
-/// This is an operational bound, not an inferred retail gameplay cadence.
+/// Per-session limit on chat fan-out. When it is full the session's reader waits, so no message is dropped
+/// and TCP backpressure kicks in. The limit protects the server; it isn't based on retail chat timing.
 /// </summary>
 internal sealed class WorldChatRateLimiter
 {

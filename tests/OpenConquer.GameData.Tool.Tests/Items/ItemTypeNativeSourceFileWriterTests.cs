@@ -23,7 +23,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
 
         ItemTypeDatRecord record = CreateRecord(100001, fields);
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "source.json");
+        string path = Path.Combine(directory.Path, "source.json");
 
         ItemTypeNativeSourceFileWriter.Write(path, [record], source);
 
@@ -46,8 +46,8 @@ public sealed class ItemTypeNativeSourceFileWriterTests
         ItemTypeDatRecord second = CreateRecord(100002, CreateFields(100002, "Second"));
         byte[] source = [9, 8, 7];
         using TemporaryDirectory directory = new();
-        string pathA = Path.Combine(directory.RootPath, "a.json");
-        string pathB = Path.Combine(directory.RootPath, "b.json");
+        string pathA = Path.Combine(directory.Path, "a.json");
+        string pathB = Path.Combine(directory.Path, "b.json");
 
         ItemTypeNativeSourceFileWriter.Write(pathA, [second, first], source);
         ItemTypeNativeSourceFileWriter.Write(pathB, [first, second], source);
@@ -64,7 +64,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
     {
         ItemTypeDatRecord record = CreateRecord(100001, CreateFields(100001, "First"));
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "source.json");
+        string path = Path.Combine(directory.Path, "source.json");
         File.WriteAllText(path, "original");
 
         Assert.Throws<InvalidDataException>(() =>
@@ -77,7 +77,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
     public void Write_NullRecordIsRejectedBeforeCreatingOutput()
     {
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "source.json");
+        string path = Path.Combine(directory.Path, "source.json");
 
         Assert.Throws<InvalidDataException>(() =>
             ItemTypeNativeSourceFileWriter.Write(path, [null!], [1]));
@@ -90,7 +90,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
     {
         ItemTypeDatRecord record = CreateRecord(100001, CreateFields(100002, "WrongId"));
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "source.json");
+        string path = Path.Combine(directory.Path, "source.json");
         File.WriteAllText(path, "original");
 
         Assert.Throws<InvalidDataException>(() =>
@@ -103,7 +103,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
     public void Write_EmptyRecordsAndSourceAreRejected()
     {
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "source.json");
+        string path = Path.Combine(directory.Path, "source.json");
         ItemTypeDatRecord record = CreateRecord(100001, CreateFields(100001, "First"));
 
         Assert.Throws<ArgumentException>(() => ItemTypeNativeSourceFileWriter.Write(path, [], [1]));
@@ -122,18 +122,5 @@ public sealed class ItemTypeNativeSourceFileWriterTests
     private static ItemTypeDatRecord CreateRecord(uint itemTypeId, string[] fields)
     {
         return new ItemTypeDatRecord(itemTypeId, fields, 0, 0, 0, 0, 1, 1, 0, 1);
-    }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            RootPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(RootPath);
-        }
-
-        public string RootPath { get; }
-
-        public void Dispose() => Directory.Delete(RootPath, recursive: true);
     }
 }

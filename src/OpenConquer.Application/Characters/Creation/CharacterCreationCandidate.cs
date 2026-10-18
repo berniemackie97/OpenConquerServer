@@ -3,7 +3,7 @@ using OpenConquer.Domain.Characters;
 namespace OpenConquer.Application.Characters.Creation;
 
 /// <summary>
-/// Fully resolved, server-authoritative initial character state ready for persistence.
+/// Initial character state, fully resolved by the server and ready to save.
 /// </summary>
 public sealed class CharacterCreationCandidate
 {

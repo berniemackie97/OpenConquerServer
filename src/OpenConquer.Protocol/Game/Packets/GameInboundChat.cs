@@ -5,8 +5,8 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// Strict inbound 5517 MsgTalk (1004) payload. Sender, identity, colour, style, and
-/// suffix are deliberately not authoritative; the world session supplies them.
+/// Inbound 5517 MsgTalk (1004), parsed strictly. The sender name, identity, colour, style and suffix in the
+/// packet are ignored; the world session fills them in.
 /// </summary>
 public readonly record struct GameInboundChat(ushort Channel, string Recipient, string Message)
 {

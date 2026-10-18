@@ -11,7 +11,8 @@ internal sealed class CharacterLoginHandoffProcessor(ICharacterLoginResolver res
     private readonly ICharacterLoginResolver _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
 
     /// <summary>
-    /// Takes ownership of the authenticated connection held by <paramref name="authentication"/> and transfers it to the returned handoff result only after character-login resolution succeeds.
+    /// Looks up the character for the authenticated account and returns it with the connection. The connection
+    /// only moves to the result if the lookup succeeds.
     /// </summary>
     public ValueTask<CharacterLoginHandoffResult> ProcessAsync(GameConnectionAuthenticationResult authentication, CancellationToken cancellationToken = default)
     {

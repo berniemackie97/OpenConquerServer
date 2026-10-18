@@ -1,13 +1,10 @@
 namespace OpenConquer.AccountServer.Login.Handshake.PostAuthentication;
 
 /// <summary>
-/// Contains the validated client-controlled telemetry reported after a
-/// successful AccountServer authentication response.
+/// Validated telemetry the client reports after a successful login response.
 /// </summary>
 /// <remarks>
-/// These values are not authentication proof. In particular, the MAC address is
-/// entirely client controlled and must not be treated as a trusted hardware
-/// identity.
+/// The client controls all of it. Never treat it, and the MAC address in particular, as proof of identity.
 /// </remarks>
 internal sealed class LoginPostAuthenticationReports
 {

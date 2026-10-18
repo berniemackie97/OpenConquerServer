@@ -7,8 +7,7 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.AccountServer.Login.Connections.Framing;
 
 /// <summary>
-/// Encodes and encrypts server-to-client account-login frames into the
-/// connection's caller-owned output pipeline.
+/// Encodes and encrypts account-login frames for the client.
 /// </summary>
 internal sealed class LoginFrameWriter
 {

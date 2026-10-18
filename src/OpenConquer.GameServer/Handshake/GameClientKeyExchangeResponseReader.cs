@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Game.Handshake;
 namespace OpenConquer.GameServer.Handshake;
 
 /// <summary>
-/// Reads one bootstrap-encrypted client Diffie-Hellman response from a caller-owned input pipeline.
+/// Reads the client's bootstrap-encrypted Diffie-Hellman response.
 /// </summary>
 internal sealed class GameClientKeyExchangeResponseReader
 {

@@ -6,15 +6,15 @@ using OpenConquer.Domain.World;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Owns mutable map-local character state. Access is restricted to exclusive partition execution turns.
+/// Character state for one map. Only touched during the map partition's turn.
 /// </summary>
 internal sealed class MapInstance(WorldMapContent map)
 {
     private static readonly sbyte[] s_walkDeltaX = [0, -1, -1, -1, 0, 1, 1, 1];
     private static readonly sbyte[] s_walkDeltaY = [1, 1, 0, -1, -1, -1, 0, 1];
 
-    // CMsgEntityAction__Process selector-9 tables at native 5517 addresses
-    // 0x86C804 / 0x86C864, corroborated by OpenConquerPublic's MsgEntityAction10005.
+    // Selector-9 tables from CMsgEntityAction__Process in the 5517 client (0x86C804 and 0x86C864). They match
+    // OpenConquerPublic's MsgEntityAction10005.
     private static readonly sbyte[] s_twoTileDeltaX =
         [0, -2, -2, -2, 0, 2, 2, 2, -1, -2, -2, -1, 1, 2, 2, 1, -1, -2, -2, -1, 1, 2, 2, 1];
     private static readonly sbyte[] s_twoTileDeltaY =
@@ -90,10 +90,9 @@ internal sealed class MapInstance(WorldMapContent map)
     }
 
     /// <summary>
-    /// Applies one verified native 5517 direction-table delta under exclusive partition
-    /// ownership. The full selector selects the 24-entry table only when exactly nine.
-    /// This is the map displacement primitive; network-facing selector-9 authorization
-    /// is denied in WorldRuntime until the server owns riding/vigor state.
+    /// Moves the character one step using the 5517 direction tables. The 24-entry table is used only for selector 9,
+    /// which WorldRuntime refuses from the network until the server tracks riding and vigor. Runs during the
+    /// partition's turn.
     /// </summary>
     public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector = 0)
     {
@@ -121,7 +120,9 @@ internal sealed class MapInstance(WorldMapContent map)
         return moved;
     }
 
-    /// <summary>Accepts a client ghost request only after the corpse delay, under the map owner.</summary>
+    /// <summary>
+    /// Turns the character into a ghost once the corpse delay has passed. Runs during the partition's turn.
+    /// </summary>
     public WorldCharacterSnapshot? TryEnterGhost(WorldCharacterOwnership ownership, long serverTimestamp)
     {
         if (!_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current) ||
@@ -138,10 +139,9 @@ internal sealed class MapInstance(WorldMapContent map)
         return ghost;
     }
 
-    // A two-tile selector must not let an unauthenticated rider traverse a
-    // statically blocked intervening cell. For asymmetric (2,1)/(1,2) motion
-    // both plausible interior cells are checked conservatively. This is a
-    // defensive server rule pending native mounted collision verification.
+    // A two-tile move must not let a rider pass through a blocked cell in between. For (2,1) and (1,2) moves both
+    // possible middle cells are checked. This is a cautious server rule until mounted collision is checked
+    // against the client.
     private bool HasClearTwoTilePath(WorldCharacterSnapshot current, int dx, int dy)
     {
         int sx = Math.Sign(dx);
@@ -156,7 +156,9 @@ internal sealed class MapInstance(WorldMapContent map)
             (dx == 0 || Map.Collision.IsStaticallyPassable(current.X + sx, current.Y + sy));
     }
 
-    /// <summary>Commits a native absolute-target jump on this map's exclusive partition turn.</summary>
+    /// <summary>
+    /// Lands a jump on an absolute target tile. Runs during the partition's turn.
+    /// </summary>
     public WorldCharacterSnapshot? TryJump(WorldCharacterOwnership ownership, ushort targetX, ushort targetY)
     {
         if (!_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current) ||

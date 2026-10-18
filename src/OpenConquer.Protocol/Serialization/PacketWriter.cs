@@ -5,7 +5,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Serialization;
 
 /// <summary>
-/// Writes primitive values and protocol strings sequentially into caller-owned memory.
+/// Writes primitive values and protocol strings one after another into a buffer.
 /// </summary>
 public ref struct PacketWriter(Span<byte> buffer)
 {

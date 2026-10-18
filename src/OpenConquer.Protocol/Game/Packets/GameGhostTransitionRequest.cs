@@ -2,7 +2,9 @@ using OpenConquer.Protocol.Game.Framing;
 
 namespace OpenConquer.Protocol.Game.Packets;
 
-/// <summary>Native 5517 client request 10010/145, issued once after the corpse delay.</summary>
+/// <summary>
+/// 5517 client request 10010/145, sent once after the corpse delay.
+/// </summary>
 public readonly record struct GameGhostTransitionRequest(uint EntityId)
 {
     public const ushort Action = 145;

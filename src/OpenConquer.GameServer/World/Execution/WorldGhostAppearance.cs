@@ -1,6 +1,8 @@
 namespace OpenConquer.GameServer.World.Execution;
 
-/// <summary>Older TQ server's lookface transform, consumed by the native 5517 ghost model.</summary>
+/// <summary>
+/// Ghost lookface transform from the older TQ server, which the 5517 ghost model expects.
+/// </summary>
 internal static class WorldGhostAppearance
 {
     public static uint FromBaseLook(uint baseLook)

@@ -4,8 +4,7 @@ namespace OpenConquer.Protocol.Login.Packets;
 /// Decoded post-authentication MAC address report (packet 1100).
 /// </summary>
 /// <remarks>
-/// The reported hardware address is client-controlled telemetry and must not be
-/// treated as authentication proof.
+/// The client controls this value, so never treat it as proof of identity.
 /// </remarks>
 public sealed class LoginAccountMacAddressReport
 {

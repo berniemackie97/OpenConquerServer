@@ -7,7 +7,7 @@ using OpenConquer.GameServer.World.Visibility;
 namespace OpenConquer.GameServer.World.Sessions;
 
 /// <summary>
-/// Transfers a completed existing-character bootstrap into exactly one authoritative world session.
+/// Admits a completed existing-character login into the world as a world session.
 /// </summary>
 internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null)
 {

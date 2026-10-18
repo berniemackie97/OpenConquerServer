@@ -203,15 +203,4 @@ public sealed class FileItemTypeCatalogRepositoryTests
           "conquerPointsPrice": 300
         }
         """;
-
-    private sealed class TemporaryFile : IDisposable
-    {
-        public TemporaryFile(string content)
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
-            File.WriteAllText(Path, content);
-        }
-        public string Path { get; }
-        public void Dispose() => File.Delete(Path);
-    }
 }

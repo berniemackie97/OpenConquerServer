@@ -3,8 +3,8 @@ using OpenConquer.Protocol.Game.Framing;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// One native 5517 client-to-server position statement (MsgAction 10010, subtype 100 or 146).
-/// A report is telemetry, not authorization to move an entity.
+/// A 5517 position report from the client (MsgAction 10010, subtype 100 or 146). It is only a report and
+/// never moves anything.
 /// </summary>
 public readonly record struct GamePositionReport(uint EntityId, ushort X, ushort Y, ushort Action)
 {

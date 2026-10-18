@@ -3,8 +3,8 @@ using OpenConquer.Protocol.Game.Framing;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// A native 5517 fixed-layout change-direction (79) or character-pose (81) request.
-/// The caller must verify ownership before applying either operation.
+/// A 5517 change-direction (79) or pose (81) request with a fixed layout. Check that the sender controls the
+/// entity before applying it.
 /// </summary>
 public readonly record struct GameAvatarAction(uint EntityId, ushort Kind, byte Direction, ushort Pose, uint Timestamp)
 {

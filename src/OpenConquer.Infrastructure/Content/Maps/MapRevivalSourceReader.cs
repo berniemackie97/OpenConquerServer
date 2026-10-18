@@ -4,8 +4,8 @@ using OpenConquer.Application.World.Revival;
 namespace OpenConquer.Infrastructure.Content.Maps;
 
 /// <summary>
-/// Strict reader for offline-vetted historical revival evidence. Does not infer missing records.
-/// This is source data, not a client packet or a runtime authentication input.
+/// Reads the historical revival data that was checked offline. Missing records are not guessed. This is
+/// content data, not client input.
 /// </summary>
 public static class MapRevivalSourceReader
 {
@@ -13,7 +13,7 @@ public static class MapRevivalSourceReader
     public const int MaximumPayloadBytes = 1024 * 1024;
     public const int MaximumRecords = 10_000;
 
-    /// <summary>Reads an immutable file using bounded, non-link access before parsing.</summary>
+    /// <summary>Reads the file before parsing it, refusing links and files over the size limit.</summary>
     public static async ValueTask<MapRevivalSource[]> LoadFileAsync(string path,
         CancellationToken cancellationToken = default)
     {

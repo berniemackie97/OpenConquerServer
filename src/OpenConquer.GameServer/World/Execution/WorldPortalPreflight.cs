@@ -4,9 +4,8 @@ using OpenConquer.Domain.World;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Resolves a native 5517 action-85 candidate tile through the authoritative source
-/// map's DMap exit markers and a validated, world-specific destination catalog.
-/// Does not authorize the caller, commit a transfer, or send a client packet.
+/// Resolves a 5517 action-85 portal tile using the source map's DMap exit markers and the world's transition
+/// catalog. It doesn't check who is asking, move anyone or send anything to the client.
 /// </summary>
 internal static class WorldPortalPreflight
 {
@@ -18,8 +17,8 @@ internal static class WorldPortalPreflight
         ArgumentNullException.ThrowIfNull(transitions);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // The catalog must have been validated against this exact immutable world snapshot.
-        // Matching map and passway IDs alone cannot establish destination authority.
+        // The catalog must have been validated against this same world content; matching map and passway IDs alone
+        // aren't enough.
         if (!runtime.UsesMapContent(transitions.Maps) ||
             !runtime.TryGetMap(ownership.MapId, out var source))
         {

@@ -1,6 +1,8 @@
 namespace OpenConquer.GameServer.World.Execution;
 
-/// <summary>Native 5517 primary 128-bit status mask. Only authoritative world commands mutate it.</summary>
+/// <summary>
+/// The 5517 128-bit primary status mask. Only world commands change it.
+/// </summary>
 internal readonly record struct WorldPrimaryStatusMask(ulong Low, ulong High)
 {
     public const int Dead = 5;

@@ -57,9 +57,8 @@ public sealed class MapTerrainCollision
     }
 
     /// <summary>
-    /// Conservative static terrain predicate after scenery collision composition.
-    /// This is not a complete movement, portal, dynamic-occupancy, or spawn-approval policy.
-    /// Unknown nonzero passability values fail closed.
+    /// Whether a tile is walkable once scenery collision is applied. Only static terrain is checked, not movement
+    /// rules, portals, other entities or spawn rules. Unknown nonzero passability values count as blocked.
     /// </summary>
     public bool IsStaticallyPassable(int x, int y)
     {

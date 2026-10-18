@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace OpenConquer.Domain.World;
 
 /// <summary>
-/// Immutable base terrain identified by MapDataId. Does not include scenery collision composition.
+/// Base terrain for one MapDataId, without scenery collision.
 /// </summary>
 public sealed class MapBaseTerrain
 {

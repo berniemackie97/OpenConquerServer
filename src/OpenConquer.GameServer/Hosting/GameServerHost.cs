@@ -36,7 +36,8 @@ using OpenConquer.Transport.Sockets;
 namespace OpenConquer.GameServer.Hosting;
 
 /// <summary>
-/// Composes readiness-gated authoritative world execution and optional bounded GameServer ingress.
+/// Wires up the GameServer: the world runtime, started once its readiness checks pass, and the network
+/// listener when it is enabled.
 /// </summary>
 internal static class GameServerHost
 {

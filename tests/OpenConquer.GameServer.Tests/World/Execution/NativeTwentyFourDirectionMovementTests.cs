@@ -119,9 +119,8 @@ public sealed class NativeTwentyFourDirectionMovementTests
         runtime.Start();
         WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(CreateProfile(), TestContext.Current.CancellationToken);
 
-        // Direction-table correctness is covered above independently of admission.
-        // A normal authenticated character must not acquire mounted speed by
-        // submitting selector 9 while no server-authoritative ride state exists.
+        // The direction tables are covered above. A normal character must not get mounted speed by sending selector 9
+        // while the server has no riding state.
         Assert.Null(await runtime.TryWalkCharacterAsync(owner, 23, 9,
             TestContext.Current.CancellationToken));
         Assert.Equal((2, 2), Position(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken)));

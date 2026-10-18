@@ -104,16 +104,4 @@ public sealed class FileMapTransitionCatalogRepositoryTests
     }
 
     private static FileMapTransitionCatalogRepository CreateRepository(string path) => new(path, 1024 * 1024, 100);
-
-    private sealed class TemporaryFile : IDisposable
-    {
-        public TemporaryFile(string content)
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
-            File.WriteAllText(Path, content);
-        }
-
-        public string Path { get; }
-        public void Dispose() => File.Delete(Path);
-    }
 }

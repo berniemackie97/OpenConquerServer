@@ -4,8 +4,8 @@ using OpenConquer.Application.World;
 namespace OpenConquer.GameServer.Configuration;
 
 /// <summary>
-/// Verifies a configured creation spawn against the canonical composed static collision before publication.
-/// Does not authorize creation or establish full movement and dynamic-occupancy rules.
+/// Checks that the configured creation spawn is walkable on the map's collision before the world is published.
+/// It doesn't approve creation or check movement or occupancy rules.
 /// </summary>
 internal sealed class GameServerCharacterCreationReadiness(CharacterCreationStartingState? startingState)
 {
