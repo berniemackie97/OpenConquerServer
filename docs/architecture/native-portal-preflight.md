@@ -58,6 +58,32 @@ inter-partition ownership handoff, session mutation and revocation, position
 history reset, departure/arrival visibility, and verified native 86/map-entry
 ordering. No distributed transaction spans MySQL, world partitions and TCP.
 
+## Persisted-location preparation (#157)
+
+`WorldPortalPersistedLocationPreflight.TryReserveAsync` composes this reversible portal
+reservation with #156's identity-scoped `ICharacterLocationObservationStore`. It accepts the
+**trusted authenticated login profile** and the exact world-ownership token, rejects character
+or login-map mismatches *before* taking a reservation or querying persistence, and then
+resolves and barriers the canonical native marker as above. Only after source mutations
+are fenced does it read the persisted `(map_id, x, y)` for the profile's account and
+character. Missing data, changed persisted map identity, a revoked generation, or a
+canceled observation refuse preparation and refund destination capacity. Read errors
+propagate after the refund; even an observation provider ignoring cancellation is bounded
+by a 10-second wait and cannot retain the capacity reservation indefinitely.
+
+The result pairs an immutable observed **persisted source location** with the existing
+revocable reservation and its distinct **live source snapshot**. Persisted coordinates may
+differ from in-memory coordinates because normal movement is not durably saved. The paired
+result is `IDisposable`; callers must release it in `finally` or `using`, including on
+shutdown. No service or client ingress invokes this internal preparation yet.
+
+**Not commit authority:** an observation is not a transfer receipt, a monotonic revision,
+a permanent ownership lease, or proof that an outstanding CAS cannot still commit.
+No database write, residency handoff, network acknowledgement, client visibility change,
+or position-save pipeline is introduced. The future coordinator must independently
+serialize durable writes across generations, resolve uncertain outcomes, and atomically
+manage ownership/session/visibility before enabling a native map transition.
+
 ## Verification
 
 The focused tests additionally reject a catalog constructed from a different

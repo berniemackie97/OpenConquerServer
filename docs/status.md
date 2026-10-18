@@ -102,6 +102,10 @@ implemented parts work and link here rather than repeating this list.
 - Native action-85 portal candidate preflight: validated DMap exit-marker and transition
   evidence resolve only against the current world's immutable map-content snapshot, followed
   by a reversible generation-fenced reservation. No live packet ingress or transfer is enabled.
+- Internal persisted-source portal preparation pairs a trusted login identity and
+  generation-fenced reversible destination reservation with the latest identity-scoped
+  persisted-location observation; mismatches, cancellation and failures refund capacity.
+  This is not a durable CAS commit, residency transfer, or live packet handling.
 - Reversible map-transfer preflight: the world runtime reserves destination capacity,
   fences new source positional/avatar mutations and drains a source-map command
   barrier. No residency handoff, persistence, visibility change or client packets
