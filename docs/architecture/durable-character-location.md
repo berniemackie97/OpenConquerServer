@@ -62,6 +62,22 @@ On an uncertain write, keep the affected session fenced/disconnected; never blin
 release the owner into another map, or send a 5517 transition acknowledgement based on an
 observation alone.
 
+## World-side persisted-location preflight (#157)
+
+The internal `WorldPortalPersistedLocationPreflight` composes a generation-bound,
+reversible native portal reservation with one identity-scoped observation. The caller's
+trusted authenticated profile must match the world ownership token before any work;
+observations only occur after the source FIFO barrier has fenced movement. A persisted
+source map mismatch, absent row, canceled read, failed read or revoked reservation refunds
+the destination capacity; database errors propagate. The result keeps the observed
+persisted expectation distinct from the live source snapshot. It is not yet connected
+to live ingress, and it never calls `TryCommitAsync` or changes a character's map.
+
+**Uncertainty remains unresolved:** no observed coordinate tuple eliminates ABA or proves
+that an already-dispatched write cannot complete later. Preparing a result cannot authorize
+CAS dispatch, world ownership cutover, or a 5517 packet until a true transfer coordinator
+has a generation-bound single-writer protocol and a durable monotonic outcome boundary.
+
 ## Credential boundary
 
 The existing `AddGamePersistence()` / ordinary runtime identity is **read-only** and must
