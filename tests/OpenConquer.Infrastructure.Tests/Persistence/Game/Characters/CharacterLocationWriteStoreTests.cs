@@ -74,6 +74,32 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
+    public async Task Commit_ReturnToSameCoordinate_DoesNotAllowReplayedOldRevision()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocation original = new(1002, 431, 379);
+        CharacterLocation other = new(1011, 193, 266);
+
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(Change(account, character, original, other, 0), CancellationToken));
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(Change(account, character, other, original, 1), CancellationToken));
+
+        PersistedCharacterLocation after = Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken));
+        Assert.Equal(2, after.Revision);
+        Assert.Equal(original.MapId, after.Location.MapId);
+        Assert.Equal(original.X, after.Location.X);
+        Assert.Equal(original.Y, after.Location.Y);
+
+        Assert.Equal(CharacterLocationWriteResult.Conflict,
+            await store.TryCommitAsync(Change(account, character, original, other, 0), CancellationToken));
+        Assert.Equal(2, Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken)).Revision);
+    }
+
+    [Fact]
     public async Task RuntimeReadonlyIdentity_CannotCommitCharacterLocation()
     {
         (uint account, uint character) = await CreateCharacterAsync();
@@ -132,17 +158,19 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         (uint account, uint character) = await CreateCharacterAsync();
         CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
         ICharacterLocationObservationStore observer = store;
-        CharacterLocation before = Assert.IsType<CharacterLocation>(
+        PersistedCharacterLocation before = Assert.IsType<PersistedCharacterLocation>(
             await observer.ObserveAsync(account, character, CancellationToken));
-        Assert.Equal((1002u, (ushort)431, (ushort)379), (before.MapId, before.X, before.Y));
+        Assert.Equal((1002u, (ushort)431, (ushort)379), (before.Location.MapId, before.Location.X, before.Location.Y));
+        Assert.Equal(0, before.Revision);
 
         CharacterLocation destination = new(1011, 193, 266);
         Assert.Equal(CharacterLocationWriteResult.Committed, await store.TryCommitAsync(
-            Change(account, character, before, destination), CancellationToken));
+            Change(account, character, before.Location, destination, before.Revision), CancellationToken));
 
-        CharacterLocation after = Assert.IsType<CharacterLocation>(
+        PersistedCharacterLocation after = Assert.IsType<PersistedCharacterLocation>(
             await observer.ObserveAsync(account, character, CancellationToken));
-        Assert.Equal((destination.MapId, destination.X, destination.Y), (after.MapId, after.X, after.Y));
+        Assert.Equal((destination.MapId, destination.X, destination.Y), (after.Location.MapId, after.Location.X, after.Location.Y));
+        Assert.Equal(1, after.Revision);
         Assert.Equal((ushort)177, (await LoadAsync(account)).Vitals.Life);
     }
 
@@ -170,6 +198,29 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         stopped.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             await observer.ObserveAsync(1, 1_000_000, stopped.Token));
+    }
+
+    [Fact]
+    public async Task Commit_NearRevisionLimit_StopsWithoutWrapping()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        await using MySqlConnection connection = new(database.AdministrativeConnectionString);
+        await connection.OpenAsync(CancellationToken);
+        await using (MySqlCommand command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE `characters` SET `location_revision` = @revision WHERE `character_id` = @character";
+            command.Parameters.AddWithValue("@revision", long.MaxValue - 1);
+            command.Parameters.AddWithValue("@character", character);
+            Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
+        }
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocation a = new(1002, 431, 379);
+        CharacterLocation b = new(1011, 193, 266);
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(Change(account, character, a, b, long.MaxValue - 1), CancellationToken));
+        Assert.Equal(long.MaxValue, Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken)).Revision);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Change(account, character, b, a, long.MaxValue));
     }
 
     [Fact]
@@ -220,5 +271,5 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     private static CharacterLocationChange Change(uint account, uint character, CharacterLocation expected,
-        CharacterLocation destination) => new(account, character, expected, destination);
+        CharacterLocation destination, long expectedRevision = 0) => new(account, character, expected, destination, expectedRevision);
 }

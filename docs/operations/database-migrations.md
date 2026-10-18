@@ -23,6 +23,18 @@ start on a mismatch. They never migrate on their own.
 | Game     |       8 | `20261004193352_AddMagicPersistence`          |
 | Game     |       9 | `20261008033456_AddSyndicatePersistence`      |
 | Game     |      10 | `20261013030000_AddGameRealmBinding`          |
+| Game     |      11 | `20261018040000_AddCharacterLocationRevision` |
+
+## Game v11 location revision deployment
+
+The v11 migration adds `characters.location_revision` with zero as its initial value for
+existing characters. Stop **all** gameplay, administrative, maintenance and custom
+writers to `characters` before migration and keep them stopped until all are running v11
+code. Back up and verify restore. Re-provision the existing dedicated location-writer
+principal's column-scoped `SELECT`/`UPDATE` grant with `location_revision` (see
+`docs/architecture/durable-character-location.md`); do not grant it table-wide writes.
+The migration is intentionally not reversible. A stored revision does not prove the
+result of a still-running SQL command; no live transfer coordinator exists yet.
 
 ## Before you start
 

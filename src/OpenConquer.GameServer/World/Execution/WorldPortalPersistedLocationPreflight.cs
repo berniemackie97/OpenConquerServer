@@ -45,7 +45,7 @@ internal static class WorldPortalPersistedLocationPreflight
             using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(s_observationTimeout);
 
-            CharacterLocation? persisted;
+            PersistedCharacterLocation? persisted;
             try
             {
                 persisted = await observations.ObserveAsync(authenticatedProfile.Identity.AccountId,
@@ -58,7 +58,7 @@ internal static class WorldPortalPersistedLocationPreflight
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (persisted is null || persisted.MapId != ownership.MapId || !reservation.IsActive)
+            if (persisted is null || persisted.Location.MapId != ownership.MapId || !reservation.IsActive)
             {
                 reservation.Dispose();
                 return null;

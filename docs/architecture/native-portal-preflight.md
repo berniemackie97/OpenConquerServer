@@ -71,7 +71,7 @@ canceled observation refuse preparation and refund destination capacity. Read er
 propagate after the refund; even an observation provider ignoring cancellation is bounded
 by a 10-second wait and cannot retain the capacity reservation indefinitely.
 
-The result pairs an immutable observed **persisted source location** with the existing
+The result pairs an immutable observed **persisted source location and monotonic revision** with the existing
 revocable reservation and its distinct **live source snapshot**. Persisted coordinates may
 differ from in-memory coordinates because normal movement is not durably saved. The paired
 result is `IDisposable`; callers must release it in `finally` or `using`, including on

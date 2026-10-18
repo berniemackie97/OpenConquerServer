@@ -26,6 +26,7 @@ internal sealed class CharacterConfiguration : IEntityTypeConfiguration<Characte
                     "(`rebirth_count` = 0 AND `pre_rebirth_level` = 0) OR (`rebirth_count` > 0 AND `pre_rebirth_level` > 0)");
                 table.HasCheckConstraint("CK_characters_profession", "`profession` > 0");
                 table.HasCheckConstraint("CK_characters_map_id", "`map_id` > 0");
+                table.HasCheckConstraint("CK_characters_location_revision", "`location_revision` >= 0");
             });
 
         builder.HasCharSet("utf8mb4").UseCollation("utf8mb4_0900_as_cs");
@@ -59,6 +60,7 @@ internal sealed class CharacterConfiguration : IEntityTypeConfiguration<Characte
         builder.Property(character => character.MapId).HasColumnName("map_id").HasColumnType("int unsigned").IsRequired();
         builder.Property(character => character.PositionX).HasColumnName("position_x").HasColumnType("smallint unsigned").IsRequired();
         builder.Property(character => character.PositionY).HasColumnName("position_y").HasColumnType("smallint unsigned").IsRequired();
+        builder.Property(character => character.LocationRevision).HasColumnName("location_revision").HasColumnType("bigint").HasDefaultValue(0L).IsRequired();
 
         builder.HasIndex(character => character.AccountId).IsUnique().HasDatabaseName("UX_characters_account_id");
         builder.HasIndex(character => character.Name).IsUnique().HasDatabaseName("UX_characters_name");

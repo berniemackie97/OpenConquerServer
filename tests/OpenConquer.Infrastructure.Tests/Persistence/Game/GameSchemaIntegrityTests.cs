@@ -11,6 +11,7 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
         "CK_characters_account_id",
         "CK_characters_appearance_composite",
         "CK_characters_level",
+        "CK_characters_location_revision",
         "CK_characters_map_id",
         "CK_characters_name_length",
         "CK_characters_pre_rebirth_level",
@@ -104,6 +105,14 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
                 """
                     UPDATE `characters`
                     SET `map_id` = 0
+                    WHERE `character_id` = @character_id
+                    """
+            },
+            {
+                "CK_characters_location_revision",
+                """
+                    UPDATE `characters`
+                    SET `location_revision` = -1
                     WHERE `character_id` = @character_id
                     """
             },
@@ -358,8 +367,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(10u, reader.GetUInt32(1));
-        Assert.Equal("20261013030000_AddGameRealmBinding", reader.GetString(2));
+        Assert.Equal(11u, reader.GetUInt32(1));
+        Assert.Equal("20261018040000_AddCharacterLocationRevision", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 

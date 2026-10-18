@@ -1,7 +1,6 @@
 using System.Data;
 using MySqlConnector;
 using OpenConquer.Application.Characters.Location;
-using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 
@@ -29,7 +28,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
     /// Makes one bounded, identity-scoped observation. No automatic retry or
     /// interpretation of a prior CAS outcome is performed.
     /// </summary>
-    public async ValueTask<CharacterLocation?> ObserveAsync(uint accountId, uint characterId,
+    public async ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
         CancellationToken cancellationToken = default)
     {
         if (accountId == 0)
@@ -49,7 +48,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.CommandTimeout = CommandTimeoutSeconds;
         command.CommandText =
             """
-            SELECT `map_id`, `position_x`, `position_y`
+            SELECT `map_id`, `position_x`, `position_y`, `location_revision`
             FROM `characters`
             WHERE `account_id` = @account_id
               AND `character_id` = @character_id
@@ -65,7 +64,8 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
             return null;
         }
 
-        return new CharacterLocation(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2));
+        return new PersistedCharacterLocation(
+            new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)), reader.GetInt64(3));
     }
 
     public async ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
@@ -85,12 +85,15 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
             UPDATE `characters`
             SET `map_id` = @target_map_id,
                 `position_x` = @target_x,
-                `position_y` = @target_y
+                `position_y` = @target_y,
+                `location_revision` = `location_revision` + 1
             WHERE `character_id` = @character_id
               AND `account_id` = @account_id
               AND `map_id` = @expected_map_id
               AND `position_x` = @expected_x
-              AND `position_y` = @expected_y;
+              AND `position_y` = @expected_y
+              AND `location_revision` = @expected_revision
+              AND `location_revision` < 9223372036854775807;
             """;
 
         command.Parameters.AddWithValue("@character_id", change.CharacterId);
@@ -98,6 +101,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.Parameters.AddWithValue("@expected_map_id", change.Expected.MapId);
         command.Parameters.AddWithValue("@expected_x", change.Expected.X);
         command.Parameters.AddWithValue("@expected_y", change.Expected.Y);
+        command.Parameters.AddWithValue("@expected_revision", change.ExpectedRevision);
         command.Parameters.AddWithValue("@target_map_id", change.Destination.MapId);
         command.Parameters.AddWithValue("@target_x", change.Destination.X);
         command.Parameters.AddWithValue("@target_y", change.Destination.Y);

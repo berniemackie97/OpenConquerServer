@@ -30,4 +30,5 @@ internal sealed class CharacterRecord
     public uint MapId { get; set; }
     public ushort PositionX { get; set; }
     public ushort PositionY { get; set; }
+    public long LocationRevision { get; set; }
 }
