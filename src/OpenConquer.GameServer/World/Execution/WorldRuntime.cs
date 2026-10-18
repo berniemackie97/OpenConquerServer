@@ -138,7 +138,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         {
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing)
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.Transferring)
             {
                 throw new InvalidOperationException("The world session does not have a valid authoritative ownership reservation.");
             }
@@ -240,7 +240,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing)
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.Transferring)
             {
                 return ValueTask.FromResult(false);
             }
@@ -269,6 +269,10 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
             if (!stopping && _owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) && entry.Ownership == ownership)
             {
+                if (entry.Transferring)
+                {
+                    throw new InvalidOperationException("Character residency relocation is already in progress.");
+                }
                 removal = entry.RemovalTask ?? QueueRemoval(entry);
             }
         }
@@ -397,6 +401,176 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Moves one unbound character between exclusive map partitions using an existing reversible
+    /// destination reservation. This performs no database write, visibility update, session rebinding,
+    /// or network I/O; connected characters must use a separately reviewed transfer coordinator.
+    /// Cancellation is honored only before the first partition command is dispatched.
+    /// </summary>
+    internal async ValueTask<WorldCharacterOwnership?> TryRelocateReservedCharacterAsync(
+        WorldTransferReservation reservation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reservation);
+        WorldCharacterOwnership source = reservation.SourceOwnership;
+        WorldCharacterOwnership destination;
+        WorldPartition sourcePartition;
+        WorldPartition destinationPartition;
+        WorldPartitionCommand<bool> arrival;
+
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+            if (!_owners.TryGetValue(source.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != source || entry.Removing || entry.Transferring ||
+                !ReferenceEquals(entry.TransferReservation, reservation) ||
+                _sessions.ContainsKey(source))
+            {
+                return null;
+            }
+
+            WorldCharacterSnapshot snapshot = reservation.SourceSnapshot;
+            if (snapshot.Ownership != source ||
+                !_scheduler.TryGetPartition(source.MapId, out sourcePartition) ||
+                !_scheduler.TryGetPartition(reservation.DestinationMapId, out destinationPartition))
+            {
+                throw new InvalidOperationException("A reserved transfer has lost its authoritative partition.");
+            }
+            if (_nextGeneration == ulong.MaxValue)
+            {
+                throw new InvalidOperationException("World character ownership generations are exhausted.");
+            }
+
+            destination = new WorldCharacterOwnership(source.CharacterId, reservation.DestinationMapId,
+                ++_nextGeneration, _runtimeId);
+            WorldCharacterSnapshot arrivalSnapshot = snapshot with
+            {
+                Ownership = destination,
+                X = reservation.X,
+                Y = reservation.Y,
+            };
+            arrival = new WorldPartitionCommand<bool>(map =>
+            {
+                map.AdmitTransferred(arrivalSnapshot);
+                return true;
+            });
+
+            // The destination slot was already accounted for by the reservation. The transfer
+            // flag also prevents disposing the lease from reopening source movement mid-cutover.
+            entry.Transferring = true;
+            WorldPartitionEnqueueResult admission = destinationPartition.TryEnqueue(arrival);
+            if (admission != WorldPartitionEnqueueResult.Accepted)
+            {
+                entry.Transferring = false;
+                return null;
+            }
+        }
+
+        bool arrived = false;
+        bool departed = false;
+        bool completed = false;
+        try
+        {
+            await arrival.Completion.ConfigureAwait(false);
+            arrived = true;
+
+            Task<bool> departure;
+            lock (_gate)
+            {
+                ThrowIfNotRunning();
+                if (!_owners.TryGetValue(source.CharacterId, out OwnershipEntry? current) ||
+                    current.Ownership != source || !current.Transferring ||
+                    !ReferenceEquals(current.TransferReservation, reservation))
+                {
+                    throw new InvalidOperationException("The reserved source generation changed before departure.");
+                }
+
+                WorldPartitionCommand<bool> leave = new(map => map.Remove(source));
+                if (sourcePartition.TryEnqueueRemoval(leave) != WorldPartitionEnqueueResult.Accepted)
+                {
+                    throw new InvalidOperationException("The source partition refused the transfer departure.");
+                }
+                departure = leave.Completion;
+            }
+
+            departed = await departure.ConfigureAwait(false);
+            if (!departed)
+            {
+                throw new InvalidOperationException("The source partition no longer owns the transferring character.");
+            }
+
+            lock (_gate)
+            {
+                ThrowIfNotRunning();
+                if (!_owners.TryGetValue(source.CharacterId, out OwnershipEntry? current) ||
+                    current.Ownership != source || !current.Transferring ||
+                    !ReferenceEquals(current.TransferReservation, reservation))
+                {
+                    throw new InvalidOperationException("Transfer ownership changed during residency cutover.");
+                }
+
+                // There is exactly one logical owner before and after this locked transition.
+                // Destination occupancy is already counted; only source occupancy is refunded.
+                current.Ownership = destination;
+                current.Transferring = false;
+                current.TransferReservation = null;
+                int remaining = _mapPopulation[source.MapId] - 1;
+                if (remaining == 0)
+                {
+                    _mapPopulation.Remove(source.MapId);
+                }
+                else
+                {
+                    _mapPopulation[source.MapId] = remaining;
+                }
+                completed = true;
+                return destination;
+            }
+        }
+        catch
+        {
+            if (departed)
+            {
+                // Source is already gone. Failure to publish the new generation requires
+                // a terminal world stop, not an attempt to reanimate the old owner.
+                await StopAsync().ConfigureAwait(false);
+            }
+            else if (arrived)
+            {
+                try
+                {
+                    WorldPartitionCommand<bool> undo = new(map => map.Remove(destination));
+                    if (destinationPartition.TryEnqueueRemoval(undo) != WorldPartitionEnqueueResult.Accepted ||
+                        !await undo.Completion.ConfigureAwait(false))
+                    {
+                        throw new InvalidOperationException("Unable to undo destination staging.");
+                    }
+                }
+                catch
+                {
+                    await StopAsync().ConfigureAwait(false);
+                    throw;
+                }
+            }
+            throw;
+        }
+        finally
+        {
+            if (!completed)
+            {
+                lock (_gate)
+                {
+                    if (_owners.TryGetValue(source.CharacterId, out OwnershipEntry? current) &&
+                        current.Ownership == source && ReferenceEquals(current.TransferReservation, reservation))
+                    {
+                        current.Transferring = false;
+                        ReleaseTransferReservationCore(current, reservation);
+                    }
+                }
+            }
+        }
+    }
+
     /// <summary>Only a current, non-removing generation owns a preflight reservation.</summary>
     internal bool IsTransferReservationActive(WorldTransferReservation reservation)
     {
@@ -415,7 +589,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         lock (_gate)
         {
             if (_owners.TryGetValue(reservation.SourceOwnership.CharacterId, out OwnershipEntry? entry) &&
-                entry.Ownership == reservation.SourceOwnership)
+                entry.Ownership == reservation.SourceOwnership && !entry.Transferring)
             {
                 ReleaseTransferReservationCore(entry, reservation);
             }
@@ -828,7 +1002,9 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
     private sealed class OwnershipEntry(WorldCharacterOwnership ownership)
     {
-        public WorldCharacterOwnership Ownership { get; } = ownership;
+        public WorldCharacterOwnership Ownership { get; set; } = ownership;
+
+        public bool Transferring { get; set; }
 
         public WorldTransferReservation? TransferReservation { get; set; }
 

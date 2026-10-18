@@ -109,6 +109,10 @@ implemented parts work and link here rather than repeating this list.
   generation-fenced reversible destination reservation with the latest identity-scoped
   persisted-location observation; mismatches, cancellation and failures refund capacity.
   This is not a durable CAS commit, residency transfer, or live packet handling.
+- Internal cross-map residency relocation for characters without active sessions: generation-fenced
+  source departure, destination staging with preserved character status, capacity accounting,
+  rollback, and terminal shutdown on an unrepairable cutover. No live ingress, durability, or
+  native packet handoff is enabled; see [world transfer preflight](architecture/world-transfer-preflight.md).
 - Reversible map-transfer preflight: the world runtime reserves destination capacity,
   fences new source positional/avatar mutations and drains a source-map command
   barrier. No residency handoff, persistence, visibility change or client packets

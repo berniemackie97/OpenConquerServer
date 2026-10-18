@@ -29,32 +29,35 @@ internal sealed class MapInstance(WorldMapContent map)
 
     public void Admit(WorldCharacterOwnership ownership, ushort x, ushort y, bool isAlive = true)
     {
+        AdmitTransferred(new WorldCharacterSnapshot(ownership, x, y, isAlive,
+            WorldPrimaryStatusMask.ForAdmission(isAlive), isAlive ? 0 : Stopwatch.GetTimestamp()));
+    }
+
+    /// <summary>Admits the complete state from an exclusively fenced source partition.</summary>
+    internal void AdmitTransferred(WorldCharacterSnapshot snapshot)
+    {
+        WorldCharacterOwnership ownership = snapshot.Ownership;
         if (ownership.MapId != Map.MapId)
         {
-            throw new ArgumentException("Character ownership belongs to a different map.", nameof(ownership));
+            throw new ArgumentException("Character ownership belongs to a different map.", nameof(snapshot));
         }
-
         if (!CharacterIdentityPolicy.IsPlayerEntityId(ownership.CharacterId) || ownership.Generation == 0)
         {
-            throw new ArgumentException("Character ownership requires a valid player ID and nonzero generation.", nameof(ownership));
+            throw new ArgumentException("Character ownership requires a valid player ID and nonzero generation.", nameof(snapshot));
         }
-
-        if (x >= Map.Collision.Width || y >= Map.Collision.Height)
+        if (snapshot.X >= Map.Collision.Width || snapshot.Y >= Map.Collision.Height)
         {
-            throw new ArgumentOutOfRangeException(nameof(x), "Character position is outside the canonical map terrain.");
+            throw new ArgumentOutOfRangeException(nameof(snapshot), "Character position is outside the canonical map terrain.");
         }
-
-        if (!_characters.TryAdd(ownership.CharacterId, new WorldCharacterSnapshot(ownership, x, y, isAlive,
-            WorldPrimaryStatusMask.ForAdmission(isAlive), isAlive ? 0 : Stopwatch.GetTimestamp())))
+        if (!_characters.TryAdd(ownership.CharacterId, snapshot))
         {
             throw new InvalidOperationException($"Character {ownership.CharacterId} already belongs to map {Map.MapId}.");
         }
-
-        if (isAlive)
+        if (snapshot.IsAlive)
         {
             try
             {
-                AddLivingOccupant(x, y);
+                AddLivingOccupant(snapshot.X, snapshot.Y);
             }
             catch
             {
