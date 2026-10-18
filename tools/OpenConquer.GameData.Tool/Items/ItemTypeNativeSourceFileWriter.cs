@@ -6,8 +6,8 @@ using OpenConquer.GameData.Tool.Formats.Items;
 namespace OpenConquer.GameData.Tool.Items;
 
 /// <summary>
-/// Exports every decoded native itemtype.dat field for source reconciliation.
-/// This is offline evidence, not a second GameServer item-definition authority.
+/// Exports every decoded itemtype.dat field so it can be compared with other sources. It is a reference file
+/// only; the GameServer doesn't read it.
 /// </summary>
 internal static class ItemTypeNativeSourceFileWriter
 {

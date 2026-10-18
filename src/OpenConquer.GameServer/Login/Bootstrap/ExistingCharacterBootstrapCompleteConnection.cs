@@ -9,8 +9,8 @@ using OpenConquer.GameServer.Login.Character;
 namespace OpenConquer.GameServer.Login.Bootstrap;
 
 /// <summary>
-/// Owns an existing-character connection after the client has finished its bootstrap request sequence.
-/// <see cref="World.Sessions.WorldSessionAdmissionProcessor"/> promotes it into a world session.
+/// An existing-character connection after the client has sent all of its login requests.
+/// <see cref="World.Sessions.WorldSessionAdmissionProcessor"/> turns it into a world session.
 /// </summary>
 internal sealed class ExistingCharacterBootstrapCompleteConnection : IAsyncDisposable
 {

@@ -11,8 +11,8 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.GameServer.World.Visibility;
 
 /// <summary>
-/// Schedules native player-spawn, walking relay and removal under symmetric per-map interest membership.
-/// This service never performs I/O beneath an interest-map lock; recipients have bounded FIFO writers.
+/// Sends player spawns, walk relays and removals between players who can see each other on a map. It never
+/// does I/O while holding a map's lock; every recipient has its own fixed-size queue.
 /// </summary>
 internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityService> logger)
 {

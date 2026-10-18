@@ -2,8 +2,8 @@ using OpenConquer.Protocol.Serialization;
 
 namespace OpenConquer.Protocol.Game.Packets;
 
-/// <summary>One native 5517 user-attribute update (10017), 20-byte record.</summary>
-/// <remarks>Attribute 25 uses the entire 16-byte value, not a truncated 64-bit mask.</remarks>
+/// <summary>One 5517 user-attribute update (10017), 20-byte record.</summary>
+/// <remarks>Attribute 25 uses the whole 16-byte value, not just the low 64 bits.</remarks>
 public sealed class GameUserAttributePacket : IPacket
 {
     public GameUserAttributePacket(uint entityId, uint attributeId, ulong low, ulong high = 0)

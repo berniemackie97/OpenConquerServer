@@ -4,8 +4,8 @@ using OpenConquer.Protocol.Game.Framing;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// Native 5517 trade-quit request (1056, mode 2). The client also emits it when dead status is applied.
-/// No active trading implementation is implied by recognizing this message.
+/// 5517 trade-quit request (1056, mode 2). The client also sends it when it dies. Trading itself isn't
+/// implemented.
 /// </summary>
 public readonly record struct GameTradeQuitRequest(uint EntityId)
 {
@@ -30,8 +30,8 @@ public readonly record struct GameTradeQuitRequest(uint EntityId)
             return false;
         }
 
-        // Native evidence identifies +4 and +8, not the meaning of +10..11.
-        // Preserve that opaque tail instead of inventing a reserved-zero constraint.
+        // The client is only known to use +4 and +8. +10..11 are unknown, so keep them as they are instead of
+        // requiring zero.
         request = new GameTradeQuitRequest(entityId);
         return true;
     }

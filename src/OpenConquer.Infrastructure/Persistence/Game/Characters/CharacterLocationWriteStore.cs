@@ -25,8 +25,8 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
     }
 
     /// <summary>
-    /// Makes one bounded, identity-scoped observation. No automatic retry or
-    /// interpretation of a prior CAS outcome is performed.
+    /// Reads the location once for the account and character. Nothing is retried, and the result says nothing
+    /// about an earlier compare-and-swap.
     /// </summary>
     public async ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
         CancellationToken cancellationToken = default)

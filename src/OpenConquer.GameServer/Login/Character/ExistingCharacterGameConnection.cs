@@ -9,7 +9,7 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.GameServer.Login.Character;
 
 /// <summary>
-/// Owns one authenticated existing-character connection together with its login profile, its presence in this realm,
+/// An authenticated connection for an existing character, with its login profile, its presence in this realm
 /// and the record that its account is playing here.
 /// </summary>
 internal sealed class ExistingCharacterGameConnection : IAsyncDisposable

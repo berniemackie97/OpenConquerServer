@@ -4,11 +4,10 @@ using System.Security.Cryptography;
 namespace OpenConquer.Protocol.Login.Packets;
 
 /// <summary>
-/// Owns the decoded fields of one account login request.
+/// The decoded fields of one account login request.
 /// </summary>
 /// <remarks>
-/// The password is intentionally retained in mutable storage rather than an
-/// immutable managed string so it can be cleared deterministically.
+/// The password stays in a mutable buffer instead of a string so it can be wiped.
 /// </remarks>
 public sealed class LoginAccountRequest : IDisposable
 {
@@ -35,7 +34,7 @@ public sealed class LoginAccountRequest : IDisposable
     public int PasswordLength { get; }
 
     /// <summary>
-    /// Copies the decoded password into caller-owned storage.
+    /// Copies the decoded password into <paramref name="destination"/>.
     /// </summary>
     public void CopyPasswordTo(Span<char> destination)
     {

@@ -1,8 +1,7 @@
 namespace OpenConquer.Application.World.Transitions;
 
 /// <summary>
-/// Loads and validates world-specific map-transition evidence against the same immutable
-/// map-content snapshot that will be used by the authoritative runtime.
+/// Loads a world's map-transition data and checks it against the same map content the world runtime uses.
 /// </summary>
 public interface IMapTransitionCatalogRepository
 {

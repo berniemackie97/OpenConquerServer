@@ -3,8 +3,8 @@ using OpenConquer.Protocol.Game.Packets;
 namespace OpenConquer.GameServer.Login.Character;
 
 /// <summary>
-/// Native 5517 create-role control talks. These packets do not authorize character creation.
-/// The caller is responsible for sending success only after confirmed persistence.
+/// The 5517 create-role control messages. Sending them creates nothing; only send success after the character
+/// has been saved.
 /// </summary>
 internal static class GameCharacterCreationControlPackets
 {

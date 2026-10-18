@@ -59,8 +59,8 @@ internal sealed class GameServerConfiguration
     public GameNetworkOptions? Network { get; }
 
     /// <summary>
-    /// Gets the realm status reporting configuration. Present exactly when network ingress is enabled,
-    /// because a GameServer that accepts no logins must not be reported as available.
+    /// Realm status reporting settings. Set only when network ingress is enabled, because a GameServer that accepts
+    /// no logins must not be reported as available.
     /// </summary>
     public RealmStatusOptions? RealmStatus { get; }
     public ItemTypeCatalogFileOptions? ItemTypes { get; }

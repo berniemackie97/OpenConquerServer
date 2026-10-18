@@ -346,17 +346,4 @@ public sealed class MapCollisionBinaryTests
         hash.CopyTo(payload, payload.Length - MapCollisionBinaryFormat.HashLength);
         File.WriteAllBytes(path, payload);
     }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"openconquer-collision-binary-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(Path);
-        }
-
-        public string Path { get; }
-
-        public void Dispose() => Directory.Delete(Path, recursive: true);
-    }
 }

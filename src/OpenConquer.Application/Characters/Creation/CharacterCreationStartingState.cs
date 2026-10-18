@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 namespace OpenConquer.Application.Characters.Creation;
 
 /// <summary>
-/// Validated, immutable starting-state content shared by character creation requests.
+/// Validated starting state shared by every character creation request.
 /// </summary>
 public sealed class CharacterCreationStartingState
 {

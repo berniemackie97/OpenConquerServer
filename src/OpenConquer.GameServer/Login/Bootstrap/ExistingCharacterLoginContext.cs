@@ -45,7 +45,7 @@ internal sealed class ExistingCharacterLoginContext : IAsyncDisposable
 
     /// <summary>
     /// Builds the completed bootstrap from every step's state and hands the connection to it.
-    /// If this throws, the context still owns the connection.
+    /// If this throws, the context still holds the connection.
     /// </summary>
     public ExistingCharacterBootstrapCompleteConnection Complete()
     {

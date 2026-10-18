@@ -1,9 +1,9 @@
 namespace OpenConquer.Application.Characters.Location;
 
 /// <summary>
-/// Revision-qualified persistent location compare-and-swap. A conflict does not imply whether the row was
-/// deleted, ownership changed, or another writer committed first. Unexpected failures
-/// have uncertain commit outcomes and MUST NOT be retried blindly.
+/// Compare-and-swap of a character's persisted location, keyed on its revision. A conflict doesn't say why
+/// (row deleted, owner changed or another write landed first). An unexpected failure may or may not have
+/// committed, so don't retry it blindly.
 /// </summary>
 public interface ICharacterLocationWriteStore
 {

@@ -144,17 +144,4 @@ public sealed class MapBaseTerrainPipelineTests
         Assert.Throws<InvalidDataException>(() =>
             MapBaseTerrainSourceReader.Parse(Encoding.UTF8.GetBytes(content), s_limits));
     }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"openconquer-terrain-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(Path);
-        }
-
-        public string Path { get; }
-
-        public void Dispose() => Directory.Delete(Path, recursive: true);
-    }
 }

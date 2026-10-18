@@ -2,8 +2,8 @@ using OpenConquer.Protocol.Game.Framing;
 
 namespace OpenConquer.Protocol.Game.Packets;
 
-/// <summary>Native 5517 MsgAction (10010), subtype 137: absolute-tile jump intent.</summary>
-/// <remarks>The packed target at wire +8 is not a relative movement delta.</remarks>
+/// <summary>5517 MsgAction (10010) subtype 137: jump to an absolute tile.</summary>
+/// <remarks>The packed target at +8 is a tile, not an offset.</remarks>
 public readonly record struct GameJumpAction(GameAction Action)
 {
     public const ushort JumpAction = 137;

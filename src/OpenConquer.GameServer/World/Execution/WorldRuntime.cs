@@ -255,7 +255,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
-    /// Releases authoritative residency independently of caller cancellation and without awaiting the calling session's completion.
+    /// Removes the character from the world even if the caller cancels, without waiting for the calling session
+    /// to finish.
     /// </summary>
     public async ValueTask ReleaseCharacterAsync(WorldCharacterOwnership ownership)
     {
@@ -442,8 +443,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
-    /// Queues one native 5517 eight-direction step under the exact active ownership token.
-    /// This is not a substitute for authenticated packet validation, anti-replay, or movement pacing.
+    /// Queues one 8-direction step if the ownership token is still current. Packet validation, replay protection
+    /// and pacing are the caller's job.
     /// </summary>
     public ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership, byte directionIndex, CancellationToken cancellationToken = default) =>
         TryWalkCharacterAsync(ownership, directionIndex, commandSelector: 0, cancellationToken: cancellationToken);
@@ -452,8 +453,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
         TryWalkCharacterAsync(ownership, directionIndex, commandSelector, onCommitted: null, cancellationToken: cancellationToken);
 
     /// <summary>
-    /// Applies the movement and schedules its replication within the same map-partition turn.
-    /// The callback must be synchronous and nonblocking; it may only enqueue bounded delivery.
+    /// Moves the character and schedules its replication in the same partition turn. The callback must be
+    /// synchronous and may only queue delivery.
     /// </summary>
     internal ValueTask<WorldCharacterSnapshot?> TryWalkCharacterAsync(WorldCharacterOwnership ownership,
         byte directionIndex, uint commandSelector, Action<WorldCharacterSnapshot>? onCommitted, CancellationToken cancellationToken = default)
@@ -468,10 +469,9 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
 
-            // Selector 9 is a mounted movement command, not an unauthenticated
-            // two-tile speed mode. No server-owned ride/vigor state exists yet.
-            // Deny before occupying a partition command slot; the world session
-            // replies with native 108 to undo the client's predicted displacement.
+            // Selector 9 is a mounted move, not a free two-tile speed mode, and the server doesn't track riding or vigor
+            // yet. Refuse it before it takes a queue slot; the world session answers with 108 so the client undoes its
+            // predicted move.
             if (commandSelector == 9)
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
@@ -502,9 +502,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
-    /// Authorizes and publishes a nonpositional avatar action in one exclusive
-    /// map-partition turn, ordered against corpse/ghost state transitions.
-    /// The callback may enqueue bounded delivery only; it must never await I/O.
+    /// Checks and publishes a facing or pose change in one partition turn, in order with corpse and ghost changes.
+    /// The callback may only queue delivery; it must not await I/O.
     /// </summary>
     internal ValueTask<bool> TryPublishAvatarActionAsync(WorldCharacterOwnership ownership,
         Action<WorldCharacterSnapshot> onAuthorized, CancellationToken cancellationToken = default)
@@ -544,7 +543,9 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
     }
 
-    /// <summary>One generation-fenced ghost transition, serialized with all map movements.</summary>
+    /// <summary>
+    /// Turns the character into a ghost, in order with every other move on the map.
+    /// </summary>
     internal ValueTask<WorldCharacterSnapshot?> TryEnterGhostAsync(WorldCharacterOwnership ownership,
         long serverTimestamp, Action<WorldCharacterSnapshot>? onCommitted = null,
         CancellationToken cancellationToken = default)
@@ -581,14 +582,15 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
     }
 
-    /// <summary>Submits one authenticated jump target under exact generation-fenced ownership.</summary>
+    /// <summary>
+    /// Submits a jump to the target tile if the ownership token is still current.
+    /// </summary>
     public ValueTask<WorldCharacterSnapshot?> TryJumpCharacterAsync(WorldCharacterOwnership ownership,
         ushort targetX, ushort targetY, CancellationToken cancellationToken = default) =>
         TryJumpCharacterAsync(ownership, targetX, targetY, onCommitted: null, cancellationToken: cancellationToken);
 
     /// <summary>
-    /// Commits the landing and publishes its ordered delivery intents in one partition turn.
-    /// No network I/O is permitted in the callback.
+    /// Lands the jump and queues its deliveries in one partition turn. The callback must not do network I/O.
     /// </summary>
     internal ValueTask<WorldCharacterSnapshot?> TryJumpCharacterAsync(WorldCharacterOwnership ownership,
         ushort targetX, ushort targetY, Action<WorldCharacterSnapshot>? onCommitted, CancellationToken cancellationToken = default)

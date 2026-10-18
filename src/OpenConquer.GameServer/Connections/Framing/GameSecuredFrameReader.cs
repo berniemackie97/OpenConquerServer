@@ -6,7 +6,7 @@ using OpenConquer.Protocol.Game.Framing;
 namespace OpenConquer.GameServer.Connections.Framing;
 
 /// <summary>
-/// Reads secured client-to-server GameServer frames from a caller-owned input pipeline.
+/// Reads and decrypts client frames once the GameServer connection is secured.
 /// </summary>
 internal sealed class GameSecuredFrameReader : IDisposable
 {

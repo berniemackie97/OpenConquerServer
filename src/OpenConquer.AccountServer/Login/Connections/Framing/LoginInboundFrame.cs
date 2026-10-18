@@ -4,11 +4,10 @@ using OpenConquer.Protocol.Framing;
 namespace OpenConquer.AccountServer.Login.Connections.Framing;
 
 /// <summary>
-/// Owns one decrypted account-login frame.
+/// One decrypted account-login frame.
 /// </summary>
 /// <remarks>
-/// The payload may contain credentials. Disposing the frame securely clears
-/// its backing storage.
+/// The payload may contain credentials, so disposing the frame clears its buffer.
 /// </remarks>
 internal sealed class LoginInboundFrame : IDisposable
 {

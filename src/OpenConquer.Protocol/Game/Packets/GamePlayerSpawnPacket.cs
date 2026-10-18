@@ -4,8 +4,8 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// Native 5517 MsgPlayerSpawn (10014). Spawns another player, never the local hero.
-/// Field offsets are verified against CMsgPlayerSpawn__Process (0x755F64).
+/// 5517 MsgPlayerSpawn (10014). Spawns another player, never the local hero. Field offsets are checked against
+/// CMsgPlayerSpawn__Process (0x755F64).
 /// </summary>
 public sealed class GamePlayerSpawnPacket : IPacket
 {
@@ -98,7 +98,9 @@ public sealed class GamePlayerSpawnPacket : IPacket
     }
 }
 
-/// <summary>Immutable, protocol-only view of the peer character; no account or inventory identity.</summary>
+/// <summary>
+/// What the spawn packet shows about another player. No account or inventory details.
+/// </summary>
 public sealed record GamePlayerSpawnSnapshot(
     uint EntityId, string Name, uint Appearance, ushort Hair, ushort X, ushort Y, byte Direction,
     uint Life, ushort Level, byte RebirthCount, ushort FirstProfession, ushort PreviousProfession,

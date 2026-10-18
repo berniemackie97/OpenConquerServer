@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
@@ -493,42 +492,6 @@ public sealed class ExistingCharacterBootstrapProcessorTests
             {
                 await Connection.DisposeAsync();
             }
-        }
-    }
-
-    private sealed class FakeRedemptionStore : IGameLoginTicketRedemptionStore
-    {
-        public GameLoginTicketIdentity? Result { get; init; }
-        public int RedemptionCount { get; private set; }
-
-        public ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RedemptionCount++;
-            return ValueTask.FromResult(Result);
-        }
-    }
-
-    private sealed class FakeAttemptLimiter : IGameLoginTicketRedemptionAttemptLimiter
-    {
-        public int BeginCount { get; private set; }
-
-        public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
-        {
-            BeginCount++;
-            attemptLease = new FakeAttemptLease();
-            return true;
-        }
-    }
-
-    private sealed class FakeAttemptLease : IGameLoginTicketRedemptionAttemptLease
-    {
-        public void Complete(bool authorizationAccepted)
-        {
-        }
-
-        public void Dispose()
-        {
         }
     }
 }

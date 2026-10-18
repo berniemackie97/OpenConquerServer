@@ -77,7 +77,9 @@ internal sealed class MapVisibilityIndex
     public bool IsObserved(uint viewer, uint subject) =>
         _entries.TryGetValue(viewer, out Entry? entry) && entry.Visible.Contains(subject);
 
-    /// <summary>Returns an immutable, deterministic snapshot of this character's current viewers.</summary>
+    /// <summary>
+    /// Returns a copy of the characters that can currently see this one, in a stable order.
+    /// </summary>
     public uint[] Observers(uint subject) =>
         _entries.TryGetValue(subject, out Entry? entry) ? [.. entry.Visible.Order()] : [];
 

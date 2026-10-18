@@ -3,7 +3,6 @@ using System.Net;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Connections.Framing;
-using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Transport.Connections;
 
@@ -422,18 +421,6 @@ public sealed class LoginConnectionSessionTests
         Assert.Same(disposeFailure, Assert.Single(firstException.InnerExceptions));
 
         Assert.Equal(1, connection.DisposeCount);
-    }
-
-    private sealed class FakeLoginSeedGenerator(uint seed) : ILoginSeedGenerator
-    {
-        public int GenerateCount { get; private set; }
-
-        public uint GenerateSeed()
-        {
-            GenerateCount++;
-
-            return seed;
-        }
     }
 
     private sealed class TestTransportConnection : ITransportConnection

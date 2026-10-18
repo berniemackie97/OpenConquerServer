@@ -7,7 +7,7 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// Decodes the native 5517 character-creation request without authorizing or executing creation.
+/// Decodes the 5517 character-creation request. Decoding doesn't approve or perform the creation.
 /// </summary>
 public readonly record struct GameCharacterCreationRequest(bool CancelRequested, string Name, ushort Body, ushort Profession, uint ClientReportedSessionUid, string ClientReportedMacAddress)
 {

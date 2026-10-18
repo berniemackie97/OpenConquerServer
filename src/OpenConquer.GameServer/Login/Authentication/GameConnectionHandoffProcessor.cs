@@ -5,8 +5,7 @@ using OpenConquer.Transport.Connections;
 namespace OpenConquer.GameServer.Login.Authentication;
 
 /// <summary>
-/// Takes ownership of an accepted transport connection and advances it through
-/// secure transport establishment and game-login authentication.
+/// Takes an accepted connection through the secure handshake and game-login authentication.
 /// </summary>
 internal sealed class GameConnectionHandoffProcessor(GameTransportHandshakeProcessor handshakeProcessor, GameConnectionAuthenticator authenticator)
 {

@@ -4,7 +4,8 @@ using OpenConquer.Application.World;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Owns exclusive map-local execution, a bounded ordinary FIFO, and a separate bounded character-removal lane.
+/// Runs one map's commands one turn at a time from a fixed-size FIFO queue, with a separate fixed-size lane
+/// for removing characters.
 /// </summary>
 internal sealed class WorldPartition
 {

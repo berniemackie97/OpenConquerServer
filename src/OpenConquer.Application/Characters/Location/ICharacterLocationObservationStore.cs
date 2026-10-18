@@ -1,9 +1,8 @@
 namespace OpenConquer.Application.Characters.Location;
 
 /// <summary>
-/// Reads the persisted location and monotonic revision for an exact account/character identity.
-/// The observation is not an ownership lease, commit receipt, or proof that a
-/// previously uncertain location write has completed.
+/// Reads the persisted location and revision for one account and character. It is only a read: it locks
+/// nothing and does not prove that an earlier write with an unknown outcome has finished.
 /// </summary>
 public interface ICharacterLocationObservationStore
 {

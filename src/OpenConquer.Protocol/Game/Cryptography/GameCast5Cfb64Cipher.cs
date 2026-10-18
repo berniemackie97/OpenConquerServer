@@ -5,8 +5,7 @@ using Org.BouncyCastle.Crypto.Parameters;
 namespace OpenConquer.Protocol.Game.Cryptography;
 
 /// <summary>
-/// Stateful CAST5 CFB-64 transform used by the game protocol.
-/// One instance represents exactly one directional cipher stream.
+/// Stateful CAST5 CFB-64 transform used by the game protocol. Each instance is one direction of a stream.
 /// </summary>
 internal sealed class GameCast5Cfb64Cipher : IDisposable
 {

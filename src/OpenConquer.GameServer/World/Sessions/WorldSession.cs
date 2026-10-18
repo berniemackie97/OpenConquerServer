@@ -16,12 +16,12 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.GameServer.World.Sessions;
 
 /// <summary>
-/// Owns an authenticated connection, its completed login snapshots, and one authoritative world residency.
-/// Revocation and world shutdown initiate the same supervised, idempotent teardown.
+/// A logged-in character in the world: the connection, its login state and its place in the world runtime.
+/// Revocation and world shutdown go through the same teardown, which only runs once.
 /// </summary>
 /// <remarks>
 /// Presence is revoked only when the account logs in again, here or in another realm. The session then sends
-/// the native kick notice (1115) before closing, as the 5517 client expects when it is logged out by another login.
+/// the kick notice (1115) before closing, as the 5517 client expects when another login replaces it.
 /// </remarks>
 internal sealed class WorldSession : IAsyncDisposable
 {
@@ -180,8 +180,8 @@ internal sealed class WorldSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Ordered bounded game-world egress. Partition-committed movement and peer
-    /// replication enqueue here without awaiting a socket, preserving causal FIFO order.
+    /// Queues a packet for this session, in order. Movement and replication from partition turns land here
+    /// without waiting on the socket.
     /// </summary>
     internal void QueueVisibilityPacket(IPacket packet)
     {
@@ -256,8 +256,8 @@ internal sealed class WorldSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Applies exactly one authenticated eight-direction ground step. The packet is echoed
-    /// only after the authoritative partition commits the new position.
+    /// Applies one 8-direction ground step. The packet is echoed back only after the partition has committed the
+    /// new position.
     /// </summary>
     internal async ValueTask ProcessWalkAsync(GameWalkPacket walk, CancellationToken cancellationToken = default)
     {
@@ -301,7 +301,9 @@ internal sealed class WorldSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Handles native 5517 request 145; the client never receives an action-145 echo.</summary>
+    /// <summary>
+    /// Handles 5517 request 145. The client never gets an action-145 echo.
+    /// </summary>
     internal async ValueTask ProcessGhostTransitionAsync(GameGhostTransitionRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -337,7 +339,9 @@ internal sealed class WorldSession : IAsyncDisposable
         // Too early, already ghosted, or no longer dead: idempotently ignore.
     }
 
-    /// <summary>Applies a native absolute-tile jump only after authoritative partition admission.</summary>
+    /// <summary>
+    /// Applies a jump to an absolute tile once the partition accepts it.
+    /// </summary>
     internal async ValueTask ProcessJumpAsync(GameJumpAction jump, CancellationToken cancellationToken = default)
     {
         ThrowIfInactive();
@@ -347,10 +351,9 @@ internal sealed class WorldSession : IAsyncDisposable
             throw new InvalidDataException("Jump intent does not belong to the authenticated character.");
         }
 
-        // Subtype 137 with wire +36 = 1 is a mounted charge, not a ground
-        // jump. We cannot authorize or echo it until active ride/vigor exists.
-        // Unknown nonzero variants also fail closed with native reconciliation.
-        // Preserve the fixed-memory ingress budget even for prohibited maps.
+        // Subtype 137 with +36 = 1 is a mounted charge, not a ground jump, and can't be allowed or echoed until riding
+        // and vigor exist. Unknown nonzero variants are refused and corrected the same way. The ingress limit still
+        // applies on maps where jumping isn't allowed.
         if (!_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()) ||
             !jump.IsGroundJump || (Map.Flags & 0x0200_0000UL) != 0)
         {
@@ -439,8 +442,8 @@ internal sealed class WorldSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Applies a verified 5517 facing or pose request without changing world position.
-    /// Peer delivery uses the existing bounded visibility mailbox.
+    /// Applies a facing or pose change without moving the character. Observers get it through the usual
+    /// visibility queue.
     /// </summary>
     internal async ValueTask ProcessAvatarActionAsync(GameAvatarAction request, CancellationToken cancellationToken = default)
     {
@@ -539,9 +542,8 @@ internal sealed class WorldSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Replies to a refused locally predicted walk/jump with the authoritative tile.
-    /// Per-session limiting bounds snapshot reads and corrective egress under packet spam.
-    /// This is separate from unsolicited idle-position-report reconciliation.
+    /// Answers a refused walk or jump with the server's tile so the client snaps back. The per-session limit caps
+    /// snapshot reads and corrections under packet spam. Unprompted position reports are handled separately.
     /// </summary>
     private async ValueTask CorrectRejectedMovementAsync(CancellationToken cancellationToken)
     {

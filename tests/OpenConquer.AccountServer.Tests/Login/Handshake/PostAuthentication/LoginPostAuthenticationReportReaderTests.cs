@@ -4,7 +4,6 @@ using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Connections.Framing;
-using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Handshake.PostAuthentication;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login.Packets;
@@ -754,14 +753,6 @@ public sealed class LoginPostAuthenticationReportReaderTests
         }
 
         return stream;
-    }
-
-    private sealed class FakeLoginSeedGenerator(uint seed) : ILoginSeedGenerator
-    {
-        public uint GenerateSeed()
-        {
-            return seed;
-        }
     }
 
     private sealed class TestTransportConnection : ITransportConnection

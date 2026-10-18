@@ -4,8 +4,8 @@ using OpenConquer.Domain.Characters;
 namespace OpenConquer.Application.Characters.Location;
 
 /// <summary>
-/// An authorized caller's proposed durable location transition, with an expected persisted
-/// position. This value does not itself grant world or database ownership.
+/// A proposed location change and the persisted position it expects to replace. Holding one grants nothing in
+/// the world or the database.
 /// </summary>
 public sealed class CharacterLocationChange
 {

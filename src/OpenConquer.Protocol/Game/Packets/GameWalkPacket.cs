@@ -4,8 +4,8 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// Native 5517 MsgEntityAction (10005) eight- or twenty-four-direction movement.
-/// The acknowledgement echoes the original request only after authoritative movement commits.
+/// 5517 MsgEntityAction (10005) movement in 8 or 24 directions. The request is echoed back only after the move
+/// is committed.
 /// </summary>
 public readonly record struct GameWalkPacket(uint PackedDirection, uint EntityId, uint CommandSelector, uint MovementTick, uint MapState) : IPacket
 {

@@ -5,8 +5,7 @@ using OpenConquer.GameServer.Login.Authentication;
 namespace OpenConquer.GameServer.Login.Character;
 
 /// <summary>
-/// Owns an authenticated GameServer connection together with the persisted
-/// character-login route resolved for its canonical account identity.
+/// An authenticated GameServer connection and the character-login route resolved for its account.
 /// </summary>
 internal sealed class CharacterLoginHandoffResult : IAsyncDisposable
 {

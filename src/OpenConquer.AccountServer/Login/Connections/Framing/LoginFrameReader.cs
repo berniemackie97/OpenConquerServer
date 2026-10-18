@@ -8,8 +8,7 @@ using OpenConquer.Protocol.Login.Cryptography;
 namespace OpenConquer.AccountServer.Login.Connections.Framing;
 
 /// <summary>
-/// Reads, decrypts, and validates client-to-server account-login frames from
-/// the connection's caller-owned input pipeline.
+/// Reads, decrypts and validates account-login frames from the client.
 /// </summary>
 internal sealed class LoginFrameReader
 {

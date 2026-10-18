@@ -3,8 +3,8 @@ using OpenConquer.Application.Characters.Location;
 namespace OpenConquer.GameServer.World.Execution;
 
 /// <summary>
-/// Pairs an immutable persisted-source observation with a revocable, generation-fenced
-/// destination reservation. No write, residency change, or network acknowledgement occurs.
+/// A saved-location read paired with a destination reservation that can still be revoked. Nothing is written,
+/// moved or sent to the client.
 /// </summary>
 internal sealed class WorldPortalPersistedLocationReservation : IDisposable
 {

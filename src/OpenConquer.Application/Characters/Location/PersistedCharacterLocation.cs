@@ -3,8 +3,8 @@ using OpenConquer.Application.Characters.Login.Profile;
 namespace OpenConquer.Application.Characters.Location;
 
 /// <summary>
-/// A persisted coordinate and its monotonic database revision. The revision is not
-/// a gameplay ownership token or proof that an in-flight write has finished.
+/// A persisted position and its database revision, which only ever increases. The revision isn't a gameplay
+/// lock and doesn't prove that a write in progress has finished.
 /// </summary>
 public sealed class PersistedCharacterLocation
 {

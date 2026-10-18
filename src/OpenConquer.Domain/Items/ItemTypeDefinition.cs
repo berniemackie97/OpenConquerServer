@@ -52,7 +52,7 @@ public sealed class ItemTypeDefinition
     public uint StaticLifetimeMinutes { get; }
     public ushort StackCapacity { get; }
 
-    // Native 5517 data fields. Their values are retained but no new gameplay rules are inferred.
+    // Fields carried over from the 5517 itemtype.dat. They are kept as-is; no gameplay rule uses them yet.
     public int RequiredProfessionCode { get; }
     public uint MonopolyFlags { get; }
     public uint SilverPrice { get; }

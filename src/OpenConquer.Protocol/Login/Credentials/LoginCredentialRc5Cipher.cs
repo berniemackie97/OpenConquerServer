@@ -9,8 +9,8 @@ namespace OpenConquer.Protocol.Login.Credentials;
 /// Implements the RC5-32/12/16 block cipher used by the login credential field.
 /// </summary>
 /// <remarks>
-/// This is client-compatibility cryptography, not a security boundary. The
-/// parameters, byte order, and key schedule are fixed by the client.
+/// This exists for client compatibility and isn't real security. The parameters, byte order and key
+/// schedule are fixed by the client.
 /// </remarks>
 public static class LoginCredentialRc5Cipher
 {

@@ -1,6 +1,6 @@
 namespace OpenConquer.Domain.World;
 
-/// <summary>Native 5517 tile distance with round-to-nearest, midpoint upward.</summary>
+/// <summary>Tile distance as the 5517 client computes it: round to nearest, halves up.</summary>
 /// <remarks>Map_CalculateRoundedTileDistanceByAdjustmentMode (0x61E5F0), mode 1.</remarks>
 public static class MapDistance
 {

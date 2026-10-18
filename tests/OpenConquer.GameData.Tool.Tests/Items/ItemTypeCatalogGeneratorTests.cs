@@ -118,7 +118,7 @@ public sealed class ItemTypeCatalogGeneratorTests
         fields[12] = "50000";
         fields[37] = "200";
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "item-types.json");
+        string path = Path.Combine(directory.Path, "item-types.json");
         ItemTypeCatalogFileWriter.Write(path, Generate(fields), s_hash);
         Assert.Equal(FileItemTypeCatalogRepository.FormatVersion, ItemTypeCatalogFileWriter.FormatVersion);
         FileItemTypeCatalogRepository repo = new(new ItemTypeCatalogFileOptions(path, 1024 * 1024, 100));
@@ -138,8 +138,8 @@ public sealed class ItemTypeCatalogGeneratorTests
     {
         ItemTypeDefinition[] definitions = Generate(Fields(100002, "Second"), Fields(100001, "First"));
         using TemporaryDirectory directory = new();
-        string a = Path.Combine(directory.RootPath, "a.json");
-        string b = Path.Combine(directory.RootPath, "b.json");
+        string a = Path.Combine(directory.Path, "a.json");
+        string b = Path.Combine(directory.Path, "b.json");
         ItemTypeCatalogFileWriter.Write(a, definitions, s_hash);
         ItemTypeCatalogFileWriter.Write(b, definitions.Reverse().ToArray(), s_hash);
         Assert.Equal(File.ReadAllBytes(a), File.ReadAllBytes(b));
@@ -149,7 +149,7 @@ public sealed class ItemTypeCatalogGeneratorTests
     public void Write_EmptyCatalog_ThrowsBeforeCreatingOutput()
     {
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "item-types.json");
+        string path = Path.Combine(directory.Path, "item-types.json");
         Assert.Throws<ArgumentException>(() => ItemTypeCatalogFileWriter.Write(path, [], s_hash));
         Assert.False(File.Exists(path));
     }
@@ -158,7 +158,7 @@ public sealed class ItemTypeCatalogGeneratorTests
     public void Write_NullDefinition_ThrowsBeforeCreatingOutput()
     {
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "item-types.json");
+        string path = Path.Combine(directory.Path, "item-types.json");
         Assert.Throws<ArgumentException>(() => ItemTypeCatalogFileWriter.Write(path, [null!], s_hash));
         Assert.False(File.Exists(path));
     }
@@ -167,7 +167,7 @@ public sealed class ItemTypeCatalogGeneratorTests
     public void Write_DuplicateItemTypeId_DoesNotReplaceExistingOutput()
     {
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "item-types.json");
+        string path = Path.Combine(directory.Path, "item-types.json");
         File.WriteAllText(path, "existing");
         ItemTypeDefinition[] definitions = Generate(Fields(100001, "First"));
         Assert.Throws<ArgumentException>(() => ItemTypeCatalogFileWriter.Write(path, [definitions[0], definitions[0]], s_hash));
@@ -181,7 +181,7 @@ public sealed class ItemTypeCatalogGeneratorTests
     public void Write_InvalidHash_DoesNotReplaceExistingOutput(string hash)
     {
         using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.RootPath, "item-types.json");
+        string path = Path.Combine(directory.Path, "item-types.json");
         File.WriteAllText(path, "existing");
         Assert.Throws<ArgumentException>(() => ItemTypeCatalogFileWriter.Write(path, Generate(Fields(100001, "First")), hash));
         Assert.Equal("existing", File.ReadAllText(path));
@@ -234,16 +234,5 @@ public sealed class ItemTypeCatalogGeneratorTests
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         return Encoding.GetEncoding(ItemTypeDatTable.TextCodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
-    }
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            RootPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(RootPath);
-        }
-        public string RootPath { get; }
-        public void Dispose() => Directory.Delete(RootPath, recursive: true);
     }
 }

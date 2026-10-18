@@ -12,7 +12,7 @@ using OpenConquer.Transport.Pipelines;
 namespace OpenConquer.AccountServer.Login.Connections;
 
 /// <summary>
-/// Owns the transport, buffering, login cipher, and framed I/O state for one account login connection.
+/// One account-login connection: its transport pumps, buffers, login cipher and frame reader and writer.
 /// </summary>
 internal sealed class LoginConnectionSession : IAsyncDisposable
 {
@@ -56,14 +56,11 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
     public EndPoint RemoteEndPoint => _connection.RemoteEndPoint;
 
     /// <summary>
-    /// Takes ownership of <paramref name="connection"/>, starts the duplex
-    /// transport pumps, generates the per-connection login seed, and sends the
-    /// encrypted seed frame before returning the live session.
+    /// Starts the transport pumps, generates the login seed and sends it to the client, encrypted.
     /// </summary>
     /// <remarks>
-    /// After argument validation, ownership of the connection transfers to this
-    /// operation. If opening fails, the connection and all session resources
-    /// are disposed before the failure is propagated.
+    /// The session takes over <paramref name="connection"/>. If opening fails, the connection is disposed
+    /// before the exception is rethrown.
     /// </remarks>
     public static async ValueTask<LoginConnectionSession> OpenAsync(ITransportConnection connection, ILoginSeedGenerator seedGenerator, CancellationToken cancellationToken = default)
     {

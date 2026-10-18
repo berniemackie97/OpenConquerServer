@@ -841,11 +841,6 @@ public sealed class LoginHandshakeProcessorTests
         public uint GenerateAuthenticationKey() => AuthenticationKey;
     }
 
-    private sealed class FakeLoginSeedGenerator(uint seed) : ILoginSeedGenerator
-    {
-        public uint GenerateSeed() => seed;
-    }
-
     private sealed class TestTransportConnection : ITransportConnection
     {
         private readonly Channel<ReceiveOperation> _receives = Channel.CreateUnbounded<ReceiveOperation>();

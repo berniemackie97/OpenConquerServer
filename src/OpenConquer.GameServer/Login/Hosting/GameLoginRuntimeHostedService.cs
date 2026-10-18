@@ -13,7 +13,7 @@ using OpenConquer.Transport.Connections;
 namespace OpenConquer.GameServer.Login.Hosting;
 
 /// <summary>
-/// Starts network ingress once the world content is ready and owns all connection-processing work.
+/// Starts accepting connections once the world content is ready, and runs all connection processing.
 /// </summary>
 internal sealed partial class GameLoginRuntimeHostedService(
     Func<ITransportConnectionListener> listenerFactory,
