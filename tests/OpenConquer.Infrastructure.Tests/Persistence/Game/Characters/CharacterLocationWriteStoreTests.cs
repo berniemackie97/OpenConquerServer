@@ -127,6 +127,52 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
+    public async Task Observe_ReflectsPersistedLocationBeforeAndAfterCommit()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        ICharacterLocationObservationStore observer = store;
+        CharacterLocation before = Assert.IsType<CharacterLocation>(
+            await observer.ObserveAsync(account, character, CancellationToken));
+        Assert.Equal((1002u, (ushort)431, (ushort)379), (before.MapId, before.X, before.Y));
+
+        CharacterLocation destination = new(1011, 193, 266);
+        Assert.Equal(CharacterLocationWriteResult.Committed, await store.TryCommitAsync(
+            Change(account, character, before, destination), CancellationToken));
+
+        CharacterLocation after = Assert.IsType<CharacterLocation>(
+            await observer.ObserveAsync(account, character, CancellationToken));
+        Assert.Equal((destination.MapId, destination.X, destination.Y), (after.MapId, after.X, after.Y));
+        Assert.Equal((ushort)177, (await LoadAsync(account)).Vitals.Life);
+    }
+
+    [Fact]
+    public async Task Observe_RefusesForeignAccountAndMissingCharacterWithoutDisclosingLocation()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        ICharacterLocationObservationStore observer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+
+        Assert.Null(await observer.ObserveAsync(account + 1, character, CancellationToken));
+        Assert.Null(await observer.ObserveAsync(account, uint.MaxValue, CancellationToken));
+        Assert.NotNull(await observer.ObserveAsync(account, character, CancellationToken));
+    }
+
+    [Fact]
+    public async Task Observe_RejectsInvalidIdentitiesAndPreCancelledReads()
+    {
+        ICharacterLocationObservationStore observer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await observer.ObserveAsync(0, 1_000_000, CancellationToken));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await observer.ObserveAsync(1, 999_999, CancellationToken));
+        using CancellationTokenSource stopped = new();
+        stopped.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await observer.ObserveAsync(1, 1_000_000, stopped.Token));
+    }
+
+    [Fact]
     public async Task Commit_PreCanceledOperation_DoesNotDispatch()
     {
         (uint account, uint character) = await CreateCharacterAsync();
@@ -147,7 +193,10 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         using ServiceProvider services = new ServiceCollection()
             .AddGameCharacterLocationWrite(database.LocationWriterConnectionString)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
-        Assert.IsType<CharacterLocationWriteStore>(services.GetRequiredService<ICharacterLocationWriteStore>());
+        ICharacterLocationWriteStore writer = services.GetRequiredService<ICharacterLocationWriteStore>();
+        ICharacterLocationObservationStore observer = services.GetRequiredService<ICharacterLocationObservationStore>();
+        Assert.IsType<CharacterLocationWriteStore>(writer);
+        Assert.Same(writer, observer);
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddGameCharacterLocationWrite(" "));
     }
 

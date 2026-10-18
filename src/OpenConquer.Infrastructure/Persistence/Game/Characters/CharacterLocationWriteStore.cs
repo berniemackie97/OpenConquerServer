@@ -1,5 +1,8 @@
+using System.Data;
 using MySqlConnector;
 using OpenConquer.Application.Characters.Location;
+using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.Domain.Characters;
 using OpenConquer.Infrastructure.Persistence.Game.Context;
 
 namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
@@ -8,7 +11,7 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
 /// One durable character-position CAS through a dedicated, column-restricted writer.
 /// Not registered with the existing read-only GameServer persistence identity.
 /// </summary>
-public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore
+public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore
 {
     private const int CommandTimeoutSeconds = 15;
     private readonly string _connectionString;
@@ -20,6 +23,49 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore
             UseAffectedRows = true,
         };
         _connectionString = builder.ConnectionString;
+    }
+
+    /// <summary>
+    /// Makes one bounded, identity-scoped observation. No automatic retry or
+    /// interpretation of a prior CAS outcome is performed.
+    /// </summary>
+    public async ValueTask<CharacterLocation?> ObserveAsync(uint accountId, uint characterId,
+        CancellationToken cancellationToken = default)
+    {
+        if (accountId == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(accountId));
+        }
+        if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
+        {
+            throw new ArgumentOutOfRangeException(nameof(characterId));
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using MySqlConnection connection = new(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandTimeout = CommandTimeoutSeconds;
+        command.CommandText =
+            """
+            SELECT `map_id`, `position_x`, `position_y`
+            FROM `characters`
+            WHERE `account_id` = @account_id
+              AND `character_id` = @character_id
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("@account_id", accountId);
+        command.Parameters.AddWithValue("@character_id", characterId);
+
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return new CharacterLocation(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2));
     }
 
     public async ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
