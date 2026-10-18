@@ -8,13 +8,19 @@ namespace OpenConquer.Application.Characters.Location;
 /// </summary>
 public sealed class PersistedCharacterLocation
 {
-    public PersistedCharacterLocation(CharacterLocation location, long revision)
+    public PersistedCharacterLocation(CharacterLocation location, long revision, Guid? lastOperationId = null)
     {
         Location = location ?? throw new ArgumentNullException(nameof(location));
         ArgumentOutOfRangeException.ThrowIfNegative(revision);
+        if (lastOperationId == Guid.Empty)
+        {
+            throw new ArgumentException("A persisted operation identifier cannot be empty.", nameof(lastOperationId));
+        }
         Revision = revision;
+        LastOperationId = lastOperationId;
     }
 
     public CharacterLocation Location { get; }
     public long Revision { get; }
+    public Guid? LastOperationId { get; }
 }

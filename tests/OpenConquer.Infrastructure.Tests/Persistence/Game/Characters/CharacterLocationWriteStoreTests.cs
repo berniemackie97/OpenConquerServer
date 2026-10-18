@@ -100,6 +100,31 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
+    public async Task Commit_MarkerIsScopedToTheWinningAtomicRevision()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocation original = new(1002, 431, 379);
+        CharacterLocation destination = new(1011, 193, 266);
+        CharacterLocation alternate = new(1000, 499, 650);
+        CharacterLocationChange winner = Change(account, character, original, destination);
+        CharacterLocationChange stale = Change(account, character, original, alternate);
+
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(winner, CancellationToken));
+        Assert.Equal(CharacterLocationWriteResult.Conflict,
+            await store.TryCommitAsync(stale, CancellationToken));
+
+        PersistedCharacterLocation snapshot = Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken));
+        Assert.Equal(1, snapshot.Revision);
+        Assert.Equal(winner.OperationId, snapshot.LastOperationId);
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(winner, snapshot));
+        Assert.False(CharacterLocationCommitEvidence.IsConfirmed(stale, snapshot));
+        Assert.Null(await store.ObserveAsync(account + 1, character, CancellationToken));
+    }
+
+    [Fact]
     public async Task RuntimeReadonlyIdentity_CannotCommitCharacterLocation()
     {
         (uint account, uint character) = await CreateCharacterAsync();
@@ -162,16 +187,38 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
             await observer.ObserveAsync(account, character, CancellationToken));
         Assert.Equal((1002u, (ushort)431, (ushort)379), (before.Location.MapId, before.Location.X, before.Location.Y));
         Assert.Equal(0, before.Revision);
+        Assert.Null(before.LastOperationId);
 
         CharacterLocation destination = new(1011, 193, 266);
-        Assert.Equal(CharacterLocationWriteResult.Committed, await store.TryCommitAsync(
-            Change(account, character, before.Location, destination, before.Revision), CancellationToken));
+        CharacterLocationChange change = Change(account, character, before.Location, destination, before.Revision);
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(change, CancellationToken));
 
         PersistedCharacterLocation after = Assert.IsType<PersistedCharacterLocation>(
             await observer.ObserveAsync(account, character, CancellationToken));
         Assert.Equal((destination.MapId, destination.X, destination.Y), (after.Location.MapId, after.Location.X, after.Location.Y));
         Assert.Equal(1, after.Revision);
+        Assert.Equal(change.OperationId, after.LastOperationId);
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(change, after));
         Assert.Equal((ushort)177, (await LoadAsync(account)).Vitals.Life);
+    }
+
+    [Fact]
+    public async Task ReceiptEncoding_IsIndependentOfConfiguredGuidFormat()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        MySqlConnectionStringBuilder credentials = new(database.LocationWriterConnectionString)
+        {
+            GuidFormat = MySqlGuidFormat.Binary16,
+        };
+        CharacterLocationWriteStore store = new(credentials.ConnectionString);
+        CharacterLocationChange change = Change(account, character,
+            new CharacterLocation(1002, 431, 379), new CharacterLocation(1011, 193, 266));
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(change, CancellationToken));
+        PersistedCharacterLocation snapshot = Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken));
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(change, snapshot));
     }
 
     [Fact]
@@ -271,5 +318,6 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     private static CharacterLocationChange Change(uint account, uint character, CharacterLocation expected,
-        CharacterLocation destination, long expectedRevision = 0) => new(account, character, expected, destination, expectedRevision);
+        CharacterLocation destination, long expectedRevision = 0) =>
+        new(account, character, expected, destination, expectedRevision, Guid.NewGuid());
 }

@@ -66,7 +66,7 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 6 and Game schema version 11, both checked at startup.
+- Accounts schema version 6 and Game schema version 12, both checked at startup.
 - Realm status reporting: each network-enabled GameServer reports its load (normal, busy at a
   saturated map partition, full at the character limit) and online count to the Accounts database
   on a fixed interval, and withdraws the report on shutdown. While full or busy it refuses logins
@@ -97,7 +97,9 @@ implemented parts work and link here rather than repeating this list.
 - Opt-in revision-qualified durable character-location compare-and-swap writer and
   identity-bound location observer sharing one dedicated, column-restricted identity.
   Version-checked writes prevent stale coordinate ABA and monotonically advance revision,
-  but observations cannot resolve uncertain in-flight commits. No world transfer or
+  and now persist the exact winning operation ID with the revision. A matching observation
+  confirms a specific completed operation; missing or mismatched evidence cannot resolve
+  an in-flight write. No world transfer or
   live position-save pipeline is enabled. See
   [durable character location](architecture/durable-character-location.md).
 - Native action-85 portal candidate preflight: validated DMap exit-marker and transition

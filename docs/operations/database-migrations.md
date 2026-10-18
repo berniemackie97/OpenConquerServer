@@ -24,6 +24,7 @@ start on a mismatch. They never migrate on their own.
 | Game     |       9 | `20261008033456_AddSyndicatePersistence`      |
 | Game     |      10 | `20261013030000_AddGameRealmBinding`          |
 | Game     |      11 | `20261018040000_AddCharacterLocationRevision` |
+| Game     |      12 | `20261018190000_AddCharacterLocationOperationId` |
 
 ## Game v11 location revision deployment
 
@@ -35,6 +36,20 @@ principal's column-scoped `SELECT`/`UPDATE` grant with `location_revision` (see
 `docs/architecture/durable-character-location.md`); do not grant it table-wide writes.
 The migration is intentionally not reversible. A stored revision does not prove the
 result of a still-running SQL command; no live transfer coordinator exists yet.
+
+## Game v12 commit evidence deployment
+
+The v12 offline migration adds nullable `characters.last_location_operation_id BINARY(16)`.
+Existing records retain `NULL`; the mandatory operation ID is written atomically with a
+successful location revision CAS. Stop **all** writers to `characters` and perform a
+verified backup before applying the migration. Update only the opt-in location writer's
+column-scoped `SELECT` and `UPDATE` grants to include `last_location_operation_id`.
+Deploy v12 components only after migration and grant reconciliation; older writers must
+not continue writing character locations. The migration cannot be downgraded safely.
+
+The marker is positive evidence of one completed CAS; an absent or different marker
+cannot prove an uncertain in-flight SQL command will never complete. Production transfers
+remain disabled. See [durable character location](../architecture/durable-character-location.md).
 
 ## Before you start
 

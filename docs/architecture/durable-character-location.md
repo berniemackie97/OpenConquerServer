@@ -57,9 +57,9 @@ identity receives no new grants. There are no SQL migrations or network changes.
 **Observation is not reconciliation authority.** A matching destination could predate the
 CAS, arise from a different operation, or be observed while a previously dispatched update
 is still in flight. Even a matching expected location cannot prove the uncertain update was
-rolled back. The ABA limitation remains. The future coordinator must hold a generation-fenced
-single-writer lease, prevent late commits from outrunning its observations, and define a
-monotonic revision or other provable handoff protocol before treating a read as resolution.
+rolled back. Coordinates alone are still insufficient. Since #158, revision-qualified writes prevent
+ABA for this dedicated CAS, but a future coordinator must enforce single-writer ownership,
+prevent late commits from outrunning observations, and treat unmatched evidence as unresolved.
 On an uncertain write, keep the affected session fenced/disconnected; never blindly retry,
 release the owner into another map, or send a 5517 transition acknowledgement based on an
 observation alone.
@@ -91,8 +91,9 @@ after A → B → A because its old revision no longer matches. The application 
 cannot overflow. The dedicated principal needs column-
 scoped `SELECT` and `UPDATE` on `location_revision` in addition to its existing grants.
 
-The identity-bound observation now returns a `PersistedCharacterLocation` containing the
-coordinate and revision. Internal portal preparation retains both as one immutable result.
+The identity-bound observation returns a `PersistedCharacterLocation` containing the
+coordinate, revision, and (since #160) last successful operation ID. Internal portal
+preparation retains this immutable result without authorizing commit.
 An observation still cannot resolve an in-flight commit or serve as ownership authorization.
 No hot migration: stop all writers, back up, update the schema, update restricted grants,
 then deploy the v11 GameServer. The ordinary runtime identity remains read-only.
@@ -102,6 +103,25 @@ administrative/direct SQL writes must follow an explicit revision-advance policy
 uncertain dispatched write may still finish after a later observation; a revision by
 itself is not a durable idempotency/commit receipt or a cross-map transaction. Do not
 retry unknown outcomes or enable map handoff until the coordinator handles these cases.
+
+## Durable operation evidence (#160)
+
+Game schema v12 adds nullable `last_location_operation_id BINARY(16)` to each character.
+The dedicated CAS requires a nonempty server-generated operation UUID, which is written
+atomically with the new coordinates and next monotonic revision. Its binary form is the
+16-byte .NET `Guid.ToByteArray()` representation; the reader reconstructs the same UUID. The location observation
+returns that UUID alongside the coordinates and revision. An exact match of UUID,
+`expected_revision + 1`, and destination is **positive evidence** that this operation
+committed. A different marker, absence of a marker, failed read, or unchanged revision
+must **never** be interpreted as evidence that the uncertain operation will not commit
+later. No blind retries, operation-ID reuse, or overlapping generation writers are allowed.
+
+This is not yet an operation journal, distributed transaction, or durable single-writer
+lease. The marker describes only the **last** successful dedicated CAS and can be replaced
+by later writes. A future coordinator must fence new writes for a character while any
+outcome remains uncertain and must handle process crashes and dispatch races before
+restoring ownership, continuing gameplay, or acknowledging a native transfer. The writer
+still does not run during world transfer, and native map transfers remain disabled.
 
 ## Credential boundary
 
@@ -116,8 +136,8 @@ requires `SELECT` on every referenced predicate column, including the location
 columns being updated, in addition to column-scoped `UPDATE`:
 
 ```sql
-GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`),
-      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`)
+GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`),
+      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`)
 ON `<game_database>`.`characters`
 TO '<location_writer>'@'<restricted_host>';
 ```
@@ -137,7 +157,7 @@ for this new principal require an operations review before runtime registration.
 - The existing read-only runtime principal cannot issue the update.
 - Pre-dispatch cancellation never updates a character.
 - The registration is explicit and does not grant writes to default persistence services.
-- Full EF model verification passes with **no migrations**.
+- Full EF model verification passes with the reviewed Game schema v12 migration.
 
 ## Before cross-map transfer is operational
 
@@ -156,4 +176,5 @@ for this new principal require an operations review before runtime registration.
 6. HP/mana/stamina restoration, Heaven Blessing, Soul Shackle, and action `10010/94`
    remain a separate authoritative revival lifecycle; they are **not** implied by this store.
 
-No new SQL tables, EF migrations, client packet formats, or gameplay paths are introduced.
+The Game schema v12 migration only adds the last-operation marker; no new SQL tables,
+client packet formats, or live gameplay paths are introduced.
