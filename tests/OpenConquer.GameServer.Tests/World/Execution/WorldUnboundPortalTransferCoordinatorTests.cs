@@ -234,7 +234,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
 
     private static CharacterLoginProfile Profile(uint characterId = CharacterId)
     {
-        CharacterLoginIdentity identity = new(characterId, AccountId, "UnboundPortalTest");
+        CharacterLoginIdentity identity = new(characterId, AccountId, "PortalTransfer");
         CharacterAppearance appearance = new(composite: 1003, hair: 410);
         CharacterProgression progression = new(level: 1, experience: 0, profession: 10, firstProfession: 0,
             previousProfession: 0, rebirthCount: 0, preRebirthLevel: 0);
