@@ -138,7 +138,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         {
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.Transferring)
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.Transferring || entry.DurableTransferSeal is not null)
             {
                 throw new InvalidOperationException("The world session does not have a valid authoritative ownership reservation.");
             }
@@ -240,7 +240,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.Transferring)
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.Transferring || entry.DurableTransferSeal is not null)
             {
                 return ValueTask.FromResult(false);
             }
@@ -269,9 +269,9 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
             if (!stopping && _owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) && entry.Ownership == ownership)
             {
-                if (entry.Transferring)
+                if (entry.Transferring || entry.DurableTransferSeal is not null)
                 {
-                    throw new InvalidOperationException("Character residency relocation is already in progress.");
+                    throw new InvalidOperationException("Character residency relocation or durable commit is already in progress.");
                 }
                 removal = entry.RemovalTask ?? QueueRemoval(entry);
             }
@@ -402,15 +402,61 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
+    /// Seals an authenticated, completed portal reservation before the first durable write.
+    /// A sealed source cannot acquire a world session, be removed, or have its destination
+    /// reservation refunded; only a successful cutover or world shutdown ends the fence.
+    /// </summary>
+    internal WorldDurableTransferSeal? TrySealUnboundPortalTransfer(WorldTransferReservation reservation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reservation);
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+
+            WorldCharacterOwnership ownership = reservation.SourceOwnership;
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != ownership || entry.Removing || entry.Transferring ||
+                entry.DurableTransferSeal is not null ||
+                !ReferenceEquals(entry.TransferReservation, reservation) ||
+                _sessions.ContainsKey(ownership) || reservation.SourceSnapshot.Ownership != ownership)
+            {
+                return null;
+            }
+
+            WorldDurableTransferSeal seal = new(reservation);
+            entry.DurableTransferSeal = seal;
+            return seal;
+        }
+    }
+
+    /// <summary>
+    /// Consumes a sealed source after exact durable CAS commit evidence. The caller must stop
+    /// the world on any failure because the persistent state can already name the destination.
+    /// </summary>
+    internal ValueTask<WorldCharacterOwnership?> TryRelocateSealedCharacterAsync(WorldDurableTransferSeal seal)
+    {
+        ArgumentNullException.ThrowIfNull(seal);
+        return RelocateReservedCharacterCoreAsync(seal.Reservation, seal, CancellationToken.None);
+    }
+
+    /// <summary>
     /// Moves one unbound character between exclusive map partitions using an existing reversible
     /// destination reservation. This performs no database write, visibility update, session rebinding,
     /// or network I/O; connected characters must use a separately reviewed transfer coordinator.
     /// Cancellation is honored only before the first partition command is dispatched.
     /// </summary>
-    internal async ValueTask<WorldCharacterOwnership?> TryRelocateReservedCharacterAsync(
+    internal ValueTask<WorldCharacterOwnership?> TryRelocateReservedCharacterAsync(
         WorldTransferReservation reservation, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reservation);
+        return RelocateReservedCharacterCoreAsync(reservation, seal: null, cancellationToken: cancellationToken);
+    }
+
+    private async ValueTask<WorldCharacterOwnership?> RelocateReservedCharacterCoreAsync(
+        WorldTransferReservation reservation, WorldDurableTransferSeal? seal, CancellationToken cancellationToken)
+    {
         WorldCharacterOwnership source = reservation.SourceOwnership;
         WorldCharacterOwnership destination;
         WorldPartition sourcePartition;
@@ -424,6 +470,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
             if (!_owners.TryGetValue(source.CharacterId, out OwnershipEntry? entry) ||
                 entry.Ownership != source || entry.Removing || entry.Transferring ||
                 !ReferenceEquals(entry.TransferReservation, reservation) ||
+                !ReferenceEquals(entry.DurableTransferSeal, seal) ||
                 _sessions.ContainsKey(source))
             {
                 return null;
@@ -519,6 +566,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 current.Ownership = destination;
                 current.Transferring = false;
                 current.TransferReservation = null;
+                current.DurableTransferSeal = null;
                 int remaining = _mapPopulation[source.MapId] - 1;
                 if (remaining == 0)
                 {
@@ -570,7 +618,12 @@ internal sealed class WorldRuntime : IAsyncDisposable
                         current.Ownership == source && ReferenceEquals(current.TransferReservation, reservation))
                     {
                         current.Transferring = false;
-                        ReleaseTransferReservationCore(current, reservation);
+                        if (seal is null)
+                        {
+                            ReleaseTransferReservationCore(current, reservation);
+                        }
+                        // A durable write was already dispatched by the sealed path.
+                        // Its caller must stop the runtime; never release source gameplay here.
                     }
                 }
             }
@@ -595,7 +648,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
         lock (_gate)
         {
             if (_owners.TryGetValue(reservation.SourceOwnership.CharacterId, out OwnershipEntry? entry) &&
-                entry.Ownership == reservation.SourceOwnership && !entry.Transferring)
+                entry.Ownership == reservation.SourceOwnership && !entry.Transferring &&
+                entry.DurableTransferSeal is null)
             {
                 ReleaseTransferReservationCore(entry, reservation);
             }
@@ -1011,6 +1065,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
         public WorldCharacterOwnership Ownership { get; set; } = ownership;
 
         public bool Transferring { get; set; }
+
+        public WorldDurableTransferSeal? DurableTransferSeal { get; set; }
 
         public WorldTransferReservation? TransferReservation { get; set; }
 
