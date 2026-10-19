@@ -15,6 +15,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
 {
     private static int s_nextAccountId = 1_600_000;
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
+    private readonly Dictionary<uint, Guid> _writerTokens = [];
 
     [Fact]
     public async Task Commit_ChangesOnlyTheRequestedCharacterLocation()
@@ -190,6 +191,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         Assert.Equal((1002u, (ushort)431, (ushort)379), (before.Location.MapId, before.Location.X, before.Location.Y));
         Assert.Equal(0, before.Revision);
         Assert.Null(before.LastOperationId);
+        Assert.Equal(_writerTokens[character], before.WriterToken);
 
         CharacterLocation destination = new(1011, 193, 266);
         CharacterLocationChange change = Change(account, character, before.Location, destination, before.Revision);
@@ -229,7 +231,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         (uint account, uint character) = await CreateCharacterAsync();
         Guid operationId = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
         CharacterLocationChange change = new(account, character,
-            new CharacterLocation(1002, 431, 379), new CharacterLocation(1011, 193, 266), 0, operationId);
+            new CharacterLocation(1002, 431, 379), new CharacterLocation(1011, 193, 266), 0, operationId, _writerTokens[character]);
         CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
         Assert.Equal(CharacterLocationWriteResult.Committed,
             await store.TryCommitAsync(change, CancellationToken));
@@ -335,8 +337,111 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         ICharacterLocationWriteStore writer = services.GetRequiredService<ICharacterLocationWriteStore>();
         ICharacterLocationObservationStore observer = services.GetRequiredService<ICharacterLocationObservationStore>();
         Assert.IsType<CharacterLocationWriteStore>(writer);
+        Assert.Same(writer, services.GetRequiredService<ICharacterLocationFenceStore>());
         Assert.Same(writer, observer);
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddGameCharacterLocationWrite(" "));
+    }
+
+    [Fact]
+    public async Task RotatingWriterGeneration_RevokesOldCASWithoutChangingCoordinatesOrRevision()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        Guid priorToken = _writerTokens[character];
+        CharacterLocation original = new(1002, 431, 379);
+        CharacterLocation target = new(1011, 193, 266);
+        CharacterLocationWriteAuthority latest = Assert.IsType<CharacterLocationWriteAuthority>(
+            await store.AcquireAsync(account, character, CancellationToken));
+        Assert.NotEqual(priorToken, latest.Token);
+        Assert.Equal(0, latest.Snapshot.Revision);
+        Assert.Equal(original.MapId, latest.Snapshot.Location.MapId);
+        Assert.Equal(CharacterLocationWriteResult.Conflict, await store.TryCommitAsync(
+            Change(account, character, original, target), CancellationToken));
+        CharacterLocationChange current = new(account, character, original, target, 0, Guid.NewGuid(), latest.Token);
+        Assert.Equal(CharacterLocationWriteResult.Committed, await store.TryCommitAsync(current, CancellationToken));
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(current,
+            await store.ObserveAsync(account, character, CancellationToken)));
+    }
+
+    [Fact]
+    public async Task FenceRotation_RefusesForeignIdentityAndReadOnlyCredentials()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        Assert.Null(await store.AcquireAsync(account + 1, character, CancellationToken));
+        Assert.Null(await store.AcquireAsync(account, uint.MaxValue, CancellationToken));
+        CharacterLocationWriteStore readonlyStore = new(database.RuntimeConnectionString);
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(async () =>
+            await readonlyStore.AcquireAsync(account, character, CancellationToken));
+        Assert.Contains(exception.Number, new[] { 1142, 1143 });
+        Assert.Equal(_writerTokens[character], Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken)).WriterToken);
+    }
+
+    [Fact]
+    public async Task SuccessiveFenceAcquisitions_OnlyLatestGenerationCanWrite()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteAuthority first = Assert.IsType<CharacterLocationWriteAuthority>(
+            await store.AcquireAsync(account, character, CancellationToken));
+        CharacterLocationWriteAuthority second = Assert.IsType<CharacterLocationWriteAuthority>(
+            await store.AcquireAsync(account, character, CancellationToken));
+        Assert.NotEqual(first.Token, second.Token);
+        CharacterLocation source = new(1002, 431, 379);
+        CharacterLocation destination = new(1011, 193, 266);
+        Assert.Equal(CharacterLocationWriteResult.Conflict, await store.TryCommitAsync(
+            new CharacterLocationChange(account, character, source, destination, 0, Guid.NewGuid(), first.Token),
+            CancellationToken));
+        CharacterLocationChange winner = new(account, character, source, destination, 0, Guid.NewGuid(), second.Token);
+        Assert.Equal(CharacterLocationWriteResult.Committed, await store.TryCommitAsync(winner, CancellationToken));
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(winner,
+            await store.ObserveAsync(account, character, CancellationToken)));
+    }
+
+    [Fact]
+    public async Task ConcurrentFenceAcquisitions_RevokeAllSupersededGenerations()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        Guid previous = _writerTokens[character];
+
+        Task<CharacterLocationWriteAuthority?> first = store.AcquireAsync(account, character, CancellationToken).AsTask();
+        Task<CharacterLocationWriteAuthority?> second = store.AcquireAsync(account, character, CancellationToken).AsTask();
+        CharacterLocationWriteAuthority?[] acquisitions = await Task.WhenAll(first, second);
+
+        PersistedCharacterLocation observed = Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken));
+        Assert.NotEqual(previous, observed.WriterToken);
+        Assert.Equal(0, observed.Revision);
+
+        CharacterLocationWriteAuthority latest = Assert.Single(acquisitions, candidate =>
+            candidate is not null && candidate.Token == observed.WriterToken)!;
+        CharacterLocation origin = new(1002, 431, 379);
+        CharacterLocation destination = new(1011, 193, 266);
+
+        foreach (CharacterLocationWriteAuthority? candidate in acquisitions)
+        {
+            if (candidate is null || candidate.Token == latest.Token)
+            {
+                continue;
+            }
+
+            Assert.Equal(CharacterLocationWriteResult.Conflict, await store.TryCommitAsync(
+                new CharacterLocationChange(account, character, origin, destination, 0, Guid.NewGuid(),
+                    candidate.Token), CancellationToken));
+        }
+
+        Assert.Equal(CharacterLocationWriteResult.Conflict, await store.TryCommitAsync(
+            new CharacterLocationChange(account, character, origin, destination, 0, Guid.NewGuid(), previous),
+            CancellationToken));
+
+        CharacterLocationChange winning = new(account, character, origin, destination, observed.Revision,
+            Guid.NewGuid(), latest.Token);
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(winning, CancellationToken));
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(winning,
+            await store.ObserveAsync(account, character, CancellationToken)));
     }
 
     private async Task<(uint Account, uint Character)> CreateCharacterAsync()
@@ -349,6 +454,10 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         CharacterCreationStore creator = new(database.AdministrativeConnectionString);
         CharacterCreationStoreResult result = await creator.CreateAsync(candidate, CancellationToken);
         Assert.Equal(CharacterCreationStoreStatus.Created, result.Status);
+        CharacterLocationWriteStore fence = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteAuthority authority = Assert.IsType<CharacterLocationWriteAuthority>(
+            await fence.AcquireAsync(account, result.CharacterId, CancellationToken));
+        _writerTokens.Add(result.CharacterId, authority.Token);
         return (account, result.CharacterId);
     }
 
@@ -358,7 +467,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         return Assert.IsType<CharacterLoginProfile>(await reader.FindByAccountIdAsync(account, CancellationToken));
     }
 
-    private static CharacterLocationChange Change(uint account, uint character, CharacterLocation expected,
+    private CharacterLocationChange Change(uint account, uint character, CharacterLocation expected,
         CharacterLocation destination, long expectedRevision = 0) =>
-        new(account, character, expected, destination, expectedRevision, Guid.NewGuid());
+        new(account, character, expected, destination, expectedRevision, Guid.NewGuid(), _writerTokens[character]);
 }

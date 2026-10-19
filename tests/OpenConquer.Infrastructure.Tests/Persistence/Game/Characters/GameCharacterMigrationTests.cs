@@ -110,7 +110,7 @@ public sealed class GameCharacterMigrationTests
         await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId);
 
         // The current repository targets schema v11 rather than this historical v3 state.
-        await MigrateAsync(connectionString, "20261018190000_AddCharacterLocationOperationId");
+        await MigrateAsync(connectionString, "20261019010000_AddCharacterLocationWriterFence");
         CharacterLoginProfile profile = await ReadCurrentProfileAsync(connectionString, accountId);
 
         Assert.Equal(accountId, profile.Identity.AccountId);
@@ -162,7 +162,7 @@ public sealed class GameCharacterMigrationTests
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 3, PreRebirthLevelMigrationId);
         await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId);
 
-        await MigrateAsync(connectionString, "20261018190000_AddCharacterLocationOperationId");
+        await MigrateAsync(connectionString, "20261019010000_AddCharacterLocationWriterFence");
         CharacterLoginProfile nonRebornProfile = await ReadCurrentProfileAsync(connectionString, nonRebornAccountId);
         CharacterLoginProfile rebornProfile = await ReadCurrentProfileAsync(connectionString, rebornAccountId);
 
@@ -175,6 +175,94 @@ public sealed class GameCharacterMigrationTests
         Assert.Equal((byte)2, rebornProfile.Progression.RebirthCount);
         Assert.Equal((byte)130, rebornProfile.Progression.PreRebirthLevel);
         Assert.Equal((short)-321, rebornProfile.PkPoints);
+    }
+
+    private const string WriterFenceMigrationId = "20261019010000_AddCharacterLocationWriterFence";
+    private const string OperationIdMigrationId = "20261018190000_AddCharacterLocationOperationId";
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WriterFence_ResumesInterruptedStructureAndMetadata(bool metadataCommitted)
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+        await database.StartAsync(CancellationToken);
+        string connectionString = database.GetConnectionString();
+        await ConfigureDatabaseAsync(connectionString);
+        await MigrateAsync(connectionString, OperationIdMigrationId);
+
+        await using (MySqlConnection connection = new(connectionString))
+        {
+            await connection.OpenAsync(CancellationToken);
+            await using MySqlCommand command = connection.CreateCommand();
+            command.CommandText = """
+                ALTER TABLE `characters` ADD COLUMN `location_writer_token` BINARY(16) NULL
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken);
+            if (metadataCommitted)
+            {
+                command.CommandText = """
+                    UPDATE `schema_compatibility`
+                    SET `schema_version` = 13,
+                        `migration_id` = '20261019010000_AddCharacterLocationWriterFence',
+                        `applied_at_utc` = UTC_TIMESTAMP(6)
+                    WHERE `component_name` = 'game' AND `schema_version` = 12
+                    """;
+                Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
+            }
+        }
+
+        await MigrateAsync(connectionString, WriterFenceMigrationId);
+        await AssertCompatibilityAsync(connectionString, 13, WriterFenceMigrationId);
+
+        await using MySqlConnection verify = new(connectionString);
+        await verify.OpenAsync(CancellationToken);
+        await using MySqlCommand check = verify.CreateCommand();
+        check.CommandText = """
+            SELECT `COLUMN_TYPE`, `IS_NULLABLE`, `COLUMN_DEFAULT`
+            FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'characters'
+              AND `COLUMN_NAME` = 'location_writer_token'
+            """;
+        await using MySqlDataReader reader = await check.ExecuteReaderAsync(CancellationToken);
+        Assert.True(await reader.ReadAsync(CancellationToken));
+        Assert.Equal("binary(16)", reader.GetString(0));
+        Assert.Equal("YES", reader.GetString(1));
+        Assert.True(reader.IsDBNull(2));
+        Assert.False(await reader.ReadAsync(CancellationToken));
+    }
+
+    [Fact]
+    public async Task WriterFence_RejectsIncompatiblePartiallyCommittedColumn()
+    {
+        await using MySqlContainer database = CreateDatabaseContainer();
+        await database.StartAsync(CancellationToken);
+        string connectionString = database.GetConnectionString();
+        await ConfigureDatabaseAsync(connectionString);
+        await MigrateAsync(connectionString, OperationIdMigrationId);
+
+        await using (MySqlConnection connection = new(connectionString))
+        {
+            await connection.OpenAsync(CancellationToken);
+            await using MySqlCommand command = connection.CreateCommand();
+            command.CommandText = """
+                ALTER TABLE `characters` ADD COLUMN `location_writer_token` VARBINARY(16) NULL
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken);
+        }
+
+        await Assert.ThrowsAnyAsync<Exception>(() => MigrateAsync(connectionString, WriterFenceMigrationId));
+        await AssertCompatibilityAsync(connectionString, 12, OperationIdMigrationId);
+
+        await using MySqlConnection verify = new(connectionString);
+        await verify.OpenAsync(CancellationToken);
+        await using MySqlCommand check = verify.CreateCommand();
+        check.CommandText = """
+            SELECT `COLUMN_TYPE` FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'characters'
+              AND `COLUMN_NAME` = 'location_writer_token'
+            """;
+        Assert.Equal("varbinary(16)", await check.ExecuteScalarAsync(CancellationToken));
     }
 
     private static MySqlContainer CreateDatabaseContainer()

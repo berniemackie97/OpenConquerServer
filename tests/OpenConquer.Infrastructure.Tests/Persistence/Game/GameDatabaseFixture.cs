@@ -204,8 +204,8 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
         await using (MySqlCommand grant = connection.CreateCommand())
         {
             grant.CommandText = $"""
-                GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`),
-                      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`)
+                GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`),
+                      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`)
                 ON `{DatabaseName}`.`characters`
                 TO '{LocationWriterUserName}'@'%'
                 """;

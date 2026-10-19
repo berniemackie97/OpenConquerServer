@@ -10,7 +10,7 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
 /// One durable character-position CAS through a dedicated, column-restricted writer.
 /// Not registered with the existing read-only GameServer persistence identity.
 /// </summary>
-public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore
+public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore, ICharacterLocationFenceStore
 {
     private const int CommandTimeoutSeconds = 15;
     private readonly string _connectionString;
@@ -49,7 +49,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.CommandTimeout = CommandTimeoutSeconds;
         command.CommandText =
             """
-            SELECT `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`
+            SELECT `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`
             FROM `characters`
             WHERE `account_id` = @account_id
               AND `character_id` = @character_id
@@ -66,8 +66,83 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         }
 
         Guid? operationId = reader.IsDBNull(4) ? null : new Guid(reader.GetFieldValue<byte[]>(4), bigEndian: true);
+        Guid? writerToken = reader.IsDBNull(5) ? null : new Guid(reader.GetFieldValue<byte[]>(5), bigEndian: true);
         return new PersistedCharacterLocation(
-            new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)), reader.GetInt64(3), operationId);
+            new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)), reader.GetInt64(3),
+            operationId, writerToken);
+    }
+
+    /// <summary>
+    /// One atomic row mutation revokes every older write generation. A later read must
+    /// still find the exact token, otherwise a concurrent acquirer already replaced it.
+    /// InnoDB serializes competing CAS and rotation updates on the same character row.
+    /// </summary>
+    public async ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId,
+        CancellationToken cancellationToken = default)
+    {
+        if (accountId == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(accountId));
+        }
+        if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
+        {
+            throw new ArgumentOutOfRangeException(nameof(characterId));
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+
+        Guid token = Guid.NewGuid();
+        await using MySqlConnection connection = new(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using (MySqlCommand rotation = connection.CreateCommand())
+        {
+            rotation.CommandTimeout = CommandTimeoutSeconds;
+            rotation.CommandText = """
+                UPDATE `characters`
+                SET `location_writer_token` = @writer_token
+                WHERE `account_id` = @account_id
+                  AND `character_id` = @character_id;
+                """;
+            rotation.Parameters.AddWithValue("@writer_token", token.ToByteArray(bigEndian: true));
+            rotation.Parameters.AddWithValue("@account_id", accountId);
+            rotation.Parameters.AddWithValue("@character_id", characterId);
+            // An exception after dispatch is uncertain: callers must not authorize gameplay.
+            int affected = await rotation.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            if (affected == 0)
+            {
+                return null;
+            }
+            if (affected != 1)
+            {
+                throw new InvalidOperationException("Character writer-fence rotation touched multiple rows.");
+            }
+        }
+
+        await using MySqlCommand read = connection.CreateCommand();
+        read.CommandTimeout = CommandTimeoutSeconds;
+        read.CommandText = """
+            SELECT `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`
+            FROM `characters`
+            WHERE `account_id` = @account_id
+              AND `character_id` = @character_id
+              AND `location_writer_token` = @writer_token
+            LIMIT 1;
+            """;
+        read.Parameters.AddWithValue("@writer_token", token.ToByteArray(bigEndian: true));
+        read.Parameters.AddWithValue("@account_id", accountId);
+        read.Parameters.AddWithValue("@character_id", characterId);
+        await using MySqlDataReader reader = await read.ExecuteReaderAsync(
+            CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            // Another acquisition superseded this one before observation.
+            return null;
+        }
+        Guid? lastOperation = reader.IsDBNull(4) ? null :
+            new Guid(reader.GetFieldValue<byte[]>(4), bigEndian: true);
+        PersistedCharacterLocation snapshot = new(
+            new(reader.GetUInt32(0), reader.GetUInt16(1), reader.GetUInt16(2)),
+            reader.GetInt64(3), lastOperation, token);
+        return new CharacterLocationWriteAuthority(accountId, characterId, token, snapshot);
     }
 
     public async ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
@@ -96,6 +171,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
               AND `position_x` = @expected_x
               AND `position_y` = @expected_y
               AND `location_revision` = @expected_revision
+              AND `location_writer_token` = @writer_token
               AND `location_revision` < 9223372036854775807;
             """;
 
@@ -105,6 +181,7 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         command.Parameters.AddWithValue("@expected_x", change.Expected.X);
         command.Parameters.AddWithValue("@expected_y", change.Expected.Y);
         command.Parameters.AddWithValue("@expected_revision", change.ExpectedRevision);
+        command.Parameters.AddWithValue("@writer_token", change.WriterToken.ToByteArray(bigEndian: true));
         command.Parameters.AddWithValue("@operation_id", change.OperationId.ToByteArray(bigEndian: true));
         command.Parameters.AddWithValue("@target_map_id", change.Destination.MapId);
         command.Parameters.AddWithValue("@target_x", change.Destination.X);

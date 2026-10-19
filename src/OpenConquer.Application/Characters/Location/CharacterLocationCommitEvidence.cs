@@ -10,7 +10,8 @@ public static class CharacterLocationCommitEvidence
     {
         ArgumentNullException.ThrowIfNull(change);
         if (observed is null || observed.LastOperationId != change.OperationId ||
-            observed.Revision != change.ExpectedRevision + 1)
+            observed.Revision != change.ExpectedRevision + 1 ||
+            observed.WriterToken != change.WriterToken)
         {
             return false;
         }

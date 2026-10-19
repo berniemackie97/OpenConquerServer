@@ -66,7 +66,7 @@ implemented parts work and link here rather than repeating this list.
 
 ### Persistence and content
 
-- Accounts schema version 6 and Game schema version 12, both checked at startup.
+- Accounts schema version 6 and Game schema version 13, both checked at startup.
 - Realm status reporting: each network-enabled GameServer reports its load (normal, busy at a
   saturated map partition, full at the character limit) and online count to the Accounts database
   on a fixed interval, and withdraws the report on shutdown. While full or busy it refuses logins
@@ -112,8 +112,9 @@ implemented parts work and link here rather than repeating this list.
 - Internal sessionless portal transaction links authenticated native exit preflight,
   persisted-source observation, a nonreleasable durable-write seal, one revision-qualified
   operation-ID CAS, exact commit evidence, and generation-fenced destination handoff.
-  Any failure after the seal stops the world; it is not a live session transfer or
-  crash-safe cross-process fence. See [world transfer preflight](architecture/world-transfer-preflight.md).
+  A per-character MySQL writer-generation rotation now serializes behind earlier CAS
+  writes, and all dedicated writes must match the current generation. Any failure after
+  the seal stops the world; this is still not exclusive realm ownership or a live session transfer. See [world transfer preflight](architecture/world-transfer-preflight.md).
 - Internal cross-map residency relocation for characters without active sessions: generation-fenced
   source departure, destination staging with preserved character status, capacity accounting,
   rollback, and terminal shutdown on an unrepairable cutover. No live ingress, durability, or

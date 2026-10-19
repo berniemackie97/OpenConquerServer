@@ -42,7 +42,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
                 Assert.Equal(DestinationMap, change.Destination.MapId);
                 Assert.NotEqual(Guid.Empty, change.OperationId);
                 Assert.Null(await runtime.TryWalkCharacterAsync(source, 0, Token));
-                persisted = new(change.Destination, change.ExpectedRevision + 1, change.OperationId);
+                persisted = new(change.Destination, change.ExpectedRevision + 1, change.OperationId, change.WriterToken);
                 return CharacterLocationWriteResult.Committed;
             });
 
@@ -141,7 +141,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
             Writer writer = new((change, _) =>
             {
                 entered.TrySetResult();
-                persisted = new(change.Destination, change.ExpectedRevision + 1, change.OperationId);
+                persisted = new(change.Destination, change.ExpectedRevision + 1, change.OperationId, change.WriterToken);
                 return new ValueTask<CharacterLocationWriteResult>(complete.Task);
             });
             Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source, observer, writer, TestContext.Current.CancellationToken).AsTask();
@@ -273,9 +273,22 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
 
     private static ValueTask<WorldCharacterOwnership?> Execute(WorldRuntime runtime, MapTransitionCatalog catalog,
         CharacterLoginProfile profile, WorldCharacterOwnership owner, ICharacterLocationObservationStore observations,
-        ICharacterLocationWriteStore writer, CancellationToken token = default) =>
+        ICharacterLocationWriteStore writer, CancellationToken token = default,
+        ICharacterLocationFenceStore? fence = null) =>
         WorldUnboundPortalTransferCoordinator.TryExecuteAsync(runtime, catalog, profile, owner,
-            observations, writer, portalX: 2, portalY: 1, cancellationToken: token);
+            observations, writer, fence ?? new Fence(), portalX: 2, portalY: 1, cancellationToken: token);
+
+    private sealed class Fence : ICharacterLocationFenceStore
+    {
+        public ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId,
+            CancellationToken cancellationToken = default)
+        {
+            Guid token = Guid.NewGuid();
+            PersistedCharacterLocation snapshot = new(new CharacterLocation(SourceMap, 4, 3), 9, writerToken: token);
+            return ValueTask.FromResult<CharacterLocationWriteAuthority?>(
+                new CharacterLocationWriteAuthority(accountId, characterId, token, snapshot));
+        }
+    }
 
     private static PersistedCharacterLocation Initial() => new(new CharacterLocation(SourceMap, 4, 3), 9);
 

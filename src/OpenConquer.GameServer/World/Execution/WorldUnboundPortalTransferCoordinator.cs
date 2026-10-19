@@ -16,7 +16,7 @@ internal static class WorldUnboundPortalTransferCoordinator
     internal static async ValueTask<WorldCharacterOwnership?> TryExecuteAsync(
         WorldRuntime runtime, MapTransitionCatalog transitions, CharacterLoginProfile authenticatedProfile,
         WorldCharacterOwnership ownership, ICharacterLocationObservationStore observations,
-        ICharacterLocationWriteStore writes, ushort portalX, ushort portalY,
+        ICharacterLocationWriteStore writes, ICharacterLocationFenceStore fences, ushort portalX, ushort portalY,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -24,6 +24,7 @@ internal static class WorldUnboundPortalTransferCoordinator
         ArgumentNullException.ThrowIfNull(authenticatedProfile);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(writes);
+        ArgumentNullException.ThrowIfNull(fences);
         cancellationToken.ThrowIfCancellationRequested();
 
         using WorldPortalPersistedLocationReservation? prepared = await
@@ -44,11 +45,31 @@ internal static class WorldUnboundPortalTransferCoordinator
 
         try
         {
+            // The durable row update serializes behind any older in-flight CAS. A stale
+            // command either commits before this acquisition, or conflicts afterwards.
+            using CancellationTokenSource fenceDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            fenceDeadline.CancelAfter(s_databaseOperationTimeout);
+            CharacterLocationWriteAuthority authority = await fences.AcquireAsync(
+                    authenticatedProfile.Identity.AccountId, ownership.CharacterId, fenceDeadline.Token)
+                .AsTask().WaitAsync(fenceDeadline.Token).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Durable portal writer authority could not be acquired.");
+
+            PersistedCharacterLocation source = authority.Snapshot;
+            PersistedCharacterLocation preparedSource = prepared.PersistedSource;
+            if (source.Location.MapId != preparedSource.Location.MapId ||
+                source.Location.X != preparedSource.Location.X ||
+                source.Location.Y != preparedSource.Location.Y ||
+                source.Revision != preparedSource.Revision ||
+                source.LastOperationId != preparedSource.LastOperationId)
+            {
+                throw new InvalidOperationException("Persisted source changed while acquiring writer authority.");
+            }
+
             CharacterLocation destination = new(prepared.DestinationMapId,
                 prepared.DestinationX, prepared.DestinationY);
             CharacterLocationChange change = new(authenticatedProfile.Identity.AccountId,
-                ownership.CharacterId, prepared.PersistedSource.Location, destination,
-                prepared.PersistedSource.Revision, Guid.NewGuid());
+                ownership.CharacterId, source.Location, destination,
+                source.Revision, Guid.NewGuid(), authority.Token);
 
             if (!runtime.IsRunning)
             {

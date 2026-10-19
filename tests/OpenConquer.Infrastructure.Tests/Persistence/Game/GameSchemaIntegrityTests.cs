@@ -367,8 +367,8 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.True(await reader.ReadAsync(CancellationToken));
         Assert.Equal("game", reader.GetString(0));
-        Assert.Equal(12u, reader.GetUInt32(1));
-        Assert.Equal("20261018190000_AddCharacterLocationOperationId", reader.GetString(2));
+        Assert.Equal(13u, reader.GetUInt32(1));
+        Assert.Equal("20261019010000_AddCharacterLocationWriterFence", reader.GetString(2));
         Assert.False(await reader.ReadAsync(CancellationToken));
     }
 
@@ -384,6 +384,27 @@ public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
             WHERE `TABLE_SCHEMA` = DATABASE()
               AND `TABLE_NAME` = 'characters'
               AND `COLUMN_NAME` = 'last_location_operation_id'
+            """;
+        await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
+        Assert.True(await reader.ReadAsync(CancellationToken));
+        Assert.Equal("binary(16)", reader.GetString(0));
+        Assert.Equal("YES", reader.GetString(1));
+        Assert.True(reader.IsDBNull(2));
+        Assert.False(await reader.ReadAsync(CancellationToken));
+    }
+
+    [Fact]
+    public async Task LocationWriterToken_IsNullableBinary16()
+    {
+        await using MySqlConnection connection = new(database.AdministrativeConnectionString);
+        await connection.OpenAsync(CancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT `COLUMN_TYPE`, `IS_NULLABLE`, `COLUMN_DEFAULT`
+            FROM `INFORMATION_SCHEMA`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = 'characters'
+              AND `COLUMN_NAME` = 'location_writer_token'
             """;
         await using MySqlDataReader reader = await command.ExecuteReaderAsync(CancellationToken);
         Assert.True(await reader.ReadAsync(CancellationToken));

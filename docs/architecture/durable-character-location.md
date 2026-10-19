@@ -124,6 +124,25 @@ outcome remains uncertain and must handle process crashes and dispatch races bef
 restoring ownership, continuing gameplay, or acknowledging a native transfer. The writer
 still does not run during world transfer, and native map transfers remain disabled.
 
+## Durable per-character writer generations (#163)
+
+Game v13 adds a nullable `location_writer_token BINARY(16)`. A dedicated, restricted
+writer rotates it with one InnoDB row UPDATE before its first CAS. Competing CAS and
+rotations serialize on the same row; an older command that reaches that row after
+rotation cannot satisfy the current token predicate. The acquirer reads coordinates,
+revision and operation marker after rotation and returns authority only if the row
+still carries its exact token. Every subsequent CAS requires that token and every
+positive commit observation checks it; returning coordinates alone is insufficient.
+
+A concurrent rotation may revoke an earlier returned authority at any time. This
+is a **per-character database write fence**, not a realm-level distributed lock,
+writer credential, reconnect gate or transaction across MySQL and in-memory world
+state. A future live-session admission must rotate or otherwise prove the fence
+**before** accepting a character profile and must reread its authoritative location.
+The internal sessionless coordinator rotates its fence only after a runtime seal and
+terminates the world if the post-rotation persisted source changed since preflight.
+Do not enable action-85 ingress or claim crash-safe world ownership based on this alone.
+
 ## Credential boundary
 
 The existing `AddGamePersistence()` / ordinary runtime identity is **read-only** and must
@@ -137,8 +156,8 @@ requires `SELECT` on every referenced predicate column, including the location
 columns being updated, in addition to column-scoped `UPDATE`:
 
 ```sql
-GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`),
-      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`)
+GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`),
+      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`)
 ON `<game_database>`.`characters`
 TO '<location_writer>'@'<restricted_host>';
 ```

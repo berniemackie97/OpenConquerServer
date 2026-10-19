@@ -62,6 +62,7 @@ internal sealed class CharacterConfiguration : IEntityTypeConfiguration<Characte
         builder.Property(character => character.PositionY).HasColumnName("position_y").HasColumnType("smallint unsigned").IsRequired();
         builder.Property(character => character.LocationRevision).HasColumnName("location_revision").HasColumnType("bigint").HasDefaultValue(0L).IsRequired();
         builder.Property(character => character.LastLocationOperationId).HasColumnName("last_location_operation_id").HasColumnType("binary(16)").IsRequired(false);
+        builder.Property(character => character.LocationWriterToken).HasColumnName("location_writer_token").HasColumnType("binary(16)").IsRequired(false);
 
         builder.HasIndex(character => character.AccountId).IsUnique().HasDatabaseName("UX_characters_account_id");
         builder.HasIndex(character => character.Name).IsUnique().HasDatabaseName("UX_characters_name");
