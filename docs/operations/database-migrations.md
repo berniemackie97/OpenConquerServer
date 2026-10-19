@@ -61,7 +61,12 @@ before migration, verify a backup, migrate offline, update the dedicated column-
 `SELECT`/`UPDATE` grants, and deploy v13 binaries as one maintenance operation. The
 read-only GameServer role must not receive an UPDATE privilege. A v12 writer bypasses
 the new predicate, so running old and new binaries together is not safe. This migration
-is intentionally not reversible.
+recognizes either the v12 predecessor or an already-committed v13 compatibility marker.
+MySQL may commit the DDL before EF records migration completion; on restart it accepts
+an existing writer-token column only with the exact nullable BINARY(16) shape.
+Unexpected schema shapes or contract markers fail closed. Rerun the interrupted
+migration through EF after verifying database state. This migration is intentionally
+not reversible.
 
 The internal sessionless coordinator obtains a fresh write generation after sealing
 its source and refuses a changed persisted source. This serializes earlier in-flight
