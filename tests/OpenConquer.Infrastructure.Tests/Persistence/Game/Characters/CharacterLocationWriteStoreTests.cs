@@ -379,7 +379,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
-    public async Task ConcurrentFenceAcquisition_OnlyLatestReturnedGenerationCanWrite()
+    public async Task SuccessiveFenceAcquisitions_OnlyLatestGenerationCanWrite()
     {
         (uint account, uint character) = await CreateCharacterAsync();
         CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
@@ -396,6 +396,51 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         CharacterLocationChange winner = new(account, character, source, destination, 0, Guid.NewGuid(), second.Token);
         Assert.Equal(CharacterLocationWriteResult.Committed, await store.TryCommitAsync(winner, CancellationToken));
         Assert.True(CharacterLocationCommitEvidence.IsConfirmed(winner,
+            await store.ObserveAsync(account, character, CancellationToken)));
+    }
+
+    [Fact]
+    public async Task ConcurrentFenceAcquisitions_RevokeAllSupersededGenerations()
+    {
+        (uint account, uint character) = await CreateCharacterAsync();
+        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        Guid previous = _writerTokens[character];
+
+        Task<CharacterLocationWriteAuthority?> first = store.AcquireAsync(account, character, CancellationToken).AsTask();
+        Task<CharacterLocationWriteAuthority?> second = store.AcquireAsync(account, character, CancellationToken).AsTask();
+        CharacterLocationWriteAuthority?[] acquisitions = await Task.WhenAll(first, second);
+
+        PersistedCharacterLocation observed = Assert.IsType<PersistedCharacterLocation>(
+            await store.ObserveAsync(account, character, CancellationToken));
+        Assert.NotEqual(previous, observed.WriterToken);
+        Assert.Equal(0, observed.Revision);
+
+        CharacterLocationWriteAuthority latest = Assert.Single(acquisitions.Where(candidate =>
+            candidate is not null && candidate.Token == observed.WriterToken))!;
+        CharacterLocation origin = new(1002, 431, 379);
+        CharacterLocation destination = new(1011, 193, 266);
+
+        foreach (CharacterLocationWriteAuthority? candidate in acquisitions)
+        {
+            if (candidate is null || candidate.Token == latest.Token)
+            {
+                continue;
+            }
+
+            Assert.Equal(CharacterLocationWriteResult.Conflict, await store.TryCommitAsync(
+                new CharacterLocationChange(account, character, origin, destination, 0, Guid.NewGuid(),
+                    candidate.Token), CancellationToken));
+        }
+
+        Assert.Equal(CharacterLocationWriteResult.Conflict, await store.TryCommitAsync(
+            new CharacterLocationChange(account, character, origin, destination, 0, Guid.NewGuid(), previous),
+            CancellationToken));
+
+        CharacterLocationChange winning = new(account, character, origin, destination, observed.Revision,
+            Guid.NewGuid(), latest.Token);
+        Assert.Equal(CharacterLocationWriteResult.Committed,
+            await store.TryCommitAsync(winning, CancellationToken));
+        Assert.True(CharacterLocationCommitEvidence.IsConfirmed(winning,
             await store.ObserveAsync(account, character, CancellationToken)));
     }
 
