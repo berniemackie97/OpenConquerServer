@@ -89,7 +89,10 @@ sequence before it can invoke this relocation for connected characters.
 `WorldUnboundPortalTransferCoordinator` links authenticated portal preflight and persisted
 source observation to an exclusive, generation-scoped runtime commit seal. Once sealed,
 new sessions, direct removals, and reservation disposal cannot reopen source mutations.
-The coordinator submits one revision-qualified CAS with a fresh operation ID, rereads
+The coordinator first atomically rotates the character-row writer generation and verifies
+the fresh post-fence source is unchanged. A prior CAS must either complete before rotation
+or fail its generation predicate afterwards. It then submits one revision-qualified CAS
+with a fresh operation ID and the acquired generation, rereads
 identity-scoped persisted state, requires **exact** operation/revision/destination evidence,
 and consumes the reserved destination through the #161 partition handoff. Its successful
 result is a new generation owner with a matching saved destination. No socket or native

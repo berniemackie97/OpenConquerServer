@@ -110,7 +110,7 @@ public sealed class GameCharacterMigrationTests
         await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId);
 
         // The current repository targets schema v11 rather than this historical v3 state.
-        await MigrateAsync(connectionString, "20261018190000_AddCharacterLocationOperationId");
+        await MigrateAsync(connectionString, "20261019010000_AddCharacterLocationWriterFence");
         CharacterLoginProfile profile = await ReadCurrentProfileAsync(connectionString, accountId);
 
         Assert.Equal(accountId, profile.Identity.AccountId);
@@ -162,7 +162,7 @@ public sealed class GameCharacterMigrationTests
         await AssertCompatibilityAsync(connectionString, expectedSchemaVersion: 3, PreRebirthLevelMigrationId);
         await AssertMigrationHistoryAsync(connectionString, InitialMigrationId, SignedPkPointsMigrationId, PreRebirthLevelMigrationId);
 
-        await MigrateAsync(connectionString, "20261018190000_AddCharacterLocationOperationId");
+        await MigrateAsync(connectionString, "20261019010000_AddCharacterLocationWriterFence");
         CharacterLoginProfile nonRebornProfile = await ReadCurrentProfileAsync(connectionString, nonRebornAccountId);
         CharacterLoginProfile rebornProfile = await ReadCurrentProfileAsync(connectionString, rebornAccountId);
 

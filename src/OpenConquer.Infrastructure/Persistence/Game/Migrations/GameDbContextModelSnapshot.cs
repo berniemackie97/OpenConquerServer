@@ -90,6 +90,10 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Migrations
                         .HasColumnType("binary(16)")
                         .HasColumnName("last_location_operation_id");
 
+                    b.Property<Guid?>("LocationWriterToken")
+                        .HasColumnType("binary(16)")
+                        .HasColumnName("location_writer_token");
+
                     b.Property<uint>("MapId")
                         .HasColumnType("int unsigned")
                         .HasColumnName("map_id");

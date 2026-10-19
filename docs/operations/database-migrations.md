@@ -25,6 +25,7 @@ start on a mismatch. They never migrate on their own.
 | Game     |      10 | `20261013030000_AddGameRealmBinding`          |
 | Game     |      11 | `20261018040000_AddCharacterLocationRevision` |
 | Game     |      12 | `20261018190000_AddCharacterLocationOperationId` |
+| Game     |      13 | `20261019010000_AddCharacterLocationWriterFence` |
 
 ## Game v11 location revision deployment
 
@@ -50,6 +51,23 @@ not continue writing character locations. The migration cannot be downgraded saf
 The marker is positive evidence of one completed CAS; an absent or different marker
 cannot prove an uncertain in-flight SQL command will never complete. Production transfers
 remain disabled. See [durable character location](../architecture/durable-character-location.md).
+
+## Game v13 durable writer fencing deployment
+
+This migration adds nullable `characters.location_writer_token BINARY(16)`. Existing
+rows start without write authority. Only the new location writer can rotate a token;
+all v13 CAS require a matching nonempty token. Stop **all** pre-v13 location writers
+before migration, verify a backup, migrate offline, update the dedicated column-scoped
+`SELECT`/`UPDATE` grants, and deploy v13 binaries as one maintenance operation. The
+read-only GameServer role must not receive an UPDATE privilege. A v12 writer bypasses
+the new predicate, so running old and new binaries together is not safe. This migration
+is intentionally not reversible.
+
+The internal sessionless coordinator obtains a fresh write generation after sealing
+its source and refuses a changed persisted source. This serializes earlier in-flight
+CAS writes against the fence rotation. It does **not** grant exclusive process or
+session authority across restarts; live transfers remain disabled until login
+admission and realm leadership enforce that boundary.
 
 ## Before you start
 

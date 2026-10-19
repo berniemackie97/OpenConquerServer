@@ -10,7 +10,7 @@ namespace OpenConquer.Application.Characters.Location;
 public sealed class CharacterLocationChange
 {
     public CharacterLocationChange(uint accountId, uint characterId, CharacterLocation expected,
-        CharacterLocation destination, long expectedRevision, Guid operationId)
+        CharacterLocation destination, long expectedRevision, Guid operationId, Guid writerToken)
     {
         if (accountId == 0)
         {
@@ -30,6 +30,10 @@ public sealed class CharacterLocationChange
         {
             throw new ArgumentException("A location operation requires a nonempty identifier.", nameof(operationId));
         }
+        if (writerToken == Guid.Empty)
+        {
+            throw new ArgumentException("A location write requires a current durable generation.", nameof(writerToken));
+        }
         if (expected.MapId == destination.MapId && expected.X == destination.X && expected.Y == destination.Y)
         {
             throw new ArgumentException("A durable location transition must change at least one coordinate or map identity.", nameof(destination));
@@ -41,6 +45,7 @@ public sealed class CharacterLocationChange
         Destination = destination;
         ExpectedRevision = expectedRevision;
         OperationId = operationId;
+        WriterToken = writerToken;
     }
 
     public uint AccountId { get; }
@@ -49,4 +54,5 @@ public sealed class CharacterLocationChange
     public CharacterLocation Destination { get; }
     public long ExpectedRevision { get; }
     public Guid OperationId { get; }
+    public Guid WriterToken { get; }
 }
