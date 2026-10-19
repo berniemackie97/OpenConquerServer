@@ -415,8 +415,8 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         Assert.NotEqual(previous, observed.WriterToken);
         Assert.Equal(0, observed.Revision);
 
-        CharacterLocationWriteAuthority latest = Assert.Single(acquisitions.Where(candidate =>
-            candidate is not null && candidate.Token == observed.WriterToken))!;
+        CharacterLocationWriteAuthority latest = Assert.Single(acquisitions, candidate =>
+            candidate is not null && candidate.Token == observed.WriterToken)!;
         CharacterLocation origin = new(1002, 431, 379);
         CharacterLocation destination = new(1011, 193, 266);
 
