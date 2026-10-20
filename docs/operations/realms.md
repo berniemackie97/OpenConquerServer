@@ -74,8 +74,9 @@ the SQL as an administrator.
    ```
 
 5. Create the realm's database users and grant them only what the [grants](#grants) table lists.
-   The dedicated location writer receives column-scoped `SELECT` and `UPDATE` permissions on this
-   realm's `characters` table. Never reuse another realm's writer identity or credentials.
+   [Provision the dedicated location writer](game-server.md#provisioning-the-location-writer-identity)
+   with column-scoped `SELECT` and `UPDATE` permissions on this realm's `characters` table.
+   Never reuse another realm's writer identity or credentials.
 
 6. Configure the GameServer: `GameServer:RealmId` = `2`, `GameServer:Network:Port` = `5817`,
    `ConnectionStrings:Game` and `ConnectionStrings:GameLocationWriter` for the new database
