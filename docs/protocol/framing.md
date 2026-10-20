@@ -1,8 +1,8 @@
 # Framing
 
 `OpenConquer.Protocol.Framing` reads and writes the four-byte frame header shared by every packet.
-Encryption and the GameServer signature trailer wrap frames from the outside and are handled by the
-login and game session layers, not here.
+Encryption and the GameServer signature trailer wrap frames from the outside. The login and game
+session layers handle them.
 
 ## Header
 
@@ -44,10 +44,10 @@ An impossible length is rejected as soon as the header arrives, so a peer cannot
 wait for a payload it would refuse anyway. The packet ID is checked only once the whole frame is
 present.
 
-The decoder never consumes input. On success it returns a slice covering exactly the declared
-frame; the slice may span several buffer segments and borrows the caller's memory. The caller
-advances its buffer after it has finished with the frame. Only a header that straddles segments is
-copied, to the stack; the frame body is never copied.
+The decoder never consumes input. On success it returns a slice that covers the declared frame and
+nothing more. The slice may span several buffer segments and borrows the caller's memory. The
+caller advances its buffer after it has finished with the frame. Only a header that straddles
+segments is copied (to the stack). The frame body is never copied.
 
 ## Encoding
 
@@ -62,10 +62,10 @@ public interface IPacket
 }
 ```
 
-A packet writes only its payload; `WireFrameEncoder` owns the header. The encoder reads `PacketId`
-and `PayloadLength` once, validates them and the destination size, gives the packet a
-`PacketWriter` limited to exactly the declared payload length, and writes the header only after the
-payload succeeds.
+A packet writes only its payload, and `WireFrameEncoder` owns the header. The encoder reads
+`PacketId` and `PayloadLength` once and validates them and the destination size. It then gives the
+packet a `PacketWriter` limited to the declared payload length, and writes the header only after
+the payload succeeds.
 
 | Situation                                     | Result                                           |
 | --------------------------------------------- | ------------------------------------------------ |
@@ -76,5 +76,5 @@ payload succeeds.
 | Payload serializer throws                     | Exception propagates; the region is zeroed       |
 
 Zeroing the attempted region keeps reused buffers from exposing a stale or partial frame. Bytes
-after the frame are never touched. `GetFrameLength` applies the same metadata checks so callers can
-size buffers for exactly the frames the encoder will accept.
+after the frame are never touched. `GetFrameLength` applies the same metadata checks, so callers can
+size buffers for the frames the encoder will accept.

@@ -1,61 +1,62 @@
-# LocalRealm — operator provisioning (development only)
+# LocalRealm provisioning (development only)
 
-This runbook uses the **existing publisher-signed client catalog**, not documentation sample names:
+This runbook uses the identities from the existing publisher-signed client catalog, not sample
+names from the documentation:
 
 | Identity | Value |
 | --- | --- |
 | Client region ID | `local` |
 | Client server ID | `local-realm` |
-| Native packet 1060 `ServerName` | `LocalRealm` |
+| Packet 1060 `ServerName` | `LocalRealm` |
 | Permanent internal `RealmId` | `1` (operator-assigned) |
 | AccountServer | `127.0.0.1:9958` |
 | GameServer endpoint advertised in 1055 | `127.0.0.1:5816` |
 | Directory | `https://localhost/realms.json` + `.sig` (Caddy only) |
 
-Stop both servers before provisioning; keep a verified database backup. These are
-permanent identities, not names derived from the display label. The client-selected
-`local-realm` is **not** packet 1060 `LocalRealm`, and neither is numeric `1`.
+Stop both servers before provisioning, and keep a database backup that you have checked you can
+restore. These identities are permanent and are not derived from the display label. The client
+server ID `local-realm` is a different value from the packet 1060 name `LocalRealm`, and both
+differ from the numeric realm ID `1`.
 
-Apply the guarded SQL using a privileged **administrative** MySQL session. The
-preflight guards require Accounts schema v3 or later and Game schema v10 or later (the
-versions that add `realms` and `realm_binding`), no conflicting identity and no
-existing realm binding, and abort before either insert. Review the full transaction
-first. The transaction covers both databases only when hosted on the same MySQL
-instance; do not treat it as a distributed transaction across separate instances.
+Run the guarded SQL from an administrative MySQL session. Before either insert, its checks require
+Accounts schema v3 or later and Game schema v10 or later (the versions that add `realms` and
+`realm_binding`), no conflicting identity, and no existing realm binding. If any check fails, the
+script aborts before inserting anything. Review the whole transaction before you run it. The
+transaction covers both databases only when they are on the same MySQL instance. It is not a
+distributed transaction across separate instances.
 
-Run the accompanying `ops/provision-localrealm.sql` with the actual MySQL
-administrative credentials, for example from a MySQL Workbench SQL editor.
-It validates both schema versions, that neither `realm_id=1` nor `LocalRealm`
-has been registered, and that the Game database contains no binding. It then
-inserts the two records within one transaction. **Never edit the SQL to
-replace conflicting records.** Procedure creation requires administrative
-`CREATE ROUTINE` rights; do not grant these rights to a runtime principal.
+The script is `ops/provision-localrealm.sql`. Run it with your MySQL administrative credentials,
+for example from a MySQL Workbench SQL editor. It checks both schema versions, checks that neither
+`realm_id=1` nor `LocalRealm` is registered yet, and checks that the Game database has no binding.
+It then inserts the two records in one transaction. **Never edit the SQL to replace conflicting
+records.** The script creates a stored procedure, which needs the administrative `CREATE ROUTINE`
+privilege. Do not grant that privilege to a runtime principal.
 
-If a previous attempt failed, inspect the database and the installed stored
-procedure before deciding whether to retry; do not blindly replace stored
-routines. A successful run drops its temporary procedure automatically.
+If an earlier attempt failed, inspect the database and the stored procedure it installed before
+you decide whether to retry. Do not replace stored routines without inspecting them first. A
+successful run drops its temporary procedure automatically.
 
-After provisioning, set the GameServer's persistent application configuration:
+After provisioning, set the realm ID in the GameServer's persistent application configuration:
 
 ```bash
 dotnet user-secrets set 'GameServer:RealmId' '1' --project src/OpenConquer.GameServer
 ```
 
-Grant `SELECT` on `openconquer_accounts.realms` to the **actual** AccountServer
-runtime MySQL principal, and `SELECT` on `openconquer_game.realm_binding` to the
-**actual** GameServer runtime principal. Do not invent a user/host or grant any DML
-on these tables. Determine the principals from their effective connection strings,
-then inspect `SHOW GRANTS FOR '<principal>'@'<host>';` before changes.
+Grant `SELECT` on `openconquer_accounts.realms` to the MySQL principal that the AccountServer
+actually runs as, and `SELECT` on `openconquer_game.realm_binding` to the principal that the
+GameServer actually runs as. Do not grant any DML on these tables, and do not make up a user or
+host for these grants. Find each principal from the server's effective connection string, and
+check its current grants with `SHOW GRANTS FOR '<principal>'@'<host>';` before you change anything.
 
-To restrict local GameServer binding without touching global deployments, configure
-`GameServer:Network:BindAddress=127.0.0.1` for local development. `lsof -nP
--iTCP:5816 -sTCP:LISTEN` and `lsof -nP -iTCP:9958 -sTCP:LISTEN` confirm actual
-listeners only when the corresponding server is running.
+For local development, set `GameServer:Network:BindAddress=127.0.0.1` so the GameServer listens
+only on loopback. This setting is local and does not change any other deployment. To confirm the
+listeners, run `lsof -nP -iTCP:5816 -sTCP:LISTEN` and `lsof -nP -iTCP:9958 -sTCP:LISTEN`. Each
+shows a listener only while the matching server is running.
 
-## Security boundary
+## Security
 
-The signed client directory establishes the selected AccountServer and native
-protocol server name; Caddy does not run game services. The AccountServer refuses
-unknown or unavailable realm names, binds every ticket to the selected realm and
-redirects to that realm's registered endpoint; a GameServer redeems only tickets
-bound to its own realm. To add a second realm, follow [Realm operations](realms.md).
+The signed client directory tells the client which AccountServer to use and which protocol server
+name to send. Caddy serves only the directory and runs no game services. The AccountServer refuses
+unknown or unavailable realm names, binds every ticket to the selected realm, and redirects the
+client to that realm's registered endpoint. A GameServer redeems only tickets bound to its own
+realm. To add a second realm, follow [Realm operations](realms.md).

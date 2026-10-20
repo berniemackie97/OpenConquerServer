@@ -1,12 +1,12 @@
 # Realm operations
 
-A realm is one world a player can select at login. Every realm has its own GameServer process and its
-own Game database; all realms share the AccountServer, the Accounts database and the ticket
+A realm is one world a player can select at login. Every realm has its own GameServer process and
+its own Game database. All realms share the AccountServer, the Accounts database and the ticket
 verification keys. The design is described in [Multi-realm](../architecture/multi-realm.md).
 
 | Part                 | Where it lives                                                         | Rules                                                                 |
 | -------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Protocol server name | `realms.protocol_server_name`; the client catalog's `protocolServerName` | 1–15 characters from `[A-Za-z0-9_()-]`, case-sensitive, permanent     |
+| Protocol server name | `realms.protocol_server_name`; the client catalog's `protocolServerName` | 1 to 15 characters from `[A-Za-z0-9_()-]`, case-sensitive, permanent  |
 | Realm ID             | `realms.realm_id`; the Game database's `realm_binding`; `GameServer:RealmId` | Nonzero, permanent, never reused; internal only                  |
 | Public endpoint      | `realms.public_game_address`, `public_game_port`                       | IPv4 address and port players can reach; sent to the client in 1055  |
 | Availability         | `realms.availability`                                                  | `1` Enabled, `2` Maintenance, `3` Disabled                            |
@@ -30,22 +30,22 @@ issuing the ticket.
 | Enabled, GameServer not reporting               | Failure code 10, "The Server is down."              |
 | Maintenance                                     | Failure code 70, "Server Locked"                    |
 | Disabled, unknown or malformed                  | Failure code 10, "The Server is down."              |
-| Account still playing in another realm          | Failure code 11, "Please try again later."; that realm disconnects it, so the next attempt gets in |
+| Account still playing in another realm          | Failure code 11, "Please try again later." That realm disconnects the account, so the next attempt gets in |
 
 A registry change applies to the next login. Players already in the world stay connected, and a
 ticket issued before the change can still be redeemed until it expires five minutes later. A
 GameServer reports its load every `GameServer:RealmStatus:ReportInterval` (10 seconds by default) and
-deletes its report when it shuts down, so a stopped realm refuses logins at once; one that crashes
-is refused within three intervals. To close a realm at once, set it to Maintenance and then stop its
-GameServer.
+deletes its report when it shuts down, so a stopped realm refuses logins at once. A realm whose
+GameServer crashes is refused within three intervals. To close a realm at once, set it to
+Maintenance and then stop its GameServer.
 
 ## Adding a realm
 
 The examples use realm ID `2`, protocol server name `SecondRealm`, Game database
 `openconquer_game_second`, public endpoint `203.0.113.10:5817`, and MySQL users
-`openconquer_game_second_runtime` and `openconquer_game_second_creation`. Substitute the real values;
-take the realm ID and name from your own allocation, never from a client display label. Run the SQL
-as an administrator.
+`openconquer_game_second_runtime` and `openconquer_game_second_creation`. Substitute your real
+values. Take the realm ID and name from your own allocation, never from a client display label. Run
+the SQL as an administrator.
 
 1. Create the Game database:
 
@@ -57,7 +57,7 @@ as an administrator.
    the new database, as described in [Database migrations](database-migrations.md). Confirm that its
    `schema_compatibility` row shows the current Game version.
 
-3. Bind the database to the realm. The table accepts exactly one row, and the binding is permanent:
+3. Bind the database to the realm. The table accepts only one row, and the binding is permanent:
 
    ```sql
    INSERT INTO `openconquer_game_second`.`realm_binding` (`binding_key`, `realm_id`) VALUES (1, 2);
@@ -84,8 +84,8 @@ as an administrator.
    the AccountServer answers logins to the realm with "The Server is down."
 
 8. Publish the realm in the client catalog with `protocolServerName` = `SecondRealm` and the
-   **AccountServer** endpoint as its account host and port. Clients never connect to a GameServer
-   endpoint from the catalog; the AccountServer sends it after login.
+   AccountServer endpoint (not the GameServer's) as its account host and port. Clients never take a
+   GameServer endpoint from the catalog. The AccountServer sends it after login.
 
 9. Enable the realm:
 
@@ -104,7 +104,7 @@ Run these against the Accounts database.
 | Move endpoint   | `UPDATE realms SET public_game_address = INET6_ATON('203.0.113.11'), public_game_port = 5817 WHERE realm_id = 2;` |
 | Retire          | `UPDATE realms SET availability = 3 WHERE realm_id = 2;`                      |
 
-Retiring keeps the row so the ID and name stay reserved; also remove the realm from the client
+Retiring keeps the row, so the ID and name stay reserved. Also remove the realm from the client
 catalog. Never update `realm_id` or `protocol_server_name`, and never delete or update a
 `realm_binding` row.
 
@@ -118,11 +118,11 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 | GameServer creation, each realm   | Its Game database | `SELECT, INSERT` on `characters`                                                           |
 | Administrator                     | Both              | Schema changes and writes to `realms` and `realm_binding`; never used by a server          |
 
-Give each realm its own Game database users, so that one GameServer's credentials cannot reach another
-realm's characters. All realms remain one trust domain on the Accounts side: every GameServer holds the
-ticket verification keys, can read and delete any realm's tickets, and could write another realm's
-status report, account session records or kicks. Realms run by different parties
-need separate deployments.
+Give each realm its own Game database users, so that one GameServer's credentials cannot reach
+another realm's characters. On the Accounts side, all realms are still one trust domain. Every
+GameServer holds the ticket verification keys, can read and delete any realm's tickets, and could
+write another realm's status report, account session records or kicks. Realms run by different
+parties need separate deployments.
 
 ## Several realms on one machine
 

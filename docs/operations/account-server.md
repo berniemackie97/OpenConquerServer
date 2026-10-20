@@ -25,16 +25,16 @@ committed settings files contain no credentials or keys.
 | `AccountServer:GameLoginTickets:Cleanup:Interval`, `MaximumBatchesPerRun` | Expired ticket cleanup (1 minute, 10 batches) |
 
 The AccountServer has no GameServer setting. Each login is redirected to the endpoint registered for
-the realm the client selected; see [Realm registry](realm-registry.md). Configuration that still sets
-the retired `AccountServer:Network:GameServerAddress` or `GameServerPort` is rejected at startup. In
-environment variables, replace `:` with `__`, for example `AccountServer__Network__LoginPort`.
+the realm the client selected (see [Realm registry](realm-registry.md)). Configuration that still
+sets the retired `AccountServer:Network:GameServerAddress` or `GameServerPort` is rejected at
+startup. In environment variables, replace `:` with `__`, for example
+`AccountServer__Network__LoginPort`.
 
 ### Verification keys
 
-Each key needs a unique nonzero ID and exactly 32 random bytes encoded as canonical Base64. The
-active ID must be one of the configured keys. Keep a retired key configured until every ticket it
-signed has expired, and configure the same keys on the GameServer. Never reuse keys from test
-fixtures.
+Each key needs a unique nonzero ID and 32 random bytes encoded as canonical Base64. The active ID
+must be one of the configured keys. Keep a retired key configured until every ticket it signed has
+expired, and configure the same keys on the GameServer. Never reuse keys from test fixtures.
 
 ## Local development
 
@@ -51,18 +51,17 @@ dotnet user-secrets set "AccountServer:GameLoginTickets:VerificationKeys:0:Id" "
 dotnet user-secrets set "AccountServer:GameLoginTickets:VerificationKeys:0:EncodedKey" "$(openssl rand -base64 32)" --project $P
 ```
 
-Generate a key once per database, not on every start. For an existing database, use its deployed
-key IDs and keys. User secrets are for development only; production configuration should come from
-the deployment's secret store.
+Generate a key once per database, not on every start. For an existing database, use its deployed key
+IDs and keys. User secrets are for development only. Production configuration should come from the
+deployment's secret store.
 
 ## Database
 
 The Accounts database must already exist on MySQL 8.4 with character set `utf8mb4` and collation
-`utf8mb4_0900_as_cs`, migrated to schema version 6
-(`20261013090000_AddAccountSessions`). The server never migrates on startup;
-see [Database migrations](database-migrations.md). The runtime database account needs only the
-permissions for normal account operations, the readiness check, `SELECT` on `realms`,
-`realm_status` and `account_sessions`, and `INSERT, UPDATE` on `account_session_kicks`.
+`utf8mb4_0900_as_cs`, migrated to schema version 6 (`20261013090000_AddAccountSessions`). The server
+never migrates on startup. See [Database migrations](database-migrations.md). The runtime database
+account needs only the permissions for normal account operations, the readiness check, `SELECT` on
+`realms`, `realm_status` and `account_sessions`, and `INSERT, UPDATE` on `account_session_kicks`.
 
 ## Running
 

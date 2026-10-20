@@ -6,8 +6,8 @@ supported client is Conquer Online version 5517. Server internals are covered in
 
 - [Framing](framing.md): frame header, size limits, and encoder and decoder behavior.
 - [Text encoding](text-encoding.md): string fields and supported encodings.
-- [Character creation](character-creation.md): version-matched 5517 registration request
-  evidence, parsing boundaries, and outstanding native verification.
+- [Character creation](character-creation.md): the 5517 character-creation request, its sources,
+  what the parser checks, and what is still unverified.
 
 ## Frames
 
@@ -20,7 +20,8 @@ header) and a nonzero `UInt16` packet ID.
 | AccountServer      | 524 bytes                                                |
 | GameServer         | 1,024 bytes, plus an 8-byte signature after each frame   |
 
-The owning server passes its limit to the framing layer; the framing primitives hard-code neither.
+Each server passes its own limit to the framing layer. The framing primitives hard-code neither
+limit.
 
 ## AccountServer login
 
@@ -69,20 +70,19 @@ packet.
 | `0x0C` |    4 | Additional session field               |
 | `0x10` |   16 | GameServer IPv4 address (C string)     |
 
-A nonzero session ID means success; a zero session ID makes `0x04` a failure code (`1` invalid
-credentials, `10` server down, `11` try again later, `12` banned, `20` server busy, `21` server full,
-`57` invalid request, `70` server locked). The client's
-failure branch reads only that code and shows its `STR_CONNECT_ERROR_MSG_TYPE_%03u` text, so a
-failure leaves the port, `0x0C` and address zeroed. On success the server writes the authentication
-key into both `0x04` and `0x0C`. The meaning of `0x0C` is not fully known, so the packet model keeps
-it as a separate field.
+A nonzero session ID means success. With a zero session ID, `0x04` holds a failure code (`1`
+invalid credentials, `10` server down, `11` try again later, `12` banned, `20` server busy, `21`
+server full, `57` invalid request, `70` server locked). The client's failure branch reads only that
+code and shows its `STR_CONNECT_ERROR_MSG_TYPE_%03u` text, so a failure leaves the port, `0x0C` and
+address zeroed. On success the server writes the authentication key into both `0x04` and `0x0C`.
+The meaning of `0x0C` is not fully known, so the packet model keeps it as a separate field.
 
 ## GameServer connection
 
 The GameServer performs a Diffie-Hellman key exchange, then switches the same TCP stream to
 CAST5-CFB64 encryption. After the switch, every frame is followed by an eight-byte signature,
 `TQServer` from the server and `TQClient` from the client. This encryption matches what the client
-supports; it does not authenticate the server or protect message integrity.
+supports. It does not authenticate the server or protect message integrity.
 
 The first encrypted packet is the login proof, `1052` (28 bytes): session ID, authentication key,
 mode, locale, hardware address, and resource version. It reuses the ID of the AccountServer
@@ -91,12 +91,13 @@ else with the connection.
 
 ## GameServer login
 
-A login that the GameServer cannot take because the realm is full or busy, or because the account is
-still playing in another realm, receives one `1004` talk on channel `0x835` (2101) and the connection is
-closed. The client shows any login-channel text other than `ANSWER_OK` and `NEW_ROLE` as a login error.
+If the GameServer cannot take a login because the realm is full or busy, or because the account is
+still playing in another realm, it sends one `1004` talk on channel `0x835` (2101) and closes the
+connection. The client shows any login-channel text other than `ANSWER_OK` and `NEW_ROLE` as a
+login error.
 
-A session that is closed because its account logged in again, here or in another realm, first receives
-the kick notice `1115`:
+When a session is closed because its account logged in again, here or in another realm, it first
+receives the kick notice `1115`:
 
 | Offset | Size | Field                                              |
 | -----: | ---: | -------------------------------------------------- |
@@ -157,10 +158,10 @@ After the last step the connection becomes a world session. Gameplay packets are
 
 Login packet types live in `OpenConquer.Protocol.Login.Packets` and are named after their purpose
 (`LoginSeedPacket`, `LoginAccountRequestPacket`, and so on). Each type exposes its packet ID as a
-constant; type names describe the message, not its number.
+constant, and type names describe the message rather than its number.
 
 ## Adding protocol support
 
-A packet type is added when a server feature needs it, together with tests that pin its exact
-byte layout. Unknown fields are preserved as raw values or written as zero, never given an
-invented meaning.
+A packet type is added when a server feature needs it, together with tests that pin its byte
+layout. Unknown fields are kept as raw values or written as zero. They are never given a guessed
+meaning.

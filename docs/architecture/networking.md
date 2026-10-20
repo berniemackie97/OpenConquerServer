@@ -35,9 +35,9 @@ in [Authentication](authentication.md); each guards a different resource.
 
 A fixed pool of workers drains the admission queue. There is no task per connection. Each worker
 opens a session for the connection, runs the login sequence, disposes the session, and takes the
-next connection. A whole-connection timeout bounds every login. The AccountServer also applies a
-fresh per-read timeout to each expected client packet; caller cancellation and timeout expiry are
-reported separately. A failure or timeout affects only that connection, while a failure in the
+next connection. Every login runs under a whole-connection timeout. The AccountServer also starts
+a fresh read timeout for each expected client packet, and reports caller cancellation separately
+from timeout expiry. A failure or timeout affects only that connection, while a failure in the
 worker pool itself is fatal to the runtime.
 
 ## Runtime supervision
@@ -126,14 +126,15 @@ WorldSessionAdmissionProcessor admission into the world runtime
 
 `GameConnectionSession` keeps one input pipeline across the key exchange and the switch to
 encryption, so encrypted bytes that arrive in the same read as the key-exchange response are not
-lost. The encryption is what the client supports; it does not authenticate the server or protect
-message integrity. Identity comes from redeeming the ticket, and the raw authentication key is not
-kept after redemption.
+lost. The encryption is the scheme the client supports. It does not authenticate the server or
+protect message integrity. Identity comes from redeeming the ticket, and the raw authentication key
+is not kept after redemption.
 
-While the realm is full or busy, the capacity gate answers an authenticated login with a `1004` talk
-on the login channel (2101) and closes the connection; see [Multi-realm](multi-realm.md#realm-status).
-The bootstrap processor answers the same way, before sending any bootstrap packet, when the account is
-still playing in another realm; see [Multi-realm](multi-realm.md#one-realm-at-a-time).
+While the realm is full or busy, the capacity gate answers an authenticated login with a `1004`
+talk on the login channel (2101) and closes the connection (see
+[Multi-realm](multi-realm.md#realm-status)). The bootstrap processor does the same, before sending
+any bootstrap packet, when the account is still playing in another realm (see
+[Multi-realm](multi-realm.md#one-realm-at-a-time)).
 
 Character lookup uses only the account ID established by the ticket; nothing the client sends
 selects which character is loaded. An account without a character is routed to character
@@ -151,7 +152,7 @@ sending a response.
 
 A source's admission slot is released only after its connection has been fully disposed. If a
 connection, including a rejected one, cannot be closed, the slot stays occupied, the failure is
-recorded as fatal, and the host shuts down rather than keep running with sockets it cannot close.
+recorded as fatal, and the host shuts down instead of running on with sockets it cannot close.
 Session cleanup failures are handled the same way.
 
 | Metric (`OpenConquer.GameServer.Login`)                           | Meaning                         |
