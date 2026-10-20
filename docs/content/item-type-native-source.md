@@ -1,16 +1,15 @@
-# 5517 item definitions: native-field evidence export
+# 5517 item definitions: full source-field export
 
-The original 5517 client `itemtype.dat` contains 59 positional decoded fields per item. The
-version-2 production `content/items/item-types.json` retains 16 selected typed fields,
-including the previously shipped ten fields and six additional native requirement/economy/attack
-values. The 59-field evidence export remains the **lossless decoded-field source**, independent
-of the deliberately smaller runtime projection. Original encoded bytes are SHA-256 pinned.
-No exported value automatically becomes an authorized gameplay rule.
+The original 5517 client `itemtype.dat` holds 59 positional fields per item once decoded. The
+version 2 production file, `content/items/item-types.json`, keeps 16 of them as typed fields: the
+ten fields shipped earlier plus six retail requirement, economy, and attack values. The 59-field
+export is the complete record of the decoded fields, separate from the smaller runtime file. The
+original encoded bytes are pinned by SHA-256. No exported value becomes a gameplay rule on its own.
 
-## Generate the native-field evidence
+## Generating the export
 
-Run from the repository root with the **original audited 5517** `itemtype.dat` (not an older 5095
-copy), outside the runtime content directory:
+Run from the repository root with the original, audited 5517 `itemtype.dat` (not an older 5095
+copy), and keep the files outside the runtime content directory:
 
 ```bash
 dotnet run --project tools/OpenConquer.GameData.Tool -c Release -- \
@@ -21,60 +20,58 @@ Expected original source SHA-256:
 
 `90e9c983b0f78337f20720a3cf61d8f1392f23979565da14eb01dc514e3a71e7`
 
-**Do not use or approve an exported file if its `sourceSha256` differs**. The exporter is a
-general native-format tool; it deliberately does not pretend every input is 5517.
+**Do not use or approve an exported file whose `sourceSha256` differs from this value.** The
+exporter reads any file in this format and does not check that its input is the 5517 file.
 
-The version-1 evidence output contains `formatVersion`, `sourceFormat`, `sourceSha256`,
-`fieldCount`, and an `itemTypes` array. Each record has its numeric `itemTypeId` and precisely
-59 **decoded, unmodified, positional text fields**. Entries are ordered by numeric ID.
-The writer rejects duplicate/zero IDs in the effective record set, inconsistent encoded IDs,
-empty source bytes, and incorrect field counts. The native decoder itself applies last-record-wins
-semantics to duplicate physical source lines. The writer stages and atomically replaces its output. Source hashes and
-output hashes are reported by the tool. Two exports from the same source produce identical bytes.
+The export (format version 1) contains `formatVersion`, `sourceFormat`, `sourceSha256`,
+`fieldCount`, and an `itemTypes` array. Each record has its numeric `itemTypeId` and 59 decoded,
+unmodified text fields in source order. Entries are ordered by numeric ID. The writer rejects
+duplicate or zero IDs in the effective record set, inconsistent encoded IDs, empty source bytes, and
+wrong field counts. When the source repeats a line for the same ID, the decoder keeps the last one.
+The writer stages its output and replaces the file atomically. The tool reports the source and
+output hashes. Two exports from the same source produce identical bytes.
 
-This is a *decoded field-level record snapshot*, not a byte-for-byte copy of the encrypted source.
-Original encoded bytes remain in the pinned source file, identified by SHA-256. The existing
-native decoder retains the **last record** on repeated item-type ID; the exported document
-likewise captures the effective unique records rather than claiming to preserve duplicate
-physical lines or original line endings.
+The export is a snapshot of the decoded fields of each record. It is not a byte-for-byte copy of the
+encrypted source, whose original bytes stay in the pinned source file identified by SHA-256. Because
+the decoder keeps the last record for a repeated item-type ID, the export holds one effective record
+per ID. It does not keep duplicate source lines or the original line endings.
 
 ## Interpreting fields
 
-| Native index | Established evidence | Implementation note |
+| Source index | What is known | Implementation note |
 | ---: | --- | --- |
-| 0 | Item type identifier | Authoritative numeric record key |
-| 1 | Native item name | Preserve original `~` conventions here |
-| 2 | Required profession | Corroborated by 5095 schema; verify 5517 gameplay usage before enforcing |
-| 4 | Required level | Established native 5517 use |
-| 10 | Monopoly / trade restriction | Meaning/flag combinations require verification before enforcement |
-| 12 | Silver price | Historical schema alignment; verify 5517 pricing behavior |
-| 18 | Historical `dodge`; native 5517 mount-speed use proven | **Do not rename to generic dodge or use for boots without verified behavior** |
-| 19 / 20 | Life / mana bonuses | Verified native 5517 equipment calculations |
-| 21 / 22 | Initial / maximum durability | Already in runtime v1 projection |
-| 32 / 33 | Attack range / speed | Cross-version field mapping; confirm 5517 runtime behavior |
-| 37 | Conquer Points shop price | Historical schema alignment; verify 5517 shop precedence |
-| 39 / 47 | Static lifetime / stack capacity | Already in runtime v1 projection |
-| 53 / 54 | Type / item descriptions | Decoded native text, no assumed gameplay effect |
+| 0 | Item type identifier | Numeric record key |
+| 1 | Item name as stored in the client | Keep the original `~` conventions |
+| 2 | Required profession | Matches the 5095 schema. Confirm 5517 gameplay use before enforcing. |
+| 4 | Required level | Confirmed 5517 use |
+| 10 | Monopoly / trade restriction | Confirm the meaning of each flag combination before enforcing |
+| 12 | Silver price | Matches the historical schema. Confirm 5517 pricing behavior. |
+| 18 | Historical `dodge`. Confirmed as mount speed in 5517 | Do not rename it to a generic dodge field or use it for boots until the behavior is confirmed |
+| 19 / 20 | Life / mana bonuses | Confirmed in 5517 equipment calculations |
+| 21 / 22 | Initial / maximum durability | Already in the v1 runtime file |
+| 32 / 33 | Attack range / speed | Field position matches across versions. Confirm 5517 runtime behavior. |
+| 37 | Conquer Points shop price | Matches the historical schema. Confirm 5517 shop precedence. |
+| 39 / 47 | Static lifetime / stack capacity | Already in the v1 runtime file |
+| 53 / 54 | Type / item descriptions | Decoded client text with no assumed gameplay effect |
 
-All other positions are deliberately retained as **indexed source values** until their meaning
-and signedness are established; they must not silently become authoritative gameplay policies.
-The full field mapping and confidence classifications are in
-`20_notes/Server/historical-reconciliation-5095.md` and the accompanying
-`field-mapping-matrix.csv` research dataset.
+All other positions stay as indexed source values until their meaning and signedness are known. None
+of them may become a gameplay rule until then. The full field mapping and confidence ratings are in
+`20_notes/Server/historical-reconciliation-5095.md` and the accompanying `field-mapping-matrix.csv`
+research dataset.
 
-## Production boundary
+## What ships
 
-The native export is offline import/evidence. Neither the 59-field source JSON nor the original
-encoded client file is shipped to GameServer. The production release generator promotes selected
-verified native values to `item-types.json` version 2, retaining the remaining positional fields
-in the separately hash-pinned evidence export. The on-disk v2 release contains 16 fields per item
-plus a source fingerprint. The GameServer parses those into an immutable catalog at startup.
+The export is an offline import and reference file. The GameServer ships with neither the 59-field
+JSON nor the original encoded client file. The release generator copies selected, checked values
+into `item-types.json` version 2 and leaves the other positional fields in the separately
+hash-pinned export. The v2 file on disk has 16 fields per item plus a source fingerprint, and the
+GameServer parses it into an immutable catalog at startup.
 
-The v2 conversion is conditioned on an exact 5517 source hash, 14,981 item IDs, field-by-field
-comparison against the native export, unchanged v1 values, deterministic output, and a pinned
-release hash. See [Item catalog v2](item-type-catalog-v2.md). The native field 18 retains the
-existing `speedPercentOffset` API for compatibility; historical `dodge` and native mount-speed
-interpretations must not be conflated.
+The v2 conversion requires the expected 5517 source hash, 14,981 item IDs, a field-by-field match
+against the export, unchanged v1 values, output that is identical on every run, and a pinned release
+hash. See [Item catalog v2](item-type-catalog-v2.md). Field 18 keeps the existing
+`speedPercentOffset` API for compatibility. Do not mix up its historical `dodge` meaning with its
+5517 mount-speed use.
 
-All game mechanics using professions, trading, prices, or attack timing require separate evidence
-and explicit server-side validation before being activated. Never substitute 5095 values for 5517.
+Any game mechanic that uses professions, trading, prices, or attack timing needs its own sources and
+server-side validation before it is turned on. Never substitute 5095 values for 5517 ones.

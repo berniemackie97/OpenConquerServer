@@ -1,7 +1,7 @@
 # Text encoding
 
 Packet strings are read and written by `PacketReader` and `PacketWriter`. Callers choose an encoding
-with the `WireTextEncoding` enum; arbitrary `System.Text.Encoding` instances are not accepted, and
+with the `WireTextEncoding` enum. Arbitrary `System.Text.Encoding` instances are not accepted, and
 the mapping to runtime encodings is internal.
 
 | `WireTextEncoding` | Encoding                                                    |
@@ -17,19 +17,19 @@ bytes, not characters.
 
 ## Fixed-width strings
 
-A fixed-width field occupies exactly its declared number of bytes.
+A fixed-width field always occupies its declared number of bytes.
 
 - **Writing** pads unused bytes with zeros. A value containing a null character is rejected,
   because the reader would treat it as the end of the string. A value that does not fit is
-  rejected; truncation is never automatic.
+  rejected instead of being truncated.
 - **Reading** consumes the whole field and stops the string at the first zero byte. For example,
   `41 42 00 43 00` reads as `AB`.
 
 ## Length-prefixed strings
 
 A one-byte length followed by that many encoded bytes, so values are limited to 255 bytes.
-`03 41 42 43` is `ABC`; an empty string is `00`. Embedded zero bytes are allowed because the prefix
-defines the end.
+`03 41 42 43` is `ABC`, and an empty string is `00`. Embedded zero bytes are allowed because the
+prefix defines the end.
 
 ## Failure behavior
 

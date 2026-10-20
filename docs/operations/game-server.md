@@ -37,7 +37,7 @@ validated before the host is built.
 
 For local development, set the connection strings and keys with `dotnet user-secrets` against
 `src/OpenConquer.GameServer`, as for the AccountServer. Use the same key IDs and keys. Each realm
-runs its own GameServer; see [Realm operations](realms.md) for running more than one.
+runs its own GameServer. See [Realm operations](realms.md) for running more than one.
 
 ## Content
 
@@ -58,8 +58,8 @@ content from elsewhere, override the paths, for example
    run, start reading kicks from other realms, load the item catalog, open the listener, start the
    login workers, and start reporting the realm's load to the Accounts database.
 
-Any failure stops later steps; the listener never opens on a partially ready server. Migrations are
-not applied. The startup limit is two minutes.
+Any failure stops the later steps, so the listener never opens on a partly ready server. Migrations
+are not applied. The startup limit is two minutes.
 
 Once a login completes, its connection becomes a world session and the worker is free for the next
 connection. World sessions have their own supervised lifetime.
@@ -67,12 +67,12 @@ connection. World sessions have their own supervised lifetime.
 ## Shutdown
 
 Shutdown first deletes the realm status report, so the AccountServer refuses new logins at once. It
-then cancels ingress, closes the listener, drains the admission queue and workers, and closes
-world sessions. It then stops reading kicks and removes the realm's account session records, so its
+then cancels ingress, closes the listener, drains the admission queue and workers, and closes world
+sessions. It then stops reading kicks and removes the realm's account session records, so its
 players can log in to another realm at once. It then unpublishes the world, stops the runtime, fails
-pending commands, joins the scheduler threads, and clears map state. Cleanup completes even if the
-host stops waiting. The host's one-minute shutdown limit bounds how long it waits, not how long
-cleanup runs.
+pending commands, joins the scheduler threads, and clears map state. The host's one-minute shutdown
+limit only caps how long the host waits. Cleanup keeps running until it finishes, even after the
+host stops waiting.
 
 The host exits with a nonzero code if the world runtime or the network runtime stops unexpectedly,
 or if a connection or world session cannot be cleaned up. Connections that close normally during

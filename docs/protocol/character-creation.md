@@ -1,16 +1,17 @@
-# Character Creation — Native 5517 Registration Request
+# Character creation request (5517 packet 1001)
 
-## Evidence
+## Sources
 
-Packet `1001` is the native Conquer Online 5517 character-creation and cancellation request.
+Packet `1001` is the Conquer Online 5517 client's request to create a character or to cancel
+character creation.
 
-The native-client implementation is documented in:
+The client's implementation is documented in:
 
 - `20_notes/Network/01_core_packets.md`
 - `20_notes/Network/13_connection_lifecycle.md`
 - `20_notes/Server/character-attributes-and-auto-allot.md`
 
-Verified native functions:
+Client functions, verified in the 5517 executable:
 
 | Function                                                          | Address    |
 | ----------------------------------------------------------------- | ---------- |
@@ -21,7 +22,7 @@ Verified native functions:
 | `CMyShellDlg_HandleCreateRoleStatusSystemTalk`                    | `0x5DCDDF` |
 | `CConnectionFlow__SendGameSessionBootstrap`                       | `0x6DF1D0` |
 
-Version-matched and historical server references:
+Server references, one for the same client version and one historical:
 
 **FoxConquer 5517**
 
@@ -34,66 +35,58 @@ Version-matched and historical server references:
 - `src/OpenConquer.GameServer/Characters/GameCharacterCreationSessionProcessor.cs`
 - `tests/OpenConquer.Protocol.Tests/CharacterCreationPacketTests.cs`
 
-OpenConquerPublic is the project's previous, partially verified working implementation. It provides
-useful implementation and regression-test evidence.
+OpenConquerPublic is this project's previous working implementation, which was only partly
+verified. It is a useful reference for implementation and regression tests.
 
-The native-client disassembly remains authoritative for client wire behavior. Historical server
-implementations do not independently establish retail server-side behavior.
+For what the client sends on the wire, the client disassembly is the source of truth. Historical
+server implementations do not, on their own, show how the retail server behaved.
 
-## Request Layout
+## Request layout
 
-Packet `1001` is a fixed-length, 124-byte client-to-server frame.
+Packet `1001` is a fixed-length, 124-byte frame sent from client to server. All multibyte integers
+are little-endian.
 
-| Offset | Width | Field                            |
-| -----: | ----: | -------------------------------- |
-|      0 |     2 | Frame length: `124`              |
-|      2 |     2 | Packet identifier: `1001`        |
-|      4 |     4 | Cancellation flag                |
-|      8 |    16 | Reserved, zero                   |
-|     24 |    48 | Character name storage           |
-|     72 |     2 | Body selection                   |
-|     74 |     2 | Profession selection             |
-|     76 |     4 | Client-reported session UID      |
-|     80 |    40 | Client-reported MAC-address text |
-|    120 |     1 | Native builder writes zero       |
-|    121 |     3 | Unverified trailing bytes        |
-
-All multibyte integers are little-endian.
+| Offset | Width | Field                                 |
+| -----: | ----: | ------------------------------------- |
+|      0 |     2 | Frame length: `124`                   |
+|      2 |     2 | Packet identifier: `1001`             |
+|      4 |     4 | Cancellation flag                     |
+|      8 |    16 | Reserved, zero                        |
+|     24 |    48 | Character name storage                |
+|     72 |     2 | Body selection                        |
+|     74 |     2 | Profession selection                  |
+|     76 |     4 | Client-reported session UID           |
+|     80 |    40 | Client-reported MAC address text      |
+|    120 |     1 | Written as zero by the client builder |
+|    121 |     3 | Trailing bytes, meaning not confirmed |
 
 The cancellation flag is a 32-bit unsigned integer:
 
 - `0`: character-creation request.
 - `1`: character-creation cancellation.
 
-Other values are rejected as malformed.
+Any other value is rejected as malformed.
 
-The native client clears the name, body, and profession selections when submitting cancellation. The
-client-reported session UID remains present.
+When it sends a cancellation, the client clears the name, body and profession selections but still
+includes the session UID.
 
-The parser preserves the raw body, profession, and session UID values. It does not treat them as
-authenticated or authorized values.
+The parser keeps the raw body, profession and session UID values. It does not treat them as
+authenticated or authorized.
 
-The 16 reserved bytes at offset 8 and the byte at offset 120 are checked against the documented
-native zero values.
+The parser checks that the 16 reserved bytes at offset 8 and the byte at offset 120 are zero, as
+documented for the client. The meaning of bytes 121 to 123 has not been confirmed, so the parser
+does not interpret them and does not require them to be zero.
 
-Bytes 121–123 have no independently verified semantics and are not interpreted or required to
-contain zero.
+## Character name encoding
 
-## Character Name Encoding
+The client stores the name in a 48-byte packet field. Its creation screen limits the name to 4 to
+15 bytes and runs further font and pixel-width checks before it sends the request.
 
-The native client stores the name in a 48-byte packet field.
+The parser requires a null terminator within the first 16 bytes of the field, which matches the
+client's maximum input length. The remaining bytes are not read as more name data.
 
-Its creation interface restricts the submitted name to 4–15 bytes and applies additional font/pixel
-validation before sending the request.
-
-The parser requires a null terminator within the first 16 bytes of name storage, matching the native
-client's maximum input capacity.
-
-The remaining storage bytes are not interpreted as additional name data.
-
-Names are decoded using the existing strict Windows-1252 encoding.
-
-The following undefined Windows-1252 byte values are rejected before decoding:
+Names are decoded with the existing strict Windows-1252 encoding. These undefined Windows-1252 byte
+values are rejected before decoding:
 
 - `0x81`
 - `0x8D`
@@ -101,47 +94,40 @@ The following undefined Windows-1252 byte values are rejected before decoding:
 - `0x90`
 - `0x9D`
 
-Explicit rejection is necessary because .NET's Windows-1252 implementation can map these values to
-control characters without invoking the configured decoder exception fallback.
+They are rejected separately because .NET's Windows-1252 implementation can map them to control
+characters without calling the configured decoder exception fallback.
 
-Bytes following the first null terminator do not contribute to the decoded name and are not
-independently interpreted as protocol fields.
+Bytes after the first null terminator are not part of the decoded name, and they are not read as
+separate protocol fields.
 
-The parser performs structural and encoding validation only.
+The parser checks only structure and encoding. `CharacterNamePolicy` still performs the server-side
+character-name validation, including length, forbidden characters and other domain rules. A name
+that decodes successfully is not necessarily a valid character name.
 
-`CharacterNamePolicy` remains responsible for authoritative server-side character-name validation,
-including length, forbidden characters, and other domain restrictions.
+## Client-reported MAC address
 
-A successfully decoded name is not necessarily a valid character name.
+The packet reserves 40 bytes starting at offset 80 for MAC address text.
 
-## Client-Reported MAC Address
+OpenConquerPublic accepted either an empty value or 12 uppercase hexadecimal characters, and the
+client's account login code also formats the MAC address as uppercase hexadecimal. These facts do
+not show that the client always uses that one format in character creation, under every condition
+the client supports.
 
-The native packet reserves 40 bytes beginning at offset 80 for MAC-address text.
+The parser therefore:
 
-The previous OpenConquerPublic implementation accepted an empty value or 12 uppercase hexadecimal
-characters.
+- Reads the whole 40-byte field.
+- Stops decoding text at the first null terminator.
+- Requires the decoded part to be ASCII.
+- Keeps the resulting string without interpreting it as an identity.
 
-The native account-login implementation also has evidence of uppercase hexadecimal MAC-address
-formatting.
+It does not copy OpenConquerPublic's MAC address format rule.
 
-However, those facts do not independently establish an exclusive character- creation MAC validation
-contract for every supported native-client condition.
+Hardware identifiers reported by the client are untrusted. They must not be used to establish
+account ownership, authorization or identity.
 
-The current parser therefore:
+## Character selections
 
-- Reads the complete 40-byte storage field.
-- Stops text decoding at the first null terminator.
-- Requires ASCII bytes in the decoded portion.
-- Preserves the resulting string without interpreting it as identity.
-
-The parser does not duplicate OpenConquerPublic's MAC-address format policy.
-
-Client-reported hardware identifiers are untrusted and must not establish account ownership,
-authorization, or authenticated identity.
-
-## Native Character Selections
-
-The native creation interface maps vocation indices to profession codes:
+The client's creation screen maps vocation indices to profession codes:
 
 | Vocation indices | Profession code |
 | ---------------- | --------------: |
@@ -152,7 +138,7 @@ The native creation interface maps vocation indices to profession codes:
 | 8, 9             |              50 |
 | 10, 11           |              60 |
 
-Native body selection:
+Body selection:
 
 | Vocation index parity | Body-size selection | Body identifier |
 | --------------------- | ------------------- | --------------: |
@@ -161,96 +147,77 @@ Native body selection:
 | Odd                   | 1                   |            1003 |
 | Odd                   | Other               |            1004 |
 
-These mappings establish the native client's submitted values.
+These mappings show the values that the client sends.
 
-The request parser preserves raw integer selections without performing profession normalization,
-class validation, or character initialization.
+The request parser keeps the raw integer selections. It does not normalize professions, validate
+classes or initialize the character. The server validates the selections later, in the
+authenticated character-creation application flow.
 
-Server-side selection validation belongs in the authenticated character- creation application flow.
+## Security
 
-## Security Boundaries
+Packet `1001` arrives on an authenticated GameServer connection, but the packet itself does not
+identify the account. Character ownership must come from the authenticated GameServer session,
+never from fields the client supplies. The session UID in the packet does not on its own
+authenticate the client or prove ownership, and the MAC address is not an authentication
+credential.
 
-Packet `1001` is received on an authenticated GameServer connection.
+The existing character-name policy, account ownership rules and database uniqueness constraints
+remain the final word on what is accepted. Character creation must be transactional and safe under
+concurrent requests. The existing unique database constraints on character names and account
+ownership remain the last line of defense against concurrent duplicates. Creation persistence must
+also keep the repository's least-privilege model for database credentials.
 
-The request packet does not establish account identity.
+## Continuing on the same connection
 
-Authoritative character ownership must come from the authenticated GameServer session, not from
-fields supplied by the client.
-
-The client-reported session UID must not independently establish authentication or ownership.
-
-The client-reported MAC address is not an authentication credential.
-
-The existing character-name policy, account ownership rules, and database uniqueness constraints
-must remain authoritative.
-
-Character creation must be transactional and concurrency-safe.
-
-The existing unique database constraints on character names and account ownership must remain the
-final concurrency boundary.
-
-The creation persistence design must also preserve the repository's least-privilege database
-credential model.
-
-## Verified Native Session Continuation
-
-The native client supports character creation on the existing encrypted GameServer connection.
-
-The verified successful sequence is:
+The client creates a character on its existing encrypted GameServer connection. The successful
+sequence, verified in the client, is:
 
 1. GameServer authenticates the connection.
 2. GameServer sends packet `1004` with `NEW_ROLE`.
 3. The client enters character-creation mode.
 4. The client sends packet `1001`.
 5. On successful creation, GameServer sends packet `1004` with `ANSWER_OK`.
-6. The client invokes `CConnectionFlow__SendGameSessionBootstrap`.
-7. The client sends another post-DH `1052` game-login proof.
+6. The client calls `CConnectionFlow__SendGameSessionBootstrap`.
+7. The client sends another `1052` game-login proof after the DH exchange.
 8. World-entry bootstrap continues on the same connection.
 
-The client does not require a new account-server login or a new GameServer connection after
-successful character creation.
+After a successful creation, the client does not need a new AccountServer login or a new
+GameServer connection.
 
-The native create-role control-message handler also exposes non-success messages through the
-creation interface's `ERROR` variable.
+The client's create-role control-message handler also passes messages other than success to the
+creation screen's `ERROR` variable.
 
-The successful control path is verified. Complete retail server-side failure messages and
-persistence behavior remain separate evidence requirements.
+The success path is verified. The complete set of retail server failure messages and the retail
+persistence behavior still need their own sources.
 
-## Remaining Implementation Work
+## Remaining implementation work
 
-The native packet layout, client-side selections, and successful same-session continuation are
-established.
+The packet layout, the client's selections and the same-connection continuation after a successful
+creation are known. Before full character creation can be enabled, the implementation still has to
+settle:
 
-Before enabling complete character creation, the implementation must establish:
-
-1. Authoritative server-side profession and body acceptance rules.
-2. Complete character-creation failure-response semantics.
-3. Authoritative initial appearance, attributes, and character state.
+1. Server-side rules for which professions and bodies to accept.
+2. The meaning of every character-creation failure response.
+3. The initial appearance, attributes and character state, decided by the server.
 4. Initial map and position policy.
 5. Transactional character persistence and database permissions.
-6. Duplicate-submission and concurrent-creation behavior.
-7. Authenticated session ownership throughout creation.
-8. Successful continuation through repeated login proof and world bootstrap.
-9. Cancellation, failure, timeout, and disconnect cleanup.
+6. Behavior for duplicate submissions and concurrent creation.
+7. Ownership by the authenticated session for the whole of creation.
+8. Successful continuation through the repeated login proof and the world bootstrap.
+9. Cleanup after cancellation, failure, timeout and disconnect.
 10. Integration and database concurrency tests.
 
-OpenConquerPublic provides an existing implementation reference for several of these
-responsibilities.
+OpenConquerPublic is an existing reference implementation for several of these.
 
-Its historical starting-state defaults and server policies are not automatically authoritative
-native 5517 behavior.
+Its historical starting-state defaults and server policies are not automatically the retail 5517
+behavior. Retail server policies that are still unknown must not be presented as facts from the
+client disassembly.
 
-Missing retail server-side policies must not be presented as client-disassembly facts.
+## Runtime status
 
-## Runtime Status
+The packet `1001` request parser can be tested on its own. It validates the request structure and
+exposes the decoded fields as untrusted values.
 
-The packet `1001` request parser is independently testable.
-
-It validates the native request structure and exposes untrusted decoded fields.
-
-The hosted GameServer character-creation route remains intentionally fail-closed.
-
-This slice does not create characters, change database permissions, send speculative creation
-responses, or transfer connection ownership.
-
-Complete character creation remains a separate implementation responsibility.
+The character-creation route in the running GameServer stays disabled. The current code does not
+create characters, change database permissions, send guessed creation responses or transfer
+connection ownership. Full character creation is separate work.

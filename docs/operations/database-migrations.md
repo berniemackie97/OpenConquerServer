@@ -27,56 +27,68 @@ start on a mismatch. They never migrate on their own.
 | Game     |      12 | `20261018190000_AddCharacterLocationOperationId` |
 | Game     |      13 | `20261019010000_AddCharacterLocationWriterFence` |
 
-## Game v11 location revision deployment
+## Game v11: location revision
 
-The v11 migration adds `characters.location_revision` with zero as its initial value for
-existing characters. Stop **all** gameplay, administrative, maintenance and custom
-writers to `characters` before migration and keep them stopped until all are running v11
-code. Back up and verify restore. Re-provision the existing dedicated location-writer
-principal's column-scoped `SELECT`/`UPDATE` grant with `location_revision` (see
-`docs/architecture/durable-character-location.md`); do not grant it table-wide writes.
-The migration is intentionally not reversible. A stored revision does not prove the
-result of a still-running SQL command; no live transfer coordinator exists yet.
+The v11 migration adds `characters.location_revision`, set to zero for existing characters.
 
-## Game v12 commit evidence deployment
+1. Stop every process that writes to `characters` (gameplay, administrative, maintenance, and custom
+   writers). Keep them stopped until all of them run v11 code.
+2. Take a backup and confirm that it restores.
+3. Update the existing location-writer account's column-scoped `SELECT`/`UPDATE` grant to include
+   `location_revision` (see `docs/architecture/durable-character-location.md`). Do not give it write
+   access to the whole table.
 
-The v12 offline migration adds nullable `characters.last_location_operation_id BINARY(16)`.
-Existing records retain `NULL`; the mandatory operation ID is written atomically with a
-successful location revision CAS. Stop **all** writers to `characters` and perform a
-verified backup before applying the migration. Update only the opt-in location writer's
-column-scoped `SELECT` and `UPDATE` grants to include `last_location_operation_id`.
-Deploy v12 components only after migration and grant reconciliation; older writers must
-not continue writing character locations. The migration cannot be downgraded safely.
+The migration cannot be reversed. A stored revision does not tell you the outcome of a SQL command
+that is still running. No live transfer coordinator exists yet.
 
-The marker is positive evidence of one completed CAS; an absent or different marker
-cannot prove an uncertain in-flight SQL command will never complete. Production transfers
-remain disabled. See [durable character location](../architecture/durable-character-location.md).
+## Game v12: location operation ID
 
-## Game v13 durable writer fencing deployment
+The v12 migration runs offline and adds the nullable column
+`characters.last_location_operation_id BINARY(16)`. Existing rows keep `NULL`. Every successful
+location-revision compare-and-swap (CAS) writes the required operation ID in the same atomic update.
 
-This migration adds nullable `characters.location_writer_token BINARY(16)`. Existing
-rows start without write authority. Only the new location writer can rotate a token;
-all v13 CAS require a matching nonempty token. Stop **all** pre-v13 location writers
-before migration, verify a backup, migrate offline, update the dedicated column-scoped
-`SELECT`/`UPDATE` grants, and deploy v13 binaries as one maintenance operation. The
-read-only GameServer role must not receive an UPDATE privilege. A v12 writer bypasses
-the new predicate, so running old and new binaries together is not safe. This migration
-recognizes either the v12 predecessor or an already-committed v13 compatibility marker.
-MySQL may commit the DDL before EF records migration completion; on restart it accepts
-an existing writer-token column only with the exact nullable BINARY(16) shape.
-Unexpected schema shapes or contract markers fail closed. Rerun the interrupted
-migration through EF after verifying database state. This migration is intentionally
-not reversible.
+1. Stop every writer to `characters`, take a backup, and confirm that it restores.
+2. Apply the migration.
+3. Update the column-scoped `SELECT` and `UPDATE` grants of the opt-in location writer, and no other
+   account, to include `last_location_operation_id`.
+4. Deploy the v12 components. Older writers must not go on writing character locations.
 
-The internal sessionless coordinator obtains a fresh write generation after sealing
-its source and refuses a changed persisted source. This serializes earlier in-flight
-CAS writes against the fence rotation. It does **not** grant exclusive process or
-session authority across restarts; live transfers remain disabled until login
-admission and realm leadership enforce that boundary.
+The migration cannot be safely downgraded.
+
+A matching operation ID proves that one CAS completed. A missing or different ID does not prove that
+an uncertain SQL command still in flight will never complete. Production transfers stay disabled.
+See [durable character location](../architecture/durable-character-location.md).
+
+## Game v13: location writer fencing
+
+The v13 migration adds the nullable column `characters.location_writer_token BINARY(16)`. Existing
+rows start without a token, so no writer holds write rights for them yet. Only the new location
+writer can rotate a token, and every v13 CAS requires a matching, nonempty token. Do these steps as
+one maintenance operation:
+
+1. Stop all pre-v13 location writers.
+2. Take a backup and confirm that it restores.
+3. Run the migration offline.
+4. Update the location writer's column-scoped `SELECT`/`UPDATE` grants.
+5. Deploy the v13 binaries.
+
+The read-only GameServer role must not get an UPDATE privilege. A v12 writer skips the new token
+check, so old and new binaries must never run at the same time.
+
+The migration accepts a database at v12, or one that already has the v13 compatibility marker. MySQL
+can commit the DDL before EF records the migration as complete. When the migration runs again, it
+accepts an existing writer-token column only if it is a nullable BINARY(16). Any other schema shape
+or compatibility marker stops it with an error. Check the database state, then rerun the interrupted
+migration through EF. The migration cannot be reversed.
+
+The internal coordinator that runs without a session gets a new write generation after it seals its
+source, and refuses to continue if the stored source has changed. This orders earlier in-flight CAS
+writes before the token rotation. It does not give one process or session exclusive ownership across
+restarts. Live transfers stay disabled until login admission and realm leadership enforce that.
 
 ## Before you start
 
-- Stop every process that writes to the database. Migration checks validate what they see; they
+- Stop every process that writes to the database. Migration checks validate what they see. They
   cannot protect against concurrent writers.
 - Take a backup and confirm you can restore it.
 - Double-check the connection string points at the intended database, using an account that can
@@ -118,8 +130,8 @@ table with what the migration expects.
 MySQL commits DDL immediately, independently of EF's migration history. A failed migration can
 therefore leave some tables or columns created while the history and the compatibility row still
 show the previous version. Every Game migration recognizes the partial states it can produce and
-resumes from them; a structure it does not recognize, including a same-named table or constraint
-with a different definition, makes it stop rather than guess.
+resumes from them. If it finds a structure it does not recognize, such as a table or constraint with
+the expected name but a different definition, it stops instead of guessing.
 
 To recover: inspect the actual structure, fix any data the migration rejected (see below), and run
 the same migration again. Do not mark it complete manually.
@@ -137,25 +149,26 @@ the same migration again. Do not mark it complete manually.
 
 ### Game version 10: realm identity binding
 
-Each Game database has a one-row operator-provisioned `realm_binding` table. The
-migration does **not** insert or infer an identity. The GameServer refuses startup
-without a matching `GameServer:RealmId`, and the runtime requires `SELECT` only.
-See [game realm binding](game-realm-binding.md). Downgrading v10 to v9 is blocked
-because it would discard the persistent world identity.
+Each Game database has a `realm_binding` table with one row, which the operator fills in. The
+migration does not insert or guess a realm ID. The GameServer refuses to start unless
+`GameServer:RealmId` matches that row, and the runtime account needs only `SELECT`. See
+[game realm binding](game-realm-binding.md). Downgrading from v10 to v9 is blocked because it would
+discard the world's stored realm identity.
 
 ### Accounts version 3: realm registry
 
-The operator-owned `realms` table uses a SQL-only EF migration and deliberately has no EF model
-entity. An interrupted `CREATE TABLE` may leave a committed table with old migration history.
-The migration refuses to overwrite any existing table; inspect its exact DDL and recover under
-operator control rather than silently guessing. See [realm registry](realm-registry.md) for
-provisioning, validation and runtime grants. Accounts version 4 binds tickets to realms (below).
-Adding a realm, including its Game database, is covered in [Realm operations](realms.md).
+The operator-managed `realms` table is created by an EF migration written in plain SQL, and the
+table has no EF model entity. An interrupted `CREATE TABLE` can leave a committed table while the
+migration history still shows the old version. The migration refuses to overwrite an existing table.
+Inspect that table's DDL and recover by hand instead of guessing. See
+[realm registry](realm-registry.md) for provisioning, validation, and runtime grants. Accounts
+version 4 binds tickets to realms (below). Adding a realm, including its Game database, is covered
+in [Realm operations](realms.md).
 
 ### Version 2: signed PK points
 
 Values above 32,767 cannot be stored as signed `SMALLINT`. Find them before migrating and correct
-them from a trusted source; do not clamp or wrap them.
+them from a trusted source. Do not clamp or wrap them.
 
 ```sql
 SELECT `character_id`, `name`, `pk_points` FROM `characters` WHERE `pk_points` > 32767;
@@ -197,7 +210,7 @@ conversion path for populated version 4 data.
 ### Version 9: syndicates
 
 The runtime Game database account needs `SELECT` on `syndicates`, `syndicate_memberships`, and
-`characters` for syndicate loading at login. The integration tests grant these; production
+`characters` for syndicate loading at login. The integration tests grant these, but production
 accounts must be granted them separately.
 
 ## After any migration
@@ -217,21 +230,22 @@ and compatibility row as above and start the server, which repeats the same chec
 
 Downgrades remove data, so each one refuses to run if it would destroy rows:
 
-| From → to | Removes                          | Refuses when                       |
+| Downgrade | Removes                          | Refuses when                       |
 | --------- | -------------------------------- | ---------------------------------- |
-| 9 → 8     | Syndicate tables                 | Either table has rows              |
-| 8 → 7     | `magic`                          | The table has rows                 |
-| 7 → 6     | `weapon_skills`                  | The table has rows                 |
-| 6 → 5     | `social_relations`               | The table has rows                 |
-| 5 → 4     | Item lifetime columns            | `items` has rows                   |
-| 4 → 3     | `items`                          | Always destructive; no guard       |
-| 3 → 2     | `pre_rebirth_level`              | Always destructive; no guard       |
-| 2 → 1     | Signed `pk_points`               | Any value is negative              |
+| 9 to 8    | Syndicate tables                 | Either table has rows              |
+| 8 to 7    | `magic`                          | The table has rows                 |
+| 7 to 6    | `weapon_skills`                  | The table has rows                 |
+| 6 to 5    | `social_relations`               | The table has rows                 |
+| 5 to 4    | Item lifetime columns            | `items` has rows                   |
+| 4 to 3    | `items`                          | Never (always destructive)         |
+| 3 to 2    | `pre_rebirth_level`              | Never (always destructive)         |
+| 2 to 1    | Signed `pk_points`               | Any value is negative              |
 
-Game v10 → v9 is deliberately blocked: a Game database cannot silently lose its realm identity.
+Downgrading Game from v10 to v9 is blocked so that a Game database cannot lose its realm identity.
 
-Accounts v3 → v2 is deliberately blocked: dropping `realms` could destroy operator identities.
-Restore a verified backup or write an independently reviewed, data-preserving downgrade.
+Downgrading Accounts from v3 to v2 is blocked because dropping `realms` could destroy the realm
+identities the operator assigned. To go back, restore a tested backup, or write a downgrade that
+keeps the data and have it reviewed separately.
 
 A downgrade that stops partway can be resumed by running it again through EF. Before any downgrade,
 read the migration's `Down` method, confirm what will be lost, and take a backup.
@@ -241,10 +255,10 @@ read the migration's `Down` method, confirm what will be lost, and take a backup
 Adds `account_sessions`, one row per account naming the realm it plays in, and
 `account_session_kicks`, the requests that ask a realm to disconnect an account. Both hold only live
 login state, which every GameServer clears when it starts, so the migration starts with empty tables
-and its downgrade drops them. Stop the AccountServer and every GameServer before migrating either way.
-Grant the AccountServer `SELECT` on `account_sessions` and `INSERT, UPDATE` on
-`account_session_kicks`, and each GameServer `SELECT, INSERT, UPDATE, DELETE` on both; see
-[Realm operations](realms.md#grants).
+and its downgrade drops them. Stop the AccountServer and every GameServer before migrating either
+way. Grant the AccountServer `SELECT` on `account_sessions` and `INSERT, UPDATE` on
+`account_session_kicks`, and each GameServer `SELECT, INSERT, UPDATE, DELETE` on both (see
+[Realm operations](realms.md#grants)).
 
 ### Accounts version 5: realm status
 
@@ -252,13 +266,13 @@ Adds `realm_status`, one row per realm, written by that realm's GameServer and r
 AccountServer. Rows are short-lived runtime state, so the migration starts with an empty table and
 its downgrade drops the table. Stop the AccountServer and every GameServer before migrating either
 way. Grant the AccountServer `SELECT` and each GameServer `SELECT, INSERT, UPDATE, DELETE` on the
-table; see [Realm operations](realms.md#grants).
+table (see [Realm operations](realms.md#grants)).
 
 ### Accounts version 4: realm-bound tickets
 
-The migration invalidates outstanding pre-v4 five-minute game-login tickets, then adds a
-required, positive `realm_id` field to new tickets. **Stop both servers, back up Accounts,
-confirm the permanent realm records, then migrate with an administrative EF connection.**
-Do not run old binaries against v4. In case of a partial MySQL DDL failure, inspect the
-column, constraints, compatibility marker and EF history before retrying; do not guess
-a realm identity or hand-edit migration history. See `realm-bound-tickets.md`.
+The migration invalidates outstanding game-login tickets issued before v4 (these last five minutes),
+then adds a required, positive `realm_id` field to new tickets. Stop both servers, back up Accounts,
+confirm the permanent realm records are in place, and then migrate with an administrative EF
+connection. Do not run old binaries against v4. If the MySQL DDL fails partway, inspect the column,
+constraints, compatibility marker, and EF history before retrying. Do not guess a realm ID or
+hand-edit the migration history. See `realm-bound-tickets.md`.
