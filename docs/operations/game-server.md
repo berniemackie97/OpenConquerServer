@@ -39,6 +39,12 @@ For local development, set the connection strings and keys with `dotnet user-sec
 `src/OpenConquer.GameServer`, as for the AccountServer. Use the same key IDs and keys. Each realm
 runs its own GameServer. See [Realm operations](realms.md) for running more than one.
 
+`ConnectionStrings:GameLocationWriter` needs its own database identity. With both servers stopped and
+the Game database at schema v13, run `ops/provision-local-location-writer.sh` once. It creates
+`oc_location_writer` with the column grants below, keeps its password in
+`~/.config/openconquer/local-location-writer.env`, and stores the connection string in GameServer
+user secrets.
+
 ## Content
 
 Content paths are resolved against the executable's directory, not the working directory. The
@@ -92,6 +98,11 @@ login latency under representative load. Login metrics are listed in
 dotnet build OpenConquer.Server.slnx -c Release
 DOTNET_ENVIRONMENT=Development dotnet run --project src/OpenConquer.GameServer -c Release --no-build
 ```
+
+`dotnet run` uses the project's launch profile, which sets `DOTNET_ENVIRONMENT=Development`. In
+Rider, run the shared configurations in `.run/`: `AccountServer (Development)`, `GameServer
+(Development)`, or `Servers (Development)` for both. A Rider ".NET Project" configuration ignores
+launch profiles, so the server starts in Production without user secrets and fails configuration.
 
 Press `Ctrl+C` for a normal shutdown.
 
