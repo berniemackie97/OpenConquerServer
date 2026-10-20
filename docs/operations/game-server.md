@@ -13,7 +13,8 @@ validated before the host is built.
 | -------------------------------------------------- | ------------------------------------------------------------- |
 | `GameServer:RealmId`                               | Realm this server hosts; must match the Game database binding (required) |
 | `ConnectionStrings:Accounts`                       | Accounts database: ticket redemption and readiness            |
-| `ConnectionStrings:Game`                           | Game database: characters and readiness                       |
+| `ConnectionStrings:Game`                           | Game database: characters and readiness, SELECT-only          |
+| `ConnectionStrings:GameLocationWriter`             | Dedicated Game location CAS and writer-fence identity; required with network ingress |
 | `GameServer:GameLoginTickets:ActiveVerificationKeyId`, `VerificationKeys` | Same keys as the AccountServer         |
 | `GameServer:Content:DefinitionsPath`               | Map definitions file                                          |
 | `GameServer:Content:TerrainDirectory`              | `.ocbt` directory                                             |
@@ -93,3 +94,23 @@ DOTNET_ENVIRONMENT=Development dotnet run --project src/OpenConquer.GameServer -
 ```
 
 Press `Ctrl+C` for a normal shutdown.
+
+## Fenced existing-character admission (Game schema v13)
+
+A network-enabled GameServer requires `ConnectionStrings:GameLocationWriter` and fails configuration
+validation before opening a listener when it is missing or points at a different Game database.
+The writer identity must be distinct from both read-only GameServer and character-creation identities.
+Grant `SELECT` on exactly `account_id`, `character_id`, `map_id`, `position_x`, `position_y`,
+`location_revision`, `last_location_operation_id`, `location_writer_token` of `characters`; grant
+`UPDATE` on exactly the six mutable location/fence columns. Grant no DDL and no other table rights.
+Do not use root or the ordinary read-only GameServer identity for this connection.
+
+Once cross-realm account-session admission succeeds, login rotates the character-row generation,
+rehydrates the profile using the read-only connection, and compares the profile, revision, operation
+marker and token to a fresh scoped observation before responding with successful bootstrap packets.
+The session carries that authority and checks again before and after authoritative world admission.
+Failures dispose presence, session ownership and transport; they must not be retried following an
+uncertain rotation. This generation is a write CAS fence, **not** a distributed player-session lock.
+A client already admitted can still be superseded by a different process after a point-in-time
+observation; that case requires the account-session and presence protocols to revoke its ownership.
+Live portal commit sequencing and durable in-world movement are separate milestones.

@@ -1,3 +1,4 @@
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.World;
@@ -20,12 +21,13 @@ namespace OpenConquer.GameServer.Login.Bootstrap;
 /// the login it is aimed at; a record without presence is then known to be left over and is removed.
 /// </remarks>
 internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegistrar presenceRegistrar, RealmAccountSessions accountSessions, WorldMapContentCatalog maps,
-    GameLoginMetrics metrics)
+    GameLoginMetrics metrics, FencedCharacterAdmission? fencing = null)
 {
     private readonly ICharacterPresenceRegistrar _presenceRegistrar = presenceRegistrar ?? throw new ArgumentNullException(nameof(presenceRegistrar));
     private readonly RealmAccountSessions _accountSessions = accountSessions ?? throw new ArgumentNullException(nameof(accountSessions));
     private readonly WorldMapContentCatalog _maps = maps ?? throw new ArgumentNullException(nameof(maps));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+    private readonly FencedCharacterAdmission? _fencing = fencing;
 
     /// <summary>
     /// Takes the handoff connection. If map resolution, bootstrap output, or presence registration fails, the connection is closed here.
@@ -40,6 +42,7 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
         AccountSessionLease? accountSession = null;
         ICharacterPresenceLease? presenceLease = null;
         ExistingCharacterGameConnection? characterConnection = null;
+        CharacterLocationWriteAuthority? locationAuthority = null;
 
         try
         {
@@ -72,14 +75,35 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
                 return null;
             }
 
-            await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.Accepted, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.LoginHistory, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.ServerState, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(userInfo, cancellationToken).ConfigureAwait(false);
+            if (_fencing is not null)
+            {
+                // Account-session ownership precedes DB rotation. Do not send any success packet
+                // before the refreshed profile is checked against the new writer generation.
+                (profile, locationAuthority) = await _fencing.AcquireAsync(profile, cancellationToken).ConfigureAwait(false);
+                presenceLease.RevocationToken.ThrowIfCancellationRequested();
+
+                if (!_maps.TryGet(profile.Location.MapId, out map))
+                {
+                    throw new InvalidDataException($"Character {profile.Identity.CharacterId} references unavailable world map {profile.Location.MapId}.");
+                }
+
+                userInfo = ExistingCharacterBootstrapPacketFactory.CreateCharacterInfo(profile);
+                await _fencing.VerifyAsync(profile, locationAuthority, cancellationToken).ConfigureAwait(false);
+                presenceLease.RevocationToken.ThrowIfCancellationRequested();
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            using CancellationTokenSource? bootstrapCancellation = _fencing is null
+                ? null : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, presenceLease.RevocationToken);
+            CancellationToken bootstrapToken = bootstrapCancellation?.Token ?? cancellationToken;
+            await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.Accepted, bootstrapToken).ConfigureAwait(false);
+            await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.LoginHistory, bootstrapToken).ConfigureAwait(false);
+            await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.ServerState, bootstrapToken).ConfigureAwait(false);
+            await connection.WriteAsync(userInfo, bootstrapToken).ConfigureAwait(false);
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            characterConnection = new ExistingCharacterGameConnection(connection, profile, presenceLease, accountSession);
+            characterConnection = new ExistingCharacterGameConnection(connection, profile, presenceLease, accountSession, locationAuthority);
             presenceLease = null;
             accountSession = null;
 

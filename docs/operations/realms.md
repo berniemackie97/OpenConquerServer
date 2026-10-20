@@ -115,6 +115,7 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 | AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms`, `realm_status`, `account_sessions`; `INSERT, UPDATE` on `account_session_kicks` |
 | GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT, INSERT, UPDATE, DELETE` on `realm_status`, `account_sessions`, `account_session_kicks`; `SELECT` on `schema_compatibility` |
 | GameServer runtime, each realm    | Its Game database | `SELECT` on `characters`, `items`, `social_relations`, `weapon_skills`, `magic`, `syndicates`, `syndicate_memberships`, `schema_compatibility`, `realm_binding` |
+| GameServer location writer, each realm | Its Game database | Column-scoped `SELECT` on identity and location state, column-scoped `UPDATE` on location, revision, operation marker and writer token in `characters` |
 | GameServer creation, each realm   | Its Game database | `SELECT, INSERT` on `characters`                                                           |
 | Administrator                     | Both              | Schema changes and writes to `realms` and `realm_binding`; never used by a server          |
 

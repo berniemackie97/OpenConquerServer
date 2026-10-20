@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.Application.Accounts.Sessions;
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.World;
@@ -49,6 +50,106 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), null!, catalog, s_metrics));
         Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), TestAccountSessions.Create(), null!, s_metrics));
         Assert.Throws<ArgumentNullException>(() => new ExistingCharacterBootstrapProcessor(new CharacterPresenceDirectory(), TestAccountSessions.Create(), catalog, null!));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_FenceAcquisitionDenied_ClosesConnectionBeforeAnySuccessPacket()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        CharacterPresenceDirectory presence = new();
+        RefusingLocationFence fence = new();
+        FencedCharacterAdmission fencing = new(fence, new UnreachableLocationObserver(), new UnreachableCharacterProfiles());
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(), CreateCatalog(), s_metrics, fencing);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(1, fence.Calls);
+        Assert.Equal(fixture.AuthenticationBoundary, fixture.Transport.SentBytes.Length);
+        Assert.Equal(1, fixture.Transport.DisposeCount);
+        Assert.False(presence.IsOnline(profile.Identity.CharacterId));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AccountSessionRejected_DoesNotRotateDurableFence()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile profile = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
+        CharacterPresenceDirectory presence = new();
+        RecordingAccountSessionStore sessions = new() { AdmitEntries = false };
+        RefusingLocationFence fence = new();
+        FencedCharacterAdmission fencing = new(fence, new UnreachableLocationObserver(), new UnreachableCharacterProfiles());
+        ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(sessions), CreateCatalog(), s_metrics, fencing);
+
+        Assert.Null(await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
+        Assert.Equal(0, fence.Calls);
+        Assert.False(presence.IsOnline(profile.Identity.CharacterId));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_SuccessfulFenceUsesRehydratedProfileAndPropagatesAuthority()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile original = CreateProfile();
+        CharacterLoginProfile rehydrated = CreateProfile();
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(original));
+        Guid token = Guid.NewGuid();
+        PersistedCharacterLocation location = new(rehydrated.Location, revision: 3, writerToken: token);
+        CharacterLocationWriteAuthority authority = new(AccountId, original.Identity.CharacterId, token, location);
+        FencedCharacterAdmission fencing = new(new ReturningLocationFence(authority),
+            new ReturningLocationObserver(location), new ReturningCharacterProfiles(rehydrated));
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory(), TestAccountSessions.Create(),
+            CreateCatalog(), s_metrics, fencing);
+
+        await using ExistingCharacterLoginContext login = Assert.IsType<ExistingCharacterLoginContext>(
+            await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
+
+        Assert.Same(rehydrated, login.Profile);
+        Assert.Same(rehydrated, login.Connection.Profile);
+        Assert.Same(authority, login.Connection.LocationAuthority);
+    }
+
+    private sealed class ReturningLocationFence(CharacterLocationWriteAuthority authority) : ICharacterLocationFenceStore
+    {
+        public ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<CharacterLocationWriteAuthority?>(authority);
+    }
+
+    private sealed class ReturningLocationObserver(PersistedCharacterLocation location) : ICharacterLocationObservationStore
+    {
+        public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<PersistedCharacterLocation?>(location);
+    }
+
+    private sealed class ReturningCharacterProfiles(CharacterLoginProfile profile) : ICharacterLoginProfileRepository
+    {
+        public ValueTask<CharacterLoginProfile?> FindByAccountIdAsync(uint accountId, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<CharacterLoginProfile?>(profile);
+    }
+
+    private sealed class RefusingLocationFence : ICharacterLocationFenceStore
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return ValueTask.FromResult<CharacterLocationWriteAuthority?>(null);
+        }
+    }
+
+    private sealed class UnreachableLocationObserver : ICharacterLocationObservationStore
+    {
+        public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("The observer cannot run after refused acquisition.");
+    }
+
+    private sealed class UnreachableCharacterProfiles : ICharacterLoginProfileRepository
+    {
+        public ValueTask<CharacterLoginProfile?> FindByAccountIdAsync(uint accountId, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("A refused admission cannot rehydrate a profile.");
     }
 
     [Fact]

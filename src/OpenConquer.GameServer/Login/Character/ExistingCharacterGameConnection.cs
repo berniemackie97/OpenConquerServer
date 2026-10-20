@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Realms;
@@ -22,7 +23,7 @@ internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
     private int _disposeState;
 
     public ExistingCharacterGameConnection(AuthenticatedGameConnection connection, CharacterLoginProfile profile, ICharacterPresenceLease presenceLease,
-        AccountSessionLease accountSession)
+        AccountSessionLease accountSession, CharacterLocationWriteAuthority? locationAuthority = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(profile);
@@ -44,6 +45,13 @@ internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
             throw new ArgumentException("The account session record belongs to a different login.", nameof(accountSession));
         }
 
+        if (locationAuthority is not null
+            && (locationAuthority.AccountId != connection.AccountId || locationAuthority.CharacterId != profile.Identity.CharacterId))
+        {
+            throw new ArgumentException("The writer generation belongs to another authenticated character.", nameof(locationAuthority));
+        }
+
+        LocationAuthority = locationAuthority;
         _connection = connection;
         _presenceLease = presenceLease;
         _accountSession = accountSession;
@@ -51,6 +59,7 @@ internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
     }
 
     public CharacterLoginProfile Profile { get; }
+    public CharacterLocationWriteAuthority? LocationAuthority { get; }
     public bool IsRevoked => _presenceLease.IsRevoked;
     public CancellationToken RevocationToken => _presenceLease.RevocationToken;
 

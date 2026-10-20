@@ -26,6 +26,41 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
     }
 
     /// <summary>
+    /// Verifies all required v13 column-scoped grants before the network listener is started.
+    /// The probes cannot change a character row: valid player identifiers are never zero.
+    /// </summary>
+    public async ValueTask VerifyPermissionsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await using MySqlConnection connection = new(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandTimeout = CommandTimeoutSeconds;
+        command.CommandText = """
+            SELECT `account_id`, `character_id`, `map_id`, `position_x`, `position_y`,
+                   `location_revision`, `last_location_operation_id`, `location_writer_token`
+            FROM `characters` WHERE `account_id` = 0 AND `character_id` = 0 LIMIT 0;
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        command.CommandText = """
+            UPDATE `characters`
+            SET `map_id` = `map_id`,
+                `position_x` = `position_x`,
+                `position_y` = `position_y`,
+                `location_revision` = `location_revision`,
+                `last_location_operation_id` = `last_location_operation_id`,
+                `location_writer_token` = `location_writer_token`
+            WHERE `account_id` = 0 AND `character_id` = 0;
+            """;
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 0)
+        {
+            throw new InvalidOperationException("A reserved zero identity unexpectedly matched location-writer readiness.");
+        }
+    }
+
+    /// <summary>
     /// Reads the location once for the account and character. Nothing is retried, and the result says nothing
     /// about an earlier compare-and-swap.
     /// </summary>
