@@ -1,54 +1,52 @@
-# Native 5517 24-direction movement — Slice #148
+# 24-direction movement (5517)
 
-## Evidence and wire contract
+## Client behavior and wire format
 
-The retail `Conquer.exe` message handler `CMsgEntityAction__Process` at `0x7405E7`
-selects the 24-entry delta tables at `0x86C804` / `0x86C864` **only** when the
-full 32-bit selector at packet offset `+12` equals `9`. All other selectors use
-native eight-direction movement. Only the low byte of the direction dword at
-`+4` is normalized modulo the table length; upper bits and other opaque packet
-fields must survive the post-commit acknowledgement unchanged.
+In the retail `Conquer.exe`, the message handler `CMsgEntityAction__Process` at `0x7405E7` uses the
+24-entry delta tables at `0x86C804` / `0x86C864` only when the full 32-bit selector at packet offset
+`+12` equals `9`. All other selectors use ordinary eight-direction movement. Only the low byte of
+the direction dword at `+4` is reduced modulo the table length. The upper bits and the other packet
+fields the server does not interpret must come back unchanged in the acknowledgement sent after the
+move commits.
 
-The verified 24-element delta arrays are recorded in the supplied
-`OpenConquerPublic/src/OpenConquer.Protocol/Game/Packets/MsgEntityAction10005.cs`;
-`20_notes/Server/movement.md` independently identifies the retail tables and
-client-authoritative-on-echo behavior. FoxConquer5517 corroborates selector-9
-as the legacy ride movement path, not arbitrary directional walking.
+The 24-element delta arrays are recorded in
+`OpenConquerPublic/src/OpenConquer.Protocol/Game/Packets/MsgEntityAction10005.cs`.
+`20_notes/Server/movement.md` identifies the same retail tables independently and describes the
+retail behavior in which the client's move stands once the server echoes it. FoxConquer5517 also
+treats selector 9 as the old riding movement path, not as general directional walking.
 
-## Authoritative execution
+## Server-side handling
 
-The authenticated session accepts 10005 only for its own character ID, normalizes
-the direction and submits the full-width selector plus normalized index to the
-existing generation-fenced, single-writer map partition. The partition checks
-canonical composed static collision and bounds at the resulting destination
-before committing the position. To avoid a two-tile shortcut across a blocked
-cell when mount authorization is unavailable, it also conservatively checks
-intermediate static cells, including both plausible intermediate cells for
-asymmetric two-tile deltas. This is a **defensive server rule**, not a verified
-native retail intermediate-path policy. Since slice #149, refusals send native correction 108 to undo the client's predicted position.
+The authenticated session accepts 10005 only for its own character ID. It normalizes the direction
+and passes the full-width selector and normalized index to the character's map partition, which is
+the only writer of positions and rejects commands from older session generations. Before committing
+the position, the partition checks the map bounds and the map's composed static collision at the
+destination. Mount authorization is not available yet, so to stop a two-tile move from cutting
+across a blocked cell, the partition also checks the static cells in between. For asymmetric
+two-tile deltas it checks both possible intermediate cells. This is a server-side safety rule. The
+retail client's handling of intermediate cells has not been confirmed. A refused move gets
+correction 108, which undoes the position the client predicted.
 
-The original packet is echoed byte-for-byte to the local player after commit;
-nearby observers receive the same 10005, and the visibility graph is recomputed
-using the committed tile. Late-player spawn uses the existing eight-direction
-presentation field with a bounded facing index; no new or fabricated wire field
-is introduced. Position reconciliation records only server-committed locations.
+After the commit, the original packet is echoed byte for byte to the local player, nearby observers
+receive the same 10005, and the visibility graph is recomputed from the committed tile. Spawn
+packets for players who arrive later use the existing eight-direction facing field, with the facing
+index kept within its valid range. No new wire field is added. Position reconciliation records only
+tiles the server committed.
 
-## Abuse boundaries and release gates
+## Riding and remaining work
 
-As of slice #150, authenticated selector-9 movement is **denied at WorldRuntime**.
-The current server has no trusted source of the active ride status (`0x32`) or
-vigor (`1033` mode 2), so a well-formed selector-9 request is not sufficient
-authorization to move two tiles. The existing session sends native correction
-`10010/108` for the rejected predicted movement. The 24-entry native direction
-tables and collision tests remain intact for future server-authorized riding;
-there is no fake ride bit, equipment-based guess, or changed client packet.
-The existing conservative selector-9 pacing limit is retained but is not used
-to grant riding permission. See [movement eligibility](authoritative-movement-eligibility.md).
+`WorldRuntime` currently rejects all selector-9 movement, even from authenticated sessions. The
+server has no trusted source for the active ride status (`0x32`) or vigor (`1033` mode 2), so a
+well-formed selector-9 request is not enough to allow a two-tile move. The session sends correction
+`10010/108` to undo the client's predicted move. The 24-entry direction tables and their collision
+tests stay in place for when the server can authorize riding. The server does not fake a ride flag
+or guess riding from equipment, and the client packet is unchanged. The stricter pacing limit for
+selector 9 is kept, but passing it does not grant permission to ride. See
+[movement eligibility](authoritative-movement-eligibility.md).
 
-This slice does **not** establish whether a character has a valid mount/status,
-replicate mount visuals, model mounted vigor, or claim fully native mounted gameplay.
-These are explicit gameplay authorization and client-parity release gates.
-Ground jumping was implemented in slice #149; teleportation, authoritative
-position persistence, and NPC/monster replication remain separate work. Encrypted two-client acceptance testing is required
-before public release. The existing world visibility and movement implementation
-are reused rather than duplicated.
+Not implemented yet: checking whether a character has a valid mount or status, showing mounts to
+other players, mounted vigor, and full retail mounted gameplay. Each must be authorized by the
+server and match the client's behavior before release. Ground jumping is implemented. Teleportation,
+saving positions on the server, and NPC and monster replication are separate work. Encrypted tests
+with two clients are required before public release. This feature reuses the existing world
+visibility and movement code instead of duplicating it.

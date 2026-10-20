@@ -1,43 +1,44 @@
-# Native 5517 position reconciliation — Slice #144
+# Position reconciliation (5517)
 
-The original client sends unsolicited `MsgAction` (`10010`) subtype **100** (idle position report),
-and replies to a server correction with subtype **146**. Both carry the *client's opinion* of its
-position in the packed `uint32` at wire offset `+8` (X low 16 bits, Y high 16 bits). Neither is an
-authoritative movement command. The client consumes a server-originated subtype **108** as a
-coordinate correction using the tile at wire `+24`/`+26`, then sends 146. Do **not** echo an inbound
-100 or 146: 146 has a response branch and an echo can produce an indefinite exchange.
+The original client sends unprompted `MsgAction` (`10010`) subtype 100 (idle position report) and
+answers a server correction with subtype 146. Both carry the position the client believes it has,
+packed in the `uint32` at wire offset `+8` (X in the low 16 bits, Y in the high 16 bits). Neither is
+a movement command. The client treats a subtype 108 from the server as a coordinate correction to
+the tile at wire `+24`/`+26`, then sends 146. The server never echoes an inbound 100 or 146: the
+client has a response branch for 146, so an echo could start an endless exchange.
 
-The native client evidence is `20_notes/Server/position-sync.md`, verified against Conquer.exe 5517;
-its `What this server does` section describes the separate OpenConquerPublic reference, **not**
-previous behavior in this repository. This slice implements only the part backed by native evidence
-and relevant to the existing eight-direction walking path.
+The client behavior is documented in `20_notes/Server/position-sync.md`, verified against
+Conquer.exe 5517. Its `What this server does` section describes the separate OpenConquerPublic
+reference, not earlier behavior of this repository. This server implements only the part that the
+client research confirms and that matters for the existing eight-direction walking path.
 
 ## Handling
 
-- Only exact 38-byte, zero-string `10010` reports with subtype 100 or 146 enter this path, after
-  single-use ticket redemption, completed character login, world admission and per-session
-  ownership validation. Unexpected subtypes, spoofed entity IDs and malformed reports terminate the
-  session. A position report can never move the authoritative world character.
-- Each session holds its spawn tile and 64 most recent **committed server-authorized tiles**. A
-  report matching any retained tile is considered in flight, even if far from the latest tile. This
-  prevents distance-based false positives when several movement echoes are delayed.
-- Three consecutive reports naming no retained tile request a correction. The correction reads
-  the current generation-fenced world partition snapshot, sends subtype 108 with that X/Y, and
-  never accepts the packet's claimed location as authority. One correction at most per second of
-  monotonic server time; a matching report resets the divergence sequence. A correction carries no
-  invented map transfer, position mutation, or second 146 reply.
-- The history is bounded and per session. No shared mutable map state, client-selected identity,
-  SQL write, cache, timer worker, or new ingress listener is introduced. Closing a session discards
-  its history automatically. The sequential world-session packet reader owns all history updates.
+- Only 38-byte `10010` reports with no strings and subtype 100 or 146 reach this path, and only
+  after single-use ticket redemption, completed character login, world admission and the
+  per-session ownership check. Unexpected subtypes, spoofed entity IDs and malformed reports end
+  the session. A position report never moves the character in the world.
+- Each session keeps its spawn tile and the 64 most recent tiles the server committed for it. A
+  report that matches any kept tile is treated as in flight, even if it is far from the latest
+  tile. This avoids false alarms from a distance check when several movement echoes are delayed.
+- Three reports in a row that match no kept tile trigger a correction. The correction reads the
+  current snapshot from the world partition (under the ownership-generation check), sends subtype
+  108 with that X/Y, and never treats the location claimed in the packet as true. At most one
+  correction is sent per second of monotonic server time, and a matching report resets the count.
+  A correction does not add a map transfer, change the position or send a second 146 reply.
+- The history is per session and fixed in size. There is no shared mutable map state,
+  client-selected identity, SQL write, cache, timer worker or new ingress listener. Closing a
+  session discards its history. Only the world session's sequential packet reader updates the
+  history.
 
 ## Limits
 
-A finite history cannot cover arbitrarily delayed packets. NPC/monster visibility, running,
-jumping, cross-map transitions, occupancy/elevation rules, position durability across relogins,
-and anti-cheat action against persistent divergence remain **unimplemented**. The three-report
-threshold and one-second correction cooldown are conservative server policies, not recovered TQ
-server configuration. Native subtype 100's *server-to-client challenge* remains unimplemented;
-there is no proven payload contract for one here.
+A fixed-size history cannot cover packets that are delayed for an arbitrary time. NPC and monster
+visibility, running, jumping, cross-map transitions, occupancy and elevation rules, keeping the
+position across relogins, and anti-cheat action against lasting divergence are not implemented.
+The three-report threshold and one-second correction cooldown are cautious choices by this server,
+not settings recovered from the TQ server. The server-to-client challenge form of subtype 100 is
+not implemented either, because no payload format for it has been confirmed.
 
 No database migration, user-secret change, realm change or protocol extension is needed. Full
-end-to-end encrypted transport tests are still required before public gameplay deployment.
+end-to-end tests over encrypted transport are still required before gameplay is deployed publicly.

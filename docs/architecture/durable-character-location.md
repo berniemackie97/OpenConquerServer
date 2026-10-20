@@ -1,159 +1,158 @@
-# Durable character location — slice #152
+# Durable character location
 
-## Purpose and evidence boundary
+## Purpose and scope
 
-PR #151 established an immutable historical reborn-destination catalog; #150 established
-partition-owned dead/ghost state. Neither provides a safe durable map transfer. The current
-`characters` schema already stores `map_id`, `position_x`, and `position_y`; no migration is
-necessary to create a persistent location write boundary.
+The server already has a fixed catalog of historical reborn destinations, and dead/ghost state owned
+by the map partition. Neither one moves a character to another map in a way that is safely saved.
+The current `characters` schema already stores `map_id`, `position_x`, and `position_y`, so saving a
+location needed no migration of its own.
 
-This slice implements **one database commit primitive only**. It does **not** move an active
-world resident, update `WorldSession.Map` or `Ownership`, publish visibility, send native 86,
-or enable action 94. Callers must never interpret database commit alone as an authorized
-map transfer or resurrection. The native 5517 client is the packet authority; no new
-protocol semantics are asserted here.
+This document describes one database write: a compare-and-swap (CAS) of a character's saved
+location. The write alone does not move a character in the live world, update `WorldSession.Map` or
+`Ownership`, publish visibility, send packet 86, or enable action 94. A successful commit by itself
+never authorizes a map transfer or a revival. The 5517 client defines the packets, and nothing here
+adds new protocol behavior.
 
-## Commit contract
+## The location CAS
 
-`CharacterLocationChange` carries the authenticated account ID, valid player entity ID,
-previous persisted location, and a distinct requested destination. It is deliberately
-**not** an authorization token. `ICharacterLocationWriteStore.TryCommitAsync` issues a single
-parameterized atomic UPDATE matching **all** of `account_id`, `character_id`, old map,
-old X, old Y and expected `location_revision`, atomically changing the three location
-columns and incrementing the revision. The expected revision is mandatory.
+`CharacterLocationChange` carries the authenticated account ID, a valid player entity ID, the
+previously saved location, and a requested destination that differs from it. It is not an
+authorization token. `ICharacterLocationWriteStore.TryCommitAsync` runs one parameterized UPDATE
+that must match `account_id`, `character_id`, the old map, X and Y, and the expected
+`location_revision`. In one atomic step it changes the three location columns and increments the
+revision. The expected revision is required.
 
-- Exactly one row affected -> `Committed`.
-- Zero rows -> `Conflict`, including stale location, wrong account, or missing character;
-  never reveal which to a player.
-- Any database exception after dispatch -> **uncertain outcome**. Do not retry blindly;
-  halt the transfer and reconcile via a fresh authoritative read, closing the session if
-  reconciliation is not provably safe.
-- No-op updates and invalid revision expectations are rejected at the model boundary;
-  affected-row semantics are explicitly
-  configured, not left to connection-string defaults.
-- Only the pre-dispatch connection and setup phase observes external cancellation.
-  Once dispatched, canceling the caller does not establish that the UPDATE was undone.
-  The command has a bounded database timeout.
-- The store does no automatic retries, transactions spanning sockets, or inferred
-  cross-map state changes. The UPDATE is itself atomic on one MySQL row.
+- Exactly one row affected: `Committed`.
+- Zero rows: `Conflict`. This covers a stale location, a wrong account, and a missing character.
+  Never tell a player which one it was.
+- Any database exception after the command is sent: the outcome is uncertain. Do not retry blindly.
+  Stop the transfer and reconcile with a fresh read from the database, and close the session if
+  reconciliation cannot be shown to be safe.
+- No-op updates and invalid expected revisions are rejected when the change is constructed. The
+  store sets affected-row counting itself rather than relying on connection-string defaults.
+- The caller's cancellation is observed only while connecting and setting up, before the command is
+  sent. Once it is sent, canceling the caller does not mean the UPDATE was undone. The command has a
+  15-second database timeout.
+- The store never retries, never holds a transaction open across sockets, and never infers other
+  cross-map state changes. The UPDATE is atomic on a single MySQL row.
 
-**Historical ABA limitation (#152–#157):** coordinates alone cannot detect A → B → A.
-Slice #158 adds revision-qualified CAS to close stale coordinate replay for this writer.
-This does not authorize new world ownership or resolve uncertain writes: the transfer
-coordinator still requires a generation-fenced single-writer protocol.
+Coordinates alone cannot detect a move from A to B and back to A (the ABA problem). The revision
+check described under [Location revision](#location-revision) closes that gap for this writer, so a
+stale request cannot replay old coordinates. It does not grant world ownership or resolve uncertain
+writes. The transfer coordinator still needs a protocol that allows one writer at a time and fences
+out older generations.
 
-## Post-#152: bounded location observation (#156)
+## Location observation
 
-The opt-in, dedicated location-writer credential also exposes an **identity-bound location
-observation** through `ICharacterLocationObservationStore.ObserveAsync(accountId, characterId)`.
-It issues one bounded, parameterized read of only `map_id`, `position_x`, `position_y`
-and (since #158) `location_revision`, restricted by both `account_id` and `character_id`,
-returning null for either missing or
-foreign identities. Invalid player/account identities are rejected. The read honors caller
-cancellation; failures propagate and are never rewritten as an absent character. The writer
-and observer share one registered service/credential, and the GameServer's default read-only
-identity receives no new grants. There are no SQL migrations or network changes.
+The same opt-in location-writer credential can also read a character's saved location through
+`ICharacterLocationObservationStore.ObserveAsync(accountId, characterId)`. It runs one parameterized
+single-row read of `map_id`, `position_x`, `position_y` and `location_revision`, filtered by both
+`account_id` and `character_id`. It returns null when the character does not exist or belongs to
+another account. Invalid player or account IDs are rejected. The read honors the caller's
+cancellation. Failures are passed to the caller and are never reported as a missing character. The
+writer and the observer share one registered service and credential, and the GameServer's default
+read-only identity gets no new grants. The observation added no SQL migrations or network changes.
 
-**Observation is not reconciliation authority.** A matching destination could predate the
-CAS, arise from a different operation, or be observed while a previously dispatched update
-is still in flight. Even a matching expected location cannot prove the uncertain update was
-rolled back. Coordinates alone are still insufficient. Since #158, revision-qualified writes prevent
-ABA for this dedicated CAS, but a future coordinator must enforce single-writer ownership,
-prevent late commits from outrunning observations, and treat unmatched evidence as unresolved.
-On an uncertain write, keep the affected session fenced/disconnected; never blindly retry,
-release the owner into another map, or send a 5517 transition acknowledgement based on an
-observation alone.
+**An observation cannot settle an uncertain write.** A matching destination could predate the CAS,
+come from a different operation, or be read while an UPDATE sent earlier is still in flight. A
+location that matches the expected one does not prove that the uncertain update was rolled back
+either. Coordinates alone are still not enough. The revision check prevents ABA for this CAS, but a
+future coordinator must still allow only one writer, keep a late commit from landing after an
+observation, and treat anything that does not match as unresolved. After an uncertain write, keep
+the affected session fenced off or disconnected. Never retry blindly, release the owner into another
+map, or send a 5517 transition acknowledgement based on an observation alone.
 
-## World-side persisted-location preflight (#157)
+## Portal preflight against the saved location
 
-The internal `WorldPortalPersistedLocationPreflight` composes a generation-bound,
-reversible native portal reservation with one identity-scoped observation. The caller's
-trusted authenticated profile must match the world ownership token before any work;
-observations only occur after the source FIFO barrier has fenced movement. A persisted
-source map mismatch, absent row, canceled read, failed read or revoked reservation refunds
-the destination capacity; database errors propagate. The result keeps the observed
-persisted expectation distinct from the live source snapshot. It is not yet connected
-to live ingress, and it never calls `TryCommitAsync` or changes a character's map.
+The internal `WorldPortalPersistedLocationPreflight` combines a portal reservation with one
+observation of the character's saved location. The reservation is tied to the session generation and
+can be undone. Before doing any work, the preflight checks that the caller's trusted, authenticated
+profile matches the world ownership token. It reads the saved location only after the source
+partition's FIFO barrier has stopped further movement. If the saved source map does not match, the
+row is missing, the read is canceled or fails, or the reservation is revoked, the destination
+capacity is given back. Database errors are passed to the caller. The result keeps the saved
+location it observed separate from the live snapshot of the source. The preflight is not connected
+to live client traffic yet. It never calls `TryCommitAsync` or changes a character's map.
 
-**Uncertainty remains unresolved:** no observed coordinate tuple eliminates ABA or proves
-that an already-dispatched write cannot complete later. Preparing a result cannot authorize
-CAS dispatch, world ownership cutover, or a 5517 packet until a true transfer coordinator
-has a generation-bound single-writer protocol and a durable monotonic outcome boundary.
+The uncertainty is still unresolved. No observed set of coordinates rules out ABA or proves that a
+write already sent cannot complete later. A preflight result does not authorize sending the CAS,
+switching world ownership, or sending a 5517 packet. That needs a real transfer coordinator with a
+one-writer protocol tied to the session generation, and a durable, monotonic record of each outcome.
 
-## Monotonic location CAS revision (#158)
+## Location revision
 
-Game schema v11 introduces a nonnegative signed `BIGINT location_revision` on each character,
-initially zero for existing records. **Every** successful dedicated location-writer CAS now
-matches account ID, character ID, old coordinates **and** expected revision, then atomically
-changes the three coordinates and advances revision by one. A stale proposal cannot replay
-after A → B → A because its old revision no longer matches. The application rejects
-`long.MaxValue` as an expected revision with `ArgumentOutOfRangeException`, so it
-cannot overflow. The dedicated principal needs column-
-scoped `SELECT` and `UPDATE` on `location_revision` in addition to its existing grants.
+Game schema v11 adds a nonnegative signed `BIGINT location_revision` to each character, starting at
+zero for existing rows. Every successful CAS by the dedicated location writer matches the account
+ID, character ID, old coordinates, and expected revision, then changes the three coordinates and
+adds one to the revision in the same atomic step. A stale request cannot replay after a move from A
+to B and back to A, because its old revision no longer matches. The application rejects
+`long.MaxValue` as an expected revision with `ArgumentOutOfRangeException`, so the revision cannot
+overflow. The dedicated principal needs column-scoped `SELECT` and `UPDATE` on `location_revision`
+in addition to its existing grants.
 
-The identity-bound observation returns a `PersistedCharacterLocation` containing the
-coordinate, revision, and (since #160) last successful operation ID. Internal portal
-preparation retains this immutable result without authorizing commit.
-An observation still cannot resolve an in-flight commit or serve as ownership authorization.
-No hot migration: stop all writers, back up, update the schema, update restricted grants,
-then deploy the v12 GameServer. The ordinary runtime identity remains read-only.
+The observation returns a `PersistedCharacterLocation` with the coordinates, the revision, and the
+ID of the last successful operation. Internal portal preparation keeps this immutable result but
+does not treat it as permission to commit. An observation still cannot settle a commit that is in
+flight or prove ownership. The migration cannot run while servers are live: stop all writers, back
+up, update the schema, update the restricted grants, then deploy the v11 GameServer. The ordinary
+runtime identity stays read-only.
 
-**Remaining gap:** versions prevent ABA only for writers using this guarded CAS. Other
-administrative/direct SQL writes must follow an explicit revision-advance policy. An
-uncertain dispatched write may still finish after a later observation; a revision by
-itself is not a durable idempotency/commit receipt or a cross-map transaction. Do not
-retry unknown outcomes or enable map handoff until the coordinator handles these cases.
+Revisions prevent ABA only for writers that use this CAS. Administrative or direct SQL writes must
+follow a defined policy for advancing the revision. A write whose outcome is uncertain may still
+finish after a later observation. A revision on its own is not a durable commit receipt, does not
+make retries safe, and is not a cross-map transaction. Do not retry unknown outcomes or enable map
+handoff until the coordinator handles these cases.
 
-## Durable operation evidence (#160)
+## Operation marker
 
-Game schema v12 adds nullable `last_location_operation_id BINARY(16)` to each character.
-The dedicated CAS requires a nonempty server-generated operation UUID, which is written
-atomically with the new coordinates and next monotonic revision. Its binary form is the
-16-byte big-endian UUID representation, matching `MySqlGuidFormat.Binary16`. The restricted
-writer encodes and decodes bytes explicitly, regardless of its caller's GUID settings.
-The location observation returns that UUID alongside the coordinates and revision. An exact match of UUID,
-`expected_revision + 1`, and destination is **positive evidence** that this operation
-committed. A different marker, absence of a marker, failed read, or unchanged revision
-must **never** be interpreted as evidence that the uncertain operation will not commit
-later. No blind retries, operation-ID reuse, or overlapping generation writers are allowed.
+Game schema v12 adds a nullable `last_location_operation_id BINARY(16)` to each character. The CAS
+requires a nonempty operation UUID generated by the server, written in the same atomic step as the
+new coordinates and the next revision. It is stored in the 16-byte big-endian UUID form, matching
+`MySqlGuidFormat.Binary16`. The restricted writer converts the bytes itself, whatever GUID settings
+its caller's connection uses. The observation returns the UUID with the coordinates and revision. If
+the UUID, `expected_revision + 1`, and the destination all match, the operation committed. A
+different marker, no marker, a failed read, or an unchanged revision must never be taken to mean
+that the uncertain operation will not commit later. Blind retries, reusing an operation ID, and
+overlapping writers from different generations are not allowed.
 
-This is not yet an operation journal, distributed transaction, or durable single-writer
-lease. The marker describes only the **last** successful dedicated CAS and can be replaced
-by later writes. A future coordinator must fence new writes for a character while any
-outcome remains uncertain and must handle process crashes and dispatch races before
-restoring ownership, continuing gameplay, or acknowledging a native transfer. The writer
-still does not run during world transfer, and native map transfers remain disabled.
+The marker is not an operation log, a distributed transaction, or a durable single-writer lease. It
+records only the last successful CAS, and later writes replace it. A future coordinator must block
+new writes for a character while any outcome is uncertain. It must also handle process crashes and
+races between commands already sent before it restores ownership, resumes gameplay, or acknowledges
+a transfer to the 5517 client. The writer still does not run during world transfer, and map
+transfers for clients remain disabled.
 
-## Durable per-character writer generations (#163)
+## Writer token
 
-Game v13 adds a nullable `location_writer_token BINARY(16)`. A dedicated, restricted
-writer rotates it with one InnoDB row UPDATE before its first CAS. Competing CAS and
-rotations serialize on the same row; an older command that reaches that row after
-rotation cannot satisfy the current token predicate. The acquirer reads coordinates,
-revision and operation marker after rotation and returns authority only if the row
-still carries its exact token. Every subsequent CAS requires that token and every
-positive commit observation checks it; returning coordinates alone is insufficient.
+Game v13 adds a nullable `location_writer_token BINARY(16)`. Before its first CAS, the restricted
+location writer replaces the token with one InnoDB row UPDATE. Competing CAS and token updates
+serialize on the same row, so an older command that reaches the row after the token changed no
+longer matches it. After replacing the token, the writer reads the coordinates, revision, and
+operation marker, and takes write permission only if the row still holds its own token. Every later
+CAS requires that token, and every check that a commit happened also checks it. Matching coordinates
+alone are not enough.
 
-A concurrent rotation may revoke an earlier returned authority at any time. This
-is a **per-character database write fence**, not a realm-level distributed lock,
-writer credential, reconnect gate or transaction across MySQL and in-memory world
-state. A future live-session admission must rotate or otherwise prove the fence
-**before** accepting a character profile and must reread its authoritative location.
-The internal sessionless coordinator rotates its fence only after a runtime seal and
-terminates the world if the post-rotation persisted source changed since preflight.
-Do not enable action-85 ingress or claim crash-safe world ownership based on this alone.
+Another writer can replace the token at any time, which revokes the earlier permission. The token
+fences database writes for one character. It is not a realm-wide distributed lock, a writer
+credential, a reconnect check, or a transaction that spans MySQL and in-memory world state. When
+live sessions start using it, session admission must replace the token, or otherwise prove it holds
+it, before accepting a character profile, and must read the saved location again. The internal
+coordinator that runs without a session replaces its token only after the runtime is sealed, and
+stops the world if the saved source location changed between the preflight and the token change.
+This alone is not enough to accept action 85 from clients or to claim world ownership that survives
+a crash.
 
-## Credential boundary
+## Database credential
 
-The existing `AddGamePersistence()` / ordinary runtime identity is **read-only** and must
-remain unchanged. The opt-in `AddGameCharacterLocationWrite()` registration requires an
-entirely separate MySQL principal provisioned by an operator. Do not reuse the character
-creation principal (INSERT only), runtime reader, or administrative schema owner.
+The ordinary runtime identity used by `AddGamePersistence()` is read-only and must stay that way.
+The opt-in `AddGameCharacterLocationWrite()` registration needs a separate MySQL principal that an
+operator creates. Do not reuse the character creation principal (INSERT only), the runtime reader,
+or the administrative schema owner.
 
-Provision the dedicated identity using the deployment's approved secret-management process.
-After its account exists, the minimum table permission is column-scoped. The CAS predicate reads all five location and identity columns. MySQL 8.4
-requires `SELECT` on every referenced predicate column, including the location
-columns being updated, in addition to column-scoped `UPDATE`:
+Create the identity through the deployment's approved secret-management process. Once its account
+exists, grant it column-scoped table permissions only. The CAS WHERE clause reads all five location
+and identity columns, and MySQL 8.4 requires `SELECT` on every column it references, including the
+location columns being updated, in addition to column-scoped `UPDATE`:
 
 ```sql
 GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`),
@@ -162,39 +161,41 @@ ON `<game_database>`.`characters`
 TO '<location_writer>'@'<restricted_host>';
 ```
 
-The exact principal/database names and host pattern are operator-specific. Do not paste
-placeholders into an actual migration, elevate the default GameServer principal, or embed
-production credentials in the repository. The database schema, grants, and connectivity
-for this new principal require an operations review before runtime registration.
+The principal and database names and the host pattern depend on the deployment. Do not paste the
+placeholders into a real migration, give the default GameServer principal more privileges, or commit
+production credentials to the repository. Have operations review the schema, grants, and
+connectivity for this principal before registering it in the runtime.
 
-## Regression gates
+## Tests
 
-- One committed transition updates only the expected account/character location.
-- A stale expected location or foreign account cannot overwrite a committed position.
-- Competing writers for one old triple yield exactly one `Committed` and one `Conflict`.
-- The restricted location-writer principal successfully executes the CAS; it cannot update
-  other character columns or read unrelated fields.
-- The existing read-only runtime principal cannot issue the update.
-- Pre-dispatch cancellation never updates a character.
-- The registration is explicit and does not grant writes to default persistence services.
-- Full EF model verification passes with the reviewed Game schema v12 migration.
+- A committed change updates only the location of the expected account's character.
+- A stale expected location or another account cannot overwrite a committed position.
+- Two writers competing from the same old map, X and Y get exactly one `Committed` and one
+  `Conflict`.
+- The restricted location-writer principal can run the CAS. It cannot update other character columns
+  or read unrelated fields.
+- The existing read-only runtime principal cannot run the update.
+- Cancellation before the command is sent never updates a character.
+- The registration is opt-in and gives the default persistence services no write access.
+- The full EF model check passes with the Game schema migrations through v13.
 
-## Before cross-map transfer is operational
+## Before cross-map transfer can work
 
-1. A transfer coordinator must hold the authoritative session lease, ensure no active
-   commands can commit during the cutover, reserve destination capacity, and prove the
-   destination is valid and available.
-2. It must define safe order between the durable location write and in-memory handoff.
-   Both the old and new partition ownerships, failure paths, and restart/reconnect
-   behavior must be reviewed; **do not** attempt a simple remove-then-admit sequence.
-3. World residency and `WorldSession`/visibility must stop treating `Map`/`Ownership`
-   as lifetime-immutable once transfers are enabled. Keep generation fencing across moves.
-4. A canceled, congested, or dead network peer must not strand reserved population or
-   leave a character visible twice. The caller must reconcile uncertain database writes.
-5. Packet `10010/86`, map-enter sequencing, and existing-character hydration on reconnect
-   must follow the verified 5517 client, with two-client integration tests.
-6. HP/mana/stamina restoration, Heaven Blessing, Soul Shackle, and action `10010/94`
-   remain a separate authoritative revival lifecycle; they are **not** implied by this store.
+1. A transfer coordinator must hold the session lease, make sure no active commands can commit
+   during the switch, reserve capacity at the destination, and prove the destination is valid and
+   available.
+2. It must define a safe order for the saved location write and the in-memory handoff. Review
+   ownership by both the old and new partitions, the failure paths, and restart and reconnect
+   behavior. A simple remove-then-admit sequence is not safe.
+3. Once transfers are enabled, world residency, `WorldSession` and visibility must stop assuming
+   that `Map` and `Ownership` never change for the life of a session. Keep generation fencing across
+   moves.
+4. A canceled, congested, or dead network peer must not leave reserved capacity stuck or a character
+   visible twice. The caller must reconcile uncertain database writes.
+5. Packet `10010/86`, the map-enter sequence, and loading an existing character on reconnect must
+   match the 5517 client, with integration tests that use two clients.
+6. HP, mana and stamina restoration, Heaven Blessing, Soul Shackle, and action `10010/94` belong to
+   revival, which has its own lifecycle and is separate work. This store does not provide them.
 
-The Game schema v12 migration only adds the last-operation marker; no new SQL tables,
-client packet formats, or live gameplay paths are introduced.
+The Game schema v12 and v13 migrations add only the last-operation marker and the writer token.
+They add no SQL tables, client packet formats, or live gameplay paths.

@@ -1,116 +1,115 @@
-# Historical source reconciliation (5095 evidence versus 5517 authority)
+# Historical source reconciliation (5095 sources and the 5517 server)
 
-This is the source and migration contract for evaluating the separately supplied 5095-era
-`ZFSERVER.zip`, `zfServerRE.zip`, and derived
-`OpenConquer-5095-Server-Evidence-Analysis.zip` against the maintained 5517 server.
-The historical archives are **research input**, not the runtime database, an approved data release,
-or proof of 5517 retail server behavior. No historical accounts, credentials, characters, or logs
-belong in an import pipeline for the modern server.
+This document sets the rules for comparing three separately supplied 5095-era archives with the 5517
+server: `ZFSERVER.zip`, `zfServerRE.zip`, and the derived
+`OpenConquer-5095-Server-Evidence-Analysis.zip`. The archives are research input only. They are not
+the runtime database or an approved data release, and they do not show how the 5517 retail server
+behaves. Historical accounts, credentials, characters, and logs never go into an import pipeline for
+this server.
 
-## Current authoritative boundaries
+## Current sources of truth
 
-| Area | Current implementation | Historical evidence and reconciliation rule |
+| Area | Current implementation | Historical sources and how to reconcile them |
 | --- | --- | --- |
-| World map identities | `content/maps/map-definitions.json` contains 282 `mapId`, `mapDataId`, 64-bit flags records | 5095 `GameMap.dat` lists 169 IDs, `cq_map` has 240 rows, and FoxConquer 5517's `GameMap.dat` has 262 mappings. These sources do not form one interchangeable catalog. Resolve each map identity, terrain binding, and flags separately. |
-| Base terrain | 185 canonical `content/maps/terrains/<MapDataId>.ocbt` objects, imported from the 5517 client with per-row checksum checks | 155 archived 5095 `map/map/*.DMap` grids validate at the row level. Use them for cross-version evidence; never overwrite verified 5517 terrain with 5095 bytes. |
-| Composed static collision | 185 `.ocmc` artifacts, SHA-256 bound to their matching `.ocbt` file | The archived `.Part` scenery files contain readable collision cells. They inform attachment semantics; they must not be pasted into the 5517 collision catalog without matching source and composition verification. |
-| Item type definitions | `content/items/item-types.json`, 14,981 IDs, hash-pinned from the 5517 client `itemtype.dat` | Historical `cq_itemtype` is an older definition source. A same-numbered type need not have the same stats, level, encoding, or compatibility fields. Diff fields and provenance; do not add a second implicit runtime source. |
-| Owned items | Modern `openconquer_game.items` rows, owned by `characters`; validated against `ItemTypeCatalog` | Legacy item instances and item definitions are different data categories. The existing database schema stores durable owned instances, not a duplicate 5517 item-type table. |
-| Shops | No active canonical shop catalog or shop persistence contract yet | 5095 `Shop.dat` lists 34 shops/1,370 slots, while `cq_goods` has 1,587 rows for 33 shop IDs. Their disagreements require exact binary-version and call-site attribution before importing offerings. |
-| Character starting attributes | Six selected families, configured immutable starting-state allotments | Legacy `cq_point_allot` has five families across 120 levels; its Ninja level-one row differs, and Monk is absent. Version-specific 5517 data remains authoritative. |
+| World map identities | `content/maps/map-definitions.json` has 282 records of `mapId`, `mapDataId`, and 64-bit flags | 5095 `GameMap.dat` lists 169 IDs, `cq_map` has 240 rows, and FoxConquer 5517's `GameMap.dat` has 262 mappings. These sources cannot be swapped for one another. Resolve each map identity, terrain binding, and flags value on its own. |
+| Base terrain | 185 `content/maps/terrains/<MapDataId>.ocbt` files, imported from the 5517 client with per-row checksum checks | 155 archived 5095 `map/map/*.DMap` grids pass the row-level checks. Use them to compare versions. Never overwrite checked 5517 terrain with 5095 bytes. |
+| Composed static collision | 185 `.ocmc` files, each tied by SHA-256 to its matching `.ocbt` file | The archived `.Part` scenery files contain readable collision cells. They help explain how scenery attaches to a map. Do not copy them into the 5517 collision catalog unless the source matches and the composed result has been checked. |
+| Item type definitions | `content/items/item-types.json`, 14,981 IDs, hash-pinned from the 5517 client `itemtype.dat` | Historical `cq_itemtype` is an older source of definitions. A type with the same number may have different stats, level, encoding, or compatibility fields. Compare fields and provenance. Do not add a second, implicit runtime source. |
+| Owned items | `openconquer_game.items` rows, owned by `characters` and validated against `ItemTypeCatalog` | Legacy item instances and item definitions are different kinds of data. The database schema stores owned item instances. It has no copy of the 5517 item-type table. |
+| Shops | No shop catalog or shop persistence yet | 5095 `Shop.dat` lists 34 shops/1,370 slots, while `cq_goods` has 1,587 rows for 33 shop IDs. Before importing any offerings, trace each disagreement to a specific binary version and call site. |
+| Character starting attributes | Six selected families, with immutable starting allotments set in configuration | Legacy `cq_point_allot` has five families across 120 levels. Its Ninja level-one row differs, and Monk is missing. The 5517 data for this version takes precedence. |
 
 See [Content](README.md), [Base terrain](base-terrain-format.md),
 [Collision](collision-format.md), and [Persistence](../architecture/persistence.md).
 
 ## Map provenance and collision rules
 
-A `mapId` is a server world location; `mapDataId` identifies the client terrain;
-multiple maps may reference the same terrain. These IDs must **never** be inferred from
-legacy filenames or assumed equal. `MapDefinition` retains the full 64-bit flag value.
-The existing import manifest identifies seven omitted maps with unresolved terrain and
-48 zero-flag entries without source flag evidence: zero in that case means *unknown
-source*, not proven retail flags. Do not silently fill these fields with historical values.
+A `mapId` is a server world location. A `mapDataId` identifies the client terrain, and several maps
+can use the same terrain. Never infer these IDs from legacy file names, and never assume they are
+equal. `MapDefinition` keeps the full 64-bit flag value. The import manifest lists seven maps that
+were omitted because their terrain could not be resolved, and 48 entries with zero flags because no
+source value was found. In those entries, zero means the source is unknown. It does not mean the
+retail flags are zero. Do not fill these fields with historical values.
 
-`OpenConquer.GameData.Tool` already validates `GameMap.dat`, source DMap grids,
-row checksums, scenery object references, attachment budgets, and the generated
-`.ocbt`/`.ocmc` formats. At runtime, the map-content loader verifies every required
-artifact, checksum, map identity, terrain fingerprint, and collision composition.
-These are integrity and provenance boundaries, not claims that the map is fully simulated.
+`OpenConquer.GameData.Tool` validates `GameMap.dat`, the source DMap grids, row checksums, scenery
+object references, attachment budgets, and the generated `.ocbt`/`.ocmc` formats. At runtime, the
+map-content loader checks every required file, checksum, map identity, terrain fingerprint, and
+collision composition. These checks cover file integrity and where the data came from. They do not
+mean the map is fully simulated.
 
-The 5095 DMap audit covers 155 files and 58,258,484 terrain cells. Its observed
-raw passability values were only 0 and 1. Earlier 5517 spot checks, including the
-existing released collision tests, interpret effective `0` as statically passable.
-This slice adds a *conservative static* predicate over the **composed** collision:
-`PassabilityFlag == 0` is accepted; any nonzero or out-of-bounds value is rejected.
-It does not decide movement permission, dynamic entity occupancy, portals, map flags,
-elevation transitions, or whether a particular spawn was intended by retail.
+The 5095 DMap audit covers 155 files and 58,258,484 terrain cells. The only raw passability values
+it found were 0 and 1. Earlier 5517 spot checks, including the released collision tests, treat an
+effective value of `0` as statically passable. The composed collision provides a conservative static
+passability check: a cell with `PassabilityFlag == 0` passes, and any nonzero or out-of-bounds value
+fails. The check says nothing about movement permission, occupancy by other entities, portals, map
+flags, elevation changes, or whether retail intended a given spawn point.
 
-Map `1010` is BirthVillage in `cq_map`; the 5095 `newbie.DMap` is 132×132.
-The candidate example coordinate `(61,101)` is blocked in that raw map and in
-sampled 5517 references. The shipped 5517 composition is the actual authority:
-tests must fail if its effective passability unexpectedly contradicts this evidence.
-No default spawn is installed by this change.
+Map `1010` is BirthVillage in `cq_map`, and the 5095 `newbie.DMap` is 132x132. The proposed example
+coordinate `(61,101)` is blocked in that raw map and in sampled 5517 references. The shipped 5517
+composed collision is what counts, and tests fail if its effective passability ever disagrees with
+these sources. No default spawn point is installed.
 
-Some historical map identifiers point to different assets across versions
-(e.g. 1039, 1068, 1766); the older archive also lacks nine referenced Kunlun
-files. Failed mappings must be quarantined rather than assigned guessed terrain.
+Some historical map IDs point to different assets in different versions (for example 1039, 1068, and
+1766), and the older archive is missing nine Kunlun files that it references. Set aside any mapping
+that fails. Do not assign it a guessed terrain.
 
 ## Modern database mapping rules
 
-Use the historical MyISAM `.frm/.MYD/.MYI` files as **offline source snapshots**.
-Do not attach them to MySQL 8.4 runtime storage, translate DDL automatically into
-production migrations, or treat legacy auto-increment IDs as the new domain identity.
-Future imports should have typed stages with preserved provenance and explicit mappings:
+Treat the historical MyISAM `.frm/.MYD/.MYI` files as offline source snapshots. Do not attach them
+to the MySQL 8.4 runtime storage, convert their DDL into production migrations automatically, or
+reuse legacy auto-increment IDs as domain identities. Future imports should run in typed stages that
+keep provenance and spell out each mapping:
 
-1. **Read and fingerprint:** Pin archive hash, executable/module hash when relevant,
-   source table/file, schema interpretation, source record ID, and original bytes.
-   Reject duplicate source IDs and malformed fields rather than silently trimming them.
-2. **Normalize to domain types:** Define `MapId`, `MapDataId`, item-type ID,
-   NPC/monster identities, and foreign relationships explicitly. Preserve unknown
-   fields in staging/evidence, not arbitrary live columns. Validate encodings and
-   numeric ranges before conversion.
-3. **Cross-check 5517:** Prefer the native 5517 client and canonical versioned
-   content where applicable. Any 5095-only mechanic remains labeled provisional.
-   Version differences require deliberate decisions and tests, not last-write-wins.
-4. **Model durable configuration separately:** Future normalized tables for shops,
-   NPCs, quest/action definitions, monster definitions and spawns, and portal links
-   must have explicit unique keys, relationships, transaction boundaries and
-   read models. Add an EF migration only after those contracts are established.
-5. **Publish atomically:** Stage validated records in isolated import space,
-   report unresolved references, compare deterministic counts and digests, and
-   promote an approved immutable revision. Startup must never read partially
-   imported game content. Do not run historical executables to build a catalog.
+1. **Read and fingerprint:** Record the archive hash, the executable or module hash where relevant,
+   the source table or file, the schema interpretation, the source record ID, and the original
+   bytes. Reject duplicate source IDs and malformed fields instead of trimming them.
+2. **Normalize to domain types:** Define `MapId`, `MapDataId`, the item-type ID, NPC and monster
+   identities, and foreign-key relationships. Keep unknown fields in staging data, not in ad hoc
+   live columns. Validate encodings and numeric ranges before converting.
+3. **Cross-check 5517:** Where they apply, the 5517 client and the versioned content in this
+   repository take precedence. Any mechanic found only in 5095 stays labeled provisional. Each
+   version difference needs a recorded decision and a test. Do not let the last import win.
+4. **Model durable configuration separately:** Future normalized tables for shops, NPCs, quest and
+   action definitions, monster definitions and spawns, and portal links need defined unique keys,
+   relationships, transaction scopes, and read models. Add an EF migration only after that design is
+   settled.
+5. **Publish atomically:** Stage validated records in a separate import area, report unresolved
+   references, compare counts and digests (which must be reproducible), and then promote an
+   approved, immutable revision. Startup must never read partly imported game content. Do not run
+   historical executables to build a catalog.
 
-The current Game database owns **instances** (`items`, `characters`, skills,
-social relationships, syndicates) and uses distinct permissions for reads and
-character creation. The JSON item-type catalog owns immutable **definitions**.
-`cq_goods` represents historical shop **offerings**, not character inventories;
-`cq_itemtype` represents historical item **definitions**, not the modern `items`
-rows. A future design may deliberately move a definition catalog into the modern
-Game database, but must replace—not duplicate—the existing runtime authority and
-retain deterministic versioned release validation.
+The Game database holds instances (`items`, `characters`, skills, social relationships, syndicates)
+and uses separate permissions for reads and for character creation. The JSON item-type catalog holds
+immutable definitions. `cq_goods` holds historical shop offerings, which are not character
+inventories. `cq_itemtype` holds historical item definitions, which do not correspond to the `items`
+rows. A future design may move a definition catalog into the Game database. If it does, the database
+must replace the current runtime source instead of duplicating it, and releases must still be
+versioned and validated with reproducible output.
 
-The 5095 `cq_action` export has 68,017 physical records, `cq_task` 8,336,
-`cq_generator` 1,846, `cq_portal` 274, and `cq_passway` 286.
-These counts do not prove active 5517 features. The action graph includes 93
-nonzero links to absent action IDs; NPC/quest import must validate branch closure,
-operation signatures, graph execution limits, and data dependencies before running
-any action. Raw action parameters are never executable code or trusted SQL.
+The 5095 `cq_action` export has 68,017 physical records, `cq_task` has 8,336, `cq_generator` 1,846,
+`cq_portal` 274, and `cq_passway` 286. These counts do not show which features are active in 5517.
+The action graph has 93 nonzero links to action IDs that do not exist. Before any action runs, an
+NPC or quest import must validate branch closure (every branch target exists), operation signatures,
+graph execution limits, and data dependencies. Raw action parameters are never treated as executable
+code or trusted SQL.
 
 ## Targeted binary research before larger imports
 
-Use Codex with the **exact module hashes** in the evidence package to answer
-specific unknowns. The reverse-engineering `MsgServer.exe` matches the archived
-backup executable, not the active binary; `NpcServer.exe` also differs. Do not
-attribute one build's code to another without hash/version confirmation.
+Answer specific unknowns by analyzing the binaries whose module hashes are listed in the analysis
+archive. The `MsgServer.exe` used for reverse engineering matches the archived backup executable,
+not the active binary, and `NpcServer.exe` also differs. Do not attribute code from one build to
+another without confirming the hash or version.
 
-Priority questions: (1) how 5095 code combines base terrain, scenery and portal
-passability; (2) which shop source (`Shop.dat` or `cq_goods`) wins at runtime;
-(3) how `cq_action` type codes and `cq_task` branches execute, including absent
-links; (4) how spawn-generator records map to persistent NPC/monster definitions.
-Each finding should include module hash, function address/call chain, affected
-source records, version limits, and a minimal deterministic regression fixture.
-5095 login protocol analysis is intentionally out of scope.
+Open questions, in priority order:
 
-Nothing in this evidence or this slice enables character creation, changes the
-live item-type JSON, imports game-data rows, or migrates the Game database.
+1. How 5095 code combines base terrain, scenery, and portal passability.
+2. Which shop source (`Shop.dat` or `cq_goods`) wins at runtime.
+3. How `cq_action` type codes and `cq_task` branches execute, including absent links.
+4. How spawn-generator records map to persistent NPC and monster definitions.
+
+Each finding should include the module hash, the function address or call chain, the affected source
+records, version limits, and a minimal regression fixture that gives the same result on every run.
+Analysis of the 5095 login protocol is out of scope.
+
+This research does not enable character creation, change the live item-type JSON, import game-data
+rows, or migrate the Game database.

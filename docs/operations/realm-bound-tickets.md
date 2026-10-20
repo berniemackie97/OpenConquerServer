@@ -1,19 +1,19 @@
 # Accounts v4: realm-bound login tickets
 
-This migration is an **incompatible security cutover**, not a live/rolling deployment. It adds a required `game_login_tickets.realm_id` and invalidates outstanding short-lived tickets from Accounts v3; no ticket is ever assigned an inferred realm identity. Old AccountServer and GameServer binaries cannot operate against schema v4.
+This migration is a breaking security change. It cannot be applied as a live or rolling deployment. It adds a required `game_login_tickets.realm_id` column and invalidates the outstanding short-lived tickets from Accounts v3. No existing ticket is given a guessed realm. Old AccountServer and GameServer binaries cannot run against schema v4.
 
-## Operator preflight
+## Before you start
 
-1. Merge only after CI's locked restore, formatting, Release compilation, both EF model checks, GameServer/AccountServer unit tests, MySQL Testcontainers integration and migration tests succeed.
-2. Stop the AccountServer and **every** GameServer using the shared Accounts database. Ensure all outstanding five-minute logins can safely be invalidated. Do not run this with active login traffic.
-3. Back up Accounts and confirm a restore path; MySQL DDL commits independently, so `database update` is not fully transactional.
-4. Verify that `openconquer_accounts.schema_compatibility` is `accounts / 3 / 20261013010000_AddRealmRegistry`, that `realms` has exactly the intended operator-provisioned registrations, and that this local Game database's `realm_binding` is `(1,1)`.
-5. For this workstation only: `realm_id=1`, native `LocalRealm`, GameServer `127.0.0.1:5816`, AccountServer `127.0.0.1:9958`. These are already operator-provisioned; **do not insert them again**. Client catalog IDs `local` and `local-realm` are unrelated to the stable numeric Realm ID.
-6. Preserve existing connection string and verification key User Secrets. Confirm `GameServer:RealmId=1` in Development. GameServer must have `SELECT, DELETE` on `game_login_tickets` and `SELECT` on schema compatibility and the Game database realm binding; AccountServer needs `SELECT, INSERT, DELETE` on tickets and `SELECT` on realm registry. The normal runtime users do not need schema DDL permissions.
+1. Deploy only a build that passed the full CI run: locked restore, formatting, Release compilation, both EF model checks, the GameServer and AccountServer unit tests, and the MySQL Testcontainers integration and migration tests.
+2. Stop the AccountServer and every GameServer that uses the shared Accounts database. Make sure it is safe to invalidate every outstanding login ticket (each is valid for five minutes). Do not run the migration while logins are in progress.
+3. Back up the Accounts database and confirm that you can restore it. MySQL commits each DDL statement on its own, so `database update` is not fully transactional.
+4. Check that `openconquer_accounts.schema_compatibility` is `accounts / 3 / 20261013010000_AddRealmRegistry`, that `realms` contains only the registrations you provisioned, and that the local Game database's `realm_binding` is `(1,1)`.
+5. On the local development workstation, the values are `realm_id=1`, protocol server name `LocalRealm`, GameServer `127.0.0.1:5816` and AccountServer `127.0.0.1:9958`. They are already provisioned, so do not insert them again. The client catalog IDs `local` and `local-realm` are unrelated to the permanent numeric realm ID.
+6. Keep the existing user secrets for connection strings and verification keys. Confirm that `GameServer:RealmId=1` is set in Development. The GameServer needs `SELECT, DELETE` on `game_login_tickets`, and `SELECT` on the schema compatibility table and the Game database realm binding. The AccountServer needs `SELECT, INSERT, DELETE` on tickets and `SELECT` on the realm registry. The normal runtime users do not need DDL permissions.
 
-## Apply the existing migration with EF Core
+## Apply the migration with EF Core
 
-Use the existing administrative **Accounts** connection string (not the Game database connection). From the repository root, with both servers stopped:
+Use the administrative connection string for the Accounts database, not the Game database. From the repository root, with both servers stopped, run:
 
 ```bash
 dotnet tool restore
@@ -26,7 +26,7 @@ dotnet tool run dotnet-ef -- database update \
   --connection "$ACCOUNTS_DB_ADMIN_CONNECTION"
 ```
 
-**Do not run this command with an unset connection variable**—that causes `Access denied for user ''@'localhost'`. Read your existing administrative credential from its approved local secret store; never paste it into chat or commit it. `dotnet user-secrets list --project src/OpenConquer.AccountServer` can inspect the application secret keys, but the normal AccountServer runtime identity may not have DDL privileges. Keep the admin credential separate. The `--connection` value is passed as a process argument; use this only on your trusted development machine.
+**Do not run this command with the connection variable unset.** MySQL then fails with `Access denied for user ''@'localhost'`. Load the administrative credential from its approved local secret store. Never paste it into chat or commit it. `dotnet user-secrets list --project src/OpenConquer.AccountServer` shows the application's secret keys, but the normal AccountServer runtime identity may not have DDL privileges, so keep the admin credential separate. The `--connection` value is passed as a process argument, so run this only on a trusted development machine.
 
 ## Verification
 
@@ -40,10 +40,16 @@ FROM openconquer_accounts.realms;
 SELECT binding_key, realm_id FROM openconquer_game.realm_binding;
 ```
 
-Expected: Accounts version **4**, migration `20261013050000_BindGameLoginTicketsToRealm`; `realm_id INT UNSIGNED NOT NULL` and `CK_game_login_tickets_realm_id`; zero old tickets immediately after migration; `LocalRealm` remains `(1, 'LocalRealm', '127.0.0.1', 5816, 1)` and Game binding `(1,1)`. Game schema remains v10.
+Expected results:
 
-If migration fails or DDL partially commits, **stop**. Inspect table structure, EF history and schema compatibility before any retry. Never fabricate a realm ID or manually advance migration history. Do not restart either server on a mismatched version.
+- Accounts version 4, with migration `20261013050000_BindGameLoginTicketsToRealm`.
+- The ticket table has `realm_id INT UNSIGNED NOT NULL` and the check constraint `CK_game_login_tickets_realm_id`.
+- No old tickets remain immediately after the migration.
+- `LocalRealm` is still `(1, 'LocalRealm', '127.0.0.1', 5816, 1)` and the Game binding is still `(1,1)`.
+- The Game schema stays at v10.
 
-## Security limits
+If the migration fails or its DDL commits only in part, stop. Inspect the table structure, the EF history and the schema compatibility row before any retry. Never make up a realm ID or advance the migration history by hand. Do not restart either server while the schema version does not match.
 
-Realm identity comes from the validated 1060 selection, not a client-supplied numeric ID. Tickets are bound in the Accounts transaction and redemption must verify the configured GameServer realm in the same row-lock-and-delete transaction. The pre-v4 ticket shape is not accepted. Successful 1055 redirects come from the selected realm's registration, and refused selections reply with the native availability codes; see [Realm operations](realms.md).
+## Security
+
+The realm comes from the validated server name in packet 1060. The client never supplies a numeric realm ID. A ticket is bound to its realm in the same Accounts transaction that issues it. On redemption, the GameServer checks the ticket against its configured realm in the same transaction that locks and deletes the ticket row. Tickets in the pre-v4 shape are not accepted. A successful 1055 redirect comes from the selected realm's registration, and a refused selection gets the 5517 availability codes; see [Realm operations](realms.md).

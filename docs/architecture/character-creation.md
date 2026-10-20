@@ -1,31 +1,29 @@
 # Character creation
 
-Character creation is split into independent protocol, application, persistence, and GameServer
-session responsibilities.
-
-The native packet layout and client transitions are documented in
+Character creation is split across the protocol, application, persistence, and GameServer session
+layers, each with its own job. The packet layout and client transitions are documented in
 [Character creation protocol](../protocol/character-creation.md).
 
-## Established boundaries
+## Layers
 
-The protocol layer decodes packet `1001` without granting authorization.
+The protocol layer decodes packet `1001`. Decoding it grants nothing.
 
-The application layer validates the character name and selections, resolves trusted starting state,
-and invokes creation persistence.
+The application layer validates the character name and selections, resolves the trusted starting
+state, and calls creation persistence.
 
-The persistence layer atomically inserts a fully resolved character and returns its generated
-identity or an authoritative uniqueness conflict.
+The persistence layer inserts a fully resolved character in one atomic step and returns its
+generated ID, or a uniqueness conflict reported by the database.
 
-The GameServer runtime must establish account ownership through its authenticated game connection.
-The character-creation runtime route is not yet enabled.
+The GameServer runtime must take account ownership from its authenticated game connection. The
+character-creation route in the runtime is not enabled yet.
 
 ## Starting attributes
 
-The client derives profession family arithmetically:
+The client computes the profession family from the profession code:
 
 `family = (profession % 1000) / 10`
 
-The six creatable professions are:
+The six professions a player can create are:
 
 | Code | Profession | Family |
 | ---: | ---------- | -----: |
@@ -36,26 +34,20 @@ The six creatable professions are:
 |   60 | Monk       |      6 |
 |  100 | Taoist     |     10 |
 
-Creation uses the profession family's level-one auto-allotment.
-
-The level-one attribute budget is ten points.
-
-The native base maximum-life formula is:
+A new character gets the level-one auto-allotment for its profession family. The level-one attribute
+budget is ten points. The client's base maximum-life formula is:
 
 `(strength + agility + spirit + vitality * 8) * 3`
 
-The required level-one allotments are established by the previous tested OpenConquerPublic
-implementation and its corrected auto-allot data.
-
-The native evidence establishes the client arithmetic and attribute budget. For Ninja and Monk, the
-corrected later auto-allot data remains the source used by the previous server implementation.
+The level-one allotments come from the earlier, tested OpenConquerPublic implementation and its
+corrected auto-allot data. The client research confirms the arithmetic and the attribute budget. For
+Ninja and Monk, the source is still the corrected later auto-allot data that the earlier server
+used.
 
 ## Starting-state content
 
-`CharacterCreationStartingState` is constructed from six validated level-one allotments and a
-trusted starting map and position.
-
-The constructor rejects:
+`CharacterCreationStartingState` is built from six validated level-one allotments and a trusted
+starting map and position. The constructor rejects:
 
 - Missing or invalid starting map identity.
 - Missing profession families.
@@ -63,36 +55,33 @@ The constructor rejects:
 - Unsupported profession families.
 - Attribute allocations that violate the level-one budget.
 
-Validated allotments are copied into an immutable lookup.
+The validated allotments are copied into an immutable lookup. Attributes, appearance, spawn
+position, and profession family sent by the client are never trusted.
 
-No client-provided attributes, appearance, spawn position, or profession-family identity are
-trusted.
+The optional `GameServer:CharacterCreation` configuration section supplies this immutable starting
+state. The default configuration shipped with the server does not include it. Without it, the world
+host starts normally for existing characters and character creation stays unavailable.
 
-An optional `GameServer:CharacterCreation` configuration section supplies this immutable starting
-state. It is deliberately absent from the distributed default configuration. When omitted, the
-existing-character world host starts normally and character creation stays unavailable.
+When the section is present, it is bound with unknown properties rejected and validated before the
+host is built. After the world maps are loaded, the world hosted service checks that the configured
+starting map exists and that the starting coordinates fall within its composed collision dimensions.
+If the check fails, the world is not published and no network traffic is accepted.
 
-When supplied, the section is bound with strict unknown-property rejection and validated before
-the host is built. Once the canonical world maps are loaded, the world hosted service checks that
-the configured starting map exists and the starting coordinates are within its composed collision
-dimensions. A failure prevents world publication and network ingress.
+Coordinates are zero-based. The check covers bounds only, not whether the tile is walkable, because
+the meaning of each raw terrain passability flag has not been confirmed. A starting location still
+has to be chosen and checked against trusted map data before creation is enabled.
 
-Coordinates are zero-based. The check establishes **bounds only**, not walkability: the meaning
-of every raw terrain passability flag has not been proven. A configured starting location must
-still be selected and confirmed against authoritative map data before enabling creation.
-
-The section does not itself enable the character-creation route, register creation credentials,
-or authorize character writes. It is an opt-in prerequisite for later runtime integration.
+The section is an opt-in prerequisite for the later runtime work. On its own it does not enable the
+character-creation route, register creation credentials, or allow character writes.
 
 See [Character creation starting-state operations](../operations/character-creation-starting-state.md).
 
 ## Appearance
 
-Native packet `1001` supplies the selected body.
+Packet `1001` carries the selected body. The four accepted bodies are `1003`, `1004`, `2001`, and
+`2002`.
 
-The four accepted bodies are `1003`, `1004`, `2001`, and `2002`.
-
-The initial face and hairstyle follow the previous OpenConquerPublic implementation:
+The initial face and hairstyle follow the earlier OpenConquerPublic implementation:
 
 - Male face identifier: `201`.
 - Female face identifier: `1`.
@@ -101,73 +90,62 @@ The initial face and hairstyle follow the previous OpenConquerPublic implementat
 - Hairstyle style component: `30` through `55`.
 - Hair composite: `color * 100 + style`.
 
-Cryptographic random-number generation supplies the hairstyle components.
+The hairstyle components come from a cryptographic random-number generator.
 
-These choices are explicitly server implementation policy. They are not independently established
-retail-server defaults.
+These choices are this server's own policy. They are not confirmed retail-server defaults.
 
 ## Application service
 
 `CharacterCreationService` accepts:
 
-- An authoritative account ID.
+- The authenticated account ID.
 - The requested character name.
 - The requested body.
 - The requested profession.
 
-It does not accept client-reported session identity, MAC address, starting attributes, appearance,
-or location.
+It does not accept a session identity or MAC address reported by the client, or any starting
+attributes, appearance, or location.
 
 The service:
 
 1. Rejects an invalid authenticated account ID.
-2. Observes cancellation before performing work.
+2. Checks for cancellation before doing any work.
 3. Validates the character name.
 4. Validates the body and profession selections.
 5. Resolves the starting state using trusted allotment and spawn configuration.
 6. Passes the resulting immutable candidate to character persistence.
 7. Translates the persistence result into an application result.
 
-Invalid names and selections never reach persistence.
-
-Duplicate account ownership and duplicate names remain distinct outcomes.
-
-Unexpected persistence statuses fail closed.
-
-Persistence failures are propagated without automatic retries.
+Invalid names and selections never reach persistence. An account that already has a character and a
+name that is already taken are reported as separate outcomes. An unexpected status from persistence
+is treated as a failure. Persistence errors are passed to the caller without automatic retries.
 
 ## Concurrency and durability
 
-Character name and account uniqueness are enforced by the database.
+The database enforces unique character names and one character per account. Application validation
+does not replace these constraints.
 
-Application validation is not a substitute for these constraints.
-
-The creation service does not retry a database operation after an uncertain
-write outcome.
-
-A request may be rejected before persistence without modifying durable state.
-
-The persistence store owns the write and its cancellation boundary.
+The creation service never retries a database operation whose write outcome is uncertain. A request
+rejected before persistence leaves stored data unchanged. The persistence store owns the write and
+decides up to which point it can be cancelled.
 
 ## Remaining runtime integration
 
-The GameServer character-creation route remains disabled.
+The GameServer character-creation route is still disabled. Enabling it requires:
 
-Enabling it requires:
-
-1. Provisioning verified starting-state values and a confirmed walkable starting location.
+1. Provisioning checked starting-state values and a starting location confirmed to be walkable.
 2. Provisioning and configuring dedicated creation database credentials.
 3. Binding the creation application service to authenticated account identity.
-4. Sending the native `NEW_ROLE` control message.
-5. Processing native packet `1001` on the authenticated secured connection.
+4. Sending the `NEW_ROLE` control message.
+5. Processing packet `1001` on the authenticated, encrypted connection.
 6. Handling cancellation, invalid requests, duplicate submissions, and failures.
-7. Sending the verified success response only after durable creation succeeds.
+7. Sending the success response only after the character has been committed.
 8. Validating the repeated `1052` login proof on the same encrypted connection.
 9. Resolving the newly persisted character and continuing existing-character bootstrap without
    losing connection ownership.
 
-The repeated proof must not be treated as a second opportunity to redeem an already consumed
-single-use login ticket.
+The repeated proof is not a second chance to redeem the single-use login ticket, which has already
+been consumed.
 
-Failure-message wording not established by native evidence must not be presented as confirmed retail
-protocol behavior.
+Failure messages whose wording has not been confirmed from the client must not be presented as
+retail protocol behavior.

@@ -23,8 +23,8 @@ existing character into the world. Character creation and gameplay are not imple
 | `OpenConquer.GameServer`     | Game host: connection handling, character login, and world execution.              |
 | `OpenConquer.GameData.Tool`  | Offline tool that imports client data files and generates the server's content.    |
 
-Dependencies point inward: hosts compose Application, Infrastructure, Protocol, and Transport;
-Infrastructure implements Application contracts; Application depends only on Domain. See the
+Dependencies point inward. Hosts compose Application, Infrastructure, Protocol, and Transport.
+Infrastructure implements Application contracts, and Application depends only on Domain. See the
 [architecture overview](docs/architecture/README.md).
 
 ## Getting started

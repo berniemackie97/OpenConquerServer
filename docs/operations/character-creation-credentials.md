@@ -1,59 +1,60 @@
-# Character creation: dedicated persistence credentials
+# Character creation: separate database credentials
 
-The GameServer can optionally compose a character-creation store and application service using a
-**separate** database identity. Configuring these services does not enable the native character-
-creation route. Connections resolving to the creation route still close without issuing a write.
+The GameServer can optionally set up a character-creation store and application service that use
+their own database account. Configuring them does not enable the 5517 character-creation route.
+Connections that reach the creation route still close without writing anything.
 
 ## Configuration
 
-`ConnectionStrings:GameCreation` is optional and omitted from the distributed appsettings files.
-A deployment that supplies it must also provide the fully validated `GameServer:CharacterCreation`
-starting-state section described in [Starting state](character-creation-starting-state.md).
-The default deployment does not register `ICharacterCreationStore`, `CharacterCreationService`,
-or the creation starting-state service.
+`ConnectionStrings:GameCreation` is optional and is not in the shipped appsettings files. If you set
+it, you must also provide a valid `GameServer:CharacterCreation` starting-state section, as
+described in [Starting state](character-creation-starting-state.md). When
+`ConnectionStrings:GameCreation` is not set, the GameServer does not register
+`ICharacterCreationStore`, `CharacterCreationService`, or the creation starting-state service.
 
-The configuration loader checks that the creation connection targets the same host, port and
-case-sensitive database name as `ConnectionStrings:Game`, and has a separate, nonempty, non-root
-SQL user identity. It rejects malformed connection strings without including original driver
-parsing errors that may contain secrets. This prevents an accidental reuse of the GameServer
-runtime reader account or a copy-paste error targeting another database.
+The configuration loader checks that the creation connection uses the same host, port, and database
+name (compared case-sensitively) as `ConnectionStrings:Game`, with a different SQL user that is not
+empty and not root. It rejects malformed connection strings without repeating the driver's parse
+error, which could contain secrets. These checks catch accidental reuse of the GameServer's runtime
+reader account and copy-paste mistakes that point at another database.
 
-These checks **do not prove that MySQL grants are correct**. Credential names are not a substitute
-for privilege inspection. Operators must provision the account outside the application and verify
-that it has only the permissions the creation store needs:
+**These checks do not show that the MySQL grants are correct.** A different user name says nothing
+about that user's privileges. Create the account outside the application and confirm that it has
+only the permissions the creation store needs:
 
 ```sql
 GRANT SELECT, INSERT ON `openconquer_game`.`characters` TO 'openconquer_game_creation'@'%';
 ```
 
-The example grant is a deployment template, not a request for the GameServer to execute DDL.
-The actual schema, SQL account host restrictions and TLS settings must be provisioned and audited
-for the deployment. Do not grant schema migration, UPDATE, DELETE, other-table writes, or global
-privileges. Prefer a restrictive database-account host instead of `%` in production.
+The grant above is a template for your deployment. The GameServer never runs DDL itself. Set up and
+audit the schema, the account's host restrictions, and TLS for your deployment. Do not grant schema
+migration, UPDATE, DELETE, writes to other tables, or global privileges. In production, restrict the
+account to specific hosts instead of using `%`.
 
-Store the separate connection string in deployment secrets or GameServer user-secrets; never commit
-it to appsettings, the source tree, logs, an example file, or test fixtures with real credentials.
-For local development only, the setting can be supplied with:
+Keep this connection string in your deployment's secret store or in the GameServer's user secrets.
+Never commit it to appsettings, the source tree, logs, an example file, or test fixtures with real
+credentials. For local development only, you can set it with:
 
 ```bash
 dotnet user-secrets set 'ConnectionStrings:GameCreation' '<development-only-connection-string>' --project src/OpenConquer.GameServer
 ```
 
-Do not paste real connection strings into PRs or build logs.
+Do not paste real connection strings into pull requests or build logs.
 
-## Runtime boundary
+## Runtime behavior
 
-Registration is opt-in. The existing authenticated login processor is unchanged: creation requests
-still cannot invoke `CharacterCreationService`. There is no schema migration, listener change,
-character-creation network packet processing or automatic database write.
+Registration is opt-in. The authenticated login processor is unchanged, so creation requests still
+cannot call `CharacterCreationService`. No schema migration, listener change, creation packet
+handling, or automatic database write comes with this feature.
 
-`CharacterCreationStore` issues one parameterized character INSERT and handles uniqueness conflicts
-against the modern `characters` table. It does not open a connection merely because its service
-has been registered. Starting-state validation still fails host startup before world publication
-if configured spawn content is invalid.
+`CharacterCreationStore` runs one parameterized INSERT into the `characters` table and handles
+uniqueness conflicts. Registering the service does not open a connection. If the configured spawn
+content is invalid, starting-state validation still stops host startup before the world is
+published.
 
-Future route enablement requires verified native request handling, strict account identity binding,
-same-connection ownership and repeated-proof continuation, exact durable-success signaling, bounded
-request lifetime and failures, and explicit privilege verification. No 5095 data is imported by this
-slice. Historical sources remain subjects for independent reconciliation, including corrections to
-5517 content and the modern schema wherever the evidence supports changes.
+Before the creation route can be enabled, the server needs checked handling of the 5517 request, a
+strict binding to the account identity, ownership tied to the same connection, continuation of the
+login when the client repeats its login proof, a reliable signal that the write is durable, time
+limits on requests and their failures, and a check of the account's privileges. No 5095 data is
+imported. Historical sources are reconciled separately, and that work may correct 5517 content and
+the schema where the sources support it.
