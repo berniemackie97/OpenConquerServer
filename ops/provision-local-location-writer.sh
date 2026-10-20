@@ -4,7 +4,7 @@
 set -euo pipefail
 umask 077
 
-cd "/Volumes/EnderChest/Development/Repos/DotNet/Conquer/OpenConquerServer"
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 CREDENTIAL_DIR="$HOME/.config/openconquer"
 CREDENTIAL_FILE="$CREDENTIAL_DIR/local-location-writer.env"
 BACKUP_DIR="$CREDENTIAL_DIR/secret-backups"
