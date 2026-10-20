@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OpenConquer.Infrastructure.Persistence.Game.Characters;
+using OpenConquer.Application.Characters.Location;
 
 namespace OpenConquer.GameServer.Hosting;
 
@@ -9,9 +9,9 @@ namespace OpenConquer.GameServer.Hosting;
 /// character-location writer cannot read and update the authorized v13 columns.
 /// </summary>
 internal sealed partial class GameLocationWriterReadinessHostedService(
-    CharacterLocationWriteStore writer, ILogger<GameLocationWriterReadinessHostedService> logger) : IHostedService
+    ICharacterLocationWriterReadinessVerifier writer, ILogger<GameLocationWriterReadinessHostedService> logger) : IHostedService
 {
-    private readonly CharacterLocationWriteStore _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+    private readonly ICharacterLocationWriterReadinessVerifier _writer = writer ?? throw new ArgumentNullException(nameof(writer));
     private readonly ILogger<GameLocationWriterReadinessHostedService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task StartAsync(CancellationToken cancellationToken)

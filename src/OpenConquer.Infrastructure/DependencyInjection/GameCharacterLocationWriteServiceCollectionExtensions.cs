@@ -20,6 +20,7 @@ public static class GameCharacterLocationWriteServiceCollectionExtensions
         services.AddSingleton<ICharacterLocationWriteStore>(provider => provider.GetRequiredService<CharacterLocationWriteStore>());
         services.AddSingleton<ICharacterLocationObservationStore>(provider => provider.GetRequiredService<CharacterLocationWriteStore>());
         services.AddSingleton<ICharacterLocationFenceStore>(provider => provider.GetRequiredService<CharacterLocationWriteStore>());
+        services.AddSingleton<ICharacterLocationWriterReadinessVerifier>(provider => provider.GetRequiredService<CharacterLocationWriteStore>());
         return services;
     }
 }

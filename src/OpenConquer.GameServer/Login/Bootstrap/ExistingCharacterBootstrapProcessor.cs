@@ -55,12 +55,17 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
 
             CharacterLoginProfile profile = handoff.Resolution.Profile ?? throw new ArgumentException("Existing-character bootstrap requires a resolved character profile.", nameof(handoff));
 
-            if (!_maps.TryGet(profile.Location.MapId, out WorldMapContent? map))
+            WorldMapContent? map = null;
+            GameCharacterInfoPacket? userInfo = null;
+            if (_fencing is null)
             {
-                throw new InvalidDataException($"Character {profile.Identity.CharacterId} references unavailable world map {profile.Location.MapId}.");
-            }
+                if (!_maps.TryGet(profile.Location.MapId, out map))
+                {
+                    throw new InvalidDataException($"Character {profile.Identity.CharacterId} references unavailable world map {profile.Location.MapId}.");
+                }
 
-            GameCharacterInfoPacket userInfo = ExistingCharacterBootstrapPacketFactory.CreateCharacterInfo(profile);
+                userInfo = ExistingCharacterBootstrapPacketFactory.CreateCharacterInfo(profile);
+            }
 
             presenceLease = _presenceRegistrar.Register(profile.Identity.CharacterId);
             accountSession = await _accountSessions.TryEnterAsync(connection.AccountId, profile.Identity.CharacterId, connection.SessionUid, cancellationToken).ConfigureAwait(false);
@@ -99,7 +104,7 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.Accepted, bootstrapToken).ConfigureAwait(false);
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.LoginHistory, bootstrapToken).ConfigureAwait(false);
             await connection.WriteAsync(ExistingCharacterBootstrapPacketFactory.ServerState, bootstrapToken).ConfigureAwait(false);
-            await connection.WriteAsync(userInfo, bootstrapToken).ConfigureAwait(false);
+            await connection.WriteAsync(userInfo ?? throw new InvalidOperationException("Character information is unavailable after admission validation."), bootstrapToken).ConfigureAwait(false);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -107,7 +112,7 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
             presenceLease = null;
             accountSession = null;
 
-            return new ExistingCharacterLoginContext(characterConnection, map);
+            return new ExistingCharacterLoginContext(characterConnection, map ?? throw new InvalidOperationException("Canonical login map is unavailable."));
         }
         catch (Exception processingException)
         {

@@ -58,10 +58,21 @@ public sealed class GameServerConfigurationTests
     [InlineData("Server=localhost;Database=other;User ID=location_writer;Password=secret")]
     [InlineData("Server=other;Database=game;User ID=location_writer;Password=secret")]
     [InlineData("Server=localhost;Database=game;User ID=root;Password=secret")]
-    [InlineData("Server=localhost;Database=game;User ID=game;Password=secret")]
     public void Load_LocationWriterWithWrongDatabaseOrIdentityIsRejected(string writer)
     {
         IConfiguration configuration = CreateConfiguration(values => values["ConnectionStrings:GameLocationWriter"] = writer);
+        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
+    }
+
+    [Fact]
+    public void Load_LocationWriterReusingReadOnlyUserIdIsRejectedEvenWithDifferentPassword()
+    {
+        IConfiguration configuration = CreateConfiguration(values =>
+        {
+            values["ConnectionStrings:Game"] = "Server=localhost;Database=game;User ID=game;Password=readonly";
+            values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=game;Password=writer";
+        });
+
         Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
     }
 

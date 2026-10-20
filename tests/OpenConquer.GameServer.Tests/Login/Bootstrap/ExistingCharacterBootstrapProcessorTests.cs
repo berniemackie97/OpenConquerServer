@@ -153,6 +153,32 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_FencedAdmissionReloadsCanonicalMapBeforeCheckingAvailability()
+    {
+        await using AuthenticatedFixture fixture = await AuthenticateAsync();
+        CharacterLoginProfile rehydrated = CreateProfile();
+        CharacterLoginProfile original = new(rehydrated.Identity, rehydrated.Appearance, rehydrated.Progression,
+            rehydrated.Attributes, rehydrated.Vitals, rehydrated.Economy, rehydrated.PkPoints,
+            rehydrated.TitleId, rehydrated.EnlightenmentPoints, new CharacterLocation(MapId + 1000, 1, 1));
+        CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(original));
+        Guid token = Guid.NewGuid();
+        PersistedCharacterLocation persisted = new(rehydrated.Location, revision: 6, writerToken: token);
+        CharacterLocationWriteAuthority authority = new(AccountId, original.Identity.CharacterId, token, persisted);
+        FencedCharacterAdmission fencing = new(new ReturningLocationFence(authority),
+            new ReturningLocationObserver(persisted), new ReturningCharacterProfiles(rehydrated));
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, MapFlags);
+        ExistingCharacterBootstrapProcessor processor = new(new CharacterPresenceDirectory(), TestAccountSessions.Create(),
+            WorldMapTestContent.CreateCatalog(map), s_metrics, fencing);
+
+        await using ExistingCharacterLoginContext login = Assert.IsType<ExistingCharacterLoginContext>(
+            await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken));
+
+        Assert.Same(rehydrated, login.Profile);
+        Assert.Same(map, login.Map);
+        Assert.Same(authority, login.Connection.LocationAuthority);
+    }
+
+    [Fact]
     public async Task ProcessAsync_ExistingCharacter_WritesBootstrapOrderAndStartsLoginContext()
     {
         await using AuthenticatedFixture fixture = await AuthenticateAsync();

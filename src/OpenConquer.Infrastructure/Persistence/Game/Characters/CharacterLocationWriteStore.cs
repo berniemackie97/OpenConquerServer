@@ -10,7 +10,7 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
 /// One durable character-position CAS through a dedicated, column-restricted writer.
 /// Not registered with the existing read-only GameServer persistence identity.
 /// </summary>
-public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore, ICharacterLocationFenceStore
+public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore, ICharacterLocationFenceStore, ICharacterLocationWriterReadinessVerifier
 {
     private const int CommandTimeoutSeconds = 15;
     private readonly string _connectionString;

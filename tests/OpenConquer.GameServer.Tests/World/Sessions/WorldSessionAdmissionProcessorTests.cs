@@ -1,3 +1,4 @@
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
@@ -349,6 +350,86 @@ public sealed class WorldSessionAdmissionProcessorTests
         await Assert.ThrowsAsync<AggregateException>(() => session.DisposeAsync().AsTask());
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task ProcessAsync_SupersededWriterBeforeOrAfterWorldReservationReleasesAllOwnership(int supersedeOnObservation)
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        CharacterPresenceDirectory presence = new();
+        FakeGameTransportConnection transport = new();
+        Guid token = Guid.NewGuid();
+        PersistedCharacterLocation snapshot = new(new CharacterLocation(MapId, 0, 0), 0, writerToken: token);
+        CharacterLocationWriteAuthority authority = new(42, CharacterId, token, snapshot);
+        FencedObservation observer = new(snapshot, supersedeOnObservation);
+        FencedCharacterAdmission fencing = new(new UnexpectedFence(), observer, new UnexpectedProfiles());
+        ExistingCharacterBootstrapCompleteConnection bootstrap = await CreateBootstrapAsync(transport, presence, map, locationAuthority: authority);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new WorldSessionAdmissionProcessor(runtime, fencing: fencing)
+            .ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(supersedeOnObservation, observer.Calls);
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.False(presence.IsOnline(CharacterId));
+        WorldCharacterOwnership replacement = await runtime.AdmitCharacterAsync(CreateProfile(CharacterId), TestContext.Current.CancellationToken);
+        Assert.True(await runtime.RemoveCharacterAsync(replacement, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ValidWriterGenerationIsRetainedByWorldSession()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        CharacterPresenceDirectory presence = new();
+        FakeGameTransportConnection transport = new();
+        Guid token = Guid.NewGuid();
+        PersistedCharacterLocation snapshot = new(new CharacterLocation(MapId, 0, 0), 0, writerToken: token);
+        CharacterLocationWriteAuthority authority = new(42, CharacterId, token, snapshot);
+        FencedObservation observer = new(snapshot, supersedeOnObservation: int.MaxValue);
+        FencedCharacterAdmission fencing = new(new UnexpectedFence(), observer, new UnexpectedProfiles());
+
+        await using WorldSession session = await new WorldSessionAdmissionProcessor(runtime, fencing: fencing)
+            .ProcessAsync(await CreateBootstrapAsync(transport, presence, map, locationAuthority: authority), TestContext.Current.CancellationToken);
+
+        Assert.Same(authority, session.LocationAuthority);
+        Assert.Equal(2, observer.Calls);
+    }
+
+    private sealed class FencedObservation(PersistedCharacterLocation snapshot, int supersedeOnObservation) : ICharacterLocationObservationStore
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.Equal(42u, accountId);
+            Assert.Equal(CharacterId, characterId);
+            Calls++;
+            PersistedCharacterLocation value = Calls >= supersedeOnObservation
+                ? new PersistedCharacterLocation(snapshot.Location, snapshot.Revision, snapshot.LastOperationId, Guid.NewGuid())
+                : snapshot;
+            return ValueTask.FromResult<PersistedCharacterLocation?>(value);
+        }
+    }
+
+    private sealed class UnexpectedFence : ICharacterLocationFenceStore
+    {
+        public ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("World admission must never acquire writer authority again.");
+    }
+
+    private sealed class UnexpectedProfiles : ICharacterLoginProfileRepository
+    {
+        public ValueTask<CharacterLoginProfile?> FindByAccountIdAsync(uint accountId,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("World admission must not reload the authenticated profile.");
+    }
+
     private static WorldRuntime CreateRuntime(WorldMapContent map, int maxCharacters = 8)
     {
         WorldMapContentCatalog maps = WorldMapTestContent.CreateCatalog(map);
@@ -356,14 +437,14 @@ public sealed class WorldSessionAdmissionProcessorTests
     }
 
     private static async Task<ExistingCharacterBootstrapCompleteConnection> CreateBootstrapAsync(FakeGameTransportConnection transport,
-        ICharacterPresenceRegistrar presence, WorldMapContent map, uint characterId = CharacterId)
+        ICharacterPresenceRegistrar presence, WorldMapContent map, uint characterId = CharacterId, CharacterLocationWriteAuthority? locationAuthority = null)
     {
         GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
         AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,
             localeTag: 0x6E45, hardwareAddress: 0x0000665544332211, resourceVersion: 5517, session: session);
         CharacterLoginProfile profile = CreateProfile(characterId);
         ExistingCharacterGameConnection connection = new(authenticated, profile, presence.Register(characterId),
-            TestAccountSessions.CreateLease(authenticated.AccountId, authenticated.SessionUid));
+            TestAccountSessions.CreateLease(authenticated.AccountId, authenticated.SessionUid), locationAuthority);
 
         return new ExistingCharacterBootstrapCompleteConnection(connection, map,
             new CharacterItemSet(characterId, []), new CharacterSocialRelationSet(characterId, []),
