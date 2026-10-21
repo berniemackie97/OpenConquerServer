@@ -24,7 +24,7 @@ internal sealed class GameServerConfiguration
         GameNetworkOptions? network, RealmStatusOptions? realmStatus, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
         CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString,
-        string transitionsPath, int maximumTransitionFileBytes, int maximumTransitions)
+        string? locationWriteConnectionString, string transitionsPath, int maximumTransitionFileBytes, int maximumTransitions)
     {
         RealmId = realmId;
         AccountConnectionString = accountConnectionString;
@@ -42,6 +42,7 @@ internal sealed class GameServerConfiguration
         VerificationKeys = Array.AsReadOnly(verificationKeys);
         CharacterCreationStartingState = characterCreationStartingState;
         CharacterCreationConnectionString = characterCreationConnectionString;
+        LocationWriteConnectionString = locationWriteConnectionString;
         TransitionsPath = transitionsPath;
         MaximumTransitionFileBytes = maximumTransitionFileBytes;
         MaximumTransitions = maximumTransitions;
@@ -68,6 +69,7 @@ internal sealed class GameServerConfiguration
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
     public CharacterCreationStartingState? CharacterCreationStartingState { get; }
     public string? CharacterCreationConnectionString { get; }
+    public string? LocationWriteConnectionString { get; }
     public string TransitionsPath { get; }
     public int MaximumTransitionFileBytes { get; }
     public int MaximumTransitions { get; }
@@ -179,10 +181,27 @@ internal sealed class GameServerConfiguration
                 GameCharacterCreationConnectionPolicy.Validate(gameConnectionString, characterCreationConnectionString);
             }
 
+            string? locationWriteConnectionString = configuration.GetConnectionString("GameLocationWriter");
+            if (network is not null && string.IsNullOrWhiteSpace(locationWriteConnectionString))
+            {
+                throw new InvalidOperationException("ConnectionStrings:GameLocationWriter is required when GameServer network ingress is enabled.");
+            }
+
+            if (locationWriteConnectionString is not null)
+            {
+                if (string.IsNullOrWhiteSpace(locationWriteConnectionString))
+                {
+                    throw new InvalidOperationException("ConnectionStrings:GameLocationWriter must not be empty when supplied.");
+                }
+
+                GameCharacterLocationWriteConnectionPolicy.Validate(gameConnectionString, locationWriteConnectionString,
+                    characterCreationConnectionString);
+            }
+
             return new GameServerConfiguration(realmId, accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
                 network, realmStatus, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
-                characterCreationConnectionString, transitionsPath, maximumTransitionFileBytes, maximumTransitions);
+                characterCreationConnectionString, locationWriteConnectionString, transitionsPath, maximumTransitionFileBytes, maximumTransitions);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
         {

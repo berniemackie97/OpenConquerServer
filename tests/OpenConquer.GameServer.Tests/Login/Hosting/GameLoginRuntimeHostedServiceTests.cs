@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Accounts.Sessions;
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Realms;
 using OpenConquer.Application.World;
@@ -104,6 +105,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
             Assert.Collection(services,
                 service => Assert.IsType<GameServerWorldHostedService>(service),
+                service => Assert.IsType<GameLocationWriterReadinessHostedService>(service),
                 service => Assert.IsType<AccountSessionKickHostedService>(service),
                 service => Assert.IsType<GameLoginRuntimeHostedService>(service),
                 service => Assert.IsType<RealmStatusHostedService>(service));
@@ -171,6 +173,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
         GameServerConfiguration configuration = GameServerConfiguration.Load(
             GameServerConfigurationTests.CreateConfiguration(values =>
             {
+                values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=location_writer;Password=fixture";
                 values["GameServer:Network:Enabled"] = "true";
                 values["GameServer:Network:BindAddress"] = "127.0.0.1";
                 values["GameServer:Network:Port"] = "5816";
@@ -192,6 +195,7 @@ public sealed class GameLoginRuntimeHostedServiceTests
 
         builder.Services.AddSingleton<IAccountDatabaseReadinessVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IGameDatabaseReadinessVerifier, ReadyDatabase>();
+        builder.Services.AddSingleton<ICharacterLocationWriterReadinessVerifier, ReadyLocationWriter>();
         builder.Services.AddSingleton<IGameRealmBindingVerifier, ReadyDatabase>();
         builder.Services.AddSingleton<IRealmStatusPublisher, NullRealmStatusPublisher>();
         builder.Services.AddSingleton(accountSessions);
@@ -221,6 +225,15 @@ public sealed class GameLoginRuntimeHostedServiceTests
         else
         {
             host.Dispose();
+        }
+    }
+
+    private sealed class ReadyLocationWriter : ICharacterLocationWriterReadinessVerifier
+    {
+        public ValueTask VerifyPermissionsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.CompletedTask;
         }
     }
 

@@ -18,6 +18,17 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     private readonly Dictionary<uint, Guid> _writerTokens = [];
 
     [Fact]
+    public async Task VerifyPermissions_ColumnScopedWriterPassesButReadonlyRuntimeFails()
+    {
+        CharacterLocationWriteStore writer = new(database.LocationWriterConnectionString);
+        await writer.VerifyPermissionsAsync(CancellationToken);
+
+        CharacterLocationWriteStore readonlyStore = new(database.RuntimeConnectionString);
+        MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => readonlyStore.VerifyPermissionsAsync(CancellationToken).AsTask());
+        Assert.Contains(exception.Number, new[] { 1142, 1143 });
+    }
+
+    [Fact]
     public async Task Commit_ChangesOnlyTheRequestedCharacterLocation()
     {
         (uint account, uint character) = await CreateCharacterAsync();

@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Servers (Development)" type="CompoundRunConfigurationType">
+    <toRun name="AccountServer (Development)" type="LaunchSettings" />
+    <toRun name="GameServer (Development)" type="LaunchSettings" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -32,6 +32,51 @@ public sealed class GameServerConfigurationTests
     }
 
     [Fact]
+    public void Load_NetworkIngressWithoutLocationWriterFailsClosed()
+    {
+        IConfiguration configuration = CreateConfiguration(EnableNetwork);
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
+        Assert.Contains("ConnectionStrings:GameLocationWriter", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Load_NetworkIngressWithDedicatedWriterIsValid()
+    {
+        IConfiguration configuration = CreateConfiguration(values =>
+        {
+            EnableNetwork(values);
+            values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=location_writer;Password=secret";
+        });
+
+        GameServerConfiguration settings = GameServerConfiguration.Load(configuration, Path.GetTempPath());
+        Assert.NotNull(settings.Network);
+        Assert.NotNull(settings.LocationWriteConnectionString);
+    }
+
+    [Theory]
+    [InlineData("Server=localhost;Database=other;User ID=location_writer;Password=secret")]
+    [InlineData("Server=other;Database=game;User ID=location_writer;Password=secret")]
+    [InlineData("Server=localhost;Database=game;User ID=root;Password=secret")]
+    public void Load_LocationWriterWithWrongDatabaseOrIdentityIsRejected(string writer)
+    {
+        IConfiguration configuration = CreateConfiguration(values => values["ConnectionStrings:GameLocationWriter"] = writer);
+        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
+    }
+
+    [Fact]
+    public void Load_LocationWriterReusingReadOnlyUserIdIsRejectedEvenWithDifferentPassword()
+    {
+        IConfiguration configuration = CreateConfiguration(values =>
+        {
+            values["ConnectionStrings:Game"] = "Server=localhost;Database=game;User ID=game;Password=readonly";
+            values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=game;Password=writer";
+        });
+
+        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
+    }
+
+    [Fact]
     public void Load_MissingOrZeroRealmIsRejected()
     {
         Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(
@@ -119,6 +164,22 @@ public sealed class GameServerConfigurationTests
     }
 
     internal const string VerificationKey = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+
+    private static void EnableNetwork(Dictionary<string, string?> values)
+    {
+        values["GameServer:Network:Enabled"] = "true";
+        values["GameServer:Network:BindAddress"] = "127.0.0.1";
+        values["GameServer:Network:Port"] = "5816";
+        values["GameServer:Network:ListenBacklog"] = "32";
+        values["GameServer:Network:AdmissionCapacity"] = "32";
+        values["GameServer:Network:MaximumConnectionsPerSource"] = "8";
+        values["GameServer:Network:WorkerCount"] = "2";
+        values["GameServer:Network:ConnectionTimeout"] = "00:01:00";
+        values["GameServer:RealmStatus:ReportInterval"] = "00:00:10";
+        values["GameServer:Items:FilePath"] = "content/items/item-types.json";
+        values["GameServer:Items:MaximumFileBytes"] = "16777216";
+        values["GameServer:Items:MaximumDefinitions"] = "200000";
+    }
 
     internal static IConfiguration CreateConfiguration(Action<Dictionary<string, string?>>? configure = null)
     {

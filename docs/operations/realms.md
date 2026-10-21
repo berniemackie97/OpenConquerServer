@@ -43,8 +43,9 @@ Maintenance and then stop its GameServer.
 
 The examples use realm ID `2`, protocol server name `SecondRealm`, Game database
 `openconquer_game_second`, public endpoint `203.0.113.10:5817`, and MySQL users
-`openconquer_game_second_runtime` and `openconquer_game_second_creation`. Substitute your real
-values. Take the realm ID and name from your own allocation, never from a client display label. Run
+`openconquer_game_second_runtime`, `openconquer_game_second_writer`, and
+`openconquer_game_second_creation`. Substitute your real values. Take the realm ID and name from
+your own allocation, never from a client display label. Run
 the SQL as an administrator.
 
 1. Create the Game database:
@@ -73,11 +74,15 @@ the SQL as an administrator.
    ```
 
 5. Create the realm's database users and grant them only what the [grants](#grants) table lists.
+   [Provision the dedicated location writer](game-server.md#provisioning-the-location-writer-identity)
+   with column-scoped `SELECT` and `UPDATE` permissions on this realm's `characters` table.
+   Never reuse another realm's writer identity or credentials.
 
 6. Configure the GameServer: `GameServer:RealmId` = `2`, `GameServer:Network:Port` = `5817`,
-   `ConnectionStrings:Game` for the new database, `ConnectionStrings:GameCreation` if character
-   creation is configured, `ConnectionStrings:Accounts`, and the same verification keys as the
-   AccountServer. See [GameServer operations](game-server.md).
+   `ConnectionStrings:Game` and `ConnectionStrings:GameLocationWriter` for the new database
+   (using separate, scoped users), `ConnectionStrings:GameCreation` if character creation is
+   configured, `ConnectionStrings:Accounts`, and the same verification keys as the AccountServer.
+   See [GameServer operations](game-server.md).
 
 7. Start the GameServer. It refuses to start unless `GameServer:RealmId` matches the database's
    binding, and once its listener is open it starts reporting the realm's load. Until the first report
@@ -115,6 +120,7 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 | AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms`, `realm_status`, `account_sessions`; `INSERT, UPDATE` on `account_session_kicks` |
 | GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT, INSERT, UPDATE, DELETE` on `realm_status`, `account_sessions`, `account_session_kicks`; `SELECT` on `schema_compatibility` |
 | GameServer runtime, each realm    | Its Game database | `SELECT` on `characters`, `items`, `social_relations`, `weapon_skills`, `magic`, `syndicates`, `syndicate_memberships`, `schema_compatibility`, `realm_binding` |
+| GameServer location writer, each realm | Its Game database | Column-scoped `SELECT` on identity and location state, column-scoped `UPDATE` on location, revision, operation marker and writer token in `characters` |
 | GameServer creation, each realm   | Its Game database | `SELECT, INSERT` on `characters`                                                           |
 | Administrator                     | Both              | Schema changes and writes to `realms` and `realm_binding`; never used by a server          |
 
@@ -134,7 +140,13 @@ override user secrets:
 GameServer__RealmId=2 \
 GameServer__Network__Port=5817 \
 ConnectionStrings__Game="$SECOND_GAME_DB_CONNECTION" \
+ConnectionStrings__GameLocationWriter="$SECOND_GAME_LOCATION_WRITER_CONNECTION" \
 DOTNET_ENVIRONMENT=Development dotnet run --project src/OpenConquer.GameServer -c Release --no-build
 ```
+
+Supply both connection strings from the second realm's approved secret store; the location writer
+must target its Game database and use its own column-scoped account. If character creation is
+configured in shared user secrets, also override `ConnectionStrings__GameCreation` with this
+realm's creation identity. Never put credentials in source control.
 
 For a loopback realm, register `127.0.0.1` with the GameServer's port.

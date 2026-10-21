@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.Items.Resolution;
+using OpenConquer.Application.World;
 using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
@@ -105,6 +106,11 @@ internal static class GameServerHost
 
         if (configuration.Network is { } network)
         {
+            services.AddGameCharacterLocationWrite(configuration.LocationWriteConnectionString
+                ?? throw new InvalidOperationException("Network admission requires a dedicated location-writer identity."));
+            // Verify the writer identity after world readiness and before opening a listener.
+            services.AddHostedService<GameLocationWriterReadinessHostedService>();
+
             ItemTypeCatalogFileOptions items = configuration.ItemTypes
                 ?? throw new InvalidOperationException("Network-enabled GameServer configuration requires canonical item-type content.");
             RealmStatusOptions realmStatus = configuration.RealmStatus
@@ -130,6 +136,7 @@ internal static class GameServerHost
 
         services.AddSingleton<ICharacterLoginResolver, CharacterLoginResolver>();
         services.AddSingleton<ICharacterItemSetResolver, CharacterItemSetResolver>();
+        services.AddSingleton<FencedCharacterAdmission>();
 
         services.AddSingleton<CharacterPresenceDirectory>();
         services.AddSingleton<ICharacterPresenceReader>(provider => provider.GetRequiredService<CharacterPresenceDirectory>());
@@ -148,7 +155,12 @@ internal static class GameServerHost
         services.AddSingleton<GameConnectionAuthenticator>();
         services.AddSingleton<GameConnectionHandoffProcessor>();
         services.AddSingleton<CharacterLoginHandoffProcessor>();
-        services.AddSingleton<ExistingCharacterBootstrapProcessor>();
+        services.AddSingleton<ExistingCharacterBootstrapProcessor>(provider => new ExistingCharacterBootstrapProcessor(
+            provider.GetRequiredService<ICharacterPresenceRegistrar>(),
+            provider.GetRequiredService<RealmAccountSessions>(),
+            provider.GetRequiredService<WorldMapContentCatalog>(),
+            provider.GetRequiredService<GameLoginMetrics>(),
+            provider.GetRequiredService<FencedCharacterAdmission>()));
 
         services.AddSingleton<ExistingCharacterEnterMapProcessor>();
         services.AddSingleton<ExistingCharacterMapStateAppliedProcessor>();
@@ -161,7 +173,10 @@ internal static class GameServerHost
         services.AddSingleton<ExistingCharacterStatisticsRequestProcessor>();
 
         services.AddSingleton<WorldVisibilityService>();
-        services.AddSingleton<WorldSessionAdmissionProcessor>();
+        services.AddSingleton<WorldSessionAdmissionProcessor>(provider => new WorldSessionAdmissionProcessor(
+            provider.GetRequiredService<WorldRuntime>(),
+            provider.GetRequiredService<WorldVisibilityService>(),
+            provider.GetRequiredService<FencedCharacterAdmission>()));
         services.AddSingleton<GameExistingCharacterLoginProcessor>();
         services.AddSingleton<GameLoginConnectionProcessor>();
 

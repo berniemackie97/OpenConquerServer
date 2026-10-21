@@ -70,6 +70,11 @@ dotnet build OpenConquer.Server.slnx -c Release
 DOTNET_ENVIRONMENT=Development dotnet run --project src/OpenConquer.AccountServer -c Release --no-build
 ```
 
+`dotnet run` uses the project's launch profile, which sets `DOTNET_ENVIRONMENT=Development`. In
+Rider, run the shared configurations in `.run/`: `AccountServer (Development)`, `GameServer
+(Development)`, or `Servers (Development)` for both. A Rider ".NET Project" configuration ignores
+launch profiles, so the server starts in Production without user secrets and fails configuration.
+
 Startup order: load and validate configuration and keys, compose services, verify the database,
 start ticket cleanup, then open the listener. Any failure stops startup before the listener opens.
 Startup and shutdown are each limited to 30 seconds. A fatal background failure shuts the host down

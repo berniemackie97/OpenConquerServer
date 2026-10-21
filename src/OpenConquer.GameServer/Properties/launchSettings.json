@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "OpenConquer.GameServer": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

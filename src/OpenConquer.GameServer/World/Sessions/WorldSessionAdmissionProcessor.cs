@@ -1,3 +1,4 @@
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
@@ -9,10 +10,11 @@ namespace OpenConquer.GameServer.World.Sessions;
 /// <summary>
 /// Admits a completed existing-character login into the world as a world session.
 /// </summary>
-internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null)
+internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null, FencedCharacterAdmission? fencing = null)
 {
     private readonly WorldRuntime _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     private readonly WorldVisibilityService? _visibility = visibility;
+    private readonly FencedCharacterAdmission? _fencing = fencing;
 
     public async ValueTask<WorldSession> ProcessAsync(ExistingCharacterBootstrapCompleteConnection bootstrap, CancellationToken cancellationToken = default)
     {
@@ -38,9 +40,22 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
                 throw new InvalidDataException($"Completed bootstrap map {map.MapId} is not the world runtime's canonical map snapshot.");
             }
 
+            CharacterLocationWriteAuthority? authority = connection.LocationAuthority;
+            if (_fencing is not null)
+            {
+                await _fencing.VerifyAsync(bootstrap.Profile, authority
+                    ?? throw new InvalidDataException("Network login has no durable writer generation."), cancellationToken).ConfigureAwait(false);
+            }
+
             ownership = await _runtime.AdmitCharacterAsync(bootstrap.Profile, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             connection.ThrowIfRevoked();
+
+            if (_fencing is not null)
+            {
+                await _fencing.VerifyAsync(bootstrap.Profile, authority!, cancellationToken).ConfigureAwait(false);
+                connection.ThrowIfRevoked();
+            }
 
             session = new WorldSession(_runtime, connection, bootstrap, ownership.Value, _visibility);
             _runtime.TrackSession(ownership.Value, session.Completion);

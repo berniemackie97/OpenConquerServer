@@ -10,7 +10,7 @@ namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
 /// One durable character-position CAS through a dedicated, column-restricted writer.
 /// Not registered with the existing read-only GameServer persistence identity.
 /// </summary>
-public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore, ICharacterLocationFenceStore
+public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore, ICharacterLocationFenceStore, ICharacterLocationWriterReadinessVerifier
 {
     private const int CommandTimeoutSeconds = 15;
     private readonly string _connectionString;
@@ -23,6 +23,41 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
             GuidFormat = MySqlGuidFormat.None, // Keep byte order explicit across all supported caller connection strings.
         };
         _connectionString = builder.ConnectionString;
+    }
+
+    /// <summary>
+    /// Verifies all required v13 column-scoped grants before the network listener is started.
+    /// The probes cannot change a character row: valid player identifiers are never zero.
+    /// </summary>
+    public async ValueTask VerifyPermissionsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await using MySqlConnection connection = new(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandTimeout = CommandTimeoutSeconds;
+        command.CommandText = """
+            SELECT `account_id`, `character_id`, `map_id`, `position_x`, `position_y`,
+                   `location_revision`, `last_location_operation_id`, `location_writer_token`
+            FROM `characters` WHERE `account_id` = 0 AND `character_id` = 0 LIMIT 0;
+            """;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        command.CommandText = """
+            UPDATE `characters`
+            SET `map_id` = `map_id`,
+                `position_x` = `position_x`,
+                `position_y` = `position_y`,
+                `location_revision` = `location_revision`,
+                `last_location_operation_id` = `last_location_operation_id`,
+                `location_writer_token` = `location_writer_token`
+            WHERE `account_id` = 0 AND `character_id` = 0;
+            """;
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 0)
+        {
+            throw new InvalidOperationException("A reserved zero identity unexpectedly matched location-writer readiness.");
+        }
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.World;
@@ -75,6 +76,7 @@ internal sealed class WorldSession : IAsyncDisposable
 
     public ExistingCharacterBootstrapCompleteConnection Bootstrap { get; }
     public CharacterLoginProfile Profile => Bootstrap.Profile;
+    public CharacterLocationWriteAuthority? LocationAuthority => _connection.LocationAuthority;
     public WorldMapContent Map => Bootstrap.Map;
     public WorldCharacterOwnership Ownership { get; }
     public Task Completion => _completion.Task;
