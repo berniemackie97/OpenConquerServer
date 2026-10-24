@@ -82,10 +82,9 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     /// The online-name identity remains attached to the same session throughout.
     /// </summary>
     internal void Relocate(WorldSession session, WorldCharacterOwnership previous, ushort x, ushort y,
-        IPacket arrival, IPacket mapInfo)
+        uint destinationMapDataId, uint timestamp, GameMapInfoPacket mapInfo)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(arrival);
         ArgumentNullException.ThrowIfNull(mapInfo);
         WorldCharacterOwnership current = session.Ownership;
         if (previous.CharacterId != current.CharacterId || previous.MapId == current.MapId ||
@@ -124,6 +123,9 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                     source.Sessions[observerId].QueueVisibilityPacket(removal);
                 }
 
+                // Use the same authoritative facing for the travelling client and destination peers.
+                GameActionPacket arrival = GameActionPacket.CreatePortalArrival(
+                    characterId, destinationMapDataId, x, y, direction, timestamp);
                 // Both map locks prevent a late old-map fanout from entering the
                 // sender mailbox behind 86/1110, and destination spawns from entering ahead.
                 session.QueuePortalArrival(arrival, mapInfo);

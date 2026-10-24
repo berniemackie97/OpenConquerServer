@@ -55,7 +55,8 @@ After the durable and runtime cutover, the session queues action 86 and MapInfo 
 as **one encrypted FIFO output batch and one flush**. Packet 1110 carries the destination world
 MapId, MapDataId and 64-bit flags. Old-map visibility membership is removed and observers
 receive native removal 135. New-map membership is installed without dropping the online-name
-identity; new peer spawns arrive **after** the 86/1110 batch. Already queued old-map packets
+identity; action 86 and destination-peer spawns use the same last accepted facing direction.
+New peer spawns arrive **after** the 86/1110 batch. Already queued old-map packets
 precede the batch, not follow it. Slow-client output remains subject to the bounded session
 mailbox and normal connection teardown. Client action 408 following certain 1110 flag changes
 is an all-zero state-applied notification; it is validated and requires no response.

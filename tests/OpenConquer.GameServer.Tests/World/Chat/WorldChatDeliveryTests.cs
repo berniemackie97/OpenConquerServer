@@ -648,6 +648,31 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
+    public async Task ConnectedPortal_PreservesFacingInArrivalAndDestinationPeerSpawn()
+    {
+        await using ChatWorld world = new(portals: true);
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        ClientSession carol = await world.AddAsync(1, "Carol", SecondMap, 1, 2);
+        uint characterId = alice.Session.Ownership.CharacterId;
+
+        await alice.Session.ProcessAvatarActionAsync(new GameAvatarAction(
+            characterId, GameAvatarAction.DirectionAction, 3, 0, 101),
+            TestContext.Current.CancellationToken);
+        await alice.Session.ProcessPortalAsync(new GamePortalRequest(characterId, 2, 1),
+            TestContext.Current.CancellationToken);
+
+        IReadOnlyList<byte[]> ownerFrames = await alice.WaitForFrameCountAsync(4);
+        byte[] arrival = Assert.Single(ownerFrames, frame => PacketId(frame) == GameAction.PacketIdentifier &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) == GameAction.PortalArrivalAction);
+        Assert.Equal((ushort)3, BinaryPrimitives.ReadUInt16LittleEndian(arrival.AsSpan(22)));
+
+        IReadOnlyList<byte[]> peerFrames = await carol.WaitForFrameCountAsync(1);
+        byte[] peerSpawn = Assert.Single(peerFrames, frame => PacketId(frame) == 10014 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(8)) == characterId);
+        Assert.Equal((byte)3, peerSpawn[0x5A]);
+    }
+
+    [Fact]
     public async Task NativeClientStateApplied_RequiresZeroFieldsAndNeverAcknowledges()
     {
         await using ChatWorld world = new(portals: true);

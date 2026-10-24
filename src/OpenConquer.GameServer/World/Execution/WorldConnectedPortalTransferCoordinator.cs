@@ -140,11 +140,9 @@ internal sealed class WorldConnectedPortalTransferCoordinator(
 
             // Native 86 ends loading mode; 1110 must share its transport flush.
             // The map-create handler deletes previous roles, so destination spawns follow.
-            GameActionPacket arrival = GameActionPacket.CreatePortalArrival(
-                characterId, destination.MapDataId, reservation.X, reservation.Y, 0,
-                unchecked((uint)Environment.TickCount64));
             GameMapInfoPacket mapInfo = new(destination.MapId, destination.MapDataId, destination.Flags);
-            _visibility.Relocate(session, source, reservation.X, reservation.Y, arrival, mapInfo);
+            _visibility.Relocate(session, source, reservation.X, reservation.Y,
+                destination.MapDataId, unchecked((uint)Environment.TickCount64), mapInfo);
             visibilityTransferred = true;
             return true;
         }
