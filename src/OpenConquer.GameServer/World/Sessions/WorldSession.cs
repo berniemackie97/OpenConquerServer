@@ -32,14 +32,17 @@ internal sealed class WorldSession : IAsyncDisposable
     private readonly ExistingCharacterGameConnection _connection;
     private readonly WorldRuntime _runtime;
     private readonly WorldVisibilityService? _visibility;
-    private readonly Channel<IPacket>? _visibilityMailbox;
+    private readonly Channel<OutboundDelivery>? _visibilityMailbox;
     private readonly CancellationTokenSource _visibilityStopping = new();
     private Task? _visibilityWrites;
-    private readonly WorldWalkPacer _walkPacer = new();
+    private WorldWalkPacer _walkPacer = new();
     private readonly WorldJumpIngressLimiter _jumpIngressLimiter = new();
     private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
     private readonly WorldChatRateLimiter _chatRateLimiter = new();
-    private readonly WorldPositionReconciler _positionReconciler;
+    private WorldPositionReconciler _positionReconciler;
+    private WorldLocationState _location;
+    private readonly WorldConnectedPortalTransferCoordinator? _portals;
+    private TaskCompletionSource? _portalOperation;
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
@@ -49,7 +52,8 @@ internal sealed class WorldSession : IAsyncDisposable
     private int _supersededByLogin;
 
     internal WorldSession(WorldRuntime runtime, ExistingCharacterGameConnection connection, ExistingCharacterBootstrapCompleteConnection bootstrap,
-        WorldCharacterOwnership ownership, WorldVisibilityService? visibility = null)
+        WorldCharacterOwnership ownership, WorldVisibilityService? visibility = null,
+        WorldConnectedPortalTransferCoordinator? portals = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
@@ -60,11 +64,12 @@ internal sealed class WorldSession : IAsyncDisposable
             throw new ArgumentException("World ownership does not match the authenticated bootstrap character and map.", nameof(ownership));
         }
 
-        Ownership = ownership;
+        _location = new WorldLocationState(ownership, bootstrap.Map, connection.LocationAuthority?.Snapshot);
         _visibility = visibility;
+        _portals = portals;
         if (visibility is not null)
         {
-            _visibilityMailbox = Channel.CreateBounded<IPacket>(new BoundedChannelOptions(256)
+            _visibilityMailbox = Channel.CreateBounded<OutboundDelivery>(new BoundedChannelOptions(256)
             {
                 SingleReader = true,
                 SingleWriter = false,
@@ -77,8 +82,9 @@ internal sealed class WorldSession : IAsyncDisposable
     public ExistingCharacterBootstrapCompleteConnection Bootstrap { get; }
     public CharacterLoginProfile Profile => Bootstrap.Profile;
     public CharacterLocationWriteAuthority? LocationAuthority => _connection.LocationAuthority;
-    public WorldMapContent Map => Bootstrap.Map;
-    public WorldCharacterOwnership Ownership { get; }
+    public WorldMapContent Map => Volatile.Read(ref _location).Map;
+    public WorldCharacterOwnership Ownership => Volatile.Read(ref _location).Ownership;
+    internal PersistedCharacterLocation? PersistedLocation => Volatile.Read(ref _location).Persisted;
     public Task Completion => _completion.Task;
     public bool IsStopping => Volatile.Read(ref _disposalStarted) != 0;
 
@@ -191,10 +197,89 @@ internal sealed class WorldSession : IAsyncDisposable
         {
             return;
         }
-        if (!_visibilityMailbox.Writer.TryWrite(packet))
+        if (!_visibilityMailbox.Writer.TryWrite(new OutboundDelivery(packet, null)))
         {
             // A slow peer cannot retain unbounded visibility history or stall other players.
             BeginDispose();
+        }
+    }
+
+    /// <summary>
+    /// Called under the source/destination visibility cutover locks; never exposed as an
+    /// independent network operation where old-map fanout could overtake arrival.
+    /// </summary>
+    internal void QueueVisibilitySnapshot(IPacket[] packets)
+    {
+        if (packets.Length == 0 || IsStopping || _visibilityMailbox is null)
+        {
+            return;
+        }
+        if (!_visibilityMailbox.Writer.TryWrite(new OutboundDelivery(packets[0], null, packets)))
+        {
+            BeginDispose();
+        }
+    }
+
+    internal void QueuePortalArrival(IPacket arrival, IPacket mapInfo)
+    {
+        if (_visibilityMailbox is null)
+        {
+            throw new InvalidOperationException("Connected portal arrival requires an ordered world mailbox.");
+        }
+        if (!_visibilityMailbox.Writer.TryWrite(new OutboundDelivery(arrival, mapInfo)))
+        {
+            BeginDispose();
+        }
+    }
+
+    /// <summary>Called only under WorldRuntime's final generation handoff gate.</summary>
+    internal void RebindPortalWorld(WorldCharacterOwnership oldOwnership, WorldCharacterOwnership next,
+        WorldMapContent target, PersistedCharacterLocation persisted)
+    {
+        WorldLocationState previous = Volatile.Read(ref _location);
+        if (previous.Ownership != oldOwnership || next.CharacterId != oldOwnership.CharacterId ||
+            next.MapId != target.MapId || persisted.Location.MapId != next.MapId)
+        {
+            throw new InvalidOperationException("Connected portal rebind lost its authoritative world generation.");
+        }
+
+        _positionReconciler = new WorldPositionReconciler(persisted.Location.X, persisted.Location.Y);
+        _walkPacer = new WorldWalkPacer();
+        Volatile.Write(ref _location, new WorldLocationState(next, target, persisted));
+    }
+
+    internal async ValueTask ProcessPortalAsync(GamePortalRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.EntityId != Ownership.CharacterId || _portals is null)
+        {
+            throw new InvalidDataException("Portal request has no matching authenticated world session.");
+        }
+
+        TaskCompletionSource pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_gate)
+        {
+            if (_disposalStarted != 0 || _portalOperation is not null)
+            {
+                throw new InvalidDataException("A portal operation cannot overlap session disposal or another portal.");
+            }
+            _portalOperation = pending;
+        }
+
+        try
+        {
+            if (!await _portals.TryTransferAsync(this, request, cancellationToken).ConfigureAwait(false))
+            {
+                // 5517 waits indefinitely after 85. A refused transition must close the connection.
+                throw new InvalidDataException("The requested portal is not authorized or available.");
+            }
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _portalOperation = null;
+            }
+            pending.TrySetResult();
         }
     }
 
@@ -206,7 +291,7 @@ internal sealed class WorldSession : IAsyncDisposable
         }
         try
         {
-            await foreach (IPacket packet in _visibilityMailbox.Reader.ReadAllAsync(_visibilityStopping.Token).ConfigureAwait(false))
+            await foreach (OutboundDelivery delivery in _visibilityMailbox.Reader.ReadAllAsync(_visibilityStopping.Token).ConfigureAwait(false))
             {
                 using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
                     _visibilityStopping.Token, _runtime.StoppingToken);
@@ -217,9 +302,22 @@ internal sealed class WorldSession : IAsyncDisposable
                     {
                         return;
                     }
-                    // Do not call WorldSession.WriteAsync here: its fail-and-await-cleanup path
-                    // would await this pump and deadlock session disposal.
-                    await _connection.WriteAsync(packet, linked.Token).ConfigureAwait(false);
+                    // Do not call WorldSession.WriteAsync here: that method awaits teardown.
+                    if (delivery.Snapshot is IPacket[] snapshot)
+                    {
+                        foreach (IPacket packet in snapshot)
+                        {
+                            await _connection.WriteAsync(packet, linked.Token).ConfigureAwait(false);
+                        }
+                    }
+                    else if (delivery.Second is IPacket second)
+                    {
+                        await _connection.WriteBatchAsync(delivery.First, second, linked.Token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await _connection.WriteAsync(delivery.First, linked.Token).ConfigureAwait(false);
+                    }
                 }
                 finally
                 {
@@ -518,6 +616,21 @@ internal sealed class WorldSession : IAsyncDisposable
         await SendGameplayResponseAsync(CreatePositionCorrection(snapshot.Value), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The native 408 report has no response and confers no gameplay authority.</summary>
+    internal void ProcessClientStateApplied(GameAction notification)
+    {
+        ThrowIfInactive();
+        if (notification.Action != GameAction.ClientStateAppliedAction ||
+            notification.EntityId != 0 || notification.ParameterPair != 0 ||
+            notification.ActionParameter != 0 || notification.Timestamp != 0 ||
+            notification.Direction != 0 || notification.PositionX != 0 ||
+            notification.PositionY != 0 || notification.Data1 != 0 ||
+            notification.Data2 != 0 || notification.Flag != 0 || notification.StringCount != 0)
+        {
+            throw new InvalidDataException("The 5517 client-state-applied report is malformed.");
+        }
+    }
+
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfInactive();
@@ -692,6 +805,16 @@ internal sealed class WorldSession : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         List<Exception> failures = [];
+        Task? portal;
+        lock (_gate)
+        {
+            portal = _portalOperation?.Task;
+        }
+        // Never release a source or destination generation while a durable transfer is unresolved.
+        if (portal is not null)
+        {
+            await portal.ConfigureAwait(false);
+        }
 
         try
         {
@@ -793,4 +916,9 @@ internal sealed class WorldSession : IAsyncDisposable
             _runtime.UntrackSession(Ownership, _completion.Task);
         }
     }
+
+    private sealed record WorldLocationState(WorldCharacterOwnership Ownership, WorldMapContent Map,
+        PersistedCharacterLocation? Persisted);
+
+    private readonly record struct OutboundDelivery(IPacket First, IPacket? Second, IPacket[]? Snapshot = null);
 }

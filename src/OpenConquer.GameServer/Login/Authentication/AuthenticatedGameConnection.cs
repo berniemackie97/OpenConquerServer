@@ -59,6 +59,9 @@ internal sealed class AuthenticatedGameConnection : IAsyncDisposable
 
     public ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default) => _session.WriteAsync(packet, cancellationToken);
 
+    public ValueTask WriteBatchAsync(IPacket first, IPacket second, CancellationToken cancellationToken = default) =>
+        _session.WriteBatchAsync(first, second, cancellationToken);
+
     /// <summary>
     /// Keeps just enough of the login proof to check the single repeat 1052 the client sends on the same
     /// connection after creating a character, without redeeming the ticket again. Only called after the ticket

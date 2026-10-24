@@ -224,6 +224,12 @@ internal sealed partial class GameConnectionWorkerPool(
 
                     if (frame.PacketId == GameAction.PacketIdentifier)
                     {
+                        if (GamePortalRequest.TryParse(frame, out GamePortalRequest portal))
+                        {
+                            await session.ProcessPortalAsync(portal, cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
                         if (GameGhostTransitionRequest.TryParse(frame, out GameGhostTransitionRequest ghost))
                         {
                             await session.ProcessGhostTransitionAsync(ghost, cancellationToken).ConfigureAwait(false);
@@ -243,12 +249,20 @@ internal sealed partial class GameConnectionWorkerPool(
                         }
 
                         if (frame.Header.Length == GameAction.FixedPacketLength &&
-                            GameAction.TryParse(frame, out GameAction query, out _) &&
-                            query.Action == 102 && query.StringCount == 0 &&
-                            query.EntityId == session.Ownership.CharacterId && query.ParameterPair != 0)
+                            GameAction.TryParse(frame, out GameAction query, out _))
                         {
-                            session.QueryVisibleEntity(query.ParameterPair);
-                            continue;
+                            if (query.Action == GameAction.ClientStateAppliedAction)
+                            {
+                                session.ProcessClientStateApplied(query);
+                                continue;
+                            }
+
+                            if (query.Action == 102 && query.StringCount == 0 &&
+                                query.EntityId == session.Ownership.CharacterId && query.ParameterPair != 0)
+                            {
+                                session.QueryVisibleEntity(query.ParameterPair);
+                                continue;
+                            }
                         }
 
                         if (GameAvatarAction.TryParse(frame, out GameAvatarAction avatar))

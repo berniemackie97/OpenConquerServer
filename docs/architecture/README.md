@@ -102,4 +102,5 @@ measurements show the need. See [World execution](world-execution.md).
 - [Authentication](authentication.md)
 - [Persistence](persistence.md)
 - [World execution](world-execution.md)
+- [Connected portal transfers](connected-portal-transfers.md)
 - [Protocol](../protocol/README.md)

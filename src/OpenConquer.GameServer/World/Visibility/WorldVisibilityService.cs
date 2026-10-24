@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Items;
@@ -26,6 +27,12 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     [LoggerMessage(EventId = 6650, Level = LogLevel.Warning,
         Message = "Peer-visibility delivery failed for character {CharacterId}; closing that recipient's session.")]
     private static partial void LogPeerWriteFailed(ILogger logger, uint characterId, Exception exception);
+
+    [LoggerMessage(EventId = 6651, Level = LogLevel.Debug,
+        Message = "Portal visibility cutover for character {CharacterId}, map {SourceMapId} to {DestinationMapId}: map-lock wait {WaitMilliseconds} ms, held {HoldMilliseconds} ms; {Departed} source and {Arrived} destination observers.")]
+    private static partial void LogPortalVisibilityCutover(ILogger logger, uint characterId,
+        uint sourceMapId, uint destinationMapId, double waitMilliseconds, double holdMilliseconds,
+        int departed, int arrived);
 
     public void Enter(WorldSession session)
     {
@@ -61,6 +68,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 RemoveOnlineName(session);
                 throw;
             }
+            List<IPacket> initialVisibility = new(transition.Entered.Length * 2);
             foreach (uint otherId in transition.Entered)
             {
                 map.Sessions[otherId].QueueVisibilityPacket(new GamePlayerSpawnPacket(spawn));
@@ -68,12 +76,107 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 {
                     map.Sessions[otherId].QueueVisibilityPacket(entrantWord);
                 }
-                session.QueueVisibilityPacket(new GamePlayerSpawnPacket(map.Spawns[otherId]));
+                initialVisibility.Add(new GamePlayerSpawnPacket(map.Spawns[otherId]));
                 if (map.RoleWords.TryGetValue(otherId, out GameChatPacket? existingWord))
                 {
-                    session.QueueVisibilityPacket(existingWord);
+                    initialVisibility.Add(existingWord);
                 }
             }
+            if (initialVisibility.Count != 0)
+            {
+                session.QueueVisibilitySnapshot([.. initialVisibility]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Switches visibility between maps after durable/world ownership was committed.
+    /// The online-name identity remains attached to the same session throughout.
+    /// </summary>
+    internal void Relocate(WorldSession session, WorldCharacterOwnership previous, ushort x, ushort y,
+        uint destinationMapDataId, uint timestamp, GameMapInfoPacket mapInfo)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(mapInfo);
+        WorldCharacterOwnership current = session.Ownership;
+        if (previous.CharacterId != current.CharacterId || previous.MapId == current.MapId ||
+            !_maps.TryGetValue(previous.MapId, out MapState? source))
+        {
+            throw new InvalidOperationException("Portal visibility source is not registered.");
+        }
+
+        MapState destination = _maps.GetOrAdd(current.MapId, static _ => new MapState());
+        MapState first = previous.MapId < current.MapId ? source : destination;
+        MapState second = previous.MapId < current.MapId ? destination : source;
+        long waitingSince = Stopwatch.GetTimestamp();
+        long locksAcquired = 0;
+        long locksReleased = 0;
+        int departedCount = 0;
+        int arrivalCount = 0;
+
+        lock (first.Gate)
+        {
+            lock (second.Gate)
+            {
+                locksAcquired = Stopwatch.GetTimestamp();
+                uint characterId = current.CharacterId;
+                if (!source.Sessions.TryGetValue(characterId, out WorldSession? existing) ||
+                    !ReferenceEquals(existing, session) || destination.Sessions.ContainsKey(characterId) ||
+                    !_onlineByName.TryGetValue(session.Profile.Identity.Name, out WorldSession? named) ||
+                    !ReferenceEquals(named, session))
+                {
+                    throw new InvalidOperationException("Portal visibility cannot rebind a stale or duplicated session.");
+                }
+
+                byte direction = source.Spawns[characterId].Direction;
+                uint[] departed = source.Index.Leave(characterId);
+                departedCount = departed.Length;
+                source.Sessions.Remove(characterId);
+                source.Spawns.Remove(characterId);
+                source.RoleWords.Remove(characterId);
+                GameActionPacket removal = new(characterId, parameterPair: 0, actionParameter: 0,
+                    timestamp: unchecked((uint)Environment.TickCount64), action: 135, direction: 0,
+                    positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
+                foreach (uint observerId in departed)
+                {
+                    source.Sessions[observerId].QueueVisibilityPacket(removal);
+                }
+
+                // Use the same authoritative facing for the travelling client and destination peers.
+                GameActionPacket arrival = GameActionPacket.CreatePortalArrival(
+                    characterId, destinationMapDataId, x, y, direction, timestamp);
+                // Both map locks prevent a late old-map fanout from entering the
+                // sender mailbox behind 86/1110, and destination spawns from entering ahead.
+                session.QueuePortalArrival(arrival, mapInfo);
+                GamePlayerSpawnSnapshot spawn = CreateSpawn(session, x, y, direction);
+                destination.Sessions.Add(characterId, session);
+                destination.Spawns.Add(characterId, spawn);
+                VisibilityChange change = destination.Index.Enter(characterId, x, y);
+                arrivalCount = change.Entered.Length;
+                List<IPacket> initialVisibility = new(change.Entered.Length * 2);
+                foreach (uint observerId in change.Entered)
+                {
+                    destination.Sessions[observerId].QueueVisibilityPacket(new GamePlayerSpawnPacket(spawn));
+                    initialVisibility.Add(new GamePlayerSpawnPacket(destination.Spawns[observerId]));
+                    if (destination.RoleWords.TryGetValue(observerId, out GameChatPacket? word))
+                    {
+                        initialVisibility.Add(word);
+                    }
+                }
+                if (initialVisibility.Count != 0)
+                {
+                    session.QueueVisibilitySnapshot([.. initialVisibility]);
+                }
+                locksReleased = Stopwatch.GetTimestamp();
+            }
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            LogPortalVisibilityCutover(_logger, current.CharacterId, previous.MapId, current.MapId,
+                Stopwatch.GetElapsedTime(waitingSince, locksAcquired).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(locksAcquired, locksReleased).TotalMilliseconds,
+                departedCount, arrivalCount);
         }
     }
 

@@ -77,12 +77,11 @@ been submitted, any failure stops world execution. The error does not show wheth
 is still on the source map, so the runtime must not reopen source commands or publish an owner it
 has not confirmed.
 
-This API is internal and is not a live portal transfer. It rejects tracked world sessions, because
-`WorldSession.Map`, `WorldSession.Ownership`, visibility state and network bootstrap are all tied
-to a map that never changes during the session's lifetime. The operation does not write to MySQL,
-consume an observed commit marker or send client packets, and the handoff is not crash-safe. A
-real portal coordinator needs durable fencing and recovery and the 5517 packet sequence before it
-can use this relocation for connected characters.
+This original API remains internal and is not a connected portal transfer. It rejects tracked
+sessions and does not write MySQL or send client packets. The separate connected sealed path
+requires an exact tracked session-completion identity, consumes positive durable CAS evidence,
+moves the runtime generation and rebinds the same world session. See
+[Connected portal transfers](connected-portal-transfers.md).
 
 ## Unbound portal transaction
 
@@ -112,10 +111,21 @@ rebinding, visibility cutover or confirmed 5517 map-transition acknowledgement. 
 transfers are enabled, a restarted realm must be protected from a CAS sent before a crash that
 completes late. Characters with an active session cannot be moved this way.
 
-## Remaining work: map transfer
+## Connected portal transfers
 
-Working map transfers need a cutover state machine that obtains a preflight lease and also
-handles:
+The connected transition coordinator now composes source FIFO reservation, current-generation
+location observation, the existing session's v13 writer token, one exact durable CAS receipt,
+destination-first residency cutover, tracked session rebind, map visibility and the native 86/1110
+arrival packet batch. A refused or uncertain CAS abandons the seal and closes only that session;
+a failed in-memory cutover stops partition execution. Neither is retried based only on unchanged
+coordinates. Invalid requests are disconnected because retail 5517
+otherwise remains indefinitely in its waiting mode.
+
+## Remaining work: other transfers
+
+NPC, revival, cross-process and administrative transfers still require their own authorization
+and gameplay semantics; they must reuse the proven boundary rather than bypass its durable commit.
+The general transition contract includes:
 
 - the durable-location CAS, and reading back to reconcile when an outcome is unknown;
 - map and ownership generation handoff;
@@ -147,4 +157,5 @@ yet.
 - A stalled barrier times out and releases both the capacity and the block on source changes.
 - Barrier-ordering and global capacity tests use controlled partition blocking and a third map.
 
-Live transfer testing with two clients belongs to the future map-transfer work.
+Native encrypted-wire two-client regressions exercise connected departure and arrival.
+A real 5517 client smoke test with production realm configuration remains a deployment gate.

@@ -263,19 +263,32 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         }
     }
 
-    public async ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default)
+    public ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(packet, second: null, cancellationToken);
+
+    public ValueTask WriteBatchAsync(IPacket first, IPacket second, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(packet);
+        ArgumentNullException.ThrowIfNull(second);
+        return WriteCoreAsync(first, second, cancellationToken);
+    }
 
+    private async ValueTask WriteCoreAsync(IPacket first, IPacket? second, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(first);
         EnterOperation();
-
         try
         {
             GameSecuredFrameWriter frameWriter = GetSecuredFrameWriter();
-
             try
             {
-                await frameWriter.WriteAsync(packet, cancellationToken).ConfigureAwait(false);
+                if (second is null)
+                {
+                    await frameWriter.WriteAsync(first, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await frameWriter.WriteBatchAsync(first, second, cancellationToken).ConfigureAwait(false);
+                }
 
                 if (_outputPump.IsCompleted)
                 {
@@ -288,7 +301,6 @@ internal sealed class GameConnectionSession : IAsyncDisposable
                 {
                     await ThrowForOutputPumpCompletionAsync().ConfigureAwait(false);
                 }
-
                 throw;
             }
         }
