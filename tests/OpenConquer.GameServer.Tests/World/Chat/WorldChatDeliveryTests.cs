@@ -731,13 +731,13 @@ public sealed class WorldChatDeliveryTests
         return frame.SequenceEqual(expected);
     }
 
-    private enum PortalPersistenceFault { None, Conflict, CommittedButUnknown, WrongReceipt }
+    public enum PortalPersistenceFault { None, Conflict, CommittedButUnknown, WrongReceipt }
 
     [Theory]
     [InlineData(PortalPersistenceFault.Conflict, typeof(InvalidOperationException))]
     [InlineData(PortalPersistenceFault.CommittedButUnknown, typeof(IOException))]
     [InlineData(PortalPersistenceFault.WrongReceipt, typeof(InvalidOperationException))]
-    private async Task ConnectedPortal_PostSealPersistenceFailureStopsWorldAndCompletesTeardown(
+    public async Task ConnectedPortal_PostSealPersistenceFailureStopsWorldAndCompletesTeardown(
         PortalPersistenceFault fault, Type expectedException)
     {
         await using ChatWorld world = new(portals: true) { PersistenceFault = fault };
