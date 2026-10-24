@@ -8,6 +8,42 @@ public sealed class AccountRegistrationProtectionTests
     private static readonly TimeSpan s_window = TimeSpan.FromHours(1);
 
     [Fact]
+    public void ExpiredInFlightSource_DoesNotPinOtherExpiredSources()
+    {
+        ManualTimeProvider time = new();
+        AccountRegistrationProtection protection = Create(time, attemptLimit: 1, trackedSources: 2);
+        IPAddress first = IPAddress.Parse("203.0.113.1");
+        IDisposable pending = Admit(protection, first);
+        Admit(protection, IPAddress.Parse("203.0.113.2")).Dispose();
+
+        time.Advance(s_window);
+        Assert.False(protection.TryBeginRegistration(first, out _));
+        Admit(protection, IPAddress.Parse("203.0.113.3")).Dispose();
+        pending.Dispose();
+        Admit(protection, first).Dispose();
+    }
+
+    [Fact]
+    public void MappedIpv4_SharesTheIpv4Quota()
+    {
+        AccountRegistrationProtection protection = Create(new ManualTimeProvider(), attemptLimit: 1);
+        Admit(protection, IPAddress.Parse("203.0.113.1")).Dispose();
+        Assert.False(protection.TryBeginRegistration(IPAddress.Parse("::ffff:203.0.113.1"), out _));
+    }
+
+    [Fact]
+    public void ParallelAdmissionAndDisposal_EnforceOneAttemptPerSource()
+    {
+        AccountRegistrationProtection protection = Create(new ManualTimeProvider(), attemptLimit: 100);
+        IPAddress source = IPAddress.Parse("203.0.113.1");
+        IDisposable?[] leases = new IDisposable?[64];
+        Parallel.For(0, leases.Length, index => protection.TryBeginRegistration(source, out leases[index]));
+        IDisposable lease = Assert.Single(leases, value => value is not null)!;
+        Parallel.For(0, 64, _ => lease.Dispose());
+        Admit(protection, source).Dispose();
+    }
+
+    [Fact]
     public void SourceQuota_CountsEveryAdmittedAttemptUntilTheWindowExpires()
     {
         ManualTimeProvider time = new();

@@ -2,16 +2,16 @@ using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Connections.Framing;
 using OpenConquer.Protocol.Login.Packets;
 
-namespace OpenConquer.AccountServer.Login.Handshake.Authentication;
+namespace OpenConquer.AccountServer.Login.Handshake.Requests;
 
 /// <summary>
 /// Consumes and decodes the account credential request from one established login connection.
 /// </summary>
-internal sealed class LoginAccountRequestReader
+internal sealed class LoginRequestReader
 {
     private readonly LoginConnectionSession _session;
 
-    public LoginAccountRequestReader(LoginConnectionSession session)
+    public LoginRequestReader(LoginConnectionSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
 
@@ -22,13 +22,13 @@ internal sealed class LoginAccountRequestReader
     /// Reads the next login frame and classifies it as a standard account login request or an OpenConquer
     /// registration request.
     /// </summary>
-    public async ValueTask<LoginAccountRequestReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<LoginRequestReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         LoginInboundFrame? inboundFrame = await _session.ReadAsync(cancellationToken).ConfigureAwait(false);
 
         if (inboundFrame is null)
         {
-            return LoginAccountRequestReadResult.EndOfStream();
+            return LoginRequestReadResult.EndOfStream();
         }
 
         using LoginInboundFrame frame = inboundFrame;
@@ -36,13 +36,13 @@ internal sealed class LoginAccountRequestReader
         if (frame.PacketId == LoginAccountRegistrationRequestPacket.PacketIdentifier)
         {
             return LoginAccountRegistrationRequestPacket.TryDecode(frame.Payload.Span, _session.LoginSeed, out LoginAccountRegistrationRequest? registration)
-                ? LoginAccountRequestReadResult.RegistrationRequest(registration!)
-                : LoginAccountRequestReadResult.InvalidRegistrationRequest();
+                ? LoginRequestReadResult.RegistrationRequest(registration!)
+                : LoginRequestReadResult.InvalidRegistrationRequest();
         }
 
         if (frame.PacketId != LoginAccountRequestPacket.PacketIdentifier)
         {
-            return LoginAccountRequestReadResult.UnexpectedPacket(frame.PacketId);
+            return LoginRequestReadResult.UnexpectedPacket(frame.PacketId);
         }
 
         LoginAccountRequest? request = null;
@@ -51,12 +51,12 @@ internal sealed class LoginAccountRequestReader
         {
             if (!LoginAccountRequestPacket.TryDecodeStandard(frame.Payload.Span, _session.LoginSeed, out request))
             {
-                return LoginAccountRequestReadResult.InvalidAccountRequest();
+                return LoginRequestReadResult.InvalidAccountRequest();
             }
 
             LoginAccountRequest decodedRequest = request ?? throw new InvalidOperationException("Successful account-request decoding did not return a request.");
 
-            LoginAccountRequestReadResult result = LoginAccountRequestReadResult.Success(decodedRequest);
+            LoginRequestReadResult result = LoginRequestReadResult.AuthenticationRequest(decodedRequest);
 
             request = null;
 

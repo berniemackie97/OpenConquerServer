@@ -13,6 +13,8 @@ namespace OpenConquer.Infrastructure.Persistence.Accounts.Registration;
 public sealed class AccountRegistrationStore : IAccountRegistrationStore
 {
     private const int CommandTimeoutSeconds = 15;
+    private static readonly TimeSpan s_commitTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_recoveryTimeout = TimeSpan.FromSeconds(5);
     private const int DuplicateKeyErrorNumber = 1062;
     private const string UsernameIndexName = "UX_accounts_username";
 
@@ -35,57 +37,83 @@ public sealed class AccountRegistrationStore : IAccountRegistrationStore
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-
-        await using MySqlConnection connection = new(_connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using MySqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // From here the statements run to completion: a write that has started is never abandoned half way.
-        uint accountId;
-
         try
         {
-            accountId = await InsertAccountAsync(connection, transaction, username, creationOperationId).ConfigureAwait(false);
+            return await CreateAsync(username, passwordHash, creationOperationId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("Account registration was canceled.", cancellationToken);
+        }
+        catch (AccountRegistrationPersistenceException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is MySqlException or IOException or TimeoutException or OperationCanceledException or InvalidOperationException)
+        {
+            // Driver messages may contain usernames, connection details or SQL parameter values.
+            // Retain only a numeric diagnostic, never the original exception or message.
+            throw new AccountRegistrationPersistenceException(commitOutcomeUnknown: false,
+                exception is MySqlException mysql ? mysql.Number : null);
+        }
+    }
+
+    private async ValueTask<uint?> CreateAsync(string username, string passwordHash, Guid creationOperationId,
+        CancellationToken cancellationToken)
+    {
+        using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        operation.CancelAfter(TimeSpan.FromSeconds(CommandTimeoutSeconds));
+        await using MySqlConnection connection = new(_connectionString);
+        await connection.OpenAsync(operation.Token).ConfigureAwait(false);
+        await using MySqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, operation.Token).ConfigureAwait(false);
+
+        uint accountId;
+        try
+        {
+            accountId = await InsertAccountAsync(connection, transaction, username, creationOperationId, operation.Token).ConfigureAwait(false);
         }
         catch (MySqlException exception) when (exception.Number == DuplicateKeyErrorNumber &&
             exception.Message.Contains(UsernameIndexName, StringComparison.Ordinal))
         {
-            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            // Disposal rolls back this transaction; no other writes have been made.
             return null;
         }
 
-        await InsertCredentialAsync(connection, transaction, accountId, passwordHash).ConfigureAwait(false);
-        await InsertCreationAuditAsync(connection, transaction, accountId, creationOperationId).ConfigureAwait(false);
+        await InsertCredentialAsync(connection, transaction, accountId, passwordHash, operation.Token).ConfigureAwait(false);
+        await InsertCreationAuditAsync(connection, transaction, accountId, creationOperationId, operation.Token).ConfigureAwait(false);
+        operation.Token.ThrowIfCancellationRequested();
 
+        // Once COMMIT is sent, disconnect or host cancellation cannot establish whether it applied.
+        using CancellationTokenSource commit = new(s_commitTimeout);
         try
         {
-            await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            await transaction.CommitAsync(commit.Token).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is MySqlException or IOException or TimeoutException)
+        catch (Exception exception) when (exception is MySqlException or IOException or TimeoutException or OperationCanceledException)
         {
-            // The commit may have reached the server even though its acknowledgment was lost.
-            uint? committed = await FindByCreationOperationAsync(creationOperationId).ConfigureAwait(false);
-
-            if (committed is uint recovered && recovered == accountId)
+            using CancellationTokenSource recovery = new(s_recoveryTimeout);
+            try
             {
-                return recovered;
+                uint? committed = await FindByCreationOperationAsync(creationOperationId, recovery.Token).ConfigureAwait(false);
+                if (committed == accountId)
+                {
+                    return accountId;
+                }
+            }
+            catch (Exception recoveryException) when (recoveryException is MySqlException or IOException or TimeoutException or OperationCanceledException)
+            {
+                // Both an unavailable read and a missing row leave the outcome unknown. Never retry the insert.
             }
 
-            if (committed is null)
-            {
-                throw new InvalidOperationException("Account registration did not commit.", exception);
-            }
-
-            throw new InvalidOperationException("A registration operation ID resolved to a different account.", exception);
+            throw new AccountRegistrationPersistenceException(commitOutcomeUnknown: true,
+                exception is MySqlException mysql ? mysql.Number : null);
         }
 
         return accountId;
     }
 
     private static async ValueTask<uint> InsertAccountAsync(MySqlConnection connection, MySqlTransaction transaction,
-        string username, Guid creationOperationId)
+        string username, Guid creationOperationId, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -127,7 +155,7 @@ public sealed class AccountRegistrationStore : IAccountRegistrationStore
         // The schema reserves self-service for creation; the initial access state is set by the system.
         command.Parameters.Add("@state_changed_by_actor_kind", MySqlDbType.UByte).Value = (byte)AccountActorKind.System;
 
-        if (await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false) != 1)
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
         {
             throw new InvalidOperationException("Account registration did not insert exactly one account row.");
         }
@@ -143,7 +171,7 @@ public sealed class AccountRegistrationStore : IAccountRegistrationStore
     }
 
     private static async ValueTask InsertCredentialAsync(MySqlConnection connection, MySqlTransaction transaction,
-        uint accountId, string passwordHash)
+        uint accountId, string passwordHash, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -161,14 +189,14 @@ public sealed class AccountRegistrationStore : IAccountRegistrationStore
         command.Parameters.Add("@account_id", MySqlDbType.UInt32).Value = accountId;
         command.Parameters.Add("@password_hash", MySqlDbType.VarChar, 255).Value = passwordHash;
 
-        if (await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false) != 1)
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
         {
             throw new InvalidOperationException("Account registration did not insert exactly one password credential.");
         }
     }
 
     private static async ValueTask InsertCreationAuditAsync(MySqlConnection connection, MySqlTransaction transaction,
-        uint accountId, Guid creationOperationId)
+        uint accountId, Guid creationOperationId, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -191,16 +219,16 @@ public sealed class AccountRegistrationStore : IAccountRegistrationStore
         command.Parameters.Add("@actor_kind", MySqlDbType.UByte).Value = (byte)AccountActorKind.SelfService;
         command.Parameters.Add("@correlation_id", MySqlDbType.Guid).Value = creationOperationId;
 
-        if (await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false) != 1)
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
         {
             throw new InvalidOperationException("Account registration did not insert exactly one creation audit event.");
         }
     }
 
-    private async ValueTask<uint?> FindByCreationOperationAsync(Guid creationOperationId)
+    private async ValueTask<uint?> FindByCreationOperationAsync(Guid creationOperationId, CancellationToken cancellationToken)
     {
         await using MySqlConnection connection = new(_connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using MySqlCommand command = connection.CreateCommand();
 
         command.CommandTimeout = CommandTimeoutSeconds;
@@ -213,7 +241,7 @@ public sealed class AccountRegistrationStore : IAccountRegistrationStore
 
         command.Parameters.Add("@creation_operation_id", MySqlDbType.Guid).Value = creationOperationId;
 
-        object? value = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+        object? value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 
         return value is null or DBNull ? null : Convert.ToUInt32(value, System.Globalization.CultureInfo.InvariantCulture);
     }

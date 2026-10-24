@@ -146,7 +146,7 @@ public sealed class LoginConnectionWorkerPoolTests
         AggregateException aggregate = Assert.IsType<AggregateException>(failure.Exception);
         IReadOnlyCollection<Exception> innerExceptions = aggregate.Flatten().InnerExceptions;
 
-        Assert.Contains(innerExceptions, exception => exception is InvalidOperationException { Message: "Account login authentication requires an IP network endpoint." });
+        Assert.Contains(innerExceptions, exception => exception is InvalidOperationException { Message: "Account requests require an IP network endpoint." });
         Assert.Contains(disposalException, innerExceptions);
         Assert.Equal(1, connection.DisposeCount);
     }
@@ -212,7 +212,7 @@ public sealed class LoginConnectionWorkerPoolTests
     private static LoginHandshakeProcessor CreateProcessor(TimeSpan? phaseTimeout = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new UnusedGrantStore(), new UnusedTokenGenerator());
-        return new LoginHandshakeProcessor(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new UnusedRealmStatusDirectory(), new UnusedKickRequester(), new LoginHandshakeConfiguration(phaseTimeout ?? TimeSpan.FromSeconds(10)));
+        return TestLoginHandshakeFactory.Create(new UnexpectedAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new UnusedRealmStatusDirectory(), new UnusedKickRequester(), new LoginHandshakeConfiguration(phaseTimeout ?? TimeSpan.FromSeconds(10)));
     }
 
     private sealed class UnusedKickRequester : IAccountSessionKickRequester

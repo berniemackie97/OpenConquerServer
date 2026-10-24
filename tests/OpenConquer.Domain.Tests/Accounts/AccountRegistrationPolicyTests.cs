@@ -34,6 +34,11 @@ public sealed class AccountRegistrationPolicyTests
     [InlineData("", false)]
     [InlineData("12345", false)]
     [InlineData("123456", true)]
+    [InlineData("Ab09@.>-_", true)]
+    [InlineData("abc de", false)]
+    [InlineData("abcdef!", false)]
+    [InlineData("abcdefé", false)]
+    [InlineData("abcdef\0", false)]
     [InlineData("123456789012345", true)]
     [InlineData("1234567890123456", false)]
     public void IsValidPassword_EnforcesClientFieldBounds(string password, bool expected)

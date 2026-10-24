@@ -8,6 +8,17 @@ namespace OpenConquer.AccountServer.Tests.Configuration;
 public sealed class AccountServerConfigurationTests
 {
     [Fact]
+    public void RegistrationConfiguration_DoesNotIncludeConnectionSecretsInDiagnostics()
+    {
+        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create(values =>
+        {
+            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration;Password=private-marker";
+            values["AccountServer:Registration:Enabled"] = "true";
+        }));
+        Assert.DoesNotContain("private-marker", configuration.Registration!.ToString());
+    }
+
+    [Fact]
     public void Load_RejectsMissingConfiguration()
     {
         Assert.Throws<ArgumentNullException>(() => AccountServerConfiguration.Load(null!));

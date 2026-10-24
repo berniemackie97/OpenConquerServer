@@ -37,6 +37,19 @@ public static class AccountRegistrationPolicy
 
     public static bool IsValidPassword(ReadOnlySpan<char> password)
     {
-        return password.Length is >= MinimumPasswordLength and <= MaximumPasswordLength;
+        if (password.Length is < MinimumPasswordLength or > MaximumPasswordLength)
+        {
+            return false;
+        }
+
+        foreach (char character in password)
+        {
+            if (character is not (>= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '@' or '.' or '>' or '-' or '_'))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

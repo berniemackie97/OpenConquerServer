@@ -44,6 +44,8 @@ public sealed class AccountRegistrationService(IAccountRegistrationStore store, 
                 throw new InvalidOperationException("The account password hasher returned an invalid password hash.");
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             uint? accountId = await _store.TryCreateAsync(username, passwordHash, Guid.NewGuid(), cancellationToken).ConfigureAwait(false);
 
             return accountId is uint created

@@ -27,10 +27,10 @@ internal sealed class AccountRegistrationProtection(AccountRegistrationProtectio
         ArgumentNullException.ThrowIfNull(remoteAddress);
 
         RemoteAddressSourceKey key = RemoteAddressSourceKey.Create(remoteAddress);
-        long now = _timeProvider.GetTimestamp();
 
         lock (_gate)
         {
+            long now = _timeProvider.GetTimestamp();
             ExpireWindows(now);
 
             if (_inFlight >= _options.MaximumConcurrentAttempts)
@@ -79,18 +79,27 @@ internal sealed class AccountRegistrationProtection(AccountRegistrationProtectio
 
             source.InFlight = false;
             _inFlight--;
-            ExpireWindows(_timeProvider.GetTimestamp());
+            long now = _timeProvider.GetTimestamp();
+            if (source.WindowExpired)
+            {
+                _sources.Remove(source.Key);
+            }
+
+            ExpireWindows(now);
         }
     }
 
     private void ExpireWindows(long now)
     {
         while (_windows.First is { } first &&
-            !first.Value.InFlight &&
             _timeProvider.GetElapsedTime(first.Value.WindowStart, now) >= _options.AttemptWindow)
         {
             _windows.RemoveFirst();
-            _sources.Remove(first.Value.Key);
+            first.Value.WindowExpired = true;
+            if (!first.Value.InFlight)
+            {
+                _sources.Remove(first.Value.Key);
+            }
         }
     }
 
@@ -100,6 +109,7 @@ internal sealed class AccountRegistrationProtection(AccountRegistrationProtectio
         public long WindowStart { get; } = windowStart;
         public int Attempts { get; set; }
         public bool InFlight { get; set; }
+        public bool WindowExpired { get; set; }
     }
 
     private sealed class Lease(AccountRegistrationProtection owner, SourceState source) : IDisposable

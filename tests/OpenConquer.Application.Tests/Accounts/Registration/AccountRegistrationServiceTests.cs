@@ -10,6 +10,31 @@ public sealed class AccountRegistrationServiceTests
     private static readonly IPAddress s_source = IPAddress.Parse("203.0.113.7");
 
     [Fact]
+    public async Task RegisterAsync_CancellationDuringHashingDoesNotStartPersistenceAndReleasesLease()
+    {
+        using CancellationTokenSource cancellation = new();
+        FakeStore store = new(createdAccountId: 7);
+        FakeLimiter limiter = new();
+        AccountRegistrationService service = new(store, new FakeHasher(cancellation.Cancel), limiter);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.RegisterAsync("newplayer", "secret1".AsMemory(),
+            s_source, cancellation.Token).AsTask());
+        Assert.Null(store.Username);
+        Assert.Equal(0, limiter.InFlight);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_HasherFailureReleasesLeaseWithoutWriting()
+    {
+        FakeStore store = new(createdAccountId: 7);
+        FakeLimiter limiter = new();
+        AccountRegistrationService service = new(store, new FakeHasher(() => throw new InvalidOperationException()), limiter);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterAsync("newplayer", "secret1".AsMemory(),
+            s_source, TestContext.Current.CancellationToken).AsTask());
+        Assert.Null(store.Username);
+        Assert.Equal(0, limiter.InFlight);
+    }
+
+    [Fact]
     public async Task RegisterAsync_HashesPasswordAndCreatesAccount()
     {
         FakeStore store = new(createdAccountId: 7);
@@ -107,7 +132,7 @@ public sealed class AccountRegistrationServiceTests
         }
     }
 
-    private sealed class FakeHasher : IAccountPasswordHasher
+    private sealed class FakeHasher(Action? onHash = null) : IAccountPasswordHasher
     {
         public const string Hash = "$openconquer$pbkdf2-sha256$v=1$test";
 
@@ -120,6 +145,7 @@ public sealed class AccountRegistrationServiceTests
 
         public string HashPassword(ReadOnlySpan<char> password)
         {
+            onHash?.Invoke();
             LastPassword = new string(password);
             return Hash;
         }

@@ -78,7 +78,16 @@ GRANT INSERT ON `openconquer_accounts`.`account_audit_events` TO 'openconquer_ac
 ```
 
 `SELECT` on `accounts` serves the `INSERT … SELECT` statements and the read-back of a commit whose
-acknowledgment was lost. To enable registration in development:
+acknowledgment was lost. Verify these grants using the registration identity before enabling it;
+the ordinary account database readiness check uses the AccountServer identity. Do not grant
+credential reads, updates, deletes or schema-management privileges to registration.
+
+Registration quotas are per process, so replicas need source affinity or an external shared limit.
+A result of `3` means creation was not confirmed; it does not establish that no account exists.
+Do not automatically replay a failed creation. Persistence diagnostics discard raw driver messages
+and expose a safe failure type, numeric database error and commit-uncertainty flag.
+
+To enable registration in development:
 
 ```bash
 P=src/OpenConquer.AccountServer/OpenConquer.AccountServer.csproj
