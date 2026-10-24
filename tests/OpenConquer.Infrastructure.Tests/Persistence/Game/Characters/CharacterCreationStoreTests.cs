@@ -211,7 +211,9 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
             MySqlException exception = await Assert.ThrowsAsync<MySqlException>(
                 () => update.ExecuteNonQueryAsync(CancellationToken));
 
-            Assert.Equal(1142, exception.Number);
+            // The identity holds column-scoped UPDATE on the location columns, so MySQL refuses this column
+            // with ER_COLUMNACCESS_DENIED_ERROR rather than the table-level 1142.
+            Assert.Equal(1143, exception.Number);
         }
 
         await using (MySqlCommand delete = connection.CreateCommand())
