@@ -755,7 +755,7 @@ public sealed class WorldChatDeliveryTests
             if (portals)
             {
                 MapTransitionCatalog catalog = new(
-                    [new MapTransitionEntry(FirstMap, 7, "resolved",
+                    [new MapTransitionEntry(FirstMap, 7, "release-approved",
                         new MapTransitionDestination(SecondMap, 1, 1, 1, "L"))], maps);
                 _portals = new WorldConnectedPortalTransferCoordinator(_runtime, catalog,
                     this, this, Visibility);

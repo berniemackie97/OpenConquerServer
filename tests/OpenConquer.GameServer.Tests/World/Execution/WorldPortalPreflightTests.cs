@@ -188,7 +188,7 @@ public sealed class WorldPortalPreflightTests
         WorldMapContentCatalog staleMaps = new(
             [CreateMap(SourceMapId, 1015, [s_exit]), CreateMap(TargetMapId, 1016, [])]);
         MapTransitionCatalog staleTransitions = new(
-            [new MapTransitionEntry(SourceMapId, 7, "resolved",
+            [new MapTransitionEntry(SourceMapId, 7, "release-approved",
                 new MapTransitionDestination(TargetMapId, 1, 3, 3, "L"))], staleMaps);
         await using WorldRuntime runtime = new(actualMaps, new WorldExecutionOptions(1, 8, 1, 2, 1));
         runtime.Start();
@@ -204,7 +204,7 @@ public sealed class WorldPortalPreflightTests
         Assert.Equal(TargetMapId, newcomer.MapId);
     }
 
-    private static MapTransitionEntry Resolved() => new(SourceMapId, 7, "resolved",
+    private static MapTransitionEntry Resolved() => new(SourceMapId, 7, "release-approved",
         new MapTransitionDestination(TargetMapId, 1, 1, 1, "L"));
 
     private static (WorldRuntime Runtime, MapTransitionCatalog Transitions) CreateWorld(

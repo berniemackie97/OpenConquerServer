@@ -29,6 +29,35 @@ public sealed class FileMapTransitionCatalogRepositoryTests
         Assert.False(transitions.TryResolve(200, 0, out _));
     }
 
+    [Fact]
+    public async Task LoadAsync_HistoricalCandidateIsNotReleasedWithoutApproval()
+    {
+        using TemporaryFile approved = new(
+            """
+            {"formatVersion":1,"transitions":[
+              {"mapId":100,"passwayIndex":0,"status":"release-approved","source":"L","targetMapId":100,"targetPortalIndex":3,"targetX":1,"targetY":1},
+              {"mapId":100,"passwayIndex":2,"status":"no-source"}
+            ]}
+            """);
+        MapTransitionCatalog released = await CreateRepository(approved.Path).LoadAsync(
+            CreateWorld(), TestContext.Current.CancellationToken);
+        Assert.Equal(1, released.ReleasedCount);
+        Assert.True(released.TryResolveReleased(100, 0, out _));
+
+        using TemporaryFile candidate = new(
+            """
+            {"formatVersion":1,"transitions":[
+              {"mapId":100,"passwayIndex":0,"status":"resolved","source":"L","targetMapId":100,"targetPortalIndex":3,"targetX":1,"targetY":1},
+              {"mapId":100,"passwayIndex":2,"status":"no-source"}
+            ]}
+            """);
+        MapTransitionCatalog historical = await CreateRepository(candidate.Path).LoadAsync(
+            CreateWorld(), TestContext.Current.CancellationToken);
+        Assert.Equal(0, historical.ReleasedCount);
+        Assert.True(historical.TryResolve(100, 0, out _));
+        Assert.False(historical.TryResolveReleased(100, 0, out _));
+    }
+
     [Theory]
     [InlineData("""{"formatVersion":2,"transitions":[]}""")]
     [InlineData("""{"formatVersion":1,"transitions":null}""")]
