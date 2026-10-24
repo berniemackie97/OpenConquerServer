@@ -208,6 +208,18 @@ internal sealed class WorldSession : IAsyncDisposable
     /// Called under the source/destination visibility cutover locks; never exposed as an
     /// independent network operation where old-map fanout could overtake arrival.
     /// </summary>
+    internal void QueueVisibilitySnapshot(IPacket[] packets)
+    {
+        if (packets.Length == 0 || IsStopping || _visibilityMailbox is null)
+        {
+            return;
+        }
+        if (!_visibilityMailbox.Writer.TryWrite(new OutboundDelivery(packets[0], null, packets)))
+        {
+            BeginDispose();
+        }
+    }
+
     internal void QueuePortalArrival(IPacket arrival, IPacket mapInfo)
     {
         if (_visibilityMailbox is null)
@@ -291,7 +303,14 @@ internal sealed class WorldSession : IAsyncDisposable
                         return;
                     }
                     // Do not call WorldSession.WriteAsync here: that method awaits teardown.
-                    if (delivery.Second is IPacket second)
+                    if (delivery.Snapshot is IPacket[] snapshot)
+                    {
+                        foreach (IPacket packet in snapshot)
+                        {
+                            await _connection.WriteAsync(packet, linked.Token).ConfigureAwait(false);
+                        }
+                    }
+                    else if (delivery.Second is IPacket second)
                     {
                         await _connection.WriteBatchAsync(delivery.First, second, linked.Token).ConfigureAwait(false);
                     }
@@ -901,5 +920,5 @@ internal sealed class WorldSession : IAsyncDisposable
     private sealed record WorldLocationState(WorldCharacterOwnership Ownership, WorldMapContent Map,
         PersistedCharacterLocation? Persisted);
 
-    private readonly record struct OutboundDelivery(IPacket First, IPacket? Second);
+    private readonly record struct OutboundDelivery(IPacket First, IPacket? Second, IPacket[]? Snapshot = null);
 }

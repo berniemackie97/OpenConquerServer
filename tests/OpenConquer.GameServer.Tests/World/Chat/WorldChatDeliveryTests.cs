@@ -673,6 +673,28 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
+    public async Task ConnectedPortal_DenseDestination_DeliversAllSpawnsWithoutExhaustingMailbox()
+    {
+        const int spectators = 260;
+        await using ChatWorld world = new(portals: true);
+        ClientSession traveller = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        for (uint index = 1; index <= spectators; index++)
+        {
+            await world.AddAsync(index, $"Peer{index}", SecondMap, 1, 2);
+        }
+
+        uint characterId = traveller.Session.Ownership.CharacterId;
+        await traveller.Session.ProcessPortalAsync(new GamePortalRequest(characterId, 2, 1),
+            TestContext.Current.CancellationToken);
+        Assert.False(traveller.Session.IsStopping);
+        IReadOnlyList<byte[]> frames = await traveller.WaitForFrameCountAsync(spectators + 2);
+        Assert.Equal(GameAction.PortalArrivalAction, BinaryPrimitives.ReadUInt16LittleEndian(frames[0].AsSpan(20)));
+        Assert.Equal((ushort)1110, PacketId(frames[1]));
+        Assert.Equal(spectators, frames.Skip(2).Count(frame => PacketId(frame) == 10014));
+        Assert.False(traveller.Session.IsStopping);
+    }
+
+    [Fact]
     public async Task NativeClientStateApplied_RequiresZeroFieldsAndNeverAcknowledges()
     {
         await using ChatWorld world = new(portals: true);
@@ -729,7 +751,7 @@ public sealed class WorldChatDeliveryTests
             _second = portals ? CreateWideMap(SecondMap, 1016) :
                 WorldMapTestContent.Create(SecondMap, 1016, 0);
             WorldMapContentCatalog maps = WorldMapTestContent.CreateCatalog(_first, _second);
-            _runtime = new WorldRuntime(maps, new WorldExecutionOptions(2, 8, 4, 16, 16));
+            _runtime = new WorldRuntime(maps, new WorldExecutionOptions(2, 8, 4, portals ? 512 : 16, portals ? 512 : 16));
             if (portals)
             {
                 MapTransitionCatalog catalog = new(

@@ -61,6 +61,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 RemoveOnlineName(session);
                 throw;
             }
+            List<IPacket> initialVisibility = new(transition.Entered.Length * 2);
             foreach (uint otherId in transition.Entered)
             {
                 map.Sessions[otherId].QueueVisibilityPacket(new GamePlayerSpawnPacket(spawn));
@@ -68,11 +69,15 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 {
                     map.Sessions[otherId].QueueVisibilityPacket(entrantWord);
                 }
-                session.QueueVisibilityPacket(new GamePlayerSpawnPacket(map.Spawns[otherId]));
+                initialVisibility.Add(new GamePlayerSpawnPacket(map.Spawns[otherId]));
                 if (map.RoleWords.TryGetValue(otherId, out GameChatPacket? existingWord))
                 {
-                    session.QueueVisibilityPacket(existingWord);
+                    initialVisibility.Add(existingWord);
                 }
+            }
+            if (initialVisibility.Count != 0)
+            {
+                session.QueueVisibilitySnapshot([.. initialVisibility]);
             }
         }
     }
@@ -133,14 +138,19 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 destination.Sessions.Add(characterId, session);
                 destination.Spawns.Add(characterId, spawn);
                 VisibilityChange change = destination.Index.Enter(characterId, x, y);
+                List<IPacket> initialVisibility = new(change.Entered.Length * 2);
                 foreach (uint observerId in change.Entered)
                 {
                     destination.Sessions[observerId].QueueVisibilityPacket(new GamePlayerSpawnPacket(spawn));
-                    session.QueueVisibilityPacket(new GamePlayerSpawnPacket(destination.Spawns[observerId]));
+                    initialVisibility.Add(new GamePlayerSpawnPacket(destination.Spawns[observerId]));
                     if (destination.RoleWords.TryGetValue(observerId, out GameChatPacket? word))
                     {
-                        session.QueueVisibilityPacket(word);
+                        initialVisibility.Add(word);
                     }
+                }
+                if (initialVisibility.Count != 0)
+                {
+                    session.QueueVisibilitySnapshot([.. initialVisibility]);
                 }
             }
         }
