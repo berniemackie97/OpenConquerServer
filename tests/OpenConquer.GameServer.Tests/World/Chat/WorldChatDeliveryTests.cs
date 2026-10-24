@@ -843,7 +843,7 @@ public sealed class WorldChatDeliveryTests
                 if (PersistenceFault == PortalPersistenceFault.WrongReceipt && value?.LastOperationId is not null)
                 {
                     value = new PersistedCharacterLocation(value.Location, value.Revision,
-                        Guid.NewGuid(), value.WriterToken);
+                        writerToken: value.WriterToken);
                 }
                 return ValueTask.FromResult(value);
             }
