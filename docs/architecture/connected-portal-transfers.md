@@ -62,14 +62,25 @@ MapId, MapDataId and 64-bit flags. Old-map visibility membership is removed and 
 receive native removal 135. New-map membership is installed without dropping the online-name
 identity; action 86 and destination-peer spawns use the same last accepted facing direction.
 New peer spawns arrive **after** the 86/1110 batch. Already queued old-map packets
-precede the batch, not follow it. Slow-client output remains subject to the bounded session
-mailbox and normal connection teardown. Client action 408 following certain 1110 flag changes
+precede the batch, not follow it. The initial destination observer snapshot is queued as one bounded FIFO delivery
+rather than one mailbox item per peer; this preserves ordering for maps with more
+than 256 visible players without allocating an unbounded queue. Individual frames
+are sent asynchronously outside map locks. Ordinary slow-client output still
+uses the bounded mailbox and disconnect policy. Client action 408 following certain 1110 flag changes
 is an all-zero state-applied notification; it is validated and requires no response.
 
 The packet order is anchored in `20_notes/Server/portal-transition-5517.md`
 (retail client facts C, historical server observations S/T, Fox community X, retail-server
 unknowns U). This feature intentionally does not assume optional retail 104/1016 messages or
 invent refusal, restoration or cross-process network packets.
+
+The source and destination visibility map locks are held only for synchronous
+index/cached-spawn changes and nonblocking mailbox publication; no transport I/O
+occurs under either lock. Debug event 6651 records lock wait, time held and peer
+fanout counts for realistic-density profiling. The 260-observer regression guards
+against burst-driven disconnect; CI timing is not a production contention benchmark.
+Further lock-sharding or deferred fanout must be justified by those measurements
+and preserve per-map ordering.
 
 ## Validation and remaining scope
 

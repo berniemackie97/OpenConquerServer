@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Items;
@@ -26,6 +27,12 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     [LoggerMessage(EventId = 6650, Level = LogLevel.Warning,
         Message = "Peer-visibility delivery failed for character {CharacterId}; closing that recipient's session.")]
     private static partial void LogPeerWriteFailed(ILogger logger, uint characterId, Exception exception);
+
+    [LoggerMessage(EventId = 6651, Level = LogLevel.Debug,
+        Message = "Portal visibility cutover for character {CharacterId}, map {SourceMapId} to {DestinationMapId}: map-lock wait {WaitMilliseconds} ms, held {HoldMilliseconds} ms; {Departed} source and {Arrived} destination observers.")]
+    private static partial void LogPortalVisibilityCutover(ILogger logger, uint characterId,
+        uint sourceMapId, uint destinationMapId, double waitMilliseconds, double holdMilliseconds,
+        int departed, int arrived);
 
     public void Enter(WorldSession session)
     {
@@ -101,11 +108,17 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
         MapState destination = _maps.GetOrAdd(current.MapId, static _ => new MapState());
         MapState first = previous.MapId < current.MapId ? source : destination;
         MapState second = previous.MapId < current.MapId ? destination : source;
+        long waitingSince = Stopwatch.GetTimestamp();
+        long locksAcquired = 0;
+        long locksReleased = 0;
+        int departedCount = 0;
+        int arrivalCount = 0;
 
         lock (first.Gate)
         {
             lock (second.Gate)
             {
+                locksAcquired = Stopwatch.GetTimestamp();
                 uint characterId = current.CharacterId;
                 if (!source.Sessions.TryGetValue(characterId, out WorldSession? existing) ||
                     !ReferenceEquals(existing, session) || destination.Sessions.ContainsKey(characterId) ||
@@ -117,6 +130,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
 
                 byte direction = source.Spawns[characterId].Direction;
                 uint[] departed = source.Index.Leave(characterId);
+                departedCount = departed.Length;
                 source.Sessions.Remove(characterId);
                 source.Spawns.Remove(characterId);
                 source.RoleWords.Remove(characterId);
@@ -138,6 +152,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 destination.Sessions.Add(characterId, session);
                 destination.Spawns.Add(characterId, spawn);
                 VisibilityChange change = destination.Index.Enter(characterId, x, y);
+                arrivalCount = change.Entered.Length;
                 List<IPacket> initialVisibility = new(change.Entered.Length * 2);
                 foreach (uint observerId in change.Entered)
                 {
@@ -152,7 +167,16 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 {
                     session.QueueVisibilitySnapshot([.. initialVisibility]);
                 }
+                locksReleased = Stopwatch.GetTimestamp();
             }
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            LogPortalVisibilityCutover(_logger, current.CharacterId, previous.MapId, current.MapId,
+                Stopwatch.GetElapsedTime(waitingSince, locksAcquired).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(locksAcquired, locksReleased).TotalMilliseconds,
+                departedCount, arrivalCount);
         }
     }
 
