@@ -648,6 +648,20 @@ public sealed class WorldChatDeliveryTests
     }
 
     [Fact]
+    public async Task NativeClientStateApplied_RequiresZeroFieldsAndNeverAcknowledges()
+    {
+        await using ChatWorld world = new(portals: true);
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        GameAction valid = new(0, 0, 0, 0, GameAction.ClientStateAppliedAction,
+            0, 0, 0, 0, 0, 0, 0);
+        alice.Session.ProcessClientStateApplied(valid);
+        Assert.Empty(alice.AvailableFrames());
+
+        GameAction forged = valid with { EntityId = alice.Session.Ownership.CharacterId };
+        Assert.Throws<InvalidDataException>(() => alice.Session.ProcessClientStateApplied(forged));
+    }
+
+    [Fact]
     public async Task ConnectedPortal_InvalidExitCannotPersistOrMoveCharacter()
     {
         await using ChatWorld world = new(portals: true);

@@ -605,6 +605,21 @@ internal sealed class WorldSession : IAsyncDisposable
         await SendGameplayResponseAsync(CreatePositionCorrection(snapshot.Value), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The native 408 report has no response and confers no gameplay authority.</summary>
+    internal void ProcessClientStateApplied(GameAction notification)
+    {
+        ThrowIfInactive();
+        if (notification.Action != GameAction.ClientStateAppliedAction ||
+            notification.EntityId != 0 || notification.ParameterPair != 0 ||
+            notification.ActionParameter != 0 || notification.Timestamp != 0 ||
+            notification.Direction != 0 || notification.PositionX != 0 ||
+            notification.PositionY != 0 || notification.Data1 != 0 ||
+            notification.Data2 != 0 || notification.Flag != 0 || notification.StringCount != 0)
+        {
+            throw new InvalidDataException("The 5517 client-state-applied report is malformed.");
+        }
+    }
+
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfInactive();
