@@ -3,13 +3,13 @@ using System.Net;
 using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
-using OpenConquer.AccountServer.Login.Handshake.Authentication;
+using OpenConquer.AccountServer.Login.Handshake.Requests;
 using OpenConquer.Protocol.Login.Packets;
 using OpenConquer.Transport.Connections;
 
-namespace OpenConquer.AccountServer.Tests.Login.Handshake.Authentication;
+namespace OpenConquer.AccountServer.Tests.Login.Handshake.Requests;
 
-public sealed class LoginAccountRequestReaderTests
+public sealed class LoginRequestReaderTests
 {
     private const uint LoginSeed = 0x0012_34AB;
 
@@ -26,9 +26,26 @@ public sealed class LoginAccountRequestReaderTests
     private static readonly byte[] s_streamB = BuildStreamB();
 
     [Fact]
+    public async Task ReadAsync_RegistrationResultOwnsAndDisposesItsPassword()
+    {
+        TestTransportConnection connection = new();
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(connection,
+            new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+        connection.QueueReceive(BuildClientFrame(LoginAccountRegistrationRequestPacket.PacketIdentifier,
+            CreateValidPayload().AsSpan(0, LoginAccountRegistrationRequestPacket.PayloadLength)));
+        using LoginRequestReadResult result = await new LoginRequestReader(session).ReadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(LoginRequestReadStatus.RegistrationRequest, result.Status);
+        Assert.Null(result.Request);
+        LoginAccountRegistrationRequest registration = Assert.IsType<LoginAccountRegistrationRequest>(result.Registration);
+        result.Dispose();
+        result.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => registration.CopyPasswordTo(new char[32]));
+    }
+
+    [Fact]
     public void Constructor_RejectsNullSession()
     {
-        Assert.Throws<ArgumentNullException>(() => new LoginAccountRequestReader(null!));
+        Assert.Throws<ArgumentNullException>(() => new LoginRequestReader(null!));
     }
 
     [Fact]
@@ -42,11 +59,11 @@ public sealed class LoginAccountRequestReaderTests
 
         connection.QueueReceive(BuildClientFrame(LoginAccountRequestPacket.PacketIdentifier, CreateValidPayload()));
 
-        LoginAccountRequestReader reader = new(session);
+        LoginRequestReader reader = new(session);
 
-        LoginAccountRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        using LoginRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(LoginAccountRequestReadStatus.Success, result.Status);
+        Assert.Equal(LoginRequestReadStatus.AuthenticationRequest, result.Status);
 
         Assert.Null(result.UnexpectedPacketId);
 
@@ -70,11 +87,11 @@ public sealed class LoginAccountRequestReaderTests
 
         connection.QueueEndOfStream();
 
-        LoginAccountRequestReader reader = new(session);
+        LoginRequestReader reader = new(session);
 
-        LoginAccountRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        using LoginRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(LoginAccountRequestReadStatus.EndOfStream, result.Status);
+        Assert.Equal(LoginRequestReadStatus.EndOfStream, result.Status);
 
         Assert.Null(result.Request);
 
@@ -94,11 +111,11 @@ public sealed class LoginAccountRequestReaderTests
 
         connection.QueueReceive(BuildClientFrame(protectedAuthenticationPacketId, ReadOnlySpan<byte>.Empty));
 
-        LoginAccountRequestReader reader = new(session);
+        LoginRequestReader reader = new(session);
 
-        LoginAccountRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        using LoginRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(LoginAccountRequestReadStatus.UnexpectedPacket, result.Status);
+        Assert.Equal(LoginRequestReadStatus.UnexpectedPacket, result.Status);
 
         Assert.Equal(protectedAuthenticationPacketId, result.UnexpectedPacketId);
 
@@ -116,11 +133,11 @@ public sealed class LoginAccountRequestReaderTests
 
         connection.QueueReceive(BuildClientFrame(LoginAccountRequestPacket.PacketIdentifier, ReadOnlySpan<byte>.Empty));
 
-        LoginAccountRequestReader reader = new(session);
+        LoginRequestReader reader = new(session);
 
-        LoginAccountRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        using LoginRequestReadResult result = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(LoginAccountRequestReadStatus.InvalidAccountRequest, result.Status);
+        Assert.Equal(LoginRequestReadStatus.InvalidAccountRequest, result.Status);
 
         Assert.Null(result.Request);
 
@@ -140,7 +157,7 @@ public sealed class LoginAccountRequestReaderTests
 
         connection.QueueReceiveFailure(failure);
 
-        LoginAccountRequestReader reader = new(session);
+        LoginRequestReader reader = new(session);
 
         IOException exception = await Assert.ThrowsAsync<IOException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
 
@@ -156,11 +173,11 @@ public sealed class LoginAccountRequestReaderTests
 
         await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(connection, seedGenerator, TestContext.Current.CancellationToken);
 
-        LoginAccountRequestReader reader = new(session);
+        LoginRequestReader reader = new(session);
 
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        Task<LoginAccountRequestReadResult> readTask = reader.ReadAsync(cancellation.Token).AsTask();
+        Task<LoginRequestReadResult> readTask = reader.ReadAsync(cancellation.Token).AsTask();
 
         Assert.False(readTask.IsCompleted);
 

@@ -1,13 +1,15 @@
-namespace OpenConquer.AccountServer.Login.Handshake.Authentication;
+namespace OpenConquer.AccountServer.Login.Handshake.Requests;
 
 /// <summary>
 /// Describes the protocol-level outcome of reading the account credential
 /// request from an established login connection.
 /// </summary>
-internal enum LoginAccountRequestReadStatus
+internal enum LoginRequestReadStatus
 {
-    Success,
+    AuthenticationRequest,
     EndOfStream,
     UnexpectedPacket,
     InvalidAccountRequest,
+    RegistrationRequest,
+    InvalidRegistrationRequest,
 }

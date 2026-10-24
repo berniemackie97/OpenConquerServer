@@ -100,6 +100,7 @@ measurements show the need. See [World execution](world-execution.md).
 
 - [Networking](networking.md)
 - [Authentication](authentication.md)
+- [Account registration](account-registration.md)
 - [Persistence](persistence.md)
 - [World execution](world-execution.md)
 - [Connected portal transfers](connected-portal-transfers.md)

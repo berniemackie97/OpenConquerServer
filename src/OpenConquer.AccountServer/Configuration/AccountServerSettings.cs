@@ -1,4 +1,5 @@
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
+using OpenConquer.Infrastructure.Security.Accounts.Registration;
 
 namespace OpenConquer.AccountServer.Configuration;
 
@@ -10,6 +11,7 @@ internal sealed class AccountServerSettings
     public HandshakeSettings Handshake { get; set; } = new();
     public AuthenticationProtectionSettings AuthenticationProtection { get; set; } = new();
     public GameLoginTicketSettings GameLoginTickets { get; set; } = new();
+    public RegistrationSettings Registration { get; set; } = new();
 
     internal sealed class NetworkSettings
     {
@@ -47,6 +49,15 @@ internal sealed class AccountServerSettings
         public TimeSpan FailureLockout { get; set; }
         public TimeSpan EntryRetention { get; set; }
         public int MaximumTrackedEntries { get; set; }
+    }
+
+    internal sealed class RegistrationSettings
+    {
+        public bool Enabled { get; set; }
+        public int AttemptLimitPerSource { get; set; } = AccountRegistrationProtectionOptions.DefaultAttemptLimitPerSource;
+        public TimeSpan AttemptWindow { get; set; } = AccountRegistrationProtectionOptions.DefaultAttemptWindow;
+        public int MaximumConcurrentAttempts { get; set; } = AccountRegistrationProtectionOptions.DefaultMaximumConcurrentAttempts;
+        public int MaximumTrackedSources { get; set; } = AccountRegistrationProtectionOptions.DefaultMaximumTrackedSources;
     }
 
     internal sealed class GameLoginTicketSettings

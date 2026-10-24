@@ -56,6 +56,29 @@ server derives an RC5-32/12/16 key from the login seed, decrypts those 32 bytes,
 client's keypad permutation, which is keyed on the raw account name bytes. The remaining 96 bytes
 are ignored. Username and password rules are applied only after decoding.
 
+### Account registration (0xF001 / 0xF002, OpenConquer extension)
+
+Retail 5517 created accounts on a website; these two packets are project-owned. A client that wants
+to register sends `0xF001` instead of `1060` on a fresh login connection, after receiving `1059`.
+
+| ID       | Direction | Size | Contents                                    |
+| -------: | --------- | ---: | ------------------------------------------- |
+| `0xF001` | C → S     |  260 | Account name, credential field (as `1060`)  |
+| `0xF002` | S → C     |    8 | Result code (`UInt32`)                      |
+
+The request body is the first 256 bytes of `1060`: the same account-name field and the same
+seed-keyed RC5/keypad password envelope. It has no server name because accounts are not bound to
+a realm. The server sends one `0xF002` and closes the connection; it never sends `1055` or issues a
+ticket for a registration.
+
+| Code | Meaning |
+| ---: | ------- |
+| `0` | Account created |
+| `1` | Malformed request, or the name or password breaks registration policy |
+| `2` | Name already taken |
+| `3` | The server could not confirm the account was created |
+| `4` | Registration disabled, or this source has made too many requests |
+
 Packets `1084` (protected login) and `1098` (mobile login) are recognized but not supported and
 receive failure code `1`. The 524-byte frame limit exists because `1084` is the largest login
 packet.

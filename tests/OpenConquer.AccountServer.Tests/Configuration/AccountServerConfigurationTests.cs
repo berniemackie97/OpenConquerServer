@@ -8,9 +8,74 @@ namespace OpenConquer.AccountServer.Tests.Configuration;
 public sealed class AccountServerConfigurationTests
 {
     [Fact]
+    public void RegistrationConfiguration_DoesNotIncludeConnectionSecretsInDiagnostics()
+    {
+        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create(values =>
+        {
+            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration;Password=private-marker";
+            values["AccountServer:Registration:Enabled"] = "true";
+        }));
+        Assert.DoesNotContain("private-marker", configuration.Registration!.ToString());
+    }
+
+    [Fact]
     public void Load_RejectsMissingConfiguration()
     {
         Assert.Throws<ArgumentNullException>(() => AccountServerConfiguration.Load(null!));
+    }
+
+    [Fact]
+    public void Load_RegistrationIsDisabledByDefault()
+    {
+        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create());
+
+        Assert.Null(configuration.Registration);
+    }
+
+    [Fact]
+    public void Load_EnabledRegistrationRequiresItsOwnConnectionString()
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:Registration:Enabled"] = "true");
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
+
+        Assert.Equal("ConnectionStrings:AccountRegistration is required when AccountServer:Registration:Enabled is true.", exception.Message);
+    }
+
+    [Fact]
+    public void Load_EnabledRegistrationBindsProtectionLimits()
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values =>
+        {
+            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration";
+            values["AccountServer:Registration:Enabled"] = "true";
+            values["AccountServer:Registration:AttemptLimitPerSource"] = "5";
+            values["AccountServer:Registration:AttemptWindow"] = "00:30:00";
+            values["AccountServer:Registration:MaximumConcurrentAttempts"] = "3";
+            values["AccountServer:Registration:MaximumTrackedSources"] = "500";
+        });
+
+        AccountServerRegistrationConfiguration registration = Assert.IsType<AccountServerRegistrationConfiguration>(
+            AccountServerConfiguration.Load(configuration).Registration);
+
+        Assert.Equal("Server=localhost;Database=accounts;User ID=registration", registration.ConnectionString);
+        Assert.Equal(5, registration.Protection.AttemptLimitPerSource);
+        Assert.Equal(TimeSpan.FromMinutes(30), registration.Protection.AttemptWindow);
+        Assert.Equal(3, registration.Protection.MaximumConcurrentAttempts);
+        Assert.Equal(500, registration.Protection.MaximumTrackedSources);
+    }
+
+    [Fact]
+    public void Load_InvalidRegistrationLimitIsRejected()
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values =>
+        {
+            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration";
+            values["AccountServer:Registration:Enabled"] = "true";
+            values["AccountServer:Registration:AttemptLimitPerSource"] = "0";
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
     }
 
     [Fact]

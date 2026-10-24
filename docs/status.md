@@ -27,6 +27,9 @@ the implemented parts work and link here instead of repeating the list.
   GameServer is not reporting is refused with code 10, a busy one with 20 and a full one with 21.
 - An account plays in one realm at a time. A login for an account that is still playing in another
   realm is refused with code 11, and that realm is asked to disconnect it.
+- Opt-in in-client account registration (OpenConquer packets `0xF001`/`0xF002`) through a dedicated
+  database identity, with per-source quotas and bounded password hashing. See
+  [account registration](architecture/account-registration.md).
 
 ### GameServer
 
@@ -161,7 +164,7 @@ the implemented parts work and link here instead of repeating the list.
 
 - Automated realm provisioning. An operator adds and changes realms by following
   [Realm operations](operations/realms.md).
-- Account registration and staff tooling.
+- Staff tooling.
 - Character creation in the running GameServer: a spawn point confirmed to be walkable,
   provisioning of the creation credentials, the 5517 control-message exchange, creation for the
   authenticated session, and continuing into the world on the same connection.
