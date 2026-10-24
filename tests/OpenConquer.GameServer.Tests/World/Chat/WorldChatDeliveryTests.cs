@@ -700,8 +700,9 @@ public sealed class WorldChatDeliveryTests
         public ChatWorld(bool portals = false)
         {
             _enablePortals = portals;
-            _first = CreateWideMap(portals ? [new MapTerrainExit(2, 1, 7)] : []);
-            _second = WorldMapTestContent.Create(SecondMap, 1016, 0);
+            _first = CreateWideMap(FirstMap, 1015, portals ? [new MapTerrainExit(2, 1, 7)] : []);
+            _second = portals ? CreateWideMap(SecondMap, 1016) :
+                WorldMapTestContent.Create(SecondMap, 1016, 0);
             WorldMapContentCatalog maps = WorldMapTestContent.CreateCatalog(_first, _second);
             _runtime = new WorldRuntime(maps, new WorldExecutionOptions(2, 8, 4, 16, 16));
             if (portals)
@@ -837,12 +838,12 @@ public sealed class WorldChatDeliveryTests
             await _runtime.DisposeAsync();
         }
 
-        private static WorldMapContent CreateWideMap(MapTerrainExit[]? exits = null)
+        private static WorldMapContent CreateWideMap(uint mapId, uint terrainId, MapTerrainExit[]? exits = null)
         {
             const int size = 64;
-            MapBaseTerrain terrain = new(1015, size, size,
+            MapBaseTerrain terrain = new(terrainId, size, size,
                 Enumerable.Repeat(new MapBaseTerrainCell(10, 0, -5), size * size), exits ?? []);
-            return new WorldMapContent(new MapDefinition(FirstMap, 1015, 0),
+            return new WorldMapContent(new MapDefinition(mapId, terrainId, 0),
                 new MapTerrainCollision(terrain, []));
         }
 
