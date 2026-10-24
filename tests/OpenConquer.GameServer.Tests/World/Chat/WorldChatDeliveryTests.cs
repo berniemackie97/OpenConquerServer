@@ -604,8 +604,8 @@ public sealed class WorldChatDeliveryTests
         ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
         ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 4, 1);
         ClientSession carol = await world.AddAsync(2, "Carol", SecondMap, 1, 2);
-        Assert.Single(alice.AvailableFrames());
-        Assert.Single(bobby.AvailableFrames());
+        await alice.WaitForFrameCountAsync(1);
+        await bobby.WaitForFrameCountAsync(1);
 
         WorldCharacterOwnership source = alice.Session.Ownership;
         await alice.Session.ProcessPortalAsync(new GamePortalRequest(source.CharacterId, 2, 1),
