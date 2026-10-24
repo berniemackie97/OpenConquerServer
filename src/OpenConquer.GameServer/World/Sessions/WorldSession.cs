@@ -889,7 +889,9 @@ internal sealed class WorldSession : IAsyncDisposable
         {
             _runtime.UntrackSession(Ownership, _completion.Task);
         }
-    }    private sealed record WorldLocationState(WorldCharacterOwnership Ownership, WorldMapContent Map,
+    }
+
+    private sealed record WorldLocationState(WorldCharacterOwnership Ownership, WorldMapContent Map,
         PersistedCharacterLocation? Persisted);
 
     private readonly record struct OutboundDelivery(IPacket First, IPacket? Second);

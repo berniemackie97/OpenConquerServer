@@ -10,11 +10,13 @@ namespace OpenConquer.GameServer.World.Sessions;
 /// <summary>
 /// Admits a completed existing-character login into the world as a world session.
 /// </summary>
-internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null, FencedCharacterAdmission? fencing = null)
+internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null,
+    FencedCharacterAdmission? fencing = null, WorldConnectedPortalTransferCoordinator? portals = null)
 {
     private readonly WorldRuntime _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     private readonly WorldVisibilityService? _visibility = visibility;
     private readonly FencedCharacterAdmission? _fencing = fencing;
+    private readonly WorldConnectedPortalTransferCoordinator? _portals = portals;
 
     public async ValueTask<WorldSession> ProcessAsync(ExistingCharacterBootstrapCompleteConnection bootstrap, CancellationToken cancellationToken = default)
     {
@@ -57,7 +59,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
                 connection.ThrowIfRevoked();
             }
 
-            session = new WorldSession(_runtime, connection, bootstrap, ownership.Value, _visibility);
+            session = new WorldSession(_runtime, connection, bootstrap, ownership.Value, _visibility, _portals);
             _runtime.TrackSession(ownership.Value, session.Completion);
             connection = null;
             ownership = null;

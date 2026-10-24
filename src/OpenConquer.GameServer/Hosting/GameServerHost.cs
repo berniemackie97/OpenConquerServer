@@ -173,10 +173,12 @@ internal static class GameServerHost
         services.AddSingleton<ExistingCharacterStatisticsRequestProcessor>();
 
         services.AddSingleton<WorldVisibilityService>();
+        services.AddSingleton<WorldConnectedPortalTransferCoordinator>();
         services.AddSingleton<WorldSessionAdmissionProcessor>(provider => new WorldSessionAdmissionProcessor(
             provider.GetRequiredService<WorldRuntime>(),
             provider.GetRequiredService<WorldVisibilityService>(),
-            provider.GetRequiredService<FencedCharacterAdmission>()));
+            provider.GetRequiredService<FencedCharacterAdmission>(),
+            provider.GetRequiredService<WorldConnectedPortalTransferCoordinator>()));
         services.AddSingleton<GameExistingCharacterLoginProcessor>();
         services.AddSingleton<GameLoginConnectionProcessor>();
 
