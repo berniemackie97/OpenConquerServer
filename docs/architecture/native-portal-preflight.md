@@ -4,11 +4,11 @@
 
 `WorldPortalPreflight` is a trusted, server-side preflight check for the candidate exit tile that
 the retail 5517 client sends in MsgAction subtype 85. It uses the reversible reservation API from
-[World transfer preflight](world-transfer-preflight.md). It only checks and reserves: no network
-handler calls it, and it does not change world residency, save a location to the database, change
-the session's map, publish visibility, acknowledge a map transition or start a revival.
-**Portals do not work yet.** This resolver does not replace the map-transfer cutover that is still
-needed.
+[World transfer preflight](world-transfer-preflight.md). It only checks and reserves; the preflight
+itself does not mutate residency, write the database or send network packets. The connected
+`WorldConnectedPortalTransferCoordinator` calls this resolver from the authenticated action-85
+gameplay path and owns the irreversible operations described in
+[Connected portal transfers](connected-portal-transfers.md).
 
 ## How a candidate is resolved
 
@@ -48,17 +48,13 @@ called fully authorized until the cutover state machine checks every condition t
 
 ## Why the preflight stops here
 
-`WorldSession` exposes a `Map` and `Ownership` that stay fixed for its lifetime, and
-`WorldVisibilityService` keys membership by that map. The compare-and-swap (CAS) in
-[Durable character location](durable-character-location.md) matches the last saved location, not
-the latest in-memory snapshot of a moving character. Changing the map in memory before those parts
-are redesigned would leave the systems disagreeing with each other. The preflight therefore stops
-before any change that cannot be undone.
-
-The cutover still has to handle the durable CAS and reconciliation of writes with unknown outcomes,
-ownership handoff between partitions, session changes and revocation, position history reset,
-departure and arrival visibility, and the action-86 and map-entry packet order confirmed against
-the 5517 client. No distributed transaction spans MySQL, world partitions and TCP.
+The preflight deliberately stops before the first durable write. Source movement is barred
+by a partition FIFO reservation, while saved coordinates may differ from the live map snapshot
+because ordinary walking is not persisted. The connected coordinator uses the existing
+session-held writer generation and source revision to commit one CAS, then confirms the exact
+operation receipt before changing the runtime owner. It rebinds the session and visibility and
+sends native 86/1110 only after that commit. Neither the preflight nor the CAS is a distributed
+transaction spanning MySQL, partitions and TCP.
 
 ## Persisted-location preparation
 
@@ -81,16 +77,15 @@ service or client input calls this internal preparation yet.
 Reading the location does not authorize a commit. The observation is not a transfer receipt, a
 monotonic revision or a permanent ownership lease, and it does not prove that an outstanding CAS
 can no longer commit. This step adds no database write, residency handoff, network
-acknowledgement, client visibility change or position-save pipeline. Before 5517 map transitions
-are enabled, the future coordinator must serialize durable writes across generations on its own,
-resolve writes with unknown outcomes, and change ownership, session and visibility together in one
-atomic step.
+acknowledgement, client visibility change or position-save pipeline. It remains the separate
+unbound preparation utility; connected transfers take their own scoped observation after the same
+authoritative reservation barrier.
 
 ## Testing
 
 The tests check that a catalog built from a different world snapshot is rejected and that a live
 reservation takes up destination capacity. They also cover marker matching, unresolved routes,
 requests outside the one-tile radius, duplicate markers on one tile, stale ownership, a dead source
-character, destination reservation accounting, and movement queued ahead of the barrier. There is
-no schema migration, runtime configuration switch or new protocol layout. Nothing in production
-calls the resolver from the network yet.
+character, destination reservation accounting, and movement queued ahead of the barrier. There is no schema migration, runtime configuration switch or new protocol layout. The authenticated
+action-85 handler now reaches the resolver through the connected coordinator; see the dedicated
+connected-transition regression suite and the separate native-client deployment validation gate.

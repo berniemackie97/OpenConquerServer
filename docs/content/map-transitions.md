@@ -2,7 +2,9 @@
 
 `content/maps/map-transitions.json` is a versioned, hash-pinned catalog of candidate destinations
 for the 5517 DMap exit indices. Not every destination has been checked against a 5517 retail
-GameServer. The catalog is separate from movement processing and does not enable map changes.
+GameServer. The catalog is separate from movement processing; the connected portal coordinator
+uses resolved entries only after server-owned exit verification, source reservation and durable
+generation fencing.
 
 ## Sources and release
 
@@ -53,10 +55,12 @@ the catalog is missing, malformed, unsupported, incomplete, or does not match th
 never becomes ready and the server accepts no connections. The file is copied into the GameServer
 build and publish output. Its path and limits are configured under `GameServer:Content`.
 
-The resolver for action 85 is only an internal preflight step that can be reversed. Before a 5517
-portal request can move a player, the live map-transition coordinator still has to handle durable
-state, ownership handoff, session and visibility updates, client packet order, and recovery from
-failures. Never pass a client-supplied index directly to `TryResolve`.
+The action-85 resolver is still a reversible preflight. `WorldConnectedPortalTransferCoordinator`
+combines it with a durable location CAS, exact receipt check, connected residency handoff, session
+generation rebind, visibility transfer and the verified native 86/1110 arrival sequence. A rejected
+portal closes its waiting connection rather than sending an unverified map response. Never pass a
+client-supplied passway index to `TryResolve`. Existing historical source classifications remain
+version-qualified and do not assert retail destination rules.
 
 The catalog is a curated subset of the source data. Terrain and collision still come only from their
 own files. The project owns the catalog, and it must be reviewed and re-pinned whenever the original

@@ -111,7 +111,8 @@ the implemented parts work and link here instead of repeating the list.
 - A catalog of candidate map transitions covering 373 exit identities from the 5517 data, each
   tied to its source. It is loaded and validated against the same world snapshot object that the
   runtime uses, before the GameServer publishes the world, and it is unavailable once the world
-  stops. It does not enable transfers.
+  stops. Connected action-85 portal travel uses only resolved destinations and rejects invalid
+  or ambiguous source markers.
 - An immutable resolver for historical revival destinations. It checks 207 reborn/portal records
   from the Long lineage against the loaded 5517 map identities and composed terrain. A record that
   cannot be resolved returns an "unsupported" result instead of assumed spawn
@@ -123,13 +124,13 @@ the implemented parts work and link here instead of repeating the list.
   stale write from succeeding after the coordinates have changed and changed back (ABA). A
   successful write advances the revision by one and stores the operation ID of the winning write
   with it. An observation that matches confirms that a specific operation completed. A missing or
-  different operation ID cannot settle a write that is still in flight. No live world transfer or
-  live position saving is enabled. See
+  different operation ID cannot settle a write that is still in flight. The connected portal
+  coordinator now uses this writer; ordinary movement remains in-memory only. See
   [durable character location](architecture/durable-character-location.md).
 - Preflight for 5517 action-85 portal requests. Validated DMap exit markers and transition data are
   resolved only against the current world's immutable map-content snapshot. A match then takes a
-  reversible destination reservation tied to the admission generation. Portal packets from the
-  client are not connected, and no transfer happens.
+  reversible destination reservation tied to the admission generation. The authenticated action-85
+  handler now uses it for connected portal travel.
 - Internal portal preparation that uses the saved source location. It pairs the trusted login
   identity and the reversible destination reservation with the latest saved location, read for
   that account and character only. A mismatch, cancellation or failure returns the reserved
@@ -168,8 +169,9 @@ the implemented parts work and link here instead of repeating the list.
   of non-player entities, saving positions, combat, NPCs, complete trading, and nonlocal and group
   chat channels. The 5517 position correction already handles refused predicted movement and drift
   reports within its limited history.
-- World simulation: monsters, timers, visibility of NPCs, monsters and ground items, and map
-  transfers. Elevation and status effects specific to jumping are still open. Normal walking has
+- World simulation: monsters, timers, visibility of NPCs, monsters and ground items, and
+  non-portal map transfers (revival, NPC and administrative teleports). Elevation and
+  status effects specific to jumping are still open. Normal walking has
   no dynamic player-occupancy collision check, and adding one would be speculative.
 - Seven map identities from the original data that could not be resolved (see
   [content](content/README.md)).
