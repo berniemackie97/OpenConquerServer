@@ -144,8 +144,7 @@ internal sealed class WorldConnectedPortalTransferCoordinator(
                 characterId, destination.MapDataId, reservation.X, reservation.Y, 0,
                 unchecked((uint)Environment.TickCount64));
             GameMapInfoPacket mapInfo = new(destination.MapId, destination.MapDataId, destination.Flags);
-            await session.QueuePortalArrivalAsync(arrival, mapInfo, cancellationToken).ConfigureAwait(false);
-            _visibility.Relocate(session, source, reservation.X, reservation.Y);
+            _visibility.Relocate(session, source, reservation.X, reservation.Y, arrival, mapInfo);
             visibilityTransferred = true;
             return true;
         }

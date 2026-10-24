@@ -81,9 +81,12 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     /// Switches visibility between maps after durable/world ownership was committed.
     /// The online-name identity remains attached to the same session throughout.
     /// </summary>
-    internal void Relocate(WorldSession session, WorldCharacterOwnership previous, ushort x, ushort y)
+    internal void Relocate(WorldSession session, WorldCharacterOwnership previous, ushort x, ushort y,
+        IPacket arrival, IPacket mapInfo)
     {
         ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(arrival);
+        ArgumentNullException.ThrowIfNull(mapInfo);
         WorldCharacterOwnership current = session.Ownership;
         if (previous.CharacterId != current.CharacterId || previous.MapId == current.MapId ||
             !_maps.TryGetValue(previous.MapId, out MapState? source))
@@ -121,6 +124,9 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                     source.Sessions[observerId].QueueVisibilityPacket(removal);
                 }
 
+                // Both map locks prevent a late old-map fanout from entering the
+                // sender mailbox behind 86/1110, and destination spawns from entering ahead.
+                session.QueuePortalArrival(arrival, mapInfo);
                 GamePlayerSpawnSnapshot spawn = CreateSpawn(session, x, y, direction);
                 destination.Sessions.Add(characterId, session);
                 destination.Spawns.Add(characterId, spawn);

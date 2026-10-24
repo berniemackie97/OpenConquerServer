@@ -204,27 +204,19 @@ internal sealed class WorldSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Queue native 86 and 1110 as one flush before destination spawns.</summary>
-    internal async ValueTask QueuePortalArrivalAsync(IPacket arrival, IPacket mapInfo, CancellationToken cancellationToken)
+    /// <summary>
+    /// Called under the source/destination visibility cutover locks; never exposed as an
+    /// independent network operation where old-map fanout could overtake arrival.
+    /// </summary>
+    internal void QueuePortalArrival(IPacket arrival, IPacket mapInfo)
     {
-        if (_visibilityMailbox is not null)
+        if (_visibilityMailbox is null)
         {
-            if (!_visibilityMailbox.Writer.TryWrite(new OutboundDelivery(arrival, mapInfo)))
-            {
-                BeginDispose();
-            }
-            return;
+            throw new InvalidOperationException("Connected portal arrival requires an ordered world mailbox.");
         }
-
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        await _writeGate.WaitAsync(linked.Token).ConfigureAwait(false);
-        try
+        if (!_visibilityMailbox.Writer.TryWrite(new OutboundDelivery(arrival, mapInfo)))
         {
-            await _connection.WriteBatchAsync(arrival, mapInfo, linked.Token).ConfigureAwait(false);
-        }
-        finally
-        {
-            _writeGate.Release();
+            BeginDispose();
         }
     }
 
