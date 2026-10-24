@@ -81,7 +81,8 @@ This original API remains internal and is not a connected portal transfer. It re
 sessions and does not write MySQL or send client packets. The separate connected sealed path
 requires an exact tracked session-completion identity, consumes positive durable CAS evidence,
 moves the runtime generation and rebinds the same world session. See
-[Connected portal transfers](connected-portal-transfers.md).
+[Connected portal transfers](connected-portal-transfers.md). Only explicit
+release-approved destinations are eligible; historical resolved candidates remain inactive.
 
 ## Unbound portal transaction
 

@@ -30,10 +30,10 @@ authenticated world ownership token. It:
 2. Looks up the source map by the server-side `ownership.MapId`.
 3. Matches the candidate tile against the map's normalized DMap exits. It refuses if no marker, or
    more than one marker, matches the tile.
-4. Resolves the `(mapId, passwayIndex)` pair, which the server derived itself, through the
-   immutable `MapTransitionCatalog`, where each entry records its resolution status and source. It
-   refuses target coordinates that are unresolved or cannot be represented, and never falls back
-   to a guessed default.
+4. Resolves the `(mapId, passwayIndex)` pair only through the release-approved subset of
+   the immutable `MapTransitionCatalog`. Historical source data remains available for auditing
+   but is not automatically authorized for connected gameplay. Unresolved and unapproved
+   destinations are refused without a guessed fallback.
 5. Uses the transfer preflight to reserve destination capacity and take a source snapshot behind a
    FIFO barrier. Older pending movement completes before the snapshot.
 6. Confirms that the source snapshot shows the character alive and within one tile of the

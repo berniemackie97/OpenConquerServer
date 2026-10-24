@@ -111,8 +111,10 @@ the implemented parts work and link here instead of repeating the list.
 - A catalog of candidate map transitions covering 373 exit identities from the 5517 data, each
   tied to its source. It is loaded and validated against the same world snapshot object that the
   runtime uses, before the GameServer publishes the world, and it is unavailable once the world
-  stops. Connected action-85 portal travel uses only resolved destinations and rejects invalid
-  or ambiguous source markers.
+  stops. All 322 historical destinations remain candidate evidence, not released routes.
+  The shipped catalog currently has zero explicitly approved routes, and connected action-85
+  travel rejects candidates until reviewed release approval. Invalid or ambiguous markers
+  always fail closed.
 - An immutable resolver for historical revival destinations. It checks 207 reborn/portal records
   from the Long lineage against the loaded 5517 map identities and composed terrain. A record that
   cannot be resolved returns an "unsupported" result instead of assumed spawn
@@ -130,7 +132,7 @@ the implemented parts work and link here instead of repeating the list.
 - Preflight for 5517 action-85 portal requests. Validated DMap exit markers and transition data are
   resolved only against the current world's immutable map-content snapshot. A match then takes a
   reversible destination reservation tied to the admission generation. The authenticated action-85
-  handler now uses it for connected portal travel.
+  handler now uses it for connected portal travel, with release-approved routes only.
 - Internal portal preparation that uses the saved source location. It pairs the trusted login
   identity and the reversible destination reservation with the latest saved location, read for
   that account and character only. A mismatch, cancellation or failure returns the reserved
