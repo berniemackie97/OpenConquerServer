@@ -756,6 +756,38 @@ public sealed class WorldChatDeliveryTests
             TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task ConnectedPortal_WorldShutdownAfterDurableCommitCannotPublishDestination()
+    {
+        await using ChatWorld world = new(portals: true);
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        uint characterId = alice.Session.Ownership.CharacterId;
+        TaskCompletionSource commitReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        world.CommitReached = commitReached;
+        world.ReleaseCommit = releaseCommit;
+
+        Task transfer = alice.Session.ProcessPortalAsync(new GamePortalRequest(characterId, 2, 1),
+            TestContext.Current.CancellationToken).AsTask();
+        try
+        {
+            await commitReached.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            await world.Runtime.StopPartitionExecutionAsync().WaitAsync(
+                TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            releaseCommit.TrySetResult();
+        }
+
+        await Assert.ThrowsAnyAsync<Exception>(() => transfer);
+        Assert.False(world.Runtime.IsRunning);
+        Assert.True(alice.Session.IsStopping);
+        Assert.Equal(10, world.Saved(42, characterId).Revision);
+        await alice.Session.DisposeAsync().AsTask().WaitAsync(
+            TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
+
     private sealed class ChatWorld : IAsyncDisposable, ICharacterLocationWriteStore,
         ICharacterLocationObservationStore
     {
@@ -790,6 +822,8 @@ public sealed class WorldChatDeliveryTests
 
         public WorldRuntime Runtime => _runtime;
         public PortalPersistenceFault PersistenceFault { get; set; }
+        public TaskCompletionSource? CommitReached { get; set; }
+        public TaskCompletionSource? ReleaseCommit { get; set; }
 
         public PersistedCharacterLocation Saved(uint accountId, uint characterId)
         {
@@ -815,7 +849,7 @@ public sealed class WorldChatDeliveryTests
             }
         }
 
-        public ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
+        public async ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -823,7 +857,7 @@ public sealed class WorldChatDeliveryTests
             {
                 if (PersistenceFault == PortalPersistenceFault.Conflict)
                 {
-                    return ValueTask.FromResult(CharacterLocationWriteResult.Conflict);
+                    return CharacterLocationWriteResult.Conflict;
                 }
                 if (!_saved.TryGetValue((change.AccountId, change.CharacterId),
                     out PersistedCharacterLocation? saved) ||
@@ -838,12 +872,17 @@ public sealed class WorldChatDeliveryTests
 
                 _saved[(change.AccountId, change.CharacterId)] = new PersistedCharacterLocation(
                     change.Destination, change.ExpectedRevision + 1, change.OperationId, change.WriterToken);
-                if (PersistenceFault == PortalPersistenceFault.CommittedButUnknown)
-                {
-                    throw new IOException("Injected loss of the location commit result after durable mutation.");
-                }
-                return ValueTask.FromResult(CharacterLocationWriteResult.Committed);
             }
+            if (CommitReached is TaskCompletionSource reached && ReleaseCommit is TaskCompletionSource release)
+            {
+                reached.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            if (PersistenceFault == PortalPersistenceFault.CommittedButUnknown)
+            {
+                throw new IOException("Injected loss of the location commit result after durable mutation.");
+            }
+            return CharacterLocationWriteResult.Committed;
         }
 
         public WorldVisibilityService Visibility { get; } = new(NullLogger<WorldVisibilityService>.Instance);
