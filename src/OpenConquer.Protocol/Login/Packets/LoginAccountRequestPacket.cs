@@ -1,8 +1,5 @@
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Login.Credentials;
-using OpenConquer.Protocol.Text;
 
 namespace OpenConquer.Protocol.Login.Packets;
 
@@ -39,60 +36,15 @@ public static class LoginAccountRequestPacket
             return false;
         }
 
-        ReadOnlySpan<byte> accountNameBytes = ReadNullTerminatedField(payload.Slice(AccountNameOffset, AccountNameLength));
+        string serverName = LoginCredentialEnvelope.DecodeAnsi(
+            LoginCredentialEnvelope.ReadNullTerminatedField(payload.Slice(ServerNameOffset, ServerNameLength)));
 
-        ReadOnlySpan<byte> serverNameBytes = ReadNullTerminatedField(payload.Slice(ServerNameOffset, ServerNameLength));
+        LoginCredentialEnvelope.Decode(payload.Slice(AccountNameOffset, AccountNameLength),
+            payload.Slice(CredentialFieldOffset, CredentialFieldLength), loginSeed,
+            out string accountName, out char[] password, out int passwordLength);
 
-        string accountName = DecodeAnsi(accountNameBytes);
+        request = new LoginAccountRequest(accountName, serverName, password, passwordLength);
 
-        string serverName = DecodeAnsi(serverNameBytes);
-
-        Span<byte> credential = stackalloc byte[StandardCredentialTransformLength];
-
-        Span<byte> key = stackalloc byte[LoginCredentialKey.Length];
-
-        char[] password = new char[StandardCredentialTransformLength];
-
-        bool passwordOwnershipTransferred = false;
-
-        try
-        {
-            payload.Slice(CredentialFieldOffset, StandardCredentialTransformLength).CopyTo(credential);
-
-            LoginCredentialKey.Derive(loginSeed, key);
-
-            LoginCredentialRc5Cipher.Decrypt(key, credential);
-
-            int passwordLength = LoginPasswordKeypadDecoder.Decode(accountNameBytes, credential, password);
-
-            request = new LoginAccountRequest(accountName, serverName, password, passwordLength);
-
-            passwordOwnershipTransferred = true;
-
-            return true;
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(key);
-
-            CryptographicOperations.ZeroMemory(credential);
-
-            if (!passwordOwnershipTransferred)
-            {
-                CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(password.AsSpan()));
-            }
-        }
-    }
-
-    private static ReadOnlySpan<byte> ReadNullTerminatedField(ReadOnlySpan<byte> field)
-    {
-        int terminatorIndex = field.IndexOf((byte)0);
-
-        return terminatorIndex < 0 ? field : field[..terminatorIndex];
-    }
-
-    private static string DecodeAnsi(ReadOnlySpan<byte> value)
-    {
-        return WireTextEncodingResolver.Resolve(WireTextEncoding.Ansi).GetString(value);
+        return true;
     }
 }

@@ -3,9 +3,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OpenConquer.AccountServer.Configuration;
 using OpenConquer.AccountServer.Hosting;
+using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Hosting;
 using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.AccountServer.Tests.Configuration;
+using OpenConquer.Application.Accounts.Registration;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Transport.Connections;
@@ -15,6 +17,42 @@ namespace OpenConquer.AccountServer.Tests.Hosting;
 
 public sealed class AccountServerHostTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConfigureServices_RegistersRegistrationOnlyWhenEnabled(bool enabled)
+    {
+        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create(values =>
+        {
+            if (enabled)
+            {
+                values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration";
+                values["AccountServer:Registration:Enabled"] = "true";
+            }
+        }));
+        ServiceCollection services = new();
+
+        AccountServerHost.ConfigureServices(services, configuration);
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.Equal(enabled, provider.GetService<AccountRegistrationService>() is not null);
+        Assert.NotNull(provider.GetRequiredService<LoginHandshakeProcessor>());
+    }
+
+    [Fact]
+    public void ConfigureServices_RejectsRegistrationThroughTheAccountServerIdentity()
+    {
+        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create(values =>
+        {
+            values["ConnectionStrings:Accounts"] = "Server=localhost;Database=accounts;User ID=runtime";
+            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=runtime";
+            values["AccountServer:Registration:Enabled"] = "true";
+        }));
+
+        Assert.Throws<InvalidOperationException>(() => AccountServerHost.ConfigureServices(new ServiceCollection(), configuration));
+    }
+
     [Fact]
     public async Task Host_DoesNotExposeLoginListenerUntilDatabaseReadinessCompletes()
     {

@@ -45,6 +45,11 @@ internal static class AccountServerHost
 
         services.AddAccountLoginInfrastructure(configuration.AccountConnectionString, configuration.LoginConnectionProtection, configuration.AuthenticationProtection, configuration.ActiveVerificationKeyId, configuration.EncodedVerificationKeys);
 
+        if (configuration.Registration is AccountServerRegistrationConfiguration registration)
+        {
+            services.AddAccountRegistration(configuration.AccountConnectionString, registration.ConnectionString, registration.Protection);
+        }
+
         services.Configure<HostOptions>(options =>
         {
             options.StartupTimeout = s_startupTimeout;

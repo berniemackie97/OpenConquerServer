@@ -1,12 +1,15 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
 using System.Threading.Channels;
 using OpenConquer.AccountServer.Login.Connections;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.Application.Accounts.Authentication;
+using OpenConquer.Application.Accounts.Authentication.Passwords;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Accounts.Registration;
 using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Realms;
 using OpenConquer.Domain.Realms;
@@ -609,6 +612,122 @@ public sealed class LoginHandshakeProcessorTests
         Assert.Equal(2, registry.LookupCount);
     }
 
+    [Theory]
+    [InlineData(7u, LoginAccountRegistrationResultCode.Success)]
+    [InlineData(null, LoginAccountRegistrationResultCode.AccountNameTaken)]
+    public async Task ProcessAsync_RegistrationCreatesAccountWithoutAuthenticatingOrIssuingTicket(uint? createdAccountId,
+        LoginAccountRegistrationResultCode expected)
+    {
+        TestTransportConnection connection = new();
+        ClientCipher clientCipher = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        connection.QueueReceive(BuildClientFrame(clientCipher, LoginAccountRegistrationRequestPacket.PacketIdentifier, CreateRegistrationPayload()));
+
+        FakeAuthenticator authenticator = new(AccountAuthenticationResult.InvalidCredentials());
+        FakeGrantStore grantStore = new();
+        FakeRegistrationStore store = new(createdAccountId);
+        LoginHandshakeProcessor processor = new(authenticator, CreateIssuer(grantStore), new FakeRealmRegistry(), new FakeRealmStatusDirectory(),
+            new FakeKickRequester(), CreateConfiguration(), CreateRegistration(store));
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, ReadRegistrationResult(connection));
+        Assert.Equal(AccountName, store.Username);
+        Assert.Equal(0, authenticator.CallCount);
+        Assert.Equal(0, grantStore.CallCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RegistrationWhenDisabledReportsUnavailable()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher clientCipher = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        connection.QueueReceive(BuildClientFrame(clientCipher, LoginAccountRegistrationRequestPacket.PacketIdentifier, CreateRegistrationPayload()));
+
+        LoginHandshakeProcessor processor = new(new FakeAuthenticator(AccountAuthenticationResult.InvalidCredentials()), CreateIssuer(new FakeGrantStore()),
+            new FakeRealmRegistry(), new FakeRealmStatusDirectory(), new FakeKickRequester(), CreateConfiguration());
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LoginAccountRegistrationResultCode.Unavailable, ReadRegistrationResult(connection));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MalformedRegistrationReportsInvalidRequest()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher clientCipher = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        connection.QueueReceive(BuildClientFrame(clientCipher, LoginAccountRegistrationRequestPacket.PacketIdentifier, new byte[16]));
+
+        FakeRegistrationStore store = new(7);
+        LoginHandshakeProcessor processor = new(new FakeAuthenticator(AccountAuthenticationResult.InvalidCredentials()), CreateIssuer(new FakeGrantStore()),
+            new FakeRealmRegistry(), new FakeRealmStatusDirectory(), new FakeKickRequester(), CreateConfiguration(), CreateRegistration(store));
+
+        await processor.ProcessAsync(session, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LoginAccountRegistrationResultCode.InvalidRequest, ReadRegistrationResult(connection));
+        Assert.Null(store.Username);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RegistrationStoreFailureReportsFailedThenSurfacesTheFault()
+    {
+        TestTransportConnection connection = new();
+        ClientCipher clientCipher = new();
+
+        await using LoginConnectionSession session = await LoginConnectionSession.OpenAsync(
+            connection, new FakeLoginSeedGenerator(LoginSeed), TestContext.Current.CancellationToken);
+
+        connection.QueueReceive(BuildClientFrame(clientCipher, LoginAccountRegistrationRequestPacket.PacketIdentifier, CreateRegistrationPayload()));
+
+        LoginHandshakeProcessor processor = new(new FakeAuthenticator(AccountAuthenticationResult.InvalidCredentials()), CreateIssuer(new FakeGrantStore()),
+            new FakeRealmRegistry(), new FakeRealmStatusDirectory(), new FakeKickRequester(), CreateConfiguration(),
+            CreateRegistration(new FakeRegistrationStore(failure: new InvalidOperationException("Account registration did not commit."))));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessAsync(session, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(LoginAccountRegistrationResultCode.Failed, ReadRegistrationResult(connection));
+    }
+
+    private static AccountRegistrationService CreateRegistration(FakeRegistrationStore store)
+    {
+        return new AccountRegistrationService(store, new FakePasswordHasher(), new FakeRegistrationLimiter());
+    }
+
+    private static byte[] CreateRegistrationPayload()
+    {
+        byte[] payload = new byte[LoginAccountRegistrationRequestPacket.PayloadLength];
+        WriteAscii(AccountName, payload.AsSpan(LoginAccountRegistrationRequestPacket.AccountNameOffset, LoginAccountRegistrationRequestPacket.AccountNameLength));
+        Convert.FromHexString(EncryptedCredential).CopyTo(payload.AsSpan(LoginAccountRegistrationRequestPacket.CredentialFieldOffset));
+        return payload;
+    }
+
+    private static LoginAccountRegistrationResultCode ReadRegistrationResult(TestTransportConnection connection)
+    {
+        byte[] plaintext = connection.SentBytes;
+        new ClientCipher().DecryptInbound(plaintext);
+
+        const int seedFrameLength = WireFrameHeader.Size + sizeof(uint);
+        ReadOnlySpan<byte> frame = plaintext.AsSpan(seedFrameLength);
+
+        Assert.Equal(WireFrameHeader.Size + LoginAccountRegistrationResponsePacket.PayloadSize, frame.Length);
+        Assert.Equal(frame.Length, BinaryPrimitives.ReadUInt16LittleEndian(frame));
+        Assert.Equal(LoginAccountRegistrationResponsePacket.PacketIdentifier, BinaryPrimitives.ReadUInt16LittleEndian(frame[sizeof(ushort)..]));
+
+        return (LoginAccountRegistrationResultCode)BinaryPrimitives.ReadUInt32LittleEndian(frame[WireFrameHeader.Size..]);
+    }
+
     private static LoginHandshakeConfiguration CreateConfiguration()
     {
         return new LoginHandshakeConfiguration(TimeSpan.FromSeconds(5));
@@ -713,6 +832,40 @@ public sealed class LoginHandshakeProcessorTests
         uint GameServerPort,
         uint AdditionalSessionField,
         string GameServerIp);
+
+    private sealed class FakeRegistrationStore(uint? createdAccountId = null, Exception? failure = null) : IAccountRegistrationStore
+    {
+        public string? Username { get; private set; }
+
+        public ValueTask<uint?> TryCreateAsync(string username, string passwordHash, Guid creationOperationId, CancellationToken cancellationToken = default)
+        {
+            Username = username;
+            return failure is null ? ValueTask.FromResult(createdAccountId) : ValueTask.FromException<uint?>(failure);
+        }
+    }
+
+    private sealed class FakePasswordHasher : IAccountPasswordHasher
+    {
+        public AccountPasswordVerificationStatus VerifyPassword(string passwordHash, ReadOnlySpan<char> password) => throw new NotSupportedException();
+        public void VerifyDecoy(ReadOnlySpan<char> password) => throw new NotSupportedException();
+        public string HashPassword(ReadOnlySpan<char> password) => "$test$registration";
+    }
+
+    private sealed class FakeRegistrationLimiter : IAccountRegistrationLimiter
+    {
+        public bool TryBeginRegistration(IPAddress remoteAddress, [NotNullWhen(true)] out IDisposable? lease)
+        {
+            lease = new Lease();
+            return true;
+        }
+
+        private sealed class Lease : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
+    }
 
     private sealed class FakeRealmRegistry : IRealmRegistry
     {

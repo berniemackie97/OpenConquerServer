@@ -10,4 +10,6 @@ internal enum LoginAccountRequestReadStatus
     EndOfStream,
     UnexpectedPacket,
     InvalidAccountRequest,
+    RegistrationRequest,
+    InvalidRegistrationRequest,
 }

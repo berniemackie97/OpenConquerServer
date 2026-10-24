@@ -7,11 +7,13 @@ namespace OpenConquer.AccountServer.Login.Handshake.Authentication;
 /// </summary>
 internal sealed class LoginAccountRequestReadResult
 {
-    private LoginAccountRequestReadResult(LoginAccountRequestReadStatus status, LoginAccountRequest? request, ushort? unexpectedPacketId)
+    private LoginAccountRequestReadResult(LoginAccountRequestReadStatus status, LoginAccountRequest? request, ushort? unexpectedPacketId,
+        LoginAccountRegistrationRequest? registration = null)
     {
         Status = status;
         Request = request;
         UnexpectedPacketId = unexpectedPacketId;
+        Registration = registration;
     }
 
     public LoginAccountRequestReadStatus Status { get; }
@@ -30,6 +32,12 @@ internal sealed class LoginAccountRequestReadResult
     /// </summary>
     public ushort? UnexpectedPacketId { get; }
 
+    /// <summary>
+    /// The decoded registration when <see cref="Status"/> is <see cref="LoginAccountRequestReadStatus.RegistrationRequest"/>.
+    /// The caller must dispose it.
+    /// </summary>
+    public LoginAccountRegistrationRequest? Registration { get; }
+
     public static LoginAccountRequestReadResult Success(LoginAccountRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -45,6 +53,18 @@ internal sealed class LoginAccountRequestReadResult
     public static LoginAccountRequestReadResult UnexpectedPacket(ushort packetId)
     {
         return new LoginAccountRequestReadResult(LoginAccountRequestReadStatus.UnexpectedPacket, request: null, packetId);
+    }
+
+    public static LoginAccountRequestReadResult RegistrationRequest(LoginAccountRegistrationRequest registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+
+        return new LoginAccountRequestReadResult(LoginAccountRequestReadStatus.RegistrationRequest, request: null, unexpectedPacketId: null, registration);
+    }
+
+    public static LoginAccountRequestReadResult InvalidRegistrationRequest()
+    {
+        return new LoginAccountRequestReadResult(LoginAccountRequestReadStatus.InvalidRegistrationRequest, request: null, unexpectedPacketId: null);
     }
 
     public static LoginAccountRequestReadResult InvalidAccountRequest()
