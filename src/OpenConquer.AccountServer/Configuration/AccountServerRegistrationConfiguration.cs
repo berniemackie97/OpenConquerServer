@@ -1,0 +1,5 @@
+using OpenConquer.Infrastructure.Security.Accounts.Registration;
+
+namespace OpenConquer.AccountServer.Configuration;
+
+internal sealed record AccountServerRegistrationConfiguration(string ConnectionString, AccountRegistrationProtectionOptions Protection);

@@ -19,7 +19,8 @@ internal sealed class LoginAccountRequestReader
     }
 
     /// <summary>
-    /// Reads the next login frame and classifies it as a standard account login request.
+    /// Reads the next login frame and classifies it as a standard account login request or an OpenConquer
+    /// registration request.
     /// </summary>
     public async ValueTask<LoginAccountRequestReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
@@ -31,6 +32,13 @@ internal sealed class LoginAccountRequestReader
         }
 
         using LoginInboundFrame frame = inboundFrame;
+
+        if (frame.PacketId == LoginAccountRegistrationRequestPacket.PacketIdentifier)
+        {
+            return LoginAccountRegistrationRequestPacket.TryDecode(frame.Payload.Span, _session.LoginSeed, out LoginAccountRegistrationRequest? registration)
+                ? LoginAccountRequestReadResult.RegistrationRequest(registration!)
+                : LoginAccountRequestReadResult.InvalidRegistrationRequest();
+        }
 
         if (frame.PacketId != LoginAccountRequestPacket.PacketIdentifier)
         {

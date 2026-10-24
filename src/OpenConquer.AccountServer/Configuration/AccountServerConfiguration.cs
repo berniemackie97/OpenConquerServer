@@ -5,6 +5,7 @@ using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Workers;
 using OpenConquer.AccountServer.Maintenance;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
+using OpenConquer.Infrastructure.Security.Accounts.Registration;
 
 namespace OpenConquer.AccountServer.Configuration;
 
@@ -12,7 +13,7 @@ internal sealed class AccountServerConfiguration
 {
     public const string SectionName = "AccountServer";
 
-    private AccountServerConfiguration(string accountConnectionString, IPEndPoint loginEndPoint, int listenBacklog, int admissionCapacity, AccountLoginConnectionProtectionOptions loginConnectionProtection, LoginConnectionWorkerPoolConfiguration workerPool, LoginHandshakeConfiguration handshake, AccountAuthenticationProtectionOptions authenticationProtection, ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] encodedVerificationKeys, GameLoginTicketCleanupConfiguration ticketCleanup)
+    private AccountServerConfiguration(string accountConnectionString, IPEndPoint loginEndPoint, int listenBacklog, int admissionCapacity, AccountLoginConnectionProtectionOptions loginConnectionProtection, LoginConnectionWorkerPoolConfiguration workerPool, LoginHandshakeConfiguration handshake, AccountAuthenticationProtectionOptions authenticationProtection, ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] encodedVerificationKeys, GameLoginTicketCleanupConfiguration ticketCleanup, AccountServerRegistrationConfiguration? registration)
     {
         AccountConnectionString = accountConnectionString;
         LoginEndPoint = loginEndPoint;
@@ -25,6 +26,7 @@ internal sealed class AccountServerConfiguration
         ActiveVerificationKeyId = activeVerificationKeyId;
         EncodedVerificationKeys = encodedVerificationKeys;
         TicketCleanup = ticketCleanup;
+        Registration = registration;
     }
 
     public string AccountConnectionString { get; }
@@ -38,6 +40,9 @@ internal sealed class AccountServerConfiguration
     public ushort ActiveVerificationKeyId { get; }
     public IReadOnlyList<KeyValuePair<ushort, string>> EncodedVerificationKeys { get; }
     public GameLoginTicketCleanupConfiguration TicketCleanup { get; }
+
+    /// <summary>Self-service registration settings, or <see langword="null"/> when registration is disabled.</summary>
+    public AccountServerRegistrationConfiguration? Registration { get; }
 
     public static AccountServerConfiguration Load(IConfiguration configuration)
     {
@@ -76,7 +81,23 @@ internal sealed class AccountServerConfiguration
             KeyValuePair<ushort, string>[] encodedVerificationKeys = CreateVerificationKeys(settings.GameLoginTickets.VerificationKeys);
             GameLoginTicketCleanupConfiguration ticketCleanup = new(settings.GameLoginTickets.Cleanup.Interval, settings.GameLoginTickets.Cleanup.MaximumBatchesPerRun);
 
-            return new AccountServerConfiguration(accountConnectionString, new IPEndPoint(bindAddress, loginPort), listenBacklog, admissionCapacity, loginConnectionProtection, workerPool, handshake, authenticationProtection, settings.GameLoginTickets.ActiveVerificationKeyId, encodedVerificationKeys, ticketCleanup);
+            AccountServerRegistrationConfiguration? registration = null;
+
+            if (settings.Registration.Enabled)
+            {
+                string registrationConnectionString = configuration.GetConnectionString("AccountRegistration") ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(registrationConnectionString))
+                {
+                    throw new InvalidOperationException($"ConnectionStrings:AccountRegistration is required when {SectionName}:Registration:Enabled is true.");
+                }
+
+                registration = new AccountServerRegistrationConfiguration(registrationConnectionString,
+                    new AccountRegistrationProtectionOptions(settings.Registration.AttemptLimitPerSource, settings.Registration.AttemptWindow,
+                        settings.Registration.MaximumConcurrentAttempts, settings.Registration.MaximumTrackedSources));
+            }
+
+            return new AccountServerConfiguration(accountConnectionString, new IPEndPoint(bindAddress, loginPort), listenBacklog, admissionCapacity, loginConnectionProtection, workerPool, handshake, authenticationProtection, settings.GameLoginTickets.ActiveVerificationKeyId, encodedVerificationKeys, ticketCleanup, registration);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException)
         {

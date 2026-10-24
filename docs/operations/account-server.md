@@ -23,6 +23,9 @@ committed settings files contain no credentials or keys.
 | `AccountServer:GameLoginTickets:ActiveVerificationKeyId`       | Key used for new tickets (required)                      |
 | `AccountServer:GameLoginTickets:VerificationKeys`              | `Id` and `EncodedKey` pairs (required)                   |
 | `AccountServer:GameLoginTickets:Cleanup:Interval`, `MaximumBatchesPerRun` | Expired ticket cleanup (1 minute, 10 batches) |
+| `AccountServer:Registration:Enabled`                           | In-client account registration (default `false`)         |
+| `AccountServer:Registration:*`                                 | Registration limits; defaults in [Account registration](../architecture/account-registration.md#abuse-limits) |
+| `ConnectionStrings:AccountRegistration`                        | Registration identity (required when registration is enabled) |
 
 The AccountServer has no GameServer setting. Each login is redirected to the endpoint registered for
 the realm the client selected (see [Realm registry](realm-registry.md)). Configuration that still
@@ -62,6 +65,26 @@ The Accounts database must already exist on MySQL 8.4 with character set `utf8mb
 never migrates on startup. See [Database migrations](database-migrations.md). The runtime database
 account needs only the permissions for normal account operations, the readiness check, `SELECT` on
 `realms`, `realm_status` and `account_sessions`, and `INSERT, UPDATE` on `account_session_kicks`.
+
+### Registration identity
+
+Registration writes through its own MySQL identity, on the same server and database as
+`ConnectionStrings:Accounts` but not `root` and not the AccountServer identity. It needs only:
+
+```sql
+GRANT SELECT, INSERT ON `openconquer_accounts`.`accounts` TO 'openconquer_account_registration'@'%';
+GRANT INSERT ON `openconquer_accounts`.`account_password_credentials` TO 'openconquer_account_registration'@'%';
+GRANT INSERT ON `openconquer_accounts`.`account_audit_events` TO 'openconquer_account_registration'@'%';
+```
+
+`SELECT` on `accounts` serves the `INSERT … SELECT` statements and the read-back of a commit whose
+acknowledgment was lost. To enable registration in development:
+
+```bash
+P=src/OpenConquer.AccountServer/OpenConquer.AccountServer.csproj
+dotnet user-secrets set "ConnectionStrings:AccountRegistration" "$REGISTRATION_CONNECTION_STRING" --project $P
+dotnet user-secrets set "AccountServer:Registration:Enabled" "true" --project $P
+```
 
 ## Running
 

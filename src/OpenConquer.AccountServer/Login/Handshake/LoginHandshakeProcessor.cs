@@ -8,6 +8,7 @@ using OpenConquer.AccountServer.Login.Handshake.Authentication;
 using OpenConquer.AccountServer.Login.Handshake.PostAuthentication;
 using OpenConquer.Application.Accounts.Authentication;
 using OpenConquer.Application.Accounts.GameLogin.Issuance;
+using OpenConquer.Application.Accounts.Registration;
 using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.Application.Realms;
 using OpenConquer.Domain.Realms;
@@ -16,7 +17,8 @@ using OpenConquer.Protocol.Login.Packets;
 namespace OpenConquer.AccountServer.Login.Handshake;
 
 internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticator, GameLoginTicketIssuer ticketIssuer, IRealmRegistry realmRegistry,
-    IRealmStatusDirectory realmStatus, IAccountSessionKickRequester accountSessions, LoginHandshakeConfiguration configuration)
+    IRealmStatusDirectory realmStatus, IAccountSessionKickRequester accountSessions, LoginHandshakeConfiguration configuration,
+    AccountRegistrationService? registration = null)
 {
     private const ushort ProtectedAccountRequestPacketId = 1084;
     private const ushort MobileAccountRequestPacketId = 1098;
@@ -27,6 +29,7 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
     private readonly IRealmStatusDirectory _realmStatus = realmStatus ?? throw new ArgumentNullException(nameof(realmStatus));
     private readonly IAccountSessionKickRequester _accountSessions = accountSessions ?? throw new ArgumentNullException(nameof(accountSessions));
     private readonly LoginHandshakeConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+    private readonly AccountRegistrationService? _registration = registration;
 
     public async ValueTask ProcessAsync(LoginConnectionSession session, CancellationToken cancellationToken = default)
     {
@@ -51,6 +54,21 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
                 : LoginAccountAuthenticationFailureCode.InvalidAccount;
 
             await SendFailureAsync(session, failureCode, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (readResult.Status == LoginAccountRequestReadStatus.InvalidRegistrationRequest)
+        {
+            await SendRegistrationResultAsync(session, LoginAccountRegistrationResultCode.InvalidRequest, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (readResult.Status == LoginAccountRequestReadStatus.RegistrationRequest)
+        {
+            using LoginAccountRegistrationRequest registrationRequest = readResult.Registration
+                ?? throw new InvalidOperationException("Account-request reader reported a registration without returning it.");
+
+            await ProcessRegistrationAsync(session, registrationRequest, remoteAddress, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -200,6 +218,57 @@ internal sealed class LoginHandshakeProcessor(IAccountAuthenticator authenticato
             CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(password.AsSpan()));
             ArrayPool<char>.Shared.Return(password);
         }
+    }
+
+    // A registration never authenticates, issues a ticket or reads post-authentication reports; the connection
+    // closes after its one response.
+    private async ValueTask ProcessRegistrationAsync(LoginConnectionSession session, LoginAccountRegistrationRequest request,
+        IPAddress remoteAddress, CancellationToken cancellationToken)
+    {
+        if (_registration is null)
+        {
+            await SendRegistrationResultAsync(session, LoginAccountRegistrationResultCode.Unavailable, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        char[] password = ArrayPool<char>.Shared.Rent(request.PasswordLength);
+        AccountRegistrationResult result;
+
+        try
+        {
+            request.CopyPasswordTo(password);
+            result = await _registration.RegisterAsync(request.AccountName, password.AsMemory(0, request.PasswordLength),
+                remoteAddress, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The store has already settled or refused to guess the outcome; tell the client, then let the
+            // worker report the failure.
+            await SendRegistrationResultAsync(session, LoginAccountRegistrationResultCode.Failed, cancellationToken).ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(password.AsSpan()));
+            ArrayPool<char>.Shared.Return(password);
+        }
+
+        LoginAccountRegistrationResultCode code = result.Status switch
+        {
+            AccountRegistrationStatus.Created => LoginAccountRegistrationResultCode.Success,
+            AccountRegistrationStatus.InvalidRequest => LoginAccountRegistrationResultCode.InvalidRequest,
+            AccountRegistrationStatus.UsernameTaken => LoginAccountRegistrationResultCode.AccountNameTaken,
+            AccountRegistrationStatus.Throttled => LoginAccountRegistrationResultCode.Unavailable,
+            _ => throw new InvalidOperationException($"Account registration returned unsupported status {result.Status}."),
+        };
+
+        await SendRegistrationResultAsync(session, code, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static ValueTask SendRegistrationResultAsync(LoginConnectionSession session, LoginAccountRegistrationResultCode code,
+        CancellationToken cancellationToken)
+    {
+        return session.WriteAsync(new LoginAccountRegistrationResponsePacket(code), cancellationToken);
     }
 
     private async ValueTask<LoginAccountRequestReadResult?> ReadAccountRequestAsync(LoginConnectionSession session, CancellationToken cancellationToken)
