@@ -81,8 +81,7 @@ This original API remains internal and is not a connected portal transfer. It re
 sessions and does not write MySQL or send client packets. The separate connected sealed path
 requires an exact tracked session-completion identity, consumes positive durable CAS evidence,
 moves the runtime generation and rebinds the same world session. See
-[Connected portal transfers](connected-portal-transfers.md). Only explicit
-release-approved destinations are eligible; historical resolved candidates remain inactive.
+[Connected portal transfers](connected-portal-transfers.md).
 
 ## Unbound portal transaction
 
@@ -117,8 +116,9 @@ completes late. Characters with an active session cannot be moved this way.
 The connected transition coordinator now composes source FIFO reservation, current-generation
 location observation, the existing session's v13 writer token, one exact durable CAS receipt,
 destination-first residency cutover, tracked session rebind, map visibility and the native 86/1110
-arrival packet batch. Unknown post-seal outcomes stop partition execution; they are never retried
-based only on unchanged coordinates. Invalid requests are disconnected because retail 5517
+arrival packet batch. A refused or uncertain CAS abandons the seal and closes only that session;
+a failed in-memory cutover stops partition execution. Neither is retried based only on unchanged
+coordinates. Invalid requests are disconnected because retail 5517
 otherwise remains indefinitely in its waiting mode.
 
 ## Remaining work: other transfers

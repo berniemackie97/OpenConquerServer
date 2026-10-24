@@ -71,10 +71,8 @@ public sealed class MapTransitionContentTests
 
         Assert.Equal(373, catalog.Count);
         Assert.Equal(322, catalog.ResolvedCount);
-        Assert.Equal(0, catalog.ReleasedCount);
         Assert.Equal(51, catalog.UnresolvedCount);
         Assert.True(catalog.TryResolve(1000, 0, out MapTransitionDestination? transition));
-        Assert.False(catalog.TryResolveReleased(1000, 0, out _));
         Assert.Equal((1001u, 312, 646), (transition.MapId, transition.X, transition.Y));
         Assert.False(catalog.TryResolve(1015, 10, out _));
     }

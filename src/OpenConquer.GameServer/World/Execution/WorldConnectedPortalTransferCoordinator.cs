@@ -34,6 +34,11 @@ internal sealed partial class WorldConnectedPortalTransferCoordinator(
     private static partial void LogSealedTransferFailure(ILogger logger, uint characterId, uint sourceMapId,
         uint destinationMapId, long revision, Exception exception);
 
+    [LoggerMessage(EventId = 6661, Level = LogLevel.Warning,
+        Message = "Portal location commit for character {CharacterId}, map {SourceMapId} to {DestinationMapId}, expected revision {Revision} was refused or is uncertain; closing its session.")]
+    private static partial void LogAbandonedTransfer(ILogger logger, uint characterId, uint sourceMapId,
+        uint destinationMapId, long revision, Exception exception);
+
     internal async ValueTask<bool> TryTransferAsync(WorldSession session, GamePortalRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -145,10 +150,16 @@ internal sealed partial class WorldConnectedPortalTransferCoordinator(
         }
         catch (Exception failure)
         {
-            // An unknown or failed post-seal write can still commit later. Before a
-            // complete visibility cutover, resuming any world session is unsafe.
-            if (!worldTransferred || !visibilityTransferred)
+            // A refused or uncertain write before cutover only affects this character. Closing its
+            // session removes the source owner; the next login reads the fenced durable location.
+            if (!worldTransferred && _runtime.TryAbandonSealedConnectedTransfer(seal, session.Completion))
             {
+                LogAbandonedTransfer(_logger, characterId, source.MapId,
+                    reservation.DestinationMapId, current.Revision, failure);
+            }
+            else if (!visibilityTransferred)
+            {
+                // An interrupted in-memory cutover leaves no verified owner to remove.
                 LogSealedTransferFailure(_logger, characterId, source.MapId,
                     reservation.DestinationMapId, current.Revision, failure);
                 await _runtime.StopPartitionExecutionAsync().ConfigureAwait(false);

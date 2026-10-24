@@ -11,7 +11,6 @@ public sealed record MapTransitionEntry(uint MapId, uint PasswayIndex, string St
 public sealed class MapTransitionCatalog
 {
     private readonly FrozenDictionary<(uint MapId, uint PasswayIndex), MapTransitionDestination> _destinations;
-    private readonly FrozenDictionary<(uint MapId, uint PasswayIndex), MapTransitionDestination> _releasedDestinations;
 
     /// <summary>
     /// The map content this catalog was validated against.
@@ -35,7 +34,6 @@ public sealed class MapTransitionCatalog
 
         HashSet<(uint MapId, uint PasswayIndex)> seen = [];
         Dictionary<(uint MapId, uint PasswayIndex), MapTransitionDestination> destinations = [];
-        Dictionary<(uint MapId, uint PasswayIndex), MapTransitionDestination> releasedDestinations = [];
 
         foreach (MapTransitionEntry entry in entries)
         {
@@ -55,7 +53,7 @@ public sealed class MapTransitionCatalog
                 throw new InvalidDataException($"Duplicate map transition ({entry.MapId},{entry.PasswayIndex}).");
             }
 
-            if (entry.Status is "resolved" or "release-approved")
+            if (entry.Status == "resolved")
             {
                 MapTransitionDestination destination = entry.Destination
                     ?? throw new InvalidDataException($"Resolved map transition ({entry.MapId},{entry.PasswayIndex}) lacks its destination.");
@@ -76,10 +74,6 @@ public sealed class MapTransitionCatalog
                 }
 
                 destinations.Add(key, destination);
-                if (entry.Status == "release-approved")
-                {
-                    releasedDestinations.Add(key, destination);
-                }
             }
             else if (entry.Status is "no-source" or "shared-terrain-unresolved" or "blocked-destination")
             {
@@ -103,12 +97,10 @@ public sealed class MapTransitionCatalog
         Count = seen.Count;
         ResolvedCount = destinations.Count;
         _destinations = destinations.ToFrozenDictionary();
-        _releasedDestinations = releasedDestinations.ToFrozenDictionary();
     }
 
     public int Count { get; }
     public int ResolvedCount { get; }
-    public int ReleasedCount => _releasedDestinations.Count;
     public int UnresolvedCount => Count - ResolvedCount;
 
     // PasswayIndex must come from the server's own DMap exit-marker lookup, never from a client-provided index.
@@ -116,8 +108,4 @@ public sealed class MapTransitionCatalog
     {
         return _destinations.TryGetValue((mapId, passwayIndex), out destination);
     }
-
-    // Historical evidence establishes a candidate, not permission to offer it to players.
-    public bool TryResolveReleased(uint mapId, uint passwayIndex, [NotNullWhen(true)] out MapTransitionDestination? destination) =>
-        _releasedDestinations.TryGetValue((mapId, passwayIndex), out destination);
 }

@@ -167,13 +167,14 @@ Live portal commit sequencing and durable in-world movement are separate milesto
 
 ## Sealed portal failure response
 
-Event **6660** identifies a failed sealed transfer (character ID, source/destination maps,
-expected location revision, and exception; never the writer credential or token). The
-GameServer stops world execution when a location CAS or its receipt becomes uncertain,
-or when a confirmed transfer cannot finish ownership/visibility cutover. This intentionally
-sacrifices realm availability rather than risk contradictory durable and in-memory owners.
+Warning event **6661** records a portal location CAS that was refused, lost its result or lacks
+an exact receipt (character ID, source/destination maps, expected revision and exception; never
+the writer credential or token). Only that character's session closes; on its next login it
+appears wherever the durable row says. Critical event **6660** records a confirmed transfer that
+could not finish the in-memory ownership/visibility cutover. In that case the GameServer stops
+world execution rather than risk contradictory durable and in-memory owners.
 
-For incident response, keep the realm closed to new connections, preserve the logs, confirm
+After event 6660, keep the realm closed to new connections, preserve the logs, confirm
 the Game database is still at schema v13, and observe the affected character's location
 revision, last operation ID and writer token using authorized read-only administrative
 access. Do not blindly retry the last CAS or manually replay a transfer. Restart only

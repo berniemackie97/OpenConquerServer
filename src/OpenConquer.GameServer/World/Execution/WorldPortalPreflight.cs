@@ -44,7 +44,7 @@ internal static class WorldPortalPreflight
             passwayIndex = exit.PasswayIndex;
         }
 
-        if (!found || !transitions.TryResolveReleased(ownership.MapId, passwayIndex, out MapTransitionDestination? destination) ||
+        if (!found || !transitions.TryResolve(ownership.MapId, passwayIndex, out MapTransitionDestination? destination) ||
             destination.X is < 0 or > ushort.MaxValue || destination.Y is < 0 or > ushort.MaxValue)
         {
             return null;

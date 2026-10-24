@@ -87,7 +87,7 @@ public sealed class FileMapTransitionCatalogRepository : IMapTransitionCatalogRe
 
                 string status = ReadString(row, "status");
                 MapTransitionDestination? destination = null;
-                if (status is "resolved" or "release-approved")
+                if (status == "resolved")
                 {
                     ValidateProperties(row, "mapId", "passwayIndex", "status", "source", "targetMapId", "targetPortalIndex", "targetX", "targetY");
                     destination = new MapTransitionDestination(ReadUInt32(row, "targetMapId"), ReadUInt32(row, "targetPortalIndex"),

@@ -463,6 +463,34 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
+    /// Ends a connected seal whose location CAS was refused, timed out or lacks receipt evidence,
+    /// provided no residency cutover has started. The source owner and its registered session stay
+    /// in place so the caller can close that session through ordinary removal. No in-memory owner
+    /// then remains to contradict whichever location the writer-token-fenced CAS left durable.
+    /// </summary>
+    internal bool TryAbandonSealedConnectedTransfer(WorldDurableTransferSeal seal, Task sessionCompletion)
+    {
+        ArgumentNullException.ThrowIfNull(seal);
+        ArgumentNullException.ThrowIfNull(sessionCompletion);
+        lock (_gate)
+        {
+            WorldCharacterOwnership owner = seal.Reservation.SourceOwnership;
+            if (!_owners.TryGetValue(owner.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != owner || entry.Transferring ||
+                !ReferenceEquals(entry.DurableTransferSeal, seal) ||
+                !_sessions.TryGetValue(owner, out Task? registered) ||
+                !ReferenceEquals(registered, sessionCompletion))
+            {
+                return false;
+            }
+
+            entry.DurableTransferSeal = null;
+            ReleaseTransferReservationCore(entry, seal.Reservation);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Consumes a sealed source after exact durable CAS commit evidence. The caller must stop
     /// the world on any failure because the persistent state can already name the destination.
     /// </summary>

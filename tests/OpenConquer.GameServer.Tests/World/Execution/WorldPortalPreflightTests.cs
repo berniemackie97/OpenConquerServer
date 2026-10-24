@@ -188,7 +188,7 @@ public sealed class WorldPortalPreflightTests
         WorldMapContentCatalog staleMaps = new(
             [CreateMap(SourceMapId, 1015, [s_exit]), CreateMap(TargetMapId, 1016, [])]);
         MapTransitionCatalog staleTransitions = new(
-            [new MapTransitionEntry(SourceMapId, 7, "release-approved",
+            [new MapTransitionEntry(SourceMapId, 7, "resolved",
                 new MapTransitionDestination(TargetMapId, 1, 3, 3, "L"))], staleMaps);
         await using WorldRuntime runtime = new(actualMaps, new WorldExecutionOptions(1, 8, 1, 2, 1));
         runtime.Start();
@@ -204,25 +204,7 @@ public sealed class WorldPortalPreflightTests
         Assert.Equal(TargetMapId, newcomer.MapId);
     }
 
-    [Fact]
-    public async Task HistoricalResolvedCandidate_IsNotAuthorizedForLivePortalPreflight()
-    {
-        (WorldRuntime runtime, MapTransitionCatalog transitions) = CreateWorld(
-            s_exit, Resolved() with { Status = "resolved" });
-        await using (runtime)
-        {
-            runtime.Start();
-            WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(
-                Profile(), TestContext.Current.CancellationToken);
-            Assert.True(transitions.TryResolve(SourceMapId, 7, out _));
-            Assert.False(transitions.TryResolveReleased(SourceMapId, 7, out _));
-            Assert.Null(await WorldPortalPreflight.TryReserveAsync(runtime, transitions,
-                owner, 2, 1, TestContext.Current.CancellationToken));
-            Assert.NotNull(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
-        }
-    }
-
-    private static MapTransitionEntry Resolved() => new(SourceMapId, 7, "release-approved",
+    private static MapTransitionEntry Resolved() => new(SourceMapId, 7, "resolved",
         new MapTransitionDestination(TargetMapId, 1, 1, 1, "L"));
 
     private static (WorldRuntime Runtime, MapTransitionCatalog Transitions) CreateWorld(

@@ -222,7 +222,7 @@ public sealed class WorldPortalPersistedLocationPreflightTests
         MapTerrainExit exit = new(2, 1, 7);
         WorldMapContentCatalog maps = new([CreateMap(SourceMapId, 1015, [exit]), CreateMap(TargetMapId, 1016, [])]);
         MapTransitionCatalog transitions = new(
-            [new MapTransitionEntry(SourceMapId, 7, "release-approved",
+            [new MapTransitionEntry(SourceMapId, 7, "resolved",
                 new MapTransitionDestination(TargetMapId, 1, 1, 1, "L"))], maps);
         return (new WorldRuntime(maps, new WorldExecutionOptions(1, 8, 1, 2, 1)), transitions);
     }

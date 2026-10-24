@@ -317,7 +317,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
         MapTerrainExit exit = new(2, 1, 7);
         WorldMapContentCatalog maps = new([Map(SourceMap, 1015, [exit]), Map(DestinationMap, 1016, [])]);
         MapTransitionCatalog catalog = new(
-            [new MapTransitionEntry(SourceMap, 7, "release-approved",
+            [new MapTransitionEntry(SourceMap, 7, "resolved",
                 new MapTransitionDestination(DestinationMap, 1, 1, 1, "L"))], maps);
         return (new WorldRuntime(maps, new WorldExecutionOptions(1, 8, 1, 3, 1)), catalog);
     }

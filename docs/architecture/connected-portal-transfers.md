@@ -9,15 +9,13 @@ malformed request, ambiguous marker, unsupported route or unavailable destinatio
 The client enters its indefinite waiting state after sending action 85: an unsuccessful request
 therefore closes the connection, never silently leaves the client waiting.
 
-The shipped catalog contains 322 cross-version historical candidates and no
-release-approved routes. Server preflight does not activate those candidates until a
-route-specific, reviewed content release promotes them. The trusted map and exit catalog
-are frozen at world startup. The coordinator reuses
+Routes come from the 322 resolved rows of the transition catalog; the 51 unresolved exits are
+refused. The trusted map and exit catalog are frozen at world startup. The coordinator reuses
 `WorldPortalPreflight` to reserve one destination slot and establish a FIFO barrier against
 source-map commands. The resulting source snapshot must represent the current, alive, non-ghost
-authoritative owner adjacent to the marker. The destination must be statically passable. A route's release review includes the
-arrival-to-exit loop check; the native client immediately requests another portal if its
-arrival is within one tile of an exit. There is no speculative runtime tile relocation or
+authoritative owner adjacent to the marker. The destination must be statically passable. Catalog review includes the arrival-to-exit
+loop check; the native client immediately requests another portal if its arrival is within one
+tile of an exit. There is no speculative runtime tile relocation or
 re-arm packet.
 No untrusted packet coordinates, flags or passway indices affect the world or SQL predicates.
 
@@ -41,9 +39,13 @@ same world-runtime lock. The destination capacity reservation is consumed once a
 slot refunded. The session updates its map snapshot and resets walk/reconciliation histories
 at the committed arrival tile.
 
-If any step after sealing fails before confirmed visibility cutover, partition execution is
-stopped. This deliberately favors a controlled realm shutdown over accepting writes under
-an uncertain owner; it is not an operation-level retry strategy. A disconnect after a fully
+A refused CAS, a write whose result is lost and a missing receipt all occur before any residency
+cutover. The coordinator then abandons the seal (warning event 6661) and the connection worker
+closes that session, removing the source owner through ordinary removal. No in-memory owner
+remains to contradict the durable row, which holds either the source or the destination; the
+writer token rejects a late CAS after the next fenced login. The rest of the realm keeps
+running. Only a failure inside the in-memory ownership or visibility cutover, where no verified
+owner remains to remove, stops partition execution (critical event 6660). Nothing is retried. A disconnect after a fully
 committed cutover releases the destination generation normally. No database lock is held
 across the two map partitions or the socket. The writer token fences late MySQL operations,
 but it is not a cross-process world lease or a general crash-recovery journal.
