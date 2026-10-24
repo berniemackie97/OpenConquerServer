@@ -11,6 +11,8 @@ public readonly record struct GameAction(uint EntityId, uint ParameterPair, uint
     public const ushort PacketIdentifier = 10010;
     public const int FixedPacketLength = 38;
     public const ushort EnterMapAction = 0x4A;
+    public const ushort PortalRequestAction = 0x55;
+    public const ushort PortalArrivalAction = 0x56;
     public const ushort GetItemSetAction = 0x4B;
     public const ushort GetFriendListAction = 0x4C;
     public const ushort GetWeaponSkillSetAction = 0x4D;

@@ -298,6 +298,42 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         }
     }
 
+    public async ValueTask WriteBatchAsync(IPacket first, IPacket second, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+
+        EnterOperation();
+
+        try
+        {
+            GameSecuredFrameWriter frameWriter = GetSecuredFrameWriter();
+
+            try
+            {
+                await frameWriter.WriteBatchAsync(first, second, cancellationToken).ConfigureAwait(false);
+
+                if (_outputPump.IsCompleted)
+                {
+                    await ThrowForOutputPumpCompletionAsync().ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                if (_outputPump.IsCompleted)
+                {
+                    await ThrowForOutputPumpCompletionAsync().ConfigureAwait(false);
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            ExitOperation();
+        }
+    }
+
     public ValueTask DisposeAsync()
     {
         Task disposeTask;

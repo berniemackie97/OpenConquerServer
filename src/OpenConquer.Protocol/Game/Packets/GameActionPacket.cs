@@ -38,6 +38,17 @@ public sealed class GameActionPacket(uint entityId, uint parameterPair, uint act
         return new GameActionPacket(entityId, mapDataId, actionParameter: 0, timestamp, GameAction.EnterMapAction, direction: 0, positionX, positionY, data1: 0, data2: 0, flag: 0);
     }
 
+    public static GameActionPacket CreatePortalArrival(uint entityId, uint mapDataId, ushort x, ushort y, ushort direction, uint timestamp)
+    {
+        if (entityId == 0 || mapDataId == 0 || direction >= 8)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entityId), "Portal arrival requires an authenticated hero, terrain identity and eight-way direction.");
+        }
+
+        return new GameActionPacket(entityId, mapDataId, actionParameter: 0, timestamp,
+            GameAction.PortalArrivalAction, direction, x, y, data1: 0, data2: 0, flag: 0);
+    }
+
     public void WritePayload(ref PacketWriter writer)
     {
         writer.WriteUInt32(EntityId);

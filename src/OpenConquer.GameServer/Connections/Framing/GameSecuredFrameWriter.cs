@@ -26,10 +26,19 @@ internal sealed class GameSecuredFrameWriter
         _sessionCipher = sessionCipher;
     }
 
-    public async ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(packet);
+    public ValueTask WriteAsync(IPacket packet, CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(packet, second: null, cancellationToken);
 
+    /// <summary>Writes both portal frames into the same output flush, preserving cipher and frame order.</summary>
+    public ValueTask WriteBatchAsync(IPacket first, IPacket second, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(second);
+        return WriteCoreAsync(first, second, cancellationToken);
+    }
+
+    private async ValueTask WriteCoreAsync(IPacket first, IPacket? second, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(first);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (Interlocked.CompareExchange(ref _writeInProgress, 1, 0) != 0)
@@ -47,32 +56,13 @@ internal sealed class GameSecuredFrameWriter
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-
-            int packetLength = GameWireFrameEncoder.GetFrameLength(packet);
-            int wireLength = checked(packetLength + GameWireProtocol.SignatureLength);
-
-            Memory<byte> destination = _writer.GetMemory(wireLength);
-
-            int writtenPacketLength = GameWireFrameEncoder.WriteFrame(packet, destination.Span[..packetLength]);
-
-            if (writtenPacketLength != packetLength)
+            WriteFrame(first, ref streamStateMayHaveAdvanced);
+            if (second is not null)
             {
-                throw new InvalidOperationException($"GameServer packet encoding produced {writtenPacketLength} bytes after declaring a frame length of {packetLength} bytes.");
+                WriteFrame(second, ref streamStateMayHaveAdvanced);
             }
-
-            streamStateMayHaveAdvanced = true;
-
-            int writtenWireLength = GameSecuredFrameEncoder.WriteFrame(_sessionCipher, destination.Span[..packetLength], destination.Span[..wireLength]);
-
-            if (writtenWireLength != wireLength)
-            {
-                throw new InvalidOperationException($"GameServer secured frame encoding produced {writtenWireLength} bytes after declaring a wire length of {wireLength} bytes.");
-            }
-
-            _writer.Advance(wireLength);
 
             FlushResult flush = await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-
             if (flush.IsCanceled)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -97,5 +87,29 @@ internal sealed class GameSecuredFrameWriter
         {
             Volatile.Write(ref _writeInProgress, 0);
         }
+    }
+
+    private void WriteFrame(IPacket packet, ref bool streamStateMayHaveAdvanced)
+    {
+        int packetLength = GameWireFrameEncoder.GetFrameLength(packet);
+        int wireLength = checked(packetLength + GameWireProtocol.SignatureLength);
+        Memory<byte> destination = _writer.GetMemory(wireLength);
+
+        int writtenPacketLength = GameWireFrameEncoder.WriteFrame(packet, destination.Span[..packetLength]);
+        if (writtenPacketLength != packetLength)
+        {
+            throw new InvalidOperationException($"GameServer packet encoding produced {writtenPacketLength} bytes after declaring a frame length of {packetLength} bytes.");
+        }
+
+        streamStateMayHaveAdvanced = true;
+        int writtenWireLength = GameSecuredFrameEncoder.WriteFrame(_sessionCipher,
+            destination.Span[..packetLength], destination.Span[..wireLength]);
+
+        if (writtenWireLength != wireLength)
+        {
+            throw new InvalidOperationException($"GameServer secured frame encoding produced {writtenWireLength} bytes after declaring a wire length of {wireLength} bytes.");
+        }
+
+        _writer.Advance(wireLength);
     }
 }

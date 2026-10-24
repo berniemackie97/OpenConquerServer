@@ -86,6 +86,15 @@ internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
         await _connection.WriteAsync(packet, cancellation.Token).ConfigureAwait(false);
     }
 
+    public async ValueTask WriteBatchAsync(IPacket first, IPacket second, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        ThrowIfDisposed();
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, RevocationToken);
+        await _connection.WriteBatchAsync(first, second, cancellation.Token).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Writes one last packet after the presence was revoked, when ordinary writes are already cancelled.
     /// </summary>
