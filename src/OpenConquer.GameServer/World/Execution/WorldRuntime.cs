@@ -432,6 +432,37 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     /// <summary>
+    /// Seals a reserved connected source against further partition commands and session removal.
+    /// Its registered completion task is the only authorized handoff participant.
+    /// </summary>
+    internal WorldDurableTransferSeal? TrySealConnectedPortalTransfer(
+        WorldTransferReservation reservation, Task sessionCompletion, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentNullException.ThrowIfNull(sessionCompletion);
+        lock (_gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfNotRunning();
+            WorldCharacterOwnership owner = reservation.SourceOwnership;
+            if (!_owners.TryGetValue(owner.CharacterId, out OwnershipEntry? entry) ||
+                entry.Ownership != owner || entry.Removing || entry.Transferring ||
+                entry.DurableTransferSeal is not null ||
+                !ReferenceEquals(entry.TransferReservation, reservation) ||
+                !_sessions.TryGetValue(owner, out Task? registered) ||
+                !ReferenceEquals(registered, sessionCompletion) ||
+                reservation.SourceSnapshot.Ownership != owner)
+            {
+                return null;
+            }
+
+            WorldDurableTransferSeal seal = new(reservation);
+            entry.DurableTransferSeal = seal;
+            return seal;
+        }
+    }
+
+    /// <summary>
     /// Consumes a sealed source after exact durable CAS commit evidence. The caller must stop
     /// the world on any failure because the persistent state can already name the destination.
     /// </summary>
@@ -439,6 +470,20 @@ internal sealed class WorldRuntime : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(seal);
         return RelocateReservedCharacterCoreAsync(seal.Reservation, seal, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Hands a durable, confirmed connected transfer to the destination owner without releasing
+    /// its registered session. Rebinding runs inside the final ownership linearization point.
+    /// </summary>
+    internal ValueTask<WorldCharacterOwnership?> TryRelocateSealedConnectedCharacterAsync(
+        WorldDurableTransferSeal seal, Task sessionCompletion, Action<WorldCharacterOwnership> rebind)
+    {
+        ArgumentNullException.ThrowIfNull(seal);
+        ArgumentNullException.ThrowIfNull(sessionCompletion);
+        ArgumentNullException.ThrowIfNull(rebind);
+        return RelocateReservedCharacterCoreAsync(seal.Reservation, seal, CancellationToken.None,
+            sessionCompletion, rebind);
     }
 
     /// <summary>
@@ -455,7 +500,8 @@ internal sealed class WorldRuntime : IAsyncDisposable
     }
 
     private async ValueTask<WorldCharacterOwnership?> RelocateReservedCharacterCoreAsync(
-        WorldTransferReservation reservation, WorldDurableTransferSeal? seal, CancellationToken cancellationToken)
+        WorldTransferReservation reservation, WorldDurableTransferSeal? seal, CancellationToken cancellationToken,
+        Task? connectedSession = null, Action<WorldCharacterOwnership>? rebind = null)
     {
         WorldCharacterOwnership source = reservation.SourceOwnership;
         WorldCharacterOwnership destination;
@@ -471,7 +517,10 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 entry.Ownership != source || entry.Removing || entry.Transferring ||
                 !ReferenceEquals(entry.TransferReservation, reservation) ||
                 !ReferenceEquals(entry.DurableTransferSeal, seal) ||
-                _sessions.ContainsKey(source))
+                (connectedSession is null
+                    ? _sessions.ContainsKey(source)
+                    : !_sessions.TryGetValue(source, out Task? tracked) ||
+                      !ReferenceEquals(tracked, connectedSession)))
             {
                 return null;
             }
@@ -561,6 +610,19 @@ internal sealed class WorldRuntime : IAsyncDisposable
                     throw new InvalidOperationException("Transfer ownership changed during residency cutover.");
                 }
 
+                // Rebind the tracked session and its current map while the runtime generation
+                // changes, before any new owner can be observed from an ingress command.
+                if (connectedSession is not null)
+                {
+                    if (!_sessions.TryGetValue(source, out Task? tracked) ||
+                        !ReferenceEquals(tracked, connectedSession) ||
+                        !_sessions.Remove(source) || !_sessions.TryAdd(destination, connectedSession))
+                    {
+                        throw new InvalidOperationException("Connected world-session handoff lost its registered generation.");
+                    }
+                    rebind!(destination);
+                }
+
                 // There is exactly one logical owner before and after this locked transition.
                 // Destination occupancy is already counted; only source occupancy is refunded.
                 current.Ownership = destination;
@@ -587,7 +649,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 // After source removal dispatch, even an error result cannot prove that
                 // the source occupant still exists. Stop instead of undoing the destination
                 // and reopening source commands against an unverified owner.
-                await StopAsync().ConfigureAwait(false);
+                await (connectedSession is null ? StopAsync() : StopPartitionExecutionAsync()).ConfigureAwait(false);
             }
             else if (arrived)
             {
@@ -602,7 +664,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 }
                 catch
                 {
-                    await StopAsync().ConfigureAwait(false);
+                    await (connectedSession is null ? StopAsync() : StopPartitionExecutionAsync()).ConfigureAwait(false);
                     throw;
                 }
             }
