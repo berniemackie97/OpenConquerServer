@@ -7,8 +7,8 @@ using OpenConquer.Infrastructure.Persistence.Game.Context;
 namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 /// <summary>
-/// One durable character-position CAS through a dedicated, column-restricted writer.
-/// Not registered with the existing read-only GameServer persistence identity.
+/// One durable character-position CAS. The GameServer's Game identity may update only the six location and fence
+/// columns of <c>characters</c>; no other character column is writable.
 /// </summary>
 public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, ICharacterLocationObservationStore, ICharacterLocationFenceStore, ICharacterLocationWriterReadinessVerifier
 {

@@ -11,23 +11,27 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 {
     internal const string DatabaseName = "openconquer_game_tests";
     private const string RuntimeUserName = "openconquer_game_runtime_tests";
-    private const string CreationUserName = "openconquer_game_creation_tests";
-    private const string LocationWriterUserName = "openconquer_location_tests";
+    private const string SelectOnlyUserName = "openconquer_game_select_only_tests";
     private static readonly string s_administrativePassword = Guid.NewGuid().ToString("N");
 
     private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.4.11").WithDatabase(DatabaseName).WithUsername("root").WithPassword(s_administrativePassword).Build();
 
     private ServiceProvider? _services;
     private string? _runtimeConnectionString;
-    private string? _creationConnectionString;
-    private string? _locationWriterConnectionString;
+    private string? _selectOnlyConnectionString;
 
     public ServiceProvider Services => _services ?? throw new InvalidOperationException("The game test database is not initialized.");
     public IDbContextFactory<GameDbContext> ContextFactory => Services.GetRequiredService<IDbContextFactory<GameDbContext>>();
     public string AdministrativeConnectionString => _container.GetConnectionString();
+
+    /// <summary>The GameServer runtime identity with exactly the documented Game database grants.</summary>
     public string RuntimeConnectionString => _runtimeConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
-    public string CreationConnectionString => _creationConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
-    public string LocationWriterConnectionString => _locationWriterConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
+
+    /// <summary>
+    /// Reads <c>characters</c> but has none of the runtime's write grants, so it shows what the location probe and
+    /// stores do when an operator forgets them.
+    /// </summary>
+    public string SelectOnlyConnectionString => _selectOnlyConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
     public ulong InitialCharacterAutoIncrement { get; private set; }
 
     public async ValueTask InitializeAsync()
@@ -41,9 +45,9 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             await ProvisionSchemaAsync(administrativeConnectionString);
 
             InitialCharacterAutoIncrement = await ReadCharacterAutoIncrementAsync(administrativeConnectionString);
-            _runtimeConnectionString = await CreateRuntimeIdentityAsync(administrativeConnectionString);
-            _creationConnectionString = await CreateCreationIdentityAsync(administrativeConnectionString);
-            _locationWriterConnectionString = await CreateLocationWriterIdentityAsync(administrativeConnectionString);
+            _runtimeConnectionString = await CreateIdentityAsync(administrativeConnectionString, RuntimeUserName, RuntimeGrants);
+            _selectOnlyConnectionString = await CreateIdentityAsync(administrativeConnectionString, SelectOnlyUserName,
+                [$"GRANT SELECT ON `{DatabaseName}`.`characters` TO '{SelectOnlyUserName}'@'%'"]);
 
             _services = new ServiceCollection().AddGamePersistence(_runtimeConnectionString)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
@@ -68,8 +72,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
         {
             _services = null;
             _runtimeConnectionString = null;
-            _creationConnectionString = null;
-            _locationWriterConnectionString = null;
+            _selectOnlyConnectionString = null;
             InitialCharacterAutoIncrement = 0;
 
             await _container.DisposeAsync();
@@ -116,7 +119,26 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             : Convert.ToUInt64(value);
     }
 
-    private static async Task<string> CreateRuntimeIdentityAsync(string administrativeConnectionString)
+    // docs/operations/database-identities.md: the GameServer runtime grants on its Game database.
+    private static string[] RuntimeGrants =>
+    [
+        $"GRANT SELECT, INSERT ON `{DatabaseName}`.`characters` TO '{RuntimeUserName}'@'%'",
+        $"""
+            GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`)
+            ON `{DatabaseName}`.`characters`
+            TO '{RuntimeUserName}'@'%'
+            """,
+        $"GRANT SELECT ON `{DatabaseName}`.`items` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`social_relations` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`weapon_skills` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`magic` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`syndicates` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`syndicate_memberships` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`schema_compatibility` TO '{RuntimeUserName}'@'%'",
+        $"GRANT SELECT ON `{DatabaseName}`.`realm_binding` TO '{RuntimeUserName}'@'%'",
+    ];
+
+    private static async Task<string> CreateIdentityAsync(string administrativeConnectionString, string userName, string[] grants)
     {
         string password = Guid.NewGuid().ToString("N");
 
@@ -126,25 +148,12 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
         await using (MySqlCommand createUser = connection.CreateCommand())
         {
             createUser.CommandText = $"""
-                CREATE USER '{RuntimeUserName}'@'%'
+                CREATE USER '{userName}'@'%'
                 IDENTIFIED BY '{password}'
                 """;
 
             await createUser.ExecuteNonQueryAsync();
         }
-
-        string[] grants =
-        [
-            $"GRANT SELECT ON `{DatabaseName}`.`characters` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`items` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`social_relations` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`weapon_skills` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`magic` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`syndicates` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`syndicate_memberships` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`schema_compatibility` TO '{RuntimeUserName}'@'%'",
-            $"GRANT SELECT ON `{DatabaseName}`.`realm_binding` TO '{RuntimeUserName}'@'%'",
-        ];
 
         foreach (string grant in grants)
         {
@@ -153,70 +162,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             await command.ExecuteNonQueryAsync();
         }
 
-        MySqlConnectionStringBuilder runtimeConnection = new(administrativeConnectionString) { UserID = RuntimeUserName, Password = password };
-        return runtimeConnection.ConnectionString;
-    }
-
-    private static async Task<string> CreateCreationIdentityAsync(string administrativeConnectionString)
-    {
-        string password = Guid.NewGuid().ToString("N");
-
-        await using MySqlConnection connection = new(administrativeConnectionString);
-        await connection.OpenAsync();
-
-        await using (MySqlCommand createUser = connection.CreateCommand())
-        {
-            createUser.CommandText = $"""
-                CREATE USER '{CreationUserName}'@'%'
-                IDENTIFIED BY '{password}'
-                """;
-
-            await createUser.ExecuteNonQueryAsync();
-        }
-
-        await using (MySqlCommand grant = connection.CreateCommand())
-        {
-            grant.CommandText = $"GRANT SELECT, INSERT ON `{DatabaseName}`.`characters` TO '{CreationUserName}'@'%'";
-
-            await grant.ExecuteNonQueryAsync();
-        }
-
-        MySqlConnectionStringBuilder creationConnection = new(administrativeConnectionString) { UserID = CreationUserName, Password = password };
-        return creationConnection.ConnectionString;
-    }
-
-    private static async Task<string> CreateLocationWriterIdentityAsync(string administrativeConnectionString)
-    {
-        string password = Guid.NewGuid().ToString("N");
-
-        await using MySqlConnection connection = new(administrativeConnectionString);
-        await connection.OpenAsync();
-
-        await using (MySqlCommand createUser = connection.CreateCommand())
-        {
-            createUser.CommandText = $"""
-                CREATE USER '{LocationWriterUserName}'@'%'
-                IDENTIFIED BY '{password}'
-                """;
-            await createUser.ExecuteNonQueryAsync();
-        }
-
-        await using (MySqlCommand grant = connection.CreateCommand())
-        {
-            grant.CommandText = $"""
-                GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`),
-                      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`)
-                ON `{DatabaseName}`.`characters`
-                TO '{LocationWriterUserName}'@'%'
-                """;
-            await grant.ExecuteNonQueryAsync();
-        }
-
-        MySqlConnectionStringBuilder locationWriterConnection = new(administrativeConnectionString)
-        {
-            UserID = LocationWriterUserName,
-            Password = password,
-        };
-        return locationWriterConnection.ConnectionString;
+        MySqlConnectionStringBuilder identity = new(administrativeConnectionString) { UserID = userName, Password = password };
+        return identity.ConnectionString;
     }
 }

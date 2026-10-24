@@ -18,12 +18,12 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     private readonly Dictionary<uint, Guid> _writerTokens = [];
 
     [Fact]
-    public async Task VerifyPermissions_ColumnScopedWriterPassesButReadonlyRuntimeFails()
+    public async Task VerifyPermissions_RuntimeIdentityPassesButOneWithoutWriteGrantsFails()
     {
-        CharacterLocationWriteStore writer = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore writer = new(database.RuntimeConnectionString);
         await writer.VerifyPermissionsAsync(CancellationToken);
 
-        CharacterLocationWriteStore readonlyStore = new(database.RuntimeConnectionString);
+        CharacterLocationWriteStore readonlyStore = new(database.SelectOnlyConnectionString);
         MySqlException exception = await Assert.ThrowsAsync<MySqlException>(() => readonlyStore.VerifyPermissionsAsync(CancellationToken).AsTask());
         Assert.Contains(exception.Number, new[] { 1142, 1143 });
     }
@@ -32,7 +32,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Commit_ChangesOnlyTheRequestedCharacterLocation()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
         CharacterLocation destination = new(1011, 193, 266);
 
         CharacterLocationWriteResult result = await writer.TryCommitAsync(
@@ -50,7 +50,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Commit_StaleExpectedLocationAndForeignAccountCannotOverwrite()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
         CharacterLocation original = new(1002, 431, 379);
         CharacterLocation destination = new(1011, 193, 266);
         Assert.Equal(CharacterLocationWriteResult.Committed,
@@ -69,7 +69,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Commit_ConcurrentClaimsForOneExpectedLocation_ExactlyOneWins()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
         CharacterLocation original = new(1002, 431, 379);
         CharacterLocation first = new(1011, 193, 266);
         CharacterLocation second = new(1000, 499, 650);
@@ -91,7 +91,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Commit_ReturnToSameCoordinate_DoesNotAllowReplayedOldRevision()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         CharacterLocation original = new(1002, 431, 379);
         CharacterLocation other = new(1011, 193, 266);
 
@@ -117,7 +117,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Commit_MarkerIsScopedToTheWinningAtomicRevision()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         CharacterLocation original = new(1002, 431, 379);
         CharacterLocation destination = new(1011, 193, 266);
         CharacterLocation alternate = new(1000, 499, 650);
@@ -139,10 +139,10 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
-    public async Task RuntimeReadonlyIdentity_CannotCommitCharacterLocation()
+    public async Task IdentityWithoutWriteGrants_CannotCommitCharacterLocation()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
+        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.SelectOnlyConnectionString);
 
         InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await writer.TryCommitAsync(Change(account, character, new CharacterLocation(1002, 431, 379),
@@ -155,11 +155,11 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
-    public async Task LocationWriter_CannotWriteVitalsOrReadUnrelatedColumns()
+    public async Task RuntimeIdentity_CannotWriteNonLocationColumns()
     {
         (uint account, uint character) = await CreateCharacterAsync();
 
-        await using MySqlConnection connection = new(database.LocationWriterConnectionString);
+        await using MySqlConnection connection = new(database.RuntimeConnectionString);
         await connection.OpenAsync(CancellationToken);
 
         await using (MySqlCommand update = connection.CreateCommand())
@@ -178,16 +178,6 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
             Assert.Contains(denial.Number, new[] { 1142, 1143 });
         }
 
-        await using (MySqlCommand read = connection.CreateCommand())
-        {
-            read.CommandText = "SELECT `current_life` FROM `characters` WHERE `character_id` = @character_id";
-            read.Parameters.AddWithValue("@character_id", character);
-
-            MySqlException denial = await Assert.ThrowsAsync<MySqlException>(
-                () => read.ExecuteScalarAsync(CancellationToken));
-            Assert.Contains(denial.Number, new[] { 1142, 1143 });
-        }
-
         Assert.Equal((ushort)177, (await LoadAsync(account)).Vitals.Life);
     }
 
@@ -195,7 +185,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Observe_ReflectsPersistedLocationBeforeAndAfterCommit()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         ICharacterLocationObservationStore observer = store;
         PersistedCharacterLocation before = Assert.IsType<PersistedCharacterLocation>(
             await observer.ObserveAsync(account, character, CancellationToken));
@@ -222,7 +212,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task ReceiptEncoding_IsIndependentOfConfiguredGuidFormat()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        MySqlConnectionStringBuilder credentials = new(database.LocationWriterConnectionString)
+        MySqlConnectionStringBuilder credentials = new(database.RuntimeConnectionString)
         {
             GuidFormat = MySqlGuidFormat.Binary16,
         };
@@ -243,7 +233,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         Guid operationId = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
         CharacterLocationChange change = new(account, character,
             new CharacterLocation(1002, 431, 379), new CharacterLocation(1011, 193, 266), 0, operationId, _writerTokens[character]);
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         Assert.Equal(CharacterLocationWriteResult.Committed,
             await store.TryCommitAsync(change, CancellationToken));
 
@@ -279,7 +269,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Observe_RefusesForeignAccountAndMissingCharacterWithoutDisclosingLocation()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        ICharacterLocationObservationStore observer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+        ICharacterLocationObservationStore observer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
 
         Assert.Null(await observer.ObserveAsync(account + 1, character, CancellationToken));
         Assert.Null(await observer.ObserveAsync(account, uint.MaxValue, CancellationToken));
@@ -289,7 +279,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     [Fact]
     public async Task Observe_RejectsInvalidIdentitiesAndPreCancelledReads()
     {
-        ICharacterLocationObservationStore observer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+        ICharacterLocationObservationStore observer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
             await observer.ObserveAsync(0, 1_000_000, CancellationToken));
@@ -314,7 +304,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
             command.Parameters.AddWithValue("@character", character);
             Assert.Equal(1, await command.ExecuteNonQueryAsync(CancellationToken));
         }
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         CharacterLocation a = new(1002, 431, 379);
         CharacterLocation b = new(1011, 193, 266);
         Assert.Equal(CharacterLocationWriteResult.Committed,
@@ -328,7 +318,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task Commit_PreCanceledOperation_DoesNotDispatch()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.LocationWriterConnectionString);
+        ICharacterLocationWriteStore writer = new CharacterLocationWriteStore(database.RuntimeConnectionString);
         using CancellationTokenSource stopped = new();
         stopped.Cancel();
 
@@ -340,10 +330,10 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     }
 
     [Fact]
-    public void Registration_RequiresExplicitWriterCredentials()
+    public void Registration_RequiresAConnectionString()
     {
         using ServiceProvider services = new ServiceCollection()
-            .AddGameCharacterLocationWrite(database.LocationWriterConnectionString)
+            .AddGameCharacterLocationWrite(database.RuntimeConnectionString)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         ICharacterLocationWriteStore writer = services.GetRequiredService<ICharacterLocationWriteStore>();
         ICharacterLocationObservationStore observer = services.GetRequiredService<ICharacterLocationObservationStore>();
@@ -357,7 +347,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task RotatingWriterGeneration_RevokesOldCASWithoutChangingCoordinatesOrRevision()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         Guid priorToken = _writerTokens[character];
         CharacterLocation original = new(1002, 431, 379);
         CharacterLocation target = new(1011, 193, 266);
@@ -378,10 +368,10 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task FenceRotation_RefusesForeignIdentityAndReadOnlyCredentials()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         Assert.Null(await store.AcquireAsync(account + 1, character, CancellationToken));
         Assert.Null(await store.AcquireAsync(account, uint.MaxValue, CancellationToken));
-        CharacterLocationWriteStore readonlyStore = new(database.RuntimeConnectionString);
+        CharacterLocationWriteStore readonlyStore = new(database.SelectOnlyConnectionString);
         MySqlException exception = await Assert.ThrowsAsync<MySqlException>(async () =>
             await readonlyStore.AcquireAsync(account, character, CancellationToken));
         Assert.Contains(exception.Number, new[] { 1142, 1143 });
@@ -393,7 +383,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task SuccessiveFenceAcquisitions_OnlyLatestGenerationCanWrite()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         CharacterLocationWriteAuthority first = Assert.IsType<CharacterLocationWriteAuthority>(
             await store.AcquireAsync(account, character, CancellationToken));
         CharacterLocationWriteAuthority second = Assert.IsType<CharacterLocationWriteAuthority>(
@@ -414,7 +404,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
     public async Task ConcurrentFenceAcquisitions_RevokeAllSupersededGenerations()
     {
         (uint account, uint character) = await CreateCharacterAsync();
-        CharacterLocationWriteStore store = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore store = new(database.RuntimeConnectionString);
         Guid previous = _writerTokens[character];
 
         Task<CharacterLocationWriteAuthority?> first = store.AcquireAsync(account, character, CancellationToken).AsTask();
@@ -465,7 +455,7 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
         CharacterCreationStore creator = new(database.AdministrativeConnectionString);
         CharacterCreationStoreResult result = await creator.CreateAsync(candidate, CancellationToken);
         Assert.Equal(CharacterCreationStoreStatus.Created, result.Status);
-        CharacterLocationWriteStore fence = new(database.LocationWriterConnectionString);
+        CharacterLocationWriteStore fence = new(database.RuntimeConnectionString);
         CharacterLocationWriteAuthority authority = Assert.IsType<CharacterLocationWriteAuthority>(
             await fence.AcquireAsync(account, result.CharacterId, CancellationToken));
         _writerTokens.Add(result.CharacterId, authority.Token);

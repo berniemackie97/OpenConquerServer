@@ -71,8 +71,9 @@ Coordinates are zero-based. The check covers bounds only, not whether the tile i
 the meaning of each raw terrain passability flag has not been confirmed. A starting location still
 has to be chosen and checked against trusted map data before creation is enabled.
 
-The section is an opt-in prerequisite for the later runtime work. On its own it does not enable the
-character-creation route, register creation credentials, or allow character writes.
+The section is an opt-in prerequisite for the later runtime work. It registers the creation store and
+service, but on its own it does not enable the character-creation route or let any login write a
+character.
 
 See [Character creation starting-state operations](../operations/character-creation-starting-state.md).
 
@@ -134,7 +135,7 @@ decides up to which point it can be cancelled.
 The GameServer character-creation route is still disabled. Enabling it requires:
 
 1. Provisioning checked starting-state values and a starting location confirmed to be walkable.
-2. Provisioning and configuring dedicated creation database credentials.
+2. Granting the GameServer identity `INSERT` on `characters`.
 3. Binding the creation application service to authenticated account identity.
 4. Sending the `NEW_ROLE` control message.
 5. Processing packet `1001` on the authenticated, encrypted connection.

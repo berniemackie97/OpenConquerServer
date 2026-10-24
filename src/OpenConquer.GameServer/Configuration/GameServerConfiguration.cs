@@ -7,7 +7,6 @@ using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Infrastructure.Content.Items;
 using OpenConquer.Infrastructure.Content.Maps;
-using OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 namespace OpenConquer.GameServer.Configuration;
 
@@ -18,13 +17,15 @@ internal sealed class GameServerConfiguration
 {
     public const string SectionName = "GameServer";
 
+    private static readonly string[] s_retiredConnectionStrings = ["GameCreation", "GameLocationWriter"];
+
     private GameServerConfiguration(RealmId realmId, string accountConnectionString, string gameConnectionString,
         MapDefinitionCatalogFileOptions mapDefinitions, string terrainDirectory, string collisionDirectory,
         MapTerrainLoadLimits terrainLimits, MapCollisionLoadLimits collisionLimits, WorldExecutionOptions world,
         GameNetworkOptions? network, RealmStatusOptions? realmStatus, ItemTypeCatalogFileOptions? itemTypes,
         ushort activeVerificationKeyId, KeyValuePair<ushort, string>[] verificationKeys,
-        CharacterCreationStartingState? characterCreationStartingState, string? characterCreationConnectionString,
-        string? locationWriteConnectionString, string transitionsPath, int maximumTransitionFileBytes, int maximumTransitions)
+        CharacterCreationStartingState? characterCreationStartingState, string transitionsPath, int maximumTransitionFileBytes,
+        int maximumTransitions)
     {
         RealmId = realmId;
         AccountConnectionString = accountConnectionString;
@@ -41,8 +42,6 @@ internal sealed class GameServerConfiguration
         ActiveVerificationKeyId = activeVerificationKeyId;
         VerificationKeys = Array.AsReadOnly(verificationKeys);
         CharacterCreationStartingState = characterCreationStartingState;
-        CharacterCreationConnectionString = characterCreationConnectionString;
-        LocationWriteConnectionString = locationWriteConnectionString;
         TransitionsPath = transitionsPath;
         MaximumTransitionFileBytes = maximumTransitionFileBytes;
         MaximumTransitions = maximumTransitions;
@@ -67,9 +66,12 @@ internal sealed class GameServerConfiguration
     public ItemTypeCatalogFileOptions? ItemTypes { get; }
     public ushort ActiveVerificationKeyId { get; }
     public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
+
+    /// <summary>
+    /// The validated creation spawn, or <see langword="null"/> when character creation is not configured. Creation
+    /// writes through <see cref="GameConnectionString"/>, the GameServer's only Game database identity.
+    /// </summary>
     public CharacterCreationStartingState? CharacterCreationStartingState { get; }
-    public string? CharacterCreationConnectionString { get; }
-    public string? LocationWriteConnectionString { get; }
     public string TransitionsPath { get; }
     public int MaximumTransitionFileBytes { get; }
     public int MaximumTransitions { get; }
@@ -90,6 +92,16 @@ internal sealed class GameServerConfiguration
         if (string.IsNullOrWhiteSpace(gameConnectionString))
         {
             throw new InvalidOperationException("ConnectionStrings:Game is missing or empty.");
+        }
+
+        // Character creation and location writes once had their own database identities; a leftover setting would
+        // suggest they still do.
+        foreach (string retired in s_retiredConnectionStrings)
+        {
+            if (configuration.GetConnectionString(retired) is not null)
+            {
+                throw new InvalidOperationException($"ConnectionStrings:{retired} is no longer used; the GameServer writes through ConnectionStrings:Game.");
+            }
         }
 
         GameServerSettings settings = new();
@@ -164,44 +176,11 @@ internal sealed class GameServerConfiguration
             }
 
             CharacterCreationStartingState? characterCreationStartingState = CreateCharacterCreationStartingState(settings.CharacterCreation);
-            string? characterCreationConnectionString = configuration.GetConnectionString("GameCreation");
-
-            if (characterCreationConnectionString is not null)
-            {
-                if (string.IsNullOrWhiteSpace(characterCreationConnectionString))
-                {
-                    throw new InvalidOperationException("ConnectionStrings:GameCreation must not be empty when supplied.");
-                }
-
-                if (characterCreationStartingState is null)
-                {
-                    throw new InvalidOperationException("ConnectionStrings:GameCreation requires a validated GameServer:CharacterCreation starting state.");
-                }
-
-                GameCharacterCreationConnectionPolicy.Validate(gameConnectionString, characterCreationConnectionString);
-            }
-
-            string? locationWriteConnectionString = configuration.GetConnectionString("GameLocationWriter");
-            if (network is not null && string.IsNullOrWhiteSpace(locationWriteConnectionString))
-            {
-                throw new InvalidOperationException("ConnectionStrings:GameLocationWriter is required when GameServer network ingress is enabled.");
-            }
-
-            if (locationWriteConnectionString is not null)
-            {
-                if (string.IsNullOrWhiteSpace(locationWriteConnectionString))
-                {
-                    throw new InvalidOperationException("ConnectionStrings:GameLocationWriter must not be empty when supplied.");
-                }
-
-                GameCharacterLocationWriteConnectionPolicy.Validate(gameConnectionString, locationWriteConnectionString,
-                    characterCreationConnectionString);
-            }
 
             return new GameServerConfiguration(realmId, accountConnectionString, gameConnectionString, definitions, terrainDirectory,
                 collisionDirectory, MapTerrainLoadLimits.CreateDefault(), MapCollisionLoadLimits.CreateDefault(), world,
                 network, realmStatus, itemTypes, ticketSettings.ActiveVerificationKeyId, keys, characterCreationStartingState,
-                characterCreationConnectionString, locationWriteConnectionString, transitionsPath, maximumTransitionFileBytes, maximumTransitions);
+                transitionsPath, maximumTransitionFileBytes, maximumTransitions);
         }
         catch (Exception exception) when (exception is ArgumentException or OverflowException or NotSupportedException)
         {

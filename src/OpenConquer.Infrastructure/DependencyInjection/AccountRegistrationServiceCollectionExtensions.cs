@@ -11,21 +11,21 @@ namespace OpenConquer.Infrastructure.DependencyInjection;
 public static class AccountRegistrationServiceCollectionExtensions
 {
     /// <summary>
-    /// Enables self-service account registration through a dedicated registration database identity.
+    /// Enables self-service account registration through the AccountServer's own database identity, which needs no
+    /// grants beyond its ordinary account writes.
     /// </summary>
     public static IServiceCollection AddAccountRegistration(this IServiceCollection services, string accountConnectionString,
-        string registrationConnectionString, AccountRegistrationProtectionOptions protectionOptions)
+        AccountRegistrationProtectionOptions protectionOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountConnectionString);
         ArgumentNullException.ThrowIfNull(protectionOptions);
-
-        AccountRegistrationConnectionPolicy.Validate(accountConnectionString, registrationConnectionString);
 
         services.TryAddSingleton<TimeProvider>(_ => TimeProvider.System);
         services.TryAddSingleton<IAccountPasswordHasher, AccountPasswordHasher>();
         services.AddSingleton(protectionOptions);
         services.AddSingleton<IAccountRegistrationLimiter, AccountRegistrationProtection>();
-        services.AddSingleton<IAccountRegistrationStore>(_ => new AccountRegistrationStore(registrationConnectionString));
+        services.AddSingleton<IAccountRegistrationStore>(_ => new AccountRegistrationStore(accountConnectionString));
         services.AddSingleton<AccountRegistrationService>();
 
         return services;

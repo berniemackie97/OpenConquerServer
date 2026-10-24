@@ -12,7 +12,7 @@ committed settings files contain no credentials or keys.
 
 | Setting                                                        | Purpose                                                  |
 | -------------------------------------------------------------- | -------------------------------------------------------- |
-| `ConnectionStrings:Accounts`                                   | Accounts database (required)                             |
+| `ConnectionStrings:Accounts`                                   | Accounts database, the AccountServer's only identity (required) |
 | `AccountServer:Network:BindAddress`, `LoginPort`               | Login listener                                           |
 | `AccountServer:Network:ListenBacklog`                          | Listener backlog (default 512)                           |
 | `AccountServer:Admission:Capacity`                             | Queued connections (default 1,024)                       |
@@ -25,13 +25,12 @@ committed settings files contain no credentials or keys.
 | `AccountServer:GameLoginTickets:Cleanup:Interval`, `MaximumBatchesPerRun` | Expired ticket cleanup (1 minute, 10 batches) |
 | `AccountServer:Registration:Enabled`                           | In-client account registration (default `false`)         |
 | `AccountServer:Registration:*`                                 | Registration limits; defaults in [Account registration](../architecture/account-registration.md#abuse-limits) |
-| `ConnectionStrings:AccountRegistration`                        | Registration identity (required when registration is enabled) |
 
 The AccountServer has no GameServer setting. Each login is redirected to the endpoint registered for
 the realm the client selected (see [Realm registry](realm-registry.md)). Configuration that still
-sets the retired `AccountServer:Network:GameServerAddress` or `GameServerPort` is rejected at
-startup. In environment variables, replace `:` with `__`, for example
-`AccountServer__Network__LoginPort`.
+sets the retired `AccountServer:Network:GameServerAddress`, `GameServerPort` or
+`ConnectionStrings:AccountRegistration` is rejected at startup. In environment variables, replace
+`:` with `__`, for example `AccountServer__Network__LoginPort`.
 
 ### Verification keys
 
@@ -62,25 +61,13 @@ deployment's secret store.
 
 The Accounts database must already exist on MySQL 8.4 with character set `utf8mb4` and collation
 `utf8mb4_0900_as_cs`, migrated to schema version 6 (`20261013090000_AddAccountSessions`). The server
-never migrates on startup. See [Database migrations](database-migrations.md). The runtime database
-account needs only the permissions for normal account operations, the readiness check, `SELECT` on
-`realms`, `realm_status` and `account_sessions`, and `INSERT, UPDATE` on `account_session_kicks`.
+never migrates on startup. See [Database migrations](database-migrations.md). The AccountServer connects
+with one runtime identity; its grants are in [Database identities](database-identities.md).
 
-### Registration identity
+### Registration
 
-Registration writes through its own MySQL identity, on the same server and database as
-`ConnectionStrings:Accounts` but not `root` and not the AccountServer identity. It needs only:
-
-```sql
-GRANT SELECT, INSERT ON `openconquer_accounts`.`accounts` TO 'openconquer_account_registration'@'%';
-GRANT INSERT ON `openconquer_accounts`.`account_password_credentials` TO 'openconquer_account_registration'@'%';
-GRANT INSERT ON `openconquer_accounts`.`account_audit_events` TO 'openconquer_account_registration'@'%';
-```
-
-`SELECT` on `accounts` serves the `INSERT … SELECT` statements and the read-back of a commit whose
-acknowledgment was lost. Verify these grants using the registration identity before enabling it;
-the ordinary account database readiness check uses the AccountServer identity. Do not grant
-credential reads, updates, deletes or schema-management privileges to registration.
+Registration writes through `ConnectionStrings:Accounts` and needs no grant beyond the
+AccountServer's ordinary account writes.
 
 Registration quotas are per process, so replicas need source affinity or an external shared limit.
 A result of `3` means creation was not confirmed; it does not establish that no account exists.
@@ -90,9 +77,7 @@ and expose a safe failure type, numeric database error and commit-uncertainty fl
 To enable registration in development:
 
 ```bash
-P=src/OpenConquer.AccountServer/OpenConquer.AccountServer.csproj
-dotnet user-secrets set "ConnectionStrings:AccountRegistration" "$REGISTRATION_CONNECTION_STRING" --project $P
-dotnet user-secrets set "AccountServer:Registration:Enabled" "true" --project $P
+dotnet user-secrets set "AccountServer:Registration:Enabled" "true" --project src/OpenConquer.AccountServer
 ```
 
 ## Running

@@ -94,21 +94,17 @@ internal static class GameServerHost
         services.AddSingleton<GameServerWorldHostedService>();
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<GameServerWorldHostedService>());
 
-        if (configuration.CharacterCreationConnectionString is { } creationConnectionString)
+        if (configuration.CharacterCreationStartingState is { } startingState)
         {
-            CharacterCreationStartingState startingState = configuration.CharacterCreationStartingState
-                ?? throw new InvalidOperationException("Character creation persistence requires validated starting-state configuration.");
-
-            services.AddGameCharacterCreationPersistence(creationConnectionString);
+            services.AddGameCharacterCreationPersistence(configuration.GameConnectionString);
             services.AddSingleton(startingState);
             services.AddSingleton<CharacterCreationService>();
         }
 
         if (configuration.Network is { } network)
         {
-            services.AddGameCharacterLocationWrite(configuration.LocationWriteConnectionString
-                ?? throw new InvalidOperationException("Network admission requires a dedicated location-writer identity."));
-            // Verify the writer identity after world readiness and before opening a listener.
+            services.AddGameCharacterLocationWrite(configuration.GameConnectionString);
+            // Verify the location grants after world readiness and before opening a listener.
             services.AddHostedService<GameLocationWriterReadinessHostedService>();
 
             ItemTypeCatalogFileOptions items = configuration.ItemTypes

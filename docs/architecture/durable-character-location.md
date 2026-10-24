@@ -50,8 +50,8 @@ single-row read of `map_id`, `position_x`, `position_y` and `location_revision`,
 `account_id` and `character_id`. It returns null when the character does not exist or belongs to
 another account. Invalid player or account IDs are rejected. The read honors the caller's
 cancellation. Failures are passed to the caller and are never reported as a missing character. The
-writer and the observer share one registered service and credential, and the GameServer's default
-read-only identity gets no new grants. The observation added no SQL migrations or network changes.
+writer and the observer share one registered service over the GameServer's Game connection. The
+observation added no SQL migrations or network changes.
 
 **An observation cannot settle an uncertain write.** A matching destination could predate the CAS,
 come from a different operation, or be read while an UPDATE sent earlier is still in flight. A
@@ -82,20 +82,19 @@ one-writer protocol tied to the session generation, and a durable, monotonic rec
 ## Location revision
 
 Game schema v11 adds a nonnegative signed `BIGINT location_revision` to each character, starting at
-zero for existing rows. Every successful CAS by the dedicated location writer matches the account
+zero for existing rows. Every successful CAS by the location writer matches the account
 ID, character ID, old coordinates, and expected revision, then changes the three coordinates and
 adds one to the revision in the same atomic step. A stale request cannot replay after a move from A
 to B and back to A, because its old revision no longer matches. The application rejects
 `long.MaxValue` as an expected revision with `ArgumentOutOfRangeException`, so the revision cannot
-overflow. The dedicated principal needs column-scoped `SELECT` and `UPDATE` on `location_revision`
-in addition to its existing grants.
+overflow. The GameServer identity needs column-scoped `UPDATE` on `location_revision` in addition to
+the coordinates.
 
 The observation returns a `PersistedCharacterLocation` with the coordinates, the revision, and the
 ID of the last successful operation. Internal portal preparation keeps this immutable result but
 does not treat it as permission to commit. An observation still cannot settle a commit that is in
 flight or prove ownership. The migration cannot run while servers are live: stop all writers, back
-up, update the schema, update the restricted grants, then deploy the v11 GameServer. The ordinary
-runtime identity stays read-only.
+up, update the schema, update the GameServer grants, then deploy the v11 GameServer.
 
 Revisions prevent ABA only for writers that use this CAS. Administrative or direct SQL writes must
 follow a defined policy for advancing the revision. A write whose outcome is uncertain may still
@@ -144,27 +143,11 @@ a crash.
 
 ## Database credential
 
-The ordinary runtime identity used by `AddGamePersistence()` is read-only and must stay that way.
-The opt-in `AddGameCharacterLocationWrite()` registration needs a separate MySQL principal that an
-operator creates. Do not reuse the character creation principal (INSERT only), the runtime reader,
-or the administrative schema owner.
-
-Create the identity through the deployment's approved secret-management process. Once its account
-exists, grant it column-scoped table permissions only. The CAS WHERE clause reads all five location
-and identity columns, and MySQL 8.4 requires `SELECT` on every column it references, including the
-location columns being updated, in addition to column-scoped `UPDATE`:
-
-```sql
-GRANT UPDATE (`map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`),
-      SELECT (`character_id`, `account_id`, `map_id`, `position_x`, `position_y`, `location_revision`, `last_location_operation_id`, `location_writer_token`)
-ON `<game_database>`.`characters`
-TO '<location_writer>'@'<restricted_host>';
-```
-
-The principal and database names and the host pattern depend on the deployment. Do not paste the
-placeholders into a real migration, give the default GameServer principal more privileges, or commit
-production credentials to the repository. Have operations review the schema, grants, and
-connectivity for this principal before registering it in the runtime.
+`AddGameCharacterLocationWrite()` uses the GameServer's Game connection. Its identity may update only
+the six location and fence columns of `characters`; every other character column stays read-only, and
+it has no `DELETE`. The CAS WHERE clause reads the identity and location columns, which the
+identity's table-level `SELECT` on `characters` covers. The grants are in
+[Database identities](../operations/database-identities.md#gameserver-runtime-per-realm).
 
 ## Tests
 
@@ -172,11 +155,9 @@ connectivity for this principal before registering it in the runtime.
 - A stale expected location or another account cannot overwrite a committed position.
 - Two writers competing from the same old map, X and Y get exactly one `Committed` and one
   `Conflict`.
-- The restricted location-writer principal can run the CAS. It cannot update other character columns
-  or read unrelated fields.
-- The existing read-only runtime principal cannot run the update.
+- The GameServer runtime identity can run the CAS and cannot update any other character column.
+- An identity without the write grants fails the startup probe and cannot run the update.
 - Cancellation before the command is sent never updates a character.
-- The registration is opt-in and gives the default persistence services no write access.
 - The full EF model check passes with the Game schema migrations through v13.
 
 ## Before cross-map transfer can work

@@ -34,9 +34,9 @@ The v11 migration adds `characters.location_revision`, set to zero for existing 
 1. Stop every process that writes to `characters` (gameplay, administrative, maintenance, and custom
    writers). Keep them stopped until all of them run v11 code.
 2. Take a backup and confirm that it restores.
-3. Update the existing location-writer account's column-scoped `SELECT`/`UPDATE` grant to include
-   `location_revision` (see `docs/architecture/durable-character-location.md`). Do not give it write
-   access to the whole table.
+3. Add `location_revision` to the GameServer identity's column-scoped `UPDATE` grant (see
+   [Database identities](database-identities.md#gameserver-runtime-per-realm)). Do not give it
+   write access to the whole table.
 
 The migration cannot be reversed. A stored revision does not tell you the outcome of a SQL command
 that is still running. No live transfer coordinator exists yet.
@@ -49,8 +49,8 @@ location-revision compare-and-swap (CAS) writes the required operation ID in the
 
 1. Stop every writer to `characters`, take a backup, and confirm that it restores.
 2. Apply the migration.
-3. Update the column-scoped `SELECT` and `UPDATE` grants of the opt-in location writer, and no other
-   account, to include `last_location_operation_id`.
+3. Add `last_location_operation_id` to the GameServer identity's column-scoped `UPDATE` grant, and to
+   no other account.
 4. Deploy the v12 components. Older writers must not go on writing character locations.
 
 The migration cannot be safely downgraded.
@@ -69,10 +69,10 @@ one maintenance operation:
 1. Stop all pre-v13 location writers.
 2. Take a backup and confirm that it restores.
 3. Run the migration offline.
-4. Update the location writer's column-scoped `SELECT`/`UPDATE` grants.
+4. Add `location_writer_token` to the GameServer identity's column-scoped `UPDATE` grant.
 5. Deploy the v13 binaries.
 
-The read-only GameServer role must not get an UPDATE privilege. A v12 writer skips the new token
+The GameServer identity must not get `UPDATE` on any other `characters` column. A v12 writer skips the new token
 check, so old and new binaries must never run at the same time.
 
 The migration accepts a database at v12, or one that already has the v13 compatibility marker. MySQL
@@ -258,7 +258,7 @@ login state, which every GameServer clears when it starts, so the migration star
 and its downgrade drops them. Stop the AccountServer and every GameServer before migrating either
 way. Grant the AccountServer `SELECT` on `account_sessions` and `INSERT, UPDATE` on
 `account_session_kicks`, and each GameServer `SELECT, INSERT, UPDATE, DELETE` on both (see
-[Realm operations](realms.md#grants)).
+[Database identities](database-identities.md)).
 
 ### Accounts version 5: realm status
 
@@ -266,7 +266,7 @@ Adds `realm_status`, one row per realm, written by that realm's GameServer and r
 AccountServer. Rows are short-lived runtime state, so the migration starts with an empty table and
 its downgrade drops the table. Stop the AccountServer and every GameServer before migrating either
 way. Grant the AccountServer `SELECT` and each GameServer `SELECT, INSERT, UPDATE, DELETE` on the
-table (see [Realm operations](realms.md#grants)).
+table (see [Database identities](database-identities.md)).
 
 ### Accounts version 4: realm-bound tickets
 

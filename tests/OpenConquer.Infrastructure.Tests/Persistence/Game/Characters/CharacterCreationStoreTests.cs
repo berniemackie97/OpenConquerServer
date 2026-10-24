@@ -184,7 +184,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     }
 
     [Fact]
-    public async Task CreationIdentity_CanInsertButCannotUpdateOrDeleteCharacters()
+    public async Task RuntimeIdentity_CanInsertButCannotUpdateStatsOrDeleteCharacters()
     {
         uint accountId = CreateAccountId();
         ICharacterCreationStore store = CreateStore();
@@ -194,7 +194,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
 
         Assert.Equal(CharacterCreationStoreStatus.Created, result.Status);
 
-        await using MySqlConnection connection = new(database.CreationConnectionString);
+        await using MySqlConnection connection = new(database.RuntimeConnectionString);
         await connection.OpenAsync(CancellationToken);
 
         await using (MySqlCommand update = connection.CreateCommand())
@@ -232,7 +232,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public void AddGameCharacterCreationPersistence_RegistersCreationStore()
     {
         using ServiceProvider services = new ServiceCollection()
-            .AddGameCharacterCreationPersistence(database.CreationConnectionString)
+            .AddGameCharacterCreationPersistence(database.RuntimeConnectionString)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 
         Assert.IsType<CharacterCreationStore>(services.GetRequiredService<ICharacterCreationStore>());
@@ -243,7 +243,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     {
         Assert.Throws<ArgumentNullException>(() =>
             GameCharacterCreationPersistenceServiceCollectionExtensions.AddGameCharacterCreationPersistence(
-                null!, database.CreationConnectionString));
+                null!, database.RuntimeConnectionString));
 
         Assert.Throws<ArgumentException>(() =>
             new ServiceCollection().AddGameCharacterCreationPersistence(" "));
@@ -251,7 +251,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
 
     private ICharacterCreationStore CreateStore()
     {
-        return new CharacterCreationStore(database.CreationConnectionString);
+        return new CharacterCreationStore(database.RuntimeConnectionString);
     }
 
     private async Task<int> CountCharactersAsync(uint accountId)

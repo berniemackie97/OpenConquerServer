@@ -32,48 +32,27 @@ public sealed class GameServerConfigurationTests
     }
 
     [Fact]
-    public void Load_NetworkIngressWithoutLocationWriterFailsClosed()
+    public void Load_NetworkIngressNeedsOnlyTheGameConnection()
     {
-        IConfiguration configuration = CreateConfiguration(EnableNetwork);
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
-        Assert.Contains("ConnectionStrings:GameLocationWriter", exception.Message, StringComparison.Ordinal);
-    }
+        GameServerConfiguration settings = GameServerConfiguration.Load(CreateConfiguration(EnableNetwork), Path.GetTempPath());
 
-    [Fact]
-    public void Load_NetworkIngressWithDedicatedWriterIsValid()
-    {
-        IConfiguration configuration = CreateConfiguration(values =>
-        {
-            EnableNetwork(values);
-            values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=location_writer;Password=secret";
-        });
-
-        GameServerConfiguration settings = GameServerConfiguration.Load(configuration, Path.GetTempPath());
         Assert.NotNull(settings.Network);
-        Assert.NotNull(settings.LocationWriteConnectionString);
+        Assert.Equal("Server=localhost;Database=game", settings.GameConnectionString);
     }
 
     [Theory]
-    [InlineData("Server=localhost;Database=other;User ID=location_writer;Password=secret")]
-    [InlineData("Server=other;Database=game;User ID=location_writer;Password=secret")]
-    [InlineData("Server=localhost;Database=game;User ID=root;Password=secret")]
-    public void Load_LocationWriterWithWrongDatabaseOrIdentityIsRejected(string writer)
-    {
-        IConfiguration configuration = CreateConfiguration(values => values["ConnectionStrings:GameLocationWriter"] = writer);
-        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
-    }
-
-    [Fact]
-    public void Load_LocationWriterReusingReadOnlyUserIdIsRejectedEvenWithDifferentPassword()
+    [InlineData("GameCreation")]
+    [InlineData("GameLocationWriter")]
+    public void Load_RejectsRetiredConnectionStrings(string name)
     {
         IConfiguration configuration = CreateConfiguration(values =>
-        {
-            values["ConnectionStrings:Game"] = "Server=localhost;Database=game;User ID=game;Password=readonly";
-            values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=game;Password=writer";
-        });
+            values[$"ConnectionStrings:{name}"] = "Server=localhost;Database=game;User ID=writer;Password=private-marker");
 
-        Assert.Throws<InvalidOperationException>(() => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => GameServerConfiguration.Load(configuration, Path.GetTempPath()));
+
+        Assert.Equal($"ConnectionStrings:{name} is no longer used; the GameServer writes through ConnectionStrings:Game.", exception.Message);
+        Assert.DoesNotContain("private-marker", exception.ToString());
     }
 
     [Fact]

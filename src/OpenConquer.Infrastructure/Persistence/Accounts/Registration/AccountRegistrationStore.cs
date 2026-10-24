@@ -8,7 +8,7 @@ namespace OpenConquer.Infrastructure.Persistence.Accounts.Registration;
 
 /// <summary>
 /// Inserts a self-service account, its password credential and its creation audit event in one transaction,
-/// using a dedicated registration database identity.
+/// through the AccountServer's database identity.
 /// </summary>
 public sealed class AccountRegistrationStore : IAccountRegistrationStore
 {

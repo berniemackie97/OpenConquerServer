@@ -2,22 +2,12 @@ using System.Net;
 using Microsoft.Extensions.Configuration;
 using OpenConquer.AccountServer.Configuration;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
+using OpenConquer.Infrastructure.Security.Accounts.Registration;
 
 namespace OpenConquer.AccountServer.Tests.Configuration;
 
 public sealed class AccountServerConfigurationTests
 {
-    [Fact]
-    public void RegistrationConfiguration_DoesNotIncludeConnectionSecretsInDiagnostics()
-    {
-        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create(values =>
-        {
-            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration;Password=private-marker";
-            values["AccountServer:Registration:Enabled"] = "true";
-        }));
-        Assert.DoesNotContain("private-marker", configuration.Registration!.ToString());
-    }
-
     [Fact]
     public void Load_RejectsMissingConfiguration()
     {
@@ -29,17 +19,27 @@ public sealed class AccountServerConfigurationTests
     {
         AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create());
 
-        Assert.Null(configuration.Registration);
+        Assert.Null(configuration.RegistrationProtection);
     }
 
     [Fact]
-    public void Load_EnabledRegistrationRequiresItsOwnConnectionString()
+    public void Load_EnabledRegistrationNeedsOnlyTheAccountConnection()
     {
         IConfiguration configuration = AccountServerTestConfiguration.Create(values => values["AccountServer:Registration:Enabled"] = "true");
 
+        Assert.NotNull(AccountServerConfiguration.Load(configuration).RegistrationProtection);
+    }
+
+    [Fact]
+    public void Load_RejectsTheRetiredRegistrationConnectionString()
+    {
+        IConfiguration configuration = AccountServerTestConfiguration.Create(values =>
+            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration;Password=private-marker");
+
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AccountServerConfiguration.Load(configuration));
 
-        Assert.Equal("ConnectionStrings:AccountRegistration is required when AccountServer:Registration:Enabled is true.", exception.Message);
+        Assert.Equal("ConnectionStrings:AccountRegistration is no longer used; registration writes through ConnectionStrings:Accounts.", exception.Message);
+        Assert.DoesNotContain("private-marker", exception.ToString());
     }
 
     [Fact]
@@ -47,7 +47,6 @@ public sealed class AccountServerConfigurationTests
     {
         IConfiguration configuration = AccountServerTestConfiguration.Create(values =>
         {
-            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration";
             values["AccountServer:Registration:Enabled"] = "true";
             values["AccountServer:Registration:AttemptLimitPerSource"] = "5";
             values["AccountServer:Registration:AttemptWindow"] = "00:30:00";
@@ -55,14 +54,13 @@ public sealed class AccountServerConfigurationTests
             values["AccountServer:Registration:MaximumTrackedSources"] = "500";
         });
 
-        AccountServerRegistrationConfiguration registration = Assert.IsType<AccountServerRegistrationConfiguration>(
-            AccountServerConfiguration.Load(configuration).Registration);
+        AccountRegistrationProtectionOptions protection = Assert.IsType<AccountRegistrationProtectionOptions>(
+            AccountServerConfiguration.Load(configuration).RegistrationProtection);
 
-        Assert.Equal("Server=localhost;Database=accounts;User ID=registration", registration.ConnectionString);
-        Assert.Equal(5, registration.Protection.AttemptLimitPerSource);
-        Assert.Equal(TimeSpan.FromMinutes(30), registration.Protection.AttemptWindow);
-        Assert.Equal(3, registration.Protection.MaximumConcurrentAttempts);
-        Assert.Equal(500, registration.Protection.MaximumTrackedSources);
+        Assert.Equal(5, protection.AttemptLimitPerSource);
+        Assert.Equal(TimeSpan.FromMinutes(30), protection.AttemptWindow);
+        Assert.Equal(3, protection.MaximumConcurrentAttempts);
+        Assert.Equal(500, protection.MaximumTrackedSources);
     }
 
     [Fact]
@@ -70,7 +68,6 @@ public sealed class AccountServerConfigurationTests
     {
         IConfiguration configuration = AccountServerTestConfiguration.Create(values =>
         {
-            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration";
             values["AccountServer:Registration:Enabled"] = "true";
             values["AccountServer:Registration:AttemptLimitPerSource"] = "0";
         });

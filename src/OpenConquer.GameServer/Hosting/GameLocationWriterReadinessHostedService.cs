@@ -5,8 +5,8 @@ using OpenConquer.Application.Characters.Location;
 namespace OpenConquer.GameServer.Hosting;
 
 /// <summary>
-/// Prevents the login listener from advertising an available realm when its dedicated
-/// character-location writer cannot read and update the authorized v13 columns.
+/// Prevents the login listener from advertising an available realm when the Game database identity cannot read
+/// and update the authorized v13 location columns.
 /// </summary>
 internal sealed partial class GameLocationWriterReadinessHostedService(
     ICharacterLocationWriterReadinessVerifier writer, ILogger<GameLocationWriterReadinessHostedService> logger) : IHostedService
@@ -23,6 +23,6 @@ internal sealed partial class GameLocationWriterReadinessHostedService(
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     [LoggerMessage(EventId = 6007, Level = LogLevel.Information,
-        Message = "GameServer dedicated character-location writer readiness verified.")]
+        Message = "GameServer character-location write permissions verified.")]
     private static partial void LogWriterReady(ILogger logger);
 }

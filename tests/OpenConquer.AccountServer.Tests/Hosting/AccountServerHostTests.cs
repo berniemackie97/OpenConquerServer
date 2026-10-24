@@ -26,7 +26,6 @@ public sealed class AccountServerHostTests
         {
             if (enabled)
             {
-                values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=registration";
                 values["AccountServer:Registration:Enabled"] = "true";
             }
         }));
@@ -38,19 +37,6 @@ public sealed class AccountServerHostTests
 
         Assert.Equal(enabled, provider.GetService<AccountRegistrationService>() is not null);
         Assert.NotNull(provider.GetRequiredService<LoginHandshakeProcessor>());
-    }
-
-    [Fact]
-    public void ConfigureServices_RejectsRegistrationThroughTheAccountServerIdentity()
-    {
-        AccountServerConfiguration configuration = AccountServerConfiguration.Load(AccountServerTestConfiguration.Create(values =>
-        {
-            values["ConnectionStrings:Accounts"] = "Server=localhost;Database=accounts;User ID=runtime";
-            values["ConnectionStrings:AccountRegistration"] = "Server=localhost;Database=accounts;User ID=runtime";
-            values["AccountServer:Registration:Enabled"] = "true";
-        }));
-
-        Assert.Throws<InvalidOperationException>(() => AccountServerHost.ConfigureServices(new ServiceCollection(), configuration));
     }
 
     [Fact]

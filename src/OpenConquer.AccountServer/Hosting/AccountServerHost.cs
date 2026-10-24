@@ -47,9 +47,9 @@ internal static class AccountServerHost
 
         services.AddAccountLoginInfrastructure(configuration.AccountConnectionString, configuration.LoginConnectionProtection, configuration.AuthenticationProtection, configuration.ActiveVerificationKeyId, configuration.EncodedVerificationKeys);
 
-        if (configuration.Registration is AccountServerRegistrationConfiguration registration)
+        if (configuration.RegistrationProtection is { } registrationProtection)
         {
-            services.AddAccountRegistration(configuration.AccountConnectionString, registration.ConnectionString, registration.Protection);
+            services.AddAccountRegistration(configuration.AccountConnectionString, registrationProtection);
         }
 
         services.Configure<HostOptions>(options =>

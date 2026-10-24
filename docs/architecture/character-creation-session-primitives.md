@@ -67,8 +67,8 @@ repeated `1052` is malformed, missing, or rejected. That processor is not instal
 
 Before the creation path is enabled, the GameServer must still:
 
-1. Provision and validate the separate creation database identity, with only the privileges it
-   needs.
+1. Grant the GameServer identity `INSERT` on `characters` (see
+   [Database identities](../operations/database-identities.md#gameserver-runtime-per-realm)).
 2. Settle on an approved, walkable creation spawn point and trusted attribute allotments.
 3. Keep exclusive ownership of the authenticated connection throughout the create-role transition.
 4. Send `NEW_ROLE` only for the resolved character-creation route.
