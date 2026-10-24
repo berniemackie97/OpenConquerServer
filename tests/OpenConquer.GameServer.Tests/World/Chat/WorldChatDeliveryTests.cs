@@ -1,11 +1,13 @@
 using System.Buffers.Binary;
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Application.World;
+using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Characters;
 using OpenConquer.Domain.World;
 using OpenConquer.GameServer.Connections;
@@ -595,6 +597,70 @@ public sealed class WorldChatDeliveryTests
         Assert.False(alice.Session.IsStopping);
     }
 
+    [Fact]
+    public async Task ConnectedPortal_Emits86Then1110BeforeDestinationSpawnsAndRebindsVisibility()
+    {
+        await using ChatWorld world = new(portals: true);
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        ClientSession bobby = await world.AddAsync(1, "Bobby", FirstMap, 4, 1);
+        ClientSession carol = await world.AddAsync(2, "Carol", SecondMap, 1, 2);
+        Assert.Single(alice.AvailableFrames());
+        Assert.Single(bobby.AvailableFrames());
+
+        WorldCharacterOwnership source = alice.Session.Ownership;
+        await alice.Session.ProcessPortalAsync(new GamePortalRequest(source.CharacterId, 2, 1),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(SecondMap, alice.Session.Ownership.MapId);
+        Assert.NotEqual(source.Generation, alice.Session.Ownership.Generation);
+        Assert.Equal(1, world.Runtime.ResidentCount - 2);
+        Assert.Null(await world.Runtime.ReadCharacterAsync(source, TestContext.Current.CancellationToken));
+        PersistedCharacterLocation saved = world.Saved(42, source.CharacterId);
+        Assert.Equal(SecondMap, saved.Location.MapId);
+        Assert.Equal((ushort)1, saved.Location.X);
+        Assert.Equal((ushort)1, saved.Location.Y);
+        Assert.Equal(10, saved.Revision);
+        Assert.NotNull(saved.LastOperationId);
+        Assert.Equal(alice.Session.LocationAuthority!.Token, saved.WriterToken);
+
+        IReadOnlyList<byte[]> outgoing = await alice.WaitForFrameCountAsync(4);
+        Assert.Equal((ushort)10010, PacketId(outgoing[1]));
+        Assert.Equal(GameAction.PortalArrivalAction,
+            BinaryPrimitives.ReadUInt16LittleEndian(outgoing[1].AsSpan(20)));
+        Assert.Equal(1016u, BinaryPrimitives.ReadUInt32LittleEndian(outgoing[1].AsSpan(8)));
+        Assert.Equal((ushort)1110, PacketId(outgoing[2]));
+        Assert.Equal(SecondMap, BinaryPrimitives.ReadUInt32LittleEndian(outgoing[2].AsSpan(4)));
+        Assert.Equal((ushort)10014, PacketId(outgoing[3]));
+
+        IReadOnlyList<byte[]> oldView = await bobby.WaitForFrameCountAsync(2);
+        Assert.Contains(oldView, frame => PacketId(frame) == 10010 &&
+            BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20)) == 135);
+        IReadOnlyList<byte[]> newView = await carol.WaitForFrameCountAsync(1);
+        Assert.Contains(newView, frame => PacketId(frame) == 10014 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(8)) == source.CharacterId);
+        Assert.False(alice.Session.IsStopping);
+        await alice.Session.ProcessChatAsync(new GameInboundChat(GameInboundChat.LocalChannel,
+            "ALL", "arrived"), TestContext.Current.CancellationToken);
+        GameChatPacket chat = WorldChatPacketFactory.Create(source.CharacterId, "Alice", "ALL",
+            new GameInboundChat(GameInboundChat.LocalChannel, "ALL", "arrived"));
+        await carol.ExpectPacketAsync(chat);
+        Assert.DoesNotContain(bobby.AvailableFrames(), frame => FrameMatches(frame, chat));
+    }
+
+    [Fact]
+    public async Task ConnectedPortal_InvalidExitCannotPersistOrMoveCharacter()
+    {
+        await using ChatWorld world = new(portals: true);
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        WorldCharacterOwnership owner = alice.Session.Ownership;
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            alice.Session.ProcessPortalAsync(new GamePortalRequest(owner.CharacterId, 44, 44),
+                TestContext.Current.CancellationToken).AsTask());
+        Assert.Equal(owner, alice.Session.Ownership);
+        Assert.Equal(9, world.Saved(42, owner.CharacterId).Revision);
+        Assert.True(world.Runtime.IsRunning);
+    }
+
     private static ushort PacketId(ReadOnlySpan<byte> frame) => BinaryPrimitives.ReadUInt16LittleEndian(frame[2..]);
 
     private static bool FrameMatches(ReadOnlySpan<byte> frame, GameChatPacket packet)
@@ -604,19 +670,79 @@ public sealed class WorldChatDeliveryTests
         return frame.SequenceEqual(expected);
     }
 
-    private sealed class ChatWorld : IAsyncDisposable
+    private sealed class ChatWorld : IAsyncDisposable, ICharacterLocationWriteStore,
+        ICharacterLocationObservationStore
     {
-        private readonly WorldMapContent _first = CreateWideMap();
-        private readonly WorldMapContent _second = WorldMapTestContent.Create(SecondMap, 1016, 0);
+        private readonly WorldMapContent _first;
+        private readonly WorldMapContent _second;
+        private readonly object _persistedGate = new();
+        private readonly Dictionary<(uint AccountId, uint CharacterId), PersistedCharacterLocation> _saved = [];
+        private readonly WorldConnectedPortalTransferCoordinator? _portals;
+        private readonly bool _enablePortals;
         private readonly CharacterPresenceDirectory _presence = new();
         private readonly List<ClientSession> _clients = [];
         private readonly WorldRuntime _runtime;
 
-        public ChatWorld()
+        public ChatWorld(bool portals = false)
         {
+            _enablePortals = portals;
+            _first = CreateWideMap(portals ? [new MapTerrainExit(2, 1, 7)] : []);
+            _second = WorldMapTestContent.Create(SecondMap, 1016, 0);
             WorldMapContentCatalog maps = WorldMapTestContent.CreateCatalog(_first, _second);
             _runtime = new WorldRuntime(maps, new WorldExecutionOptions(2, 8, 4, 16, 16));
+            if (portals)
+            {
+                MapTransitionCatalog catalog = new(
+                    [new MapTransitionEntry(FirstMap, 7, "resolved",
+                        new MapTransitionDestination(SecondMap, 1, 1, 1, "L"))], maps);
+                _portals = new WorldConnectedPortalTransferCoordinator(_runtime, catalog,
+                    this, this, Visibility);
+            }
             _runtime.Start();
+        }
+
+        public WorldRuntime Runtime => _runtime;
+
+        public PersistedCharacterLocation Saved(uint accountId, uint characterId)
+        {
+            lock (_persistedGate)
+            {
+                return _saved[(accountId, characterId)];
+            }
+        }
+
+        public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_persistedGate)
+            {
+                _saved.TryGetValue((accountId, characterId), out PersistedCharacterLocation? value);
+                return ValueTask.FromResult(value);
+            }
+        }
+
+        public ValueTask<CharacterLocationWriteResult> TryCommitAsync(CharacterLocationChange change,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_persistedGate)
+            {
+                if (!_saved.TryGetValue((change.AccountId, change.CharacterId),
+                    out PersistedCharacterLocation? saved) ||
+                    saved.Revision != change.ExpectedRevision ||
+                    saved.WriterToken != change.WriterToken ||
+                    saved.Location.MapId != change.Expected.MapId ||
+                    saved.Location.X != change.Expected.X ||
+                    saved.Location.Y != change.Expected.Y)
+                {
+                    return ValueTask.FromResult(CharacterLocationWriteResult.Conflict);
+                }
+
+                _saved[(change.AccountId, change.CharacterId)] = new PersistedCharacterLocation(
+                    change.Destination, change.ExpectedRevision + 1, change.OperationId, change.WriterToken);
+                return ValueTask.FromResult(CharacterLocationWriteResult.Committed);
+            }
         }
 
         public WorldVisibilityService Visibility { get; } = new(NullLogger<WorldVisibilityService>.Instance);
@@ -653,16 +779,28 @@ public sealed class WorldChatDeliveryTests
                 CharacterLoginProfile profile = CreateProfile(characterId, accountId, name, mapId, x, y, life);
                 AuthenticatedGameConnection authenticated = new(accountId, name, sessionUid,
                     0x6E45, 0x0000665544332211, 5517, connection);
+                CharacterLocationWriteAuthority? authority = null;
+                if (_enablePortals)
+                {
+                    Guid token = Guid.NewGuid();
+                    PersistedCharacterLocation persisted = new(new CharacterLocation(mapId, x, y),
+                        9, writerToken: token);
+                    lock (_persistedGate)
+                    {
+                        _saved.Add((accountId, characterId), persisted);
+                    }
+                    authority = new CharacterLocationWriteAuthority(accountId, characterId, token, persisted);
+                }
                 ExistingCharacterGameConnection game = new(authenticated, profile, _presence.Register(characterId),
-                    TestAccountSessions.CreateLease(accountId, sessionUid));
+                    TestAccountSessions.CreateLease(accountId, sessionUid), authority);
                 WorldMapContent map = mapId == FirstMap ? _first : _second;
                 ExistingCharacterBootstrapCompleteConnection bootstrap = new(game, map,
                     new CharacterItemSet(characterId, []), new CharacterSocialRelationSet(characterId, []),
                     new CharacterWeaponSkillSet(characterId, []), new CharacterMagicSet(characterId, []),
                     new CharacterSyndicateState(characterId, membership: null, syndicate: null), 0, 0);
 
-                WorldSession session = await new WorldSessionAdmissionProcessor(_runtime, Visibility)
-                    .ProcessAsync(bootstrap, TestContext.Current.CancellationToken);
+                WorldSession session = await new WorldSessionAdmissionProcessor(_runtime, Visibility,
+                    portals: _portals).ProcessAsync(bootstrap, TestContext.Current.CancellationToken);
                 ClientSession owned = new(session, transport, client, initialServerBytes);
                 _clients.Add(owned);
                 return owned;
@@ -685,11 +823,11 @@ public sealed class WorldChatDeliveryTests
             await _runtime.DisposeAsync();
         }
 
-        private static WorldMapContent CreateWideMap()
+        private static WorldMapContent CreateWideMap(MapTerrainExit[]? exits = null)
         {
             const int size = 64;
             MapBaseTerrain terrain = new(1015, size, size,
-                Enumerable.Repeat(new MapBaseTerrainCell(10, 0, -5), size * size), []);
+                Enumerable.Repeat(new MapBaseTerrainCell(10, 0, -5), size * size), exits ?? []);
             return new WorldMapContent(new MapDefinition(FirstMap, 1015, 0),
                 new MapTerrainCollision(terrain, []));
         }

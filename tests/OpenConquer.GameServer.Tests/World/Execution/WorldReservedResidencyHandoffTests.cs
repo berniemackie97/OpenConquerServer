@@ -14,6 +14,68 @@ public sealed class WorldReservedResidencyHandoffTests
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task ConnectedPortalHandoff_MigratesTrackedLifetimeExactlyOnce()
+    {
+        await using WorldRuntime runtime = CreateRuntime(maxPerMap: 1);
+        runtime.Start();
+        WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(
+            Profile(CharacterId, SourceMapId), CancellationToken);
+        TaskCompletionSource lifetime = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        runtime.TrackSession(source, lifetime.Task);
+
+        using WorldTransferReservation reservation = Assert.IsType<WorldTransferReservation>(
+            await runtime.TryReserveTransferAsync(source, TargetMapId, 1, 1, CancellationToken));
+        Assert.Null(runtime.TrySealConnectedPortalTransfer(reservation, Task.CompletedTask, CancellationToken));
+        WorldDurableTransferSeal sealedSource = Assert.IsType<WorldDurableTransferSeal>(
+            runtime.TrySealConnectedPortalTransfer(reservation, lifetime.Task, CancellationToken));
+        Assert.Null(await runtime.TryWalkCharacterAsync(source, 0, CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            runtime.ReleaseCharacterAsync(source).AsTask());
+
+        WorldCharacterOwnership rebound = default;
+        WorldCharacterOwnership destination = Assert.IsType<WorldCharacterOwnership>(
+            await runtime.TryRelocateSealedConnectedCharacterAsync(sealedSource, lifetime.Task,
+                owner => rebound = owner));
+
+        Assert.Equal(destination, rebound);
+        Assert.NotEqual(source.Generation, destination.Generation);
+        Assert.Equal(TargetMapId, destination.MapId);
+        Assert.Equal(1, runtime.ResidentCount);
+        Assert.Null(await runtime.ReadCharacterAsync(source, CancellationToken));
+        Assert.NotNull(await runtime.ReadCharacterAsync(destination, CancellationToken));
+        Assert.False(reservation.IsActive);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            runtime.RemoveCharacterAsync(destination, CancellationToken).AsTask());
+
+        runtime.UntrackSession(destination, lifetime.Task);
+        lifetime.TrySetResult();
+        Assert.True(await runtime.RemoveCharacterAsync(destination, CancellationToken));
+        Assert.Equal(0, runtime.ResidentCount);
+    }
+
+    [Fact]
+    public async Task ConnectedSeal_RejectsUntrackedOrMismatchedSession()
+    {
+        await using WorldRuntime runtime = CreateRuntime(maxPerMap: 1);
+        runtime.Start();
+        WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(
+            Profile(CharacterId, SourceMapId), CancellationToken);
+        using WorldTransferReservation reservation = Assert.IsType<WorldTransferReservation>(
+            await runtime.TryReserveTransferAsync(source, TargetMapId, 1, 1, CancellationToken));
+
+        Assert.Null(runtime.TrySealConnectedPortalTransfer(reservation, Task.CompletedTask, CancellationToken));
+        TaskCompletionSource lifetime = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        runtime.TrackSession(source, lifetime.Task);
+        Assert.Null(runtime.TrySealConnectedPortalTransfer(reservation, Task.CompletedTask, CancellationToken));
+        Assert.True(reservation.IsActive);
+
+        runtime.UntrackSession(source, lifetime.Task);
+        lifetime.TrySetResult();
+        reservation.Dispose();
+        Assert.NotNull(await runtime.TryWalkCharacterAsync(source, 0, CancellationToken));
+    }
+
+    [Fact]
     public async Task Handoff_RebindsOnlyWorldOwnershipAndKeepsCapacityAccountedOnce()
     {
         await using WorldRuntime runtime = CreateRuntime(maxPerMap: 1);
