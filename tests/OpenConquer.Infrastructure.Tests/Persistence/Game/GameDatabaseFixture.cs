@@ -11,7 +11,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 {
     internal const string DatabaseName = "openconquer_game_tests";
     private const string RuntimeUserName = "openconquer_game_runtime_tests";
-    private const string SelectOnlyUserName = "openconquer_game_select_only_tests";
+    private const string SelectOnlyUserName = "openconquer_game_reader_tests"; // MySQL user names stop at 32 characters.
     private static readonly string s_administrativePassword = Guid.NewGuid().ToString("N");
 
     private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.4.11").WithDatabase(DatabaseName).WithUsername("root").WithPassword(s_administrativePassword).Build();
