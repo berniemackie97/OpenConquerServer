@@ -867,7 +867,7 @@ public sealed class WorldChatDeliveryTests
                     saved.Location.X != change.Expected.X ||
                     saved.Location.Y != change.Expected.Y)
                 {
-                    return ValueTask.FromResult(CharacterLocationWriteResult.Conflict);
+                    return CharacterLocationWriteResult.Conflict;
                 }
 
                 _saved[(change.AccountId, change.CharacterId)] = new PersistedCharacterLocation(
