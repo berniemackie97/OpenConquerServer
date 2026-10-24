@@ -204,6 +204,24 @@ public sealed class WorldPortalPreflightTests
         Assert.Equal(TargetMapId, newcomer.MapId);
     }
 
+    [Fact]
+    public async Task HistoricalResolvedCandidate_IsNotAuthorizedForLivePortalPreflight()
+    {
+        (WorldRuntime runtime, MapTransitionCatalog transitions) = CreateWorld(
+            s_exit, Resolved() with { Status = "resolved" });
+        await using (runtime)
+        {
+            runtime.Start();
+            WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(
+                Profile(), TestContext.Current.CancellationToken);
+            Assert.True(transitions.TryResolve(SourceMapId, 7, out _));
+            Assert.False(transitions.TryResolveReleased(SourceMapId, 7, out _));
+            Assert.Null(await WorldPortalPreflight.TryReserveAsync(runtime, transitions,
+                owner, 2, 1, TestContext.Current.CancellationToken));
+            Assert.NotNull(await runtime.TryWalkCharacterAsync(owner, 6, TestContext.Current.CancellationToken));
+        }
+    }
+
     private static MapTransitionEntry Resolved() => new(SourceMapId, 7, "release-approved",
         new MapTransitionDestination(TargetMapId, 1, 1, 1, "L"));
 
