@@ -70,9 +70,10 @@ map without the same separate approval.
 ## Deployment security
 
 This configuration is an opt-in prerequisite. It does not turn on character creation. It registers
-no write credentials, changes no database schema, and gives no login path the ability to create a
-character. The authenticated creation route still ends without creating anything.
+the creation store and service over `ConnectionStrings:Game`, changes no database schema, and gives
+no login path the ability to create a character. The authenticated creation route still ends
+without creating anything.
 
-Supply this configuration only when the source data and an approved spawn point are ready. Manage
-separate creation credentials through your normal secret-management process. Do not reuse the
-read-only GameServer database account for writes.
+Supply this configuration only when the source data and an approved spawn point are ready. The
+GameServer identity's `INSERT` on `characters` is listed in
+[Database identities](database-identities.md#gameserver-runtime-per-realm).

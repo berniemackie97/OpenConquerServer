@@ -173,7 +173,6 @@ public sealed class GameLoginRuntimeHostedServiceTests
         GameServerConfiguration configuration = GameServerConfiguration.Load(
             GameServerConfigurationTests.CreateConfiguration(values =>
             {
-                values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=location_writer;Password=fixture";
                 values["GameServer:Network:Enabled"] = "true";
                 values["GameServer:Network:BindAddress"] = "127.0.0.1";
                 values["GameServer:Network:Port"] = "5816";

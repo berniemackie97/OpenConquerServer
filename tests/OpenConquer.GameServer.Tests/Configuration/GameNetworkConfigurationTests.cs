@@ -24,7 +24,6 @@ public sealed class GameNetworkConfigurationTests
         Assert.Equal(4, network.MaximumConnectionsPerSource);
         Assert.Equal(8, network.WorkerCount);
         Assert.Equal(TimeSpan.FromSeconds(45), network.ConnectionTimeout);
-        Assert.Equal("Server=localhost;Database=game;User ID=location_writer;Password=fixture", configuration.LocationWriteConnectionString);
 
         RealmStatusOptions realmStatus = Assert.IsType<RealmStatusOptions>(configuration.RealmStatus);
 
@@ -134,7 +133,6 @@ public sealed class GameNetworkConfigurationTests
 
     private static void AddNetworkSettings(Dictionary<string, string?> values)
     {
-        values["ConnectionStrings:GameLocationWriter"] = "Server=localhost;Database=game;User ID=location_writer;Password=fixture";
         values["GameServer:Network:Enabled"] = "true";
         values["GameServer:Network:BindAddress"] = "127.0.0.1";
         values["GameServer:Network:Port"] = "5816";

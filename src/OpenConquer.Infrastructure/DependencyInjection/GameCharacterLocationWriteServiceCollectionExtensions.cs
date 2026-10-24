@@ -5,9 +5,8 @@ using OpenConquer.Infrastructure.Persistence.Game.Characters;
 namespace OpenConquer.Infrastructure.DependencyInjection;
 
 /// <summary>
-/// Opt-in persistence registration for one dedicated, column-restricted character-location
-/// credential shared by the CAS writer and identity-scoped location observer.
-/// The ordinary GameServer read-only service registration remains unchanged.
+/// Registers the character-location CAS writer, observer, fence and permission probe over the GameServer's Game
+/// database identity, whose <c>characters</c> updates are limited to the location and fence columns.
 /// </summary>
 public static class GameCharacterLocationWriteServiceCollectionExtensions
 {

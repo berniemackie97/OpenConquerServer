@@ -73,15 +73,14 @@ the SQL as an administrator.
    VALUES (2, 'SecondRealm', INET6_ATON('203.0.113.10'), 5817, 2);
    ```
 
-5. Create the realm's database users and grant them only what the [grants](#grants) table lists.
-   [Provision the dedicated location writer](game-server.md#provisioning-the-location-writer-identity)
-   with column-scoped `SELECT` and `UPDATE` permissions on this realm's `characters` table.
-   Never reuse another realm's writer identity or credentials.
+5. Create the realm's GameServer user and grant it only what
+   [Database identities](database-identities.md#gameserver-runtime-per-realm) lists, including the
+   column-scoped `UPDATE` on this realm's `characters` table. Never reuse another realm's user or
+   credentials.
 
 6. Configure the GameServer: `GameServer:RealmId` = `2`, `GameServer:Network:Port` = `5817`,
-   `ConnectionStrings:Game` and `ConnectionStrings:GameLocationWriter` for the new database
-   (using separate, scoped users), `ConnectionStrings:GameCreation` if character creation is
-   configured, `ConnectionStrings:Accounts`, and the same verification keys as the AccountServer.
+   `ConnectionStrings:Game` for the new database and `ConnectionStrings:Accounts`, both as the
+   realm's GameServer user, and the same verification keys as the AccountServer.
    See [GameServer operations](game-server.md).
 
 7. Start the GameServer. It refuses to start unless `GameServer:RealmId` matches the database's
@@ -115,20 +114,8 @@ catalog. Never update `realm_id` or `protocol_server_name`, and never delete or 
 
 ## Grants
 
-| User                              | Database          | Privileges                                                                                 |
-| --------------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| AccountServer runtime             | Accounts          | `SELECT, INSERT, UPDATE` on `accounts`, `account_password_credentials`; `SELECT, INSERT` on `account_audit_events`; `SELECT, INSERT, DELETE` on `game_login_tickets`; `SELECT` on `schema_compatibility`, `realms`, `realm_status`, `account_sessions`; `INSERT, UPDATE` on `account_session_kicks` |
-| GameServer runtime, each realm    | Accounts          | `SELECT, DELETE` on `game_login_tickets`; `SELECT, INSERT, UPDATE, DELETE` on `realm_status`, `account_sessions`, `account_session_kicks`; `SELECT` on `schema_compatibility` |
-| GameServer runtime, each realm    | Its Game database | `SELECT` on `characters`, `items`, `social_relations`, `weapon_skills`, `magic`, `syndicates`, `syndicate_memberships`, `schema_compatibility`, `realm_binding` |
-| GameServer location writer, each realm | Its Game database | Column-scoped `SELECT` on identity and location state, column-scoped `UPDATE` on location, revision, operation marker and writer token in `characters` |
-| GameServer creation, each realm   | Its Game database | `SELECT, INSERT` on `characters`                                                           |
-| Administrator                     | Both              | Schema changes and writes to `realms` and `realm_binding`; never used by a server          |
-
-Give each realm its own Game database users, so that one GameServer's credentials cannot reach
-another realm's characters. On the Accounts side, all realms are still one trust domain. Every
-GameServer holds the ticket verification keys, can read and delete any realm's tickets, and could
-write another realm's status report, account session records or kicks. Realms run by different
-parties need separate deployments.
+Each realm's GameServer gets its own MySQL user. The grants for it, the AccountServer and the
+administrator are in [Database identities](database-identities.md).
 
 ## Several realms on one machine
 
@@ -139,14 +126,12 @@ override user secrets:
 ```bash
 GameServer__RealmId=2 \
 GameServer__Network__Port=5817 \
-ConnectionStrings__Game="$SECOND_GAME_DB_CONNECTION" \
-ConnectionStrings__GameLocationWriter="$SECOND_GAME_LOCATION_WRITER_CONNECTION" \
+ConnectionStrings__Accounts="$SECOND_REALM_ACCOUNTS_CONNECTION" \
+ConnectionStrings__Game="$SECOND_REALM_GAME_CONNECTION" \
 DOTNET_ENVIRONMENT=Development dotnet run --project src/OpenConquer.GameServer -c Release --no-build
 ```
 
-Supply both connection strings from the second realm's approved secret store; the location writer
-must target its Game database and use its own column-scoped account. If character creation is
-configured in shared user secrets, also override `ConnectionStrings__GameCreation` with this
-realm's creation identity. Never put credentials in source control.
+Supply both connection strings from the second realm's approved secret store, both as that realm's
+GameServer user. Never put credentials in source control.
 
 For a loopback realm, register `127.0.0.1` with the GameServer's port.

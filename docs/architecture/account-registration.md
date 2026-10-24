@@ -62,7 +62,7 @@ multiple instances require source affinity or an external shared admission polic
 
 ## Persistence
 
-`AccountRegistrationStore` runs one transaction through a dedicated registration identity:
+`AccountRegistrationStore` runs one transaction through the AccountServer's database identity:
 
 1. Insert the account: active, player role, state revision 1, `created_by_actor_kind = 1`
    (self-service), initial state set by the system (`3`), a fresh `creation_operation_id`.
@@ -91,16 +91,15 @@ hash or connection string is added to diagnostics.
 
 ## Configuration
 
-Registration is off unless `AccountServer:Registration:Enabled` is `true`, which also requires
-`ConnectionStrings:AccountRegistration`. That identity must use the same Accounts database
-endpoint as `ConnectionStrings:Accounts`, must not be `root` and must differ from the AccountServer
-identity. Grants are in the [AccountServer operations guide](../operations/account-server.md#registration-identity).
+Registration is off unless `AccountServer:Registration:Enabled` is `true`. It writes through
+`ConnectionStrings:Accounts` and needs no grant beyond the AccountServer's ordinary account writes;
+see [Database identities](../operations/database-identities.md#accountserver-runtime).
 
 ## Verification
 
 The registration tests cover protocol dispatch, disabled and malformed requests, isolation from
 realm/session/ticket work, credential ownership, quota expiry and concurrent admission. MySQL 8.4
-tests use the restricted registration identity to check atomic writes, case-insensitive duplicates,
+tests use an identity with exactly the AccountServer runtime grants to check atomic writes, case-insensitive duplicates,
 concurrent creation, credential and audit failures, cancellation during the final insert, and
 registration followed by authentication through the production repository. A TCP fault proxy drops
 the commit exchange before delivery, after the server's OK reply, or before recovery can connect;

@@ -125,18 +125,7 @@ request cancellation, and the database command timeout still limits how long it 
 
 ### Database privileges
 
-The existing GameServer runtime credentials can only read character data.
-
-Character creation has its own persistence registration, which must be enabled separately:
-`AddGameCharacterCreationPersistence`. It needs these database permissions:
-
-```sql
-GRANT SELECT, INSERT
-ON `openconquer_game`.`characters`
-TO 'openconquer_game_creation'@'%';
-```
-
-The AccountServer runtime identity also needs `SELECT` on `realms`, `realm_status` and
-`account_sessions`, and `INSERT, UPDATE` on `account_session_kicks`. Each GameServer's Accounts
-identity needs `SELECT, INSERT, UPDATE, DELETE` on `realm_status`, `account_sessions` and
-`account_session_kicks`.
+Each server process has one database identity. The GameServer's may insert characters and update only
+their location and fence columns; character creation (`AddGameCharacterCreationPersistence`) and the
+location writer use it. The complete grants are in
+[Database identities](../operations/database-identities.md).

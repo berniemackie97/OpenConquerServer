@@ -4,17 +4,19 @@
 
 A ticket redemption authenticates an account; the character login resolver supplies the server-owned character identity, not a client-supplied coordinate. Presence registration occurs before the Accounts-side `TryEnterAsync`, preserving the existing kick/replacement ordering. A denied account-session entry never rotates the Game database's writer token.
 
-After account-session ownership succeeds, the GameServer rotates the matching character's `location_writer_token` via its dedicated location-writer identity. The rotation is a single InnoDB row update and is not assumed to be cancellable after SQL dispatch. A timeout or exception fails login; there is no speculative reattempt after an uncertain result. A subsequent normal login can establish a new generation after ownership arbitration.
+After account-session ownership succeeds, the GameServer rotates the matching character's `location_writer_token` through its Game connection. The rotation is a single InnoDB row update and is not assumed to be cancellable after SQL dispatch. A timeout or exception fails login; there is no speculative reattempt after an uncertain result. A subsequent normal login can establish a new generation after ownership arbitration.
 
-The GameServer then reloads the complete persisted profile with its normal read-only database identity, checks the authenticated account and character identity again, and verifies an independent scoped observation against the acquired token, revision, preceding operation ID and coordinates. The character's canonical loaded map and packet 1006 come from this rehydrated profile. No acceptance packet precedes these checks. An unavailable map fails closed rather than changing spawn locations.
+The GameServer then reloads the complete persisted profile, checks the authenticated account and character identity again, and verifies an independent scoped observation against the acquired token, revision, preceding operation ID and coordinates. The character's canonical loaded map and packet 1006 come from this rehydrated profile. No acceptance packet precedes these checks. An unavailable map fails closed rather than changing spawn locations.
 
 The authority remains attached to the authenticated character connection and world session. On world admission, the server observes the generation before and after acquiring partition ownership. If it differs, or the connection was revoked, the existing cleanup path releases presence, the Accounts lease, transport and any acquired world reservation. A reserved source generation is not silently promoted into world ownership.
 
 ## Security boundary
 
-`ConnectionStrings:Game` remains a SELECT-only Game database identity. `ConnectionStrings:GameLocationWriter` must be a separate, non-root identity on the same endpoint/database, also distinct from character creation when configured. The writer can select exactly identity/location/revision/marker/token columns and update only six location/fence columns in `characters`. It does not own accounts, passwords, profiles, inventory, health or schema DDL.
+The GameServer's Game identity may update only the six location and fence columns of `characters`.
+It cannot write inventory, health or any other profile column, delete characters, or run DDL; see
+[Database identities](../operations/database-identities.md#gameserver-runtime-per-realm).
 
-Network-enabled GameServer startup refuses a missing or invalid writer configuration. After normal Accounts and Game schema/readiness checks and before network ingress, a no-row SELECT/UPDATE permission probe verifies the configured writer's effective access. The probe is not a comprehensive MySQL grant audit: an operator must inspect `SHOW GRANTS` to detect excessive privileges.
+After normal Accounts and Game schema/readiness checks and before network ingress, a no-row SELECT/UPDATE permission probe verifies those grants. The probe is not a comprehensive MySQL grant audit: an operator must inspect `SHOW GRANTS` to detect excessive privileges.
 
 ## Concurrent and failure semantics
 

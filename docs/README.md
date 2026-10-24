@@ -18,7 +18,8 @@
 | Operations     | [AccountServer](operations/account-server.md)                | Configuration, secrets, running, troubleshooting          |
 |                | [GameServer](operations/game-server.md)                      | Configuration, content, startup and shutdown              |
 |                | [Database migrations](operations/database-migrations.md)     | Applying, recovering, and downgrading schema migrations   |
-|                | [Realm operations](operations/realms.md)                     | Adding, changing and retiring realms; grants              |
+|                | [Realm operations](operations/realms.md)                     | Adding, changing and retiring realms                      |
+|                | [Database identities](operations/database-identities.md)     | One MySQL user per server process and its grants          |
 
 Architecture documents describe how the server is built. Protocol documents describe what goes
 over the wire. Operations documents describe how to run it.

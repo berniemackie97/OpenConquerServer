@@ -27,8 +27,8 @@ the implemented parts work and link here instead of repeating the list.
   GameServer is not reporting is refused with code 10, a busy one with 20 and a full one with 21.
 - An account plays in one realm at a time. A login for an account that is still playing in another
   realm is refused with code 11, and that realm is asked to disconnect it.
-- Opt-in in-client account registration (OpenConquer packets `0xF001`/`0xF002`) through a dedicated
-  database identity, with per-source quotas and bounded password hashing. See
+- Opt-in in-client account registration (OpenConquer packets `0xF001`/`0xF002`) through the
+  AccountServer's database identity, with per-source quotas and bounded password hashing. See
   [account registration](architecture/account-registration.md).
 
 ### GameServer
@@ -103,8 +103,7 @@ the implemented parts work and link here instead of repeating the list.
   every terrain, all validated before the GameServer starts.
 - Parsing and validation of the 5517 character-creation request.
 - Character-creation persistence that can be tested on its own. Inserts are atomic, the database
-  enforces uniqueness, a duplicate request is resolved against the stored account and name, and
-  writes use their own least-privilege database credentials.
+  enforces uniqueness, and a duplicate request is resolved against the stored account and name.
 - A character-creation application service. The account comes from the authenticated session, the
   server validates the selections, the starting state is resolved into an immutable value, and
   every persistence result is handled.
@@ -122,8 +121,8 @@ the implemented parts work and link here instead of repeating the list.
   coordinates. See [revival destinations](architecture/revival-destination-authority.md). This
   does not enable action 94, revival, or map transfer.
 - An opt-in compare-and-swap writer for a character's saved location, and an observer that reads
-  the saved location for one account and character. Both share one dedicated database identity
-  that can reach only the location columns. Each write checks the location revision, which stops a
+  the saved location for one account and character. The GameServer's database identity can update
+  only the location and fence columns of a character. Each write checks the location revision, which stops a
   stale write from succeeding after the coordinates have changed and changed back (ABA). A
   successful write advances the revision by one and stores the operation ID of the winning write
   with it. An observation that matches confirms that a specific operation completed. A missing or
@@ -144,8 +143,8 @@ the implemented parts work and link here instead of repeating the list.
   be released, makes one compare-and-swap write that carries the revision and an operation ID,
   confirms that write by reading it back, and hands the character to the destination partition
   under its admission generation. Before writing, it rotates a per-character writer generation in
-  MySQL. The rotation waits for earlier compare-and-swap writes, and every write through the
-  dedicated identity must match the current generation. Any failure after the seal stops the
+  MySQL. The rotation waits for earlier compare-and-swap writes, and every location write must
+  match the current generation. Any failure after the seal stops the
   world. This does not yet give the realm exclusive ownership of the character, and it does not
   transfer a live session. See [world transfer preflight](architecture/world-transfer-preflight.md).
 - Internal relocation between map partitions for characters without an active session. Departure
@@ -165,8 +164,8 @@ the implemented parts work and link here instead of repeating the list.
 - Automated realm provisioning. An operator adds and changes realms by following
   [Realm operations](operations/realms.md).
 - Staff tooling.
-- Character creation in the running GameServer: a spawn point confirmed to be walkable,
-  provisioning of the creation credentials, the 5517 control-message exchange, creation for the
+- Character creation in the running GameServer: a spawn point confirmed to be walkable, the
+  GameServer's `INSERT` grant on `characters`, the 5517 control-message exchange, creation for the
   authenticated session, and continuing into the world on the same connection.
 - Remaining gameplay: server-owned mounted status, jump limits for mounted characters, replication
   of non-player entities, saving positions, combat, NPCs, complete trading, and nonlocal and group
@@ -178,5 +177,5 @@ the implemented parts work and link here instead of repeating the list.
   no dynamic player-occupancy collision check, and adding one would be speculative.
 - Seven map identities from the original data that could not be resolved (see
   [content](content/README.md)).
-- Tooling to rotate verification keys, and provisioning of least-privilege credentials for
-  production.
+- Tooling to rotate verification keys, and automated provisioning of the per-process database
+  identities for production.

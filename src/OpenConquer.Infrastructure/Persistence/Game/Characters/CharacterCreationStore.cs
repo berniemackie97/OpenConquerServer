@@ -6,7 +6,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Context;
 namespace OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 /// <summary>
-/// Atomically inserts a resolved starting character using a dedicated creation database identity.
+/// Atomically inserts a resolved starting character through the GameServer's Game database identity.
 /// </summary>
 public sealed class CharacterCreationStore : ICharacterCreationStore
 {

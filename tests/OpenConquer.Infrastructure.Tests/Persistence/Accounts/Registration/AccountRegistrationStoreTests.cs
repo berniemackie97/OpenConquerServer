@@ -12,16 +12,17 @@ using OpenConquer.Infrastructure.Security.Accounts.Registration;
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts.Registration;
 
 /// <summary>
-/// Runs the store through a registration identity that holds only the grants the operations guide documents.
+/// Runs the store through an AccountServer runtime identity holding exactly the grants
+/// docs/operations/database-identities.md lists, which registration shares with login.
 /// </summary>
 public sealed class AccountRegistrationStoreTests : IClassFixture<AccountDatabaseFixture>, IAsyncLifetime
 {
-    private const string RegistrationUserName = "openconquer_registration_tests";
+    private const string AccountServerUserName = "openconquer_account_server_tests";
     private const string PasswordHash = "$test$registration$hash";
 
     private readonly AccountDatabaseFixture _database;
     private AccountRegistrationStore? _store;
-    private string _registrationConnectionString = string.Empty;
+    private string _accountServerConnectionString = string.Empty;
 
     public AccountRegistrationStoreTests(AccountDatabaseFixture database)
     {
@@ -45,11 +46,17 @@ public sealed class AccountRegistrationStoreTests : IClassFixture<AccountDatabas
 
         foreach (string statement in new[]
         {
-            $"DROP USER IF EXISTS '{RegistrationUserName}'@'%'",
-            $"CREATE USER '{RegistrationUserName}'@'%' IDENTIFIED BY '{password}'",
-            $"GRANT SELECT, INSERT ON `{AccountDatabaseFixture.DatabaseName}`.`accounts` TO '{RegistrationUserName}'@'%'",
-            $"GRANT INSERT ON `{AccountDatabaseFixture.DatabaseName}`.`account_password_credentials` TO '{RegistrationUserName}'@'%'",
-            $"GRANT INSERT ON `{AccountDatabaseFixture.DatabaseName}`.`account_audit_events` TO '{RegistrationUserName}'@'%'",
+            $"DROP USER IF EXISTS '{AccountServerUserName}'@'%'",
+            $"CREATE USER '{AccountServerUserName}'@'%' IDENTIFIED BY '{password}'",
+            $"GRANT SELECT, INSERT, UPDATE ON `{AccountDatabaseFixture.DatabaseName}`.`accounts` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT, INSERT, UPDATE ON `{AccountDatabaseFixture.DatabaseName}`.`account_password_credentials` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT, INSERT ON `{AccountDatabaseFixture.DatabaseName}`.`account_audit_events` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT, INSERT, DELETE ON `{AccountDatabaseFixture.DatabaseName}`.`game_login_tickets` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT ON `{AccountDatabaseFixture.DatabaseName}`.`schema_compatibility` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT ON `{AccountDatabaseFixture.DatabaseName}`.`realms` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT ON `{AccountDatabaseFixture.DatabaseName}`.`realm_status` TO '{AccountServerUserName}'@'%'",
+            $"GRANT SELECT ON `{AccountDatabaseFixture.DatabaseName}`.`account_sessions` TO '{AccountServerUserName}'@'%'",
+            $"GRANT INSERT, UPDATE ON `{AccountDatabaseFixture.DatabaseName}`.`account_session_kicks` TO '{AccountServerUserName}'@'%'",
         })
         {
             await using MySqlCommand command = connection.CreateCommand();
@@ -57,14 +64,14 @@ public sealed class AccountRegistrationStoreTests : IClassFixture<AccountDatabas
             await command.ExecuteNonQueryAsync(CancellationToken);
         }
 
-        MySqlConnectionStringBuilder registration = new(AdministrativeConnectionString)
+        MySqlConnectionStringBuilder accountServer = new(AdministrativeConnectionString)
         {
-            UserID = RegistrationUserName,
+            UserID = AccountServerUserName,
             Password = password,
         };
 
-        _registrationConnectionString = registration.ConnectionString;
-        _store = new AccountRegistrationStore(_registrationConnectionString);
+        _accountServerConnectionString = accountServer.ConnectionString;
+        _store = new AccountRegistrationStore(_accountServerConnectionString);
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -101,7 +108,7 @@ public sealed class AccountRegistrationStoreTests : IClassFixture<AccountDatabas
     [InlineData(true, true)]
     public async Task TryCreateAsync_LostCommitExchangeOnlyReportsSuccessWithPositiveEvidence(bool commitReachedServer, bool recoveryUnavailable)
     {
-        MySqlConnectionStringBuilder settings = new(_registrationConnectionString);
+        MySqlConnectionStringBuilder settings = new(_accountServerConnectionString);
         await using RegistrationCommitFaultProxy proxy = new(settings.Server, (int)settings.Port, commitReachedServer, recoveryUnavailable);
         settings.Server = "127.0.0.1";
         settings.Port = (uint)proxy.Port;
@@ -165,7 +172,7 @@ public sealed class AccountRegistrationStoreTests : IClassFixture<AccountDatabas
             await monitor.OpenAsync(CancellationToken);
             await using MySqlCommand command = monitor.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM performance_schema.processlist WHERE USER = @user AND STATE = 'User sleep'";
-            command.Parameters.AddWithValue("@user", RegistrationUserName);
+            command.Parameters.AddWithValue("@user", AccountServerUserName);
             using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
             deadline.CancelAfter(TimeSpan.FromSeconds(5));
             while (Convert.ToInt64(await command.ExecuteScalarAsync(deadline.Token), System.Globalization.CultureInfo.InvariantCulture) == 0)
