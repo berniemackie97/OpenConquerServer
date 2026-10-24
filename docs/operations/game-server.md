@@ -164,3 +164,19 @@ uncertain rotation. This generation is a write CAS fence, **not** a distributed 
 A client already admitted can still be superseded by a different process after a point-in-time
 observation; that case requires the account-session and presence protocols to revoke its ownership.
 Live portal commit sequencing and durable in-world movement are separate milestones.
+
+## Sealed portal failure response
+
+Event **6660** identifies a failed sealed transfer (character ID, source/destination maps,
+expected location revision, and exception; never the writer credential or token). The
+GameServer stops world execution when a location CAS or its receipt becomes uncertain,
+or when a confirmed transfer cannot finish ownership/visibility cutover. This intentionally
+sacrifices realm availability rather than risk contradictory durable and in-memory owners.
+
+For incident response, keep the realm closed to new connections, preserve the logs, confirm
+the Game database is still at schema v13, and observe the affected character's location
+revision, last operation ID and writer token using authorized read-only administrative
+access. Do not blindly retry the last CAS or manually replay a transfer. Restart only
+after the normal database readiness and fenced-login reconciliation succeed. The automated
+suite injects a conflict, an after-commit lost result and a wrong receipt; an actual MySQL
+timeout/restart drill and retail client smoke remain separate deployment gates.

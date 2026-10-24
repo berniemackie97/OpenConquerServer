@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
@@ -13,10 +14,10 @@ namespace OpenConquer.GameServer.World.Execution;
 /// Durable, generation-fenced, connected cross-map transition. No network acknowledgment is
 /// emitted until the exact write receipt and world owner handoff have both completed.
 /// </summary>
-internal sealed class WorldConnectedPortalTransferCoordinator(
+internal sealed partial class WorldConnectedPortalTransferCoordinator(
     WorldRuntime runtime, MapTransitionCatalog transitions,
     ICharacterLocationObservationStore observations, ICharacterLocationWriteStore writes,
-    WorldVisibilityService visibility)
+    WorldVisibilityService visibility, ILogger<WorldConnectedPortalTransferCoordinator> logger)
 {
     private static readonly TimeSpan s_observationDeadline = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan s_commitDeadline = TimeSpan.FromSeconds(15);
@@ -26,6 +27,12 @@ internal sealed class WorldConnectedPortalTransferCoordinator(
     private readonly ICharacterLocationObservationStore _observations = observations ?? throw new ArgumentNullException(nameof(observations));
     private readonly ICharacterLocationWriteStore _writes = writes ?? throw new ArgumentNullException(nameof(writes));
     private readonly WorldVisibilityService _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
+    private readonly ILogger<WorldConnectedPortalTransferCoordinator> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+    [LoggerMessage(EventId = 6660, Level = LogLevel.Critical,
+        Message = "Sealed portal transfer failed for character {CharacterId}, map {SourceMapId} to {DestinationMapId}, expected revision {Revision}; stopping world execution.")]
+    private static partial void LogSealedTransferFailure(ILogger logger, uint characterId, uint sourceMapId,
+        uint destinationMapId, long revision, Exception exception);
 
     internal async ValueTask<bool> TryTransferAsync(WorldSession session, GamePortalRequest request,
         CancellationToken cancellationToken = default)
@@ -136,12 +143,14 @@ internal sealed class WorldConnectedPortalTransferCoordinator(
             visibilityTransferred = true;
             return true;
         }
-        catch
+        catch (Exception failure)
         {
             // An unknown or failed post-seal write can still commit later. Before a
             // complete visibility cutover, resuming any world session is unsafe.
             if (!worldTransferred || !visibilityTransferred)
             {
+                LogSealedTransferFailure(_logger, characterId, source.MapId,
+                    reservation.DestinationMapId, current.Revision, failure);
                 await _runtime.StopPartitionExecutionAsync().ConfigureAwait(false);
             }
             throw;

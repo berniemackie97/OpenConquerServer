@@ -731,6 +731,31 @@ public sealed class WorldChatDeliveryTests
         return frame.SequenceEqual(expected);
     }
 
+    private enum PortalPersistenceFault { None, Conflict, CommittedButUnknown, WrongReceipt }
+
+    [Theory]
+    [InlineData(PortalPersistenceFault.Conflict, typeof(InvalidOperationException))]
+    [InlineData(PortalPersistenceFault.CommittedButUnknown, typeof(IOException))]
+    [InlineData(PortalPersistenceFault.WrongReceipt, typeof(InvalidOperationException))]
+    private async Task ConnectedPortal_PostSealPersistenceFailureStopsWorldAndCompletesTeardown(
+        PortalPersistenceFault fault, Type expectedException)
+    {
+        await using ChatWorld world = new(portals: true) { PersistenceFault = fault };
+        ClientSession alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
+        uint characterId = alice.Session.Ownership.CharacterId;
+
+        Exception failure = await Assert.ThrowsAnyAsync<Exception>(() =>
+            alice.Session.ProcessPortalAsync(new GamePortalRequest(characterId, 2, 1),
+                TestContext.Current.CancellationToken).AsTask());
+        Assert.Equal(expectedException, failure.GetType());
+        Assert.False(world.Runtime.IsRunning);
+        Assert.True(alice.Session.IsStopping);
+        Assert.Equal(fault == PortalPersistenceFault.Conflict ? 9 : 10,
+            world.Saved(42, characterId).Revision);
+        await alice.Session.DisposeAsync().AsTask().WaitAsync(
+            TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
+
     private sealed class ChatWorld : IAsyncDisposable, ICharacterLocationWriteStore,
         ICharacterLocationObservationStore
     {
@@ -758,12 +783,13 @@ public sealed class WorldChatDeliveryTests
                     [new MapTransitionEntry(FirstMap, 7, "release-approved",
                         new MapTransitionDestination(SecondMap, 1, 1, 1, "L"))], maps);
                 _portals = new WorldConnectedPortalTransferCoordinator(_runtime, catalog,
-                    this, this, Visibility);
+                    this, this, Visibility, NullLogger<WorldConnectedPortalTransferCoordinator>.Instance);
             }
             _runtime.Start();
         }
 
         public WorldRuntime Runtime => _runtime;
+        public PortalPersistenceFault PersistenceFault { get; set; }
 
         public PersistedCharacterLocation Saved(uint accountId, uint characterId)
         {
@@ -780,6 +806,11 @@ public sealed class WorldChatDeliveryTests
             lock (_persistedGate)
             {
                 _saved.TryGetValue((accountId, characterId), out PersistedCharacterLocation? value);
+                if (PersistenceFault == PortalPersistenceFault.WrongReceipt && value?.LastOperationId is not null)
+                {
+                    value = new PersistedCharacterLocation(value.Location, value.Revision,
+                        Guid.NewGuid(), value.WriterToken);
+                }
                 return ValueTask.FromResult(value);
             }
         }
@@ -790,6 +821,10 @@ public sealed class WorldChatDeliveryTests
             cancellationToken.ThrowIfCancellationRequested();
             lock (_persistedGate)
             {
+                if (PersistenceFault == PortalPersistenceFault.Conflict)
+                {
+                    return ValueTask.FromResult(CharacterLocationWriteResult.Conflict);
+                }
                 if (!_saved.TryGetValue((change.AccountId, change.CharacterId),
                     out PersistedCharacterLocation? saved) ||
                     saved.Revision != change.ExpectedRevision ||
@@ -803,6 +838,10 @@ public sealed class WorldChatDeliveryTests
 
                 _saved[(change.AccountId, change.CharacterId)] = new PersistedCharacterLocation(
                     change.Destination, change.ExpectedRevision + 1, change.OperationId, change.WriterToken);
+                if (PersistenceFault == PortalPersistenceFault.CommittedButUnknown)
+                {
+                    throw new IOException("Injected loss of the location commit result after durable mutation.");
+                }
                 return ValueTask.FromResult(CharacterLocationWriteResult.Committed);
             }
         }
