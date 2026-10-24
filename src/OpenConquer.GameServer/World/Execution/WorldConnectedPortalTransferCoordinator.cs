@@ -61,16 +61,6 @@ internal sealed class WorldConnectedPortalTransferCoordinator(
             return false;
         }
 
-        // A native 5517 hero arriving next to a portal will immediately send 85 again.
-        foreach (MapTerrainExit exit in destination.BaseTerrain.Exits)
-        {
-            if (Math.Abs((int)reservation.X - exit.X) <= 1 &&
-                Math.Abs((int)reservation.Y - exit.Y) <= 1)
-            {
-                return false;
-            }
-        }
-
         using (CancellationTokenSource observationTimeout =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {

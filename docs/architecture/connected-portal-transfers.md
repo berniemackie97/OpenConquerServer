@@ -9,11 +9,16 @@ malformed request, ambiguous marker, unsupported route or unavailable destinatio
 The client enters its indefinite waiting state after sending action 85: an unsuccessful request
 therefore closes the connection, never silently leaves the client waiting.
 
-The trusted map and exit catalog are frozen at world startup. The coordinator reuses
+The shipped catalog contains 322 cross-version historical candidates and no
+release-approved routes. Server preflight does not activate those candidates until a
+route-specific, reviewed content release promotes them. The trusted map and exit catalog
+are frozen at world startup. The coordinator reuses
 `WorldPortalPreflight` to reserve one destination slot and establish a FIFO barrier against
 source-map commands. The resulting source snapshot must represent the current, alive, non-ghost
-authoritative owner adjacent to the marker. The destination must be statically passable; arrivals
-within one tile of a destination exit are refused to prevent the client's immediate portal loop.
+authoritative owner adjacent to the marker. The destination must be statically passable. A route's release review includes the
+arrival-to-exit loop check; the native client immediately requests another portal if its
+arrival is within one tile of an exit. There is no speculative runtime tile relocation or
+re-arm packet.
 No untrusted packet coordinates, flags or passway indices affect the world or SQL predicates.
 
 ## Durable transaction and linearization
