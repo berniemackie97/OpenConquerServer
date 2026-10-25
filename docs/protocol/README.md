@@ -163,7 +163,10 @@ Notes on individual steps:
   `0x198`, depending on whether `1004` and `1006` reach the client in the same read; it cannot
   follow `0x198`, which the client sends only after handling the reply to `0x4A`. The server
   accepts one such catalog of at most three frames in those two places, validates every record,
-  and discards it. Anywhere else, or in any other shape, it closes the connection. Whether the
+  and discards it. The 224 IDs describe the shipped file, not a count declared on the wire: a
+  shorter catalog (including one ending on a full frame) is permitted. This is bounded input
+  validation, not verification that the client installed an exact Questinfo.ini. Anywhere else,
+  or with invalid framing, records or burst ordering, it closes the connection. Whether the
   original server answered is not known; the client does not wait for a reply and none is sent.
   The client's subtype `4` (a timed mission expired) needs a mission state the server has sent,
   and this server sends none, so subtype `4` is refused.

@@ -22,6 +22,20 @@ public sealed class ExistingCharacterMissionCatalogReportTests
         Assert.Equal("C8036E040300500058020000", Convert.ToHexString(RetailMissionCatalog.Frames[0].AsSpan(0, 12)));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(64)]
+    [InlineData(80)]
+    public void EndBurst_ShorterClientCatalog_IsAcceptedAndCannotRestart(int count)
+    {
+        ExistingCharacterMissionCatalogReport catalog = new();
+        catalog.Accept(new GameMissionCatalogReport(count, 1, count));
+        catalog.EndBurst();
+        catalog.EndBurst();
+
+        Assert.Throws<InvalidDataException>(() => catalog.Accept(new GameMissionCatalogReport(1, count + 1, count + 1)));
+    }
+
     [Fact]
     public void Accept_RetailFramesInOrder_CompletesTheCatalog()
     {

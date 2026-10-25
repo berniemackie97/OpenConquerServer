@@ -61,16 +61,27 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         Interlocked.Increment(ref _receiveCallCount);
         _receiveStarted.TrySetResult();
 
-        if (!_pendingReceive.IsEmpty)
-        {
-            return DeliverPendingReceive(buffer);
-        }
-
         ReceiveOperation operation;
 
         try
         {
-            operation = await _receiveOperations.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_pendingReceive.IsEmpty)
+            {
+                return DeliverPendingReceive(buffer);
+            }
+
+            while (true)
+            {
+                operation = await _receiveOperations.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (operation.Barrier is null)
+                {
+                    break;
+                }
+
+                // The input pump asks for another receive only after flushing the previous bytes.
+                operation.Barrier.SetResult();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -140,6 +151,13 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         Queue(new ReceiveOperation(bytes.ToArray(), Failure: null, IsEndOfStream: false));
     }
 
+    public Task WaitForQueuedReceivesAsync(CancellationToken cancellationToken)
+    {
+        TaskCompletionSource barrier = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Queue(new ReceiveOperation(null, null, false, barrier));
+        return barrier.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+    }
+
     public void QueueReceiveFailure(Exception failure)
     {
         ArgumentNullException.ThrowIfNull(failure);
@@ -185,5 +203,5 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         return count;
     }
 
-    private readonly record struct ReceiveOperation(byte[]? Bytes, Exception? Failure, bool IsEndOfStream);
+    private readonly record struct ReceiveOperation(byte[]? Bytes, Exception? Failure, bool IsEndOfStream, TaskCompletionSource? Barrier = null);
 }

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;
+using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.Login.Bootstrap.Maps;
@@ -195,10 +196,17 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        harness.QueueRetailMissionCatalog();
+        // A one-frame catalog fits below the pipe's backpressure threshold, so it can be
+        // completely flushed before the processor starts reading it.
+        harness.QueuePacket(RetailMissionCatalog.Build(RetailMissionCatalog.MissionIds[..64]));
+        await harness.Transport.WaitForQueuedReceivesAsync(TestContext.Current.CancellationToken);
+
+        // All catalog bytes are in the pipe before starting. The processor consumes those buffered
+        // frames synchronously and first yields when it asks for the missing notification.
 
         Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
 
+        Assert.False(processing.IsCompleted);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
