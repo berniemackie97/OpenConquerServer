@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 namespace OpenConquer.GameServer.Tests.Configuration;
@@ -19,6 +20,7 @@ public sealed class GameServerCharacterCreationPersistenceTests
         Assert.DoesNotContain(services, service => service.ServiceType == typeof(ICharacterCreationStore));
         Assert.DoesNotContain(services, service => service.ServiceType == typeof(CharacterCreationService));
         Assert.DoesNotContain(services, service => service.ServiceType == typeof(CharacterCreationStartingState));
+        Assert.DoesNotContain(services, service => service.ServiceType == typeof(GameCharacterCreationLoginProcessor));
     }
 
     [Fact]
@@ -32,6 +34,7 @@ public sealed class GameServerCharacterCreationPersistenceTests
         Assert.Single(services, service => service.ServiceType == typeof(ICharacterCreationStore));
         Assert.Single(services, service => service.ServiceType == typeof(CharacterCreationService));
         Assert.Single(services, service => service.ServiceType == typeof(CharacterCreationStartingState));
+        Assert.Single(services, service => service.ServiceType == typeof(GameCharacterCreationLoginProcessor));
 
         using ServiceProvider provider = services.BuildServiceProvider();
 

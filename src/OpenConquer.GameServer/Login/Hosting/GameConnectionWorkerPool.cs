@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
+using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Protocol.Game.Framing;
@@ -19,7 +20,7 @@ namespace OpenConquer.GameServer.Login.Hosting;
 /// </summary>
 internal sealed partial class GameConnectionWorkerPool(
     TransportConnectionAdmissionQueue queue,
-    Func<ITransportConnection, CancellationToken, ValueTask<WorldSession?>> processConnection,
+    Func<ITransportConnection, CancellationToken, CancellationToken, ValueTask<GameLoginProcessingResult>> processConnection,
     GameNetworkOptions options,
     GameLoginMetrics metrics,
     GameServerFailureState failureState,
@@ -27,7 +28,7 @@ internal sealed partial class GameConnectionWorkerPool(
     ILogger<GameConnectionWorkerPool> logger)
 {
     private readonly TransportConnectionAdmissionQueue _queue = queue ?? throw new ArgumentNullException(nameof(queue));
-    private readonly Func<ITransportConnection, CancellationToken, ValueTask<WorldSession?>> _processConnection = processConnection ?? throw new ArgumentNullException(nameof(processConnection));
+    private readonly Func<ITransportConnection, CancellationToken, CancellationToken, ValueTask<GameLoginProcessingResult>> _processConnection = processConnection ?? throw new ArgumentNullException(nameof(processConnection));
     private readonly GameNetworkOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     private readonly GameServerFailureState _failureState = failureState ?? throw new ArgumentNullException(nameof(failureState));
@@ -108,17 +109,22 @@ internal sealed partial class GameConnectionWorkerPool(
 
                 try
                 {
-                    WorldSession? session = await _processConnection(connection, timeout.Token).ConfigureAwait(false);
+                    GameLoginProcessingResult result = await _processConnection(connection, timeout.Token,
+                        cancellationToken).ConfigureAwait(false);
                     double duration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 
-                    if (session is null)
+                    if (result.PendingCreation is { } pending)
                     {
-                        _metrics.RecordNotAdmitted(duration);
+                        StartDeferredSession(pending, cancellationToken, started);
                     }
-                    else
+                    else if (result.WorldSession is { } session)
                     {
                         StartSession(session, cancellationToken);
                         _metrics.RecordCompleted(duration);
+                    }
+                    else
+                    {
+                        _metrics.RecordNotAdmitted(duration);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -159,14 +165,78 @@ internal sealed partial class GameConnectionWorkerPool(
 
     private void StartSession(WorldSession session, CancellationToken cancellationToken)
     {
-        Task task = RunSessionAsync(session, cancellationToken);
+        _metrics.RecordSessionStarted();
+        TrackSessionTask(RunImmediateSessionAsync(session, cancellationToken));
+    }
 
+    private async Task RunImmediateSessionAsync(WorldSession session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RunSessionAsync(session, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _metrics.RecordSessionEnded();
+        }
+    }
+
+    private void StartDeferredSession(Task<WorldSession?> pending, CancellationToken cancellationToken, long started)
+    {
+        TrackSessionTask(RunDeferredSessionAsync(pending, cancellationToken, started));
+    }
+
+    private async Task RunDeferredSessionAsync(Task<WorldSession?> pending, CancellationToken cancellationToken, long started)
+    {
+        try
+        {
+            WorldSession? session = await pending.ConfigureAwait(false);
+            if (session is null)
+            {
+                _metrics.RecordNotAdmitted(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                return;
+            }
+
+            _metrics.RecordCompleted(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            _metrics.RecordSessionStarted();
+            try
+            {
+                await RunSessionAsync(session, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                _metrics.RecordSessionEnded();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (GameCharacterCreationCleanupException failure)
+        {
+            _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            _failureState.Record(failure);
+            try
+            {
+                LogFatalCreationCleanup(_logger, failure);
+            }
+            finally
+            {
+                _applicationLifetime.StopApplication();
+            }
+        }
+        catch (Exception exception)
+        {
+            _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            LogCreationSessionFailure(_logger, exception);
+        }
+    }
+
+    private void TrackSessionTask(Task task)
+    {
         lock (_gate)
         {
             _sessions.Add(task);
         }
-
-        _metrics.RecordSessionStarted();
 
         _ = task.ContinueWith(static (completed, state) =>
         {
@@ -317,9 +387,15 @@ internal sealed partial class GameConnectionWorkerPool(
         {
             _sessions.Remove(task);
         }
-
-        _metrics.RecordSessionEnded();
     }
+
+    [LoggerMessage(EventId = 6206, Level = LogLevel.Warning,
+        Message = "Authenticated character-creation session failed before world admission.")]
+    private static partial void LogCreationSessionFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 6207, Level = LogLevel.Critical,
+        Message = "Authenticated character-creation transport cleanup failed; stopping the realm.")]
+    private static partial void LogFatalCreationCleanup(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 6200, Level = LogLevel.Debug, Message = "GameServer login processing timed out after {Timeout} on worker {WorkerIndex}. Local: {LocalEndPoint}; remote: {RemoteEndPoint}.")]
     private static partial void LogConnectionTimeout(ILogger logger, int workerIndex, EndPoint localEndPoint, EndPoint remoteEndPoint, TimeSpan timeout);

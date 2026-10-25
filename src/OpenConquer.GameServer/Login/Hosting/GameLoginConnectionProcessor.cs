@@ -13,15 +13,18 @@ namespace OpenConquer.GameServer.Login.Hosting;
 /// and transfers existing characters into the world.
 /// </summary>
 internal sealed class GameLoginConnectionProcessor(GameConnectionHandoffProcessor authentication, GameLoginCapacityGate capacity,
-    CharacterLoginHandoffProcessor characterResolution, GameExistingCharacterLoginProcessor existingCharacter, GameLoginMetrics metrics)
+    CharacterLoginHandoffProcessor characterResolution, GameExistingCharacterLoginProcessor existingCharacter, GameLoginMetrics metrics,
+    GameCharacterCreationLoginProcessor? creation = null)
 {
     private readonly GameConnectionHandoffProcessor _authentication = authentication ?? throw new ArgumentNullException(nameof(authentication));
     private readonly GameLoginCapacityGate _capacity = capacity ?? throw new ArgumentNullException(nameof(capacity));
     private readonly CharacterLoginHandoffProcessor _characterResolution = characterResolution ?? throw new ArgumentNullException(nameof(characterResolution));
     private readonly GameExistingCharacterLoginProcessor _existingCharacter = existingCharacter ?? throw new ArgumentNullException(nameof(existingCharacter));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+    private readonly GameCharacterCreationLoginProcessor? _creation = creation;
 
-    public async ValueTask<WorldSession?> ProcessAsync(ITransportConnection connection, CancellationToken cancellationToken = default)
+    public async ValueTask<GameLoginProcessingResult> ProcessAsync(ITransportConnection connection,
+        CancellationToken cancellationToken, CancellationToken sessionToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
@@ -29,7 +32,7 @@ internal sealed class GameLoginConnectionProcessor(GameConnectionHandoffProcesso
 
         if (authentication.Status != GameConnectionAuthenticationStatus.Authenticated)
         {
-            return null;
+            return default;
         }
 
         if (_capacity.GetRefusal() is { } refusal)
@@ -37,14 +40,19 @@ internal sealed class GameLoginConnectionProcessor(GameConnectionHandoffProcesso
             await using AuthenticatedGameConnection refused = authentication.TakeConnection();
             await refused.WriteAsync(refusal, cancellationToken).ConfigureAwait(false);
             _metrics.RecordRealmLoadRefused();
-            return null;
+            return default;
         }
 
         await using CharacterLoginHandoffResult character = await _characterResolution.ProcessAsync(authentication, cancellationToken).ConfigureAwait(false);
 
         if (character.Resolution.Route == CharacterLoginRoute.CharacterCreation)
         {
-            return null;
+            if (_creation is null)
+            {
+                return default;
+            }
+
+            return new GameLoginProcessingResult(null, _creation.ProcessAsync(character.TakeConnection(), sessionToken));
         }
 
         if (character.Resolution.Route != CharacterLoginRoute.ExistingCharacter)
@@ -52,6 +60,7 @@ internal sealed class GameLoginConnectionProcessor(GameConnectionHandoffProcesso
             throw new InvalidOperationException($"Unsupported GameServer character-login route '{character.Resolution.Route}'.");
         }
 
-        return await _existingCharacter.ProcessAsync(character, cancellationToken).ConfigureAwait(false);
+        WorldSession? session = await _existingCharacter.ProcessAsync(character, cancellationToken).ConfigureAwait(false);
+        return new GameLoginProcessingResult(session, null);
     }
 }

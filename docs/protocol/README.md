@@ -156,6 +156,20 @@ Notes on individual steps:
   `+16`. Both are untrusted. The acknowledgement uses the authenticated character ID because the
   client needs it to continue; the reported values are echoed back.
 - **Statistics.** The request carries the character ID and a client timestamp. It has no response.
+- **Mission catalog.** When the client handles `ANSWER_OK` it sends `1134` subtype `3` once: every
+  distinct MissionId in its `ini/Questinfo.ini`, ascending, 80 per frame, back to back. Each record
+  is 12 bytes: the MissionId (`1` to `2^31 - 1`) and eight zero bytes. The shipped file gives three
+  frames (80, 80 and 64 IDs). The catalog arrives before the `0x4A` request or between it and
+  `0x198`, depending on whether `1004` and `1006` reach the client in the same read; it cannot
+  follow `0x198`, which the client sends only after handling the reply to `0x4A`. The server
+  accepts one such catalog of at most three frames in those two places, validates every record,
+  and discards it. The 224 IDs describe the shipped file, not a count declared on the wire: a
+  shorter catalog (including one ending on a full frame) is permitted. This is bounded input
+  validation, not verification that the client installed an exact Questinfo.ini. Anywhere else,
+  or with invalid framing, records or burst ordering, it closes the connection. Whether the
+  original server answered is not known; the client does not wait for a reply and none is sent.
+  The client's subtype `4` (a timed mission expired) needs a mission state the server has sent,
+  and this server sends none, so subtype `4` is refused.
 
 After the last step the connection becomes a world session. Gameplay packets are not handled yet.
 
@@ -175,6 +189,7 @@ After the last step the connection becomes a world session. Gameplay packets are
 |  `1104` | `GameSkillExperiencePacket`         | S → C     |
 |  `1106` | `GameSyndicateAttributesPacket`     | S → C     |
 |  `1110` | `GameMapInfoPacket`                 | S → C     |
+|  `1134` | `GameMissionCatalogReport`          | C → S     |
 |  `2078` | `GameLoginHistoryPacket`            | S → C     |
 |  `2079` | `GameServerStatePacket`             | S → C     |
 | `10010` | `GameAction`, `GameActionPacket`    | Both      |

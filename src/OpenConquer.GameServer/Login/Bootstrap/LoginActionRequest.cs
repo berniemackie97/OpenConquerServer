@@ -18,32 +18,40 @@ internal static class LoginActionRequest
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        GameAction request;
+        using GameInboundFrame frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false) ?? throw ConnectionClosed(requestName);
 
-        using (GameInboundFrame? frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false))
+        return Parse(frame, expectedAction, requestName);
+    }
+
+    /// <summary>
+    /// Reads the next action like <see cref="ReadAsync"/>, first consuming any mission-catalog frames (1134) in front of it.
+    /// The client sends its catalog while handling ANSWER_OK, which places it before the EnterMap request or between that
+    /// request and the client-state-applied notification, so only those two steps read through this.
+    /// </summary>
+    public static async ValueTask<GameAction> ReadAfterMissionCatalogAsync(ExistingCharacterLoginContext login, ushort expectedAction,
+        string requestName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        ExistingCharacterGameConnection connection = login.Connection;
+
+        while (true)
         {
-            if (frame is null)
+            using GameInboundFrame frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false) ?? throw ConnectionClosed(requestName);
+
+            if (frame.PacketId != GameMissionCatalogReport.PacketIdentifier)
             {
-                throw new EndOfStreamException($"The GameServer connection closed while awaiting the {requestName}.");
+                login.MissionCatalog.EndBurst();
+                return Parse(frame, expectedAction, requestName);
             }
 
-            if (!GameAction.TryParse(frame, out request, out GameActionParseError parseError))
+            if (!GameMissionCatalogReport.TryParse(frame, out GameMissionCatalogReport catalog, out GameMissionCatalogReportParseError parseError))
             {
-                throw new InvalidDataException($"The frame received for the {requestName} is not a valid action packet: {parseError}.");
+                throw new InvalidDataException($"The mission catalog received before the {requestName} is malformed: {parseError}.");
             }
 
-            if (frame.Header.Length != GameAction.FixedPacketLength || request.StringCount != 0)
-            {
-                throw new InvalidDataException($"The {requestName} must contain the fixed action body without trailing strings.");
-            }
+            login.MissionCatalog.Accept(catalog);
         }
-
-        if (request.Action != expectedAction)
-        {
-            throw new InvalidDataException($"Expected {requestName} action {expectedAction}, received action {request.Action}.");
-        }
-
-        return request;
     }
 
     /// <summary>
@@ -63,4 +71,27 @@ internal static class LoginActionRequest
             throw new InvalidDataException($"The {requestName} requires all non-identity, non-timestamp and non-action fields to be zero.");
         }
     }
+
+    private static GameAction Parse(GameInboundFrame frame, ushort expectedAction, string requestName)
+    {
+        if (!GameAction.TryParse(frame, out GameAction request, out GameActionParseError parseError))
+        {
+            throw new InvalidDataException($"The frame received for the {requestName} is not a valid action packet: {parseError}.");
+        }
+
+        if (frame.Header.Length != GameAction.FixedPacketLength || request.StringCount != 0)
+        {
+            throw new InvalidDataException($"The {requestName} must contain the fixed action body without trailing strings.");
+        }
+
+        if (request.Action != expectedAction)
+        {
+            throw new InvalidDataException($"Expected {requestName} action {expectedAction}, received action {request.Action}.");
+        }
+
+        return request;
+    }
+
+    private static EndOfStreamException ConnectionClosed(string requestName) =>
+        new($"The GameServer connection closed while awaiting the {requestName}.");
 }

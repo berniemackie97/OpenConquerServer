@@ -24,6 +24,9 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     private int _disposeCount;
     private int _receiveCallCount;
 
+    // Rest of a queued receive that did not fit the caller's buffer. Only the single input pump calls ReceiveAsync.
+    private ReadOnlyMemory<byte> _pendingReceive;
+
     public FakeGameTransportConnection(EndPoint? localEndPoint = null, EndPoint? remoteEndPoint = null, bool blockDispose = false, Exception? disposeFailure = null)
     {
         LocalEndPoint = localEndPoint ?? new IPEndPoint(IPAddress.Loopback, 5816);
@@ -62,7 +65,23 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
 
         try
         {
-            operation = await _receiveOperations.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_pendingReceive.IsEmpty)
+            {
+                return DeliverPendingReceive(buffer);
+            }
+
+            while (true)
+            {
+                operation = await _receiveOperations.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (operation.Barrier is null)
+                {
+                    break;
+                }
+
+                // The input pump asks for another receive only after flushing the previous bytes.
+                operation.Barrier.SetResult();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -80,15 +99,9 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
             throw operation.Failure;
         }
 
-        byte[] bytes = operation.Bytes ?? throw new InvalidOperationException("Receive operation does not contain bytes.");
+        _pendingReceive = operation.Bytes ?? throw new InvalidOperationException("Receive operation does not contain bytes.");
 
-        if (bytes.Length > buffer.Length)
-        {
-            throw new InvalidOperationException($"Queued test receive contains {bytes.Length} bytes but the transport supplied only {buffer.Length} bytes.");
-        }
-
-        bytes.CopyTo(buffer);
-        return bytes.Length;
+        return DeliverPendingReceive(buffer);
     }
 
     public async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
@@ -138,6 +151,13 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         Queue(new ReceiveOperation(bytes.ToArray(), Failure: null, IsEndOfStream: false));
     }
 
+    public Task WaitForQueuedReceivesAsync(CancellationToken cancellationToken)
+    {
+        TaskCompletionSource barrier = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Queue(new ReceiveOperation(null, null, false, barrier));
+        return barrier.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+    }
+
     public void QueueReceiveFailure(Exception failure)
     {
         ArgumentNullException.ThrowIfNull(failure);
@@ -170,5 +190,18 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         }
     }
 
-    private readonly record struct ReceiveOperation(byte[]? Bytes, Exception? Failure, bool IsEndOfStream);
+    /// <summary>
+    /// Copies as much of the pending receive as fits, like a socket returning part of what has arrived.
+    /// </summary>
+    private int DeliverPendingReceive(Memory<byte> buffer)
+    {
+        int count = Math.Min(buffer.Length, _pendingReceive.Length);
+
+        _pendingReceive[..count].CopyTo(buffer);
+        _pendingReceive = _pendingReceive[count..];
+
+        return count;
+    }
+
+    private readonly record struct ReceiveOperation(byte[]? Bytes, Exception? Failure, bool IsEndOfStream, TaskCompletionSource? Barrier = null);
 }

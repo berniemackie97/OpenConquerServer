@@ -14,8 +14,10 @@ state, and calls creation persistence.
 The persistence layer inserts a fully resolved character in one atomic step and returns its
 generated ID, or a uniqueness conflict reported by the database.
 
-The GameServer runtime must take account ownership from its authenticated game connection. The
-character-creation route in the runtime is not enabled yet.
+The GameServer takes account ownership from the authenticated connection. When the
+optional, validated starting state is configured, the creation route is supervised outside
+fixed login workers, uses a bounded creation-admission gate, and rejoins the existing
+bootstrap on the same secured connection.
 
 ## Starting attributes
 
@@ -67,13 +69,13 @@ host is built. After the world maps are loaded, the world hosted service checks 
 starting map exists and that the starting coordinates fall within its composed collision dimensions.
 If the check fails, the world is not published and no network traffic is accepted.
 
-Coordinates are zero-based. The check covers bounds only, not whether the tile is walkable, because
-the meaning of each raw terrain passability flag has not been confirmed. A starting location still
-has to be chosen and checked against trusted map data before creation is enabled.
+Coordinates are zero-based. Startup validates the selected tile against the effective
+composed static collision: any nonzero passability flag is refused. This does not
+replace a separate approval of the spawn map and tile from native/content evidence.
 
-The section is an opt-in prerequisite for the later runtime work. It registers the creation store and
-service, but on its own it does not enable the character-creation route or let any login write a
-character.
+The section explicitly enables the authenticated runtime creation route and registers
+its existing store and service. The default configuration omits it; existing-character
+login remains available without enabling creation.
 
 See [Character creation starting-state operations](../operations/character-creation-starting-state.md).
 
@@ -130,20 +132,37 @@ The creation service never retries a database operation whose write outcome is u
 rejected before persistence leaves stored data unchanged. The persistence store owns the write and
 decides up to which point it can be cancelled.
 
-## Remaining runtime integration
+## Runtime creation continuation
 
-The GameServer character-creation route is still disabled. Enabling it requires:
+A newly authenticated account without a character receives login-channel `NEW_ROLE`.
+The server accepts bounded packet `1001` requests on that authenticated socket;
+clients cannot supply account ownership. Cancellation and malformed requests close
+the connection. The server only emits creation-channel `ANSWER_OK` after a committed
+character result. It then consumes exactly one same-session repeated `1052`, without
+redeeming the ticket again, resolves the exact created character ID and transfers
+connection ownership to the established existing-character bootstrap.
 
-1. Provisioning checked starting-state values and a starting location confirmed to be walkable.
-2. Granting the GameServer identity `INSERT` on `characters`.
-3. Binding the creation application service to authenticated account identity.
-4. Sending the `NEW_ROLE` control message.
-5. Processing packet `1001` on the authenticated, encrypted connection.
-6. Handling cancellation, invalid requests, duplicate submissions, and failures.
-7. Sending the success response only after the character has been committed.
-8. Validating the repeated `1052` login proof on the same encrypted connection.
-9. Resolving the newly persisted character and continuing existing-character bootstrap without
-   losing connection ownership.
+Invalid name, selection and duplicate-name results use explicit server-authored
+creation-channel messages, which the native client displays through its verified
+error-message path. Up to eight submissions may be attempted within the five-minute
+creation window. These are OpenConquer policy strings, not claims of retail wording.
+Already-created accounts, malformed requests and uncertain persistence outcomes close
+the session without retrying a database write.
+
+The creation waiting period is five minutes; the post-success proof deadline is
+thirty seconds. Once that proof is accepted, character resolution and the existing-character
+bootstrap receive a fresh `GameServer:Network:ConnectionTimeout` window. Up to
+`min(AdmissionCapacity, 1024)` creations can wait independently of the fixed handshake workers. The server shutdown token cancels and drains them.
+The shipped configuration leaves creation disabled until a verified starting tile
+and six corrected profession-family allotments have been installed.
+
+## Remaining operational validation
+
+Before enabling on a live realm, verify the starting tile against canonical collision,
+confirm the six profession-family allotments, and validate the GameServer's `INSERT` grant.
+Perform live 5517 client testing and MySQL fault-injection/restart tests separately.
+The client must implement its creation UI and secured packet-1001 continuation for an
+end-to-end signup experience; this server slice does not modify OpenConquerClient.
 
 The repeated proof is not a second chance to redeem the single-use login ticket, which has already
 been consumed.

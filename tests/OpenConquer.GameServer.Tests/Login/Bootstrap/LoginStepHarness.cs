@@ -7,6 +7,7 @@ using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
+using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.Time;
@@ -174,6 +175,14 @@ internal sealed class LoginStepHarness : IAsyncDisposable
     }
 
     public void QueuePacket(byte[] packet) => Transport.QueueReceive(Client.EncryptClientFrame(packet));
+
+    public void QueueRetailMissionCatalog()
+    {
+        foreach (byte[] frame in RetailMissionCatalog.Frames)
+        {
+            QueuePacket(frame);
+        }
+    }
 
     /// <summary>
     /// Decrypts everything the server sent since the previous call and splits it into packets without their signatures.

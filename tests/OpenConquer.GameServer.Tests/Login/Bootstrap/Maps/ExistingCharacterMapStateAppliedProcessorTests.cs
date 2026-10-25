@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;
+using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.Login.Bootstrap.Maps;
@@ -20,6 +21,38 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         Assert.Equal(0, harness.UnreadServerBytes);
         Assert.True(harness.Presence.IsOnline(LoginStepHarness.CharacterId));
         Assert.Equal(0, harness.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RetailMissionCatalogBeforeNotification_WritesNothing()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+
+        harness.QueueRetailMissionCatalog();
+        harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
+
+        await new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, harness.UnreadServerBytes);
+        Assert.Equal(0, harness.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MissionCatalogAfterACompletedCatalog_RejectsWithoutWriting()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+
+        login.MissionCatalog.Accept(new GameMissionCatalogReport(64, 1, 64));
+        harness.QueueRetailMissionCatalog();
+        harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
+
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains("second mission catalog", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, harness.UnreadServerBytes);
     }
 
     [Fact]
@@ -149,6 +182,31 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
 
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
+
+        Assert.Equal(0, harness.UnreadServerBytes);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CancellationWhileAwaitingNotificationAfterMissionCatalog_WritesNothing()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
+        // A one-frame catalog fits below the pipe's backpressure threshold, so it can be
+        // completely flushed before the processor starts reading it.
+        harness.QueuePacket(RetailMissionCatalog.Build(RetailMissionCatalog.MissionIds[..64]));
+        await harness.Transport.WaitForQueuedReceivesAsync(TestContext.Current.CancellationToken);
+
+        // All catalog bytes are in the pipe before starting. The processor consumes those buffered
+        // frames synchronously and first yields when it asks for the missing notification.
+
+        Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+
+        Assert.False(processing.IsCompleted);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);

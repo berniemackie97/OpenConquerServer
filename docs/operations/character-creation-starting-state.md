@@ -1,7 +1,8 @@
 # Character creation: starting state
 
 You can optionally configure the starting state for new characters, and the GameServer validates it
-at startup. This does not enable character-creation packet handling or database writes.
+at startup. This also explicitly enables the authenticated creation route; do not
+supply it until the spawn and database grants have been reviewed.
 
 ## Configuration
 
@@ -69,10 +70,11 @@ map without the same separate approval.
 
 ## Deployment security
 
-This configuration is an opt-in prerequisite. It does not turn on character creation. It registers
-the creation store and service over `ConnectionStrings:Game`, changes no database schema, and gives
-no login path the ability to create a character. The authenticated creation route still ends
-without creating anything.
+This configuration opts into live character creation. It registers the store and
+service over `ConnectionStrings:Game`, changes no database schema, and permits only
+an authenticated character-less GameServer connection to create a character once.
+A successful creation requires a subsequent same-session game-login proof before
+existing-character world admission. Unconfigured realms remain unchanged.
 
 Supply this configuration only when the source data and an approved spawn point are ready. The
 GameServer identity's `INSERT` on `characters` is listed in

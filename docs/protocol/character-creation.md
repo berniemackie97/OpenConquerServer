@@ -190,34 +190,33 @@ creation screen's `ERROR` variable.
 The success path is verified. The complete set of retail server failure messages and the retail
 persistence behavior still need their own sources.
 
-## Remaining implementation work
+## Deployment and research gates
 
-The packet layout, the client's selections and the same-connection continuation after a successful
-creation are known. Before full character creation can be enabled, the implementation still has to
-settle:
+The server-owned creation path is implemented. Before enabling it on a deployed realm:
 
-1. Server-side rules for which professions and bodies to accept.
-2. The meaning of every character-creation failure response.
-3. The initial appearance, attributes and character state, decided by the server.
-4. Initial map and position policy.
-5. Transactional character persistence and database permissions.
-6. Behavior for duplicate submissions and concurrent creation.
-7. Ownership by the authenticated session for the whole of creation.
-8. Successful continuation through the repeated login proof and the world bootstrap.
-9. Cleanup after cancellation, failure, timeout and disconnect.
-10. Integration and database concurrency tests.
+1. Approve the starting map and tile and install the six corrected profession-family allotments.
+2. Confirm the GameServer character `SELECT, INSERT` and location-writer permissions.
+3. Complete live 5517 client, creation-UI and gameplay testing.
+4. Complete MySQL fault-injection and restart/error testing.
 
-OpenConquerPublic is an existing reference implementation for several of these.
+See [starting-state setup](../operations/character-creation-starting-state.md) and
+[persistence operations](../operations/character-creation-persistence.md).
 
-Its historical starting-state defaults and server policies are not automatically the retail 5517
-behavior. Retail server policies that are still unknown must not be presented as facts from the
-client disassembly.
+The complete set of retail failure messages remains unresolved research. The implemented
+creation-channel error strings are server-authored policy, not confirmed retail wording.
+Likewise, the server's selection, starting-state, persistence, ownership, continuation and
+cleanup policies do not establish the original retail server's behavior.
 
 ## Runtime status
 
 The packet `1001` request parser can be tested on its own. It validates the request structure and
 exposes the decoded fields as untrusted values.
 
-The character-creation route in the running GameServer stays disabled. The current code does not
-create characters, change database permissions, send guessed creation responses or transfer
-connection ownership. Full character creation is separate work.
+The authenticated GameServer can opt into this route through a reviewed starting-state
+configuration. After committing a valid creation, the server emits the verified success
+control message, consumes the bounded repeat proof and transfers ownership to the
+existing-character bootstrap. Name, selection and taken-name refusals receive bounded
+server-authored creation-channel error text; malformed requests, cancellation, exhausted
+attempts and uncertain writes terminate the connection without inventing retail failure wording.
+The default deployment does not configure a creation spawn. A live client and MySQL
+restart/error smoke test remain required before release.

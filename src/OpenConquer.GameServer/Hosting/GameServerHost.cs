@@ -99,6 +99,7 @@ internal static class GameServerHost
             services.AddGameCharacterCreationPersistence(configuration.GameConnectionString);
             services.AddSingleton(startingState);
             services.AddSingleton<CharacterCreationService>();
+            services.AddSingleton<GameCharacterCreationLoginProcessor>();
         }
 
         if (configuration.Network is { } network)
