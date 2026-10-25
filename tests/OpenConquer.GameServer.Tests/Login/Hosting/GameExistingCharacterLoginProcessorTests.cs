@@ -33,7 +33,7 @@ using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.Login.Hosting;
 
-public sealed class GameExistingCharacterLoginProcessorTests
+public sealed partial class GameExistingCharacterLoginProcessorTests
 {
     private const uint CharacterId = LoginStepHarness.CharacterId;
     private const uint FriendId = CharacterId + 1;

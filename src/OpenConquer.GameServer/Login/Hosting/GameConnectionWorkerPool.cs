@@ -197,12 +197,6 @@ internal sealed partial class GameConnectionWorkerPool(
                 return;
             }
 
-            if (cancellationToken.IsCancellationRequested)
-            {
-                await session.DisposeAsync().ConfigureAwait(false);
-                return;
-            }
-
             _metrics.RecordCompleted(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             _metrics.RecordSessionStarted();
             try

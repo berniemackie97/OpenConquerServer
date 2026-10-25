@@ -22,6 +22,7 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
     private readonly ICharacterLoginResolver _resolver;
     private readonly GameExistingCharacterLoginProcessor _existingCharacter;
     private readonly SemaphoreSlim _slots;
+    private readonly TimeSpan _bootstrapTimeout;
 
     public GameCharacterCreationLoginProcessor(CharacterCreationService creation, ICharacterLoginResolver resolver,
         GameExistingCharacterLoginProcessor existingCharacter, GameNetworkOptions network)
@@ -31,6 +32,7 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
         _existingCharacter = existingCharacter ?? throw new ArgumentNullException(nameof(existingCharacter));
         ArgumentNullException.ThrowIfNull(network);
         _slots = new SemaphoreSlim(Math.Min(network.AdmissionCapacity, 1024));
+        _bootstrapTimeout = network.ConnectionTimeout;
     }
 
     public void Dispose() => _slots.Dispose();
@@ -111,6 +113,7 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
             }
 
             owned.DiscardRepeatedLoginProof();
+            deadline.CancelAfter(_bootstrapTimeout);
             CharacterLoginResolution resolved = await _resolver.ResolveAsync(owned.AccountId, operation).ConfigureAwait(false);
             CharacterLoginProfile? profile = resolved.Profile;
             if (resolved.Route != CharacterLoginRoute.ExistingCharacter || profile is null ||

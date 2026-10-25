@@ -204,6 +204,68 @@ public sealed class GameConnectionWorkerPoolTests
         Assert.False(lifetime.ApplicationStopping.IsCancellationRequested);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_ShutdownBeforeDeferredSessionCompletes_UsesSupervisedCleanup(bool failCleanup)
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        IOException? disposalFailure = failCleanup ? new IOException("deferred transport cleanup failed") : null;
+        FakeGameTransportConnection transport = new(blockDispose: true, disposeFailure: disposalFailure);
+        CharacterPresenceDirectory presence = new();
+        WorldSession session = await CreateSessionAsync(runtime, transport, presence, map);
+        await using TransportConnectionAdmissionQueue queue = new(8);
+        using GameLoginMetrics metrics = new();
+        using RecordingApplicationLifetime lifetime = new();
+        using CancellationTokenSource stopping = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        GameServerFailureState failureState = new();
+        TaskCompletionSource<WorldSession?> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        GameConnectionWorkerPool workers = new(queue, (_, _, _) =>
+        {
+            started.SetResult();
+            return ValueTask.FromResult(new GameLoginProcessingResult(null, pending.Task));
+        }, CreateOptions(), metrics, failureState, lifetime, NullLogger<GameConnectionWorkerPool>.Instance);
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(transport));
+        queue.Complete();
+        Task running = workers.RunAsync(stopping.Token);
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+            stopping.Cancel();
+            pending.SetResult(session);
+            await transport.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+            Assert.False(running.IsCompleted);
+            Assert.Null(failureState.Failure);
+            transport.ReleaseDispose();
+            await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, transport.DisposeCount);
+            Assert.False(presence.IsOnline(CharacterId));
+            Assert.Null(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
+            Assert.Equal(failCleanup, lifetime.ApplicationStopping.IsCancellationRequested);
+            if (disposalFailure is not null)
+            {
+                Assert.True(ContainsException(Assert.IsAssignableFrom<Exception>(failureState.Failure), disposalFailure));
+                Assert.True(session.Completion.IsFaulted);
+            }
+            else
+            {
+                Assert.Null(failureState.Failure);
+                Assert.True(session.Completion.IsCompletedSuccessfully);
+            }
+        }
+        finally
+        {
+            pending.TrySetResult(session);
+            stopping.Cancel();
+            transport.ReleaseDispose();
+            await running.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+        }
+    }
+
     private static GameNetworkOptions CreateOptions()
     {
         return new GameNetworkOptions(new IPEndPoint(IPAddress.Loopback, 5816),

@@ -135,9 +135,9 @@ decides up to which point it can be cancelled.
 ## Runtime creation continuation
 
 A newly authenticated account without a character receives login-channel `NEW_ROLE`.
-The server waits for exactly one bounded packet `1001` on that authenticated socket;
-clients cannot supply account ownership. Cancellation and malformed or refused creations
-close the connection. The server only emits creation-channel `ANSWER_OK` after a committed
+The server accepts bounded packet `1001` requests on that authenticated socket;
+clients cannot supply account ownership. Cancellation and malformed requests close
+the connection. The server only emits creation-channel `ANSWER_OK` after a committed
 character result. It then consumes exactly one same-session repeated `1052`, without
 redeeming the ticket again, resolves the exact created character ID and transfers
 connection ownership to the established existing-character bootstrap.
@@ -150,8 +150,9 @@ Already-created accounts, malformed requests and uncertain persistence outcomes 
 the session without retrying a database write.
 
 The creation waiting period is five minutes; the post-success proof deadline is
-thirty seconds. Up to `min(AdmissionCapacity, 1024)` creations can wait independently
-of the fixed handshake workers. The server shutdown token cancels and drains them.
+thirty seconds. Once that proof is accepted, character resolution and the existing-character
+bootstrap receive a fresh `GameServer:Network:ConnectionTimeout` window. Up to
+`min(AdmissionCapacity, 1024)` creations can wait independently of the fixed handshake workers. The server shutdown token cancels and drains them.
 The shipped configuration leaves creation disabled until a verified starting tile
 and six corrected profession-family allotments have been installed.
 
