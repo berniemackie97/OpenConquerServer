@@ -1,8 +1,8 @@
 # Character creation persistence
 
-The GameServer can set up a character-creation store and application service. Configuring them does
-not enable the 5517 character-creation route. Connections that reach the creation route still close
-without writing anything.
+When an approved `GameServer:CharacterCreation` starting-state section is configured,
+the GameServer enables the authenticated character-creation route. Without it, the
+creation route remains unavailable and no creation persistence is attempted.
 
 ## Configuration
 
@@ -14,18 +14,24 @@ The GameServer never runs DDL itself.
 
 ## Runtime behavior
 
-The authenticated login processor is unchanged, so creation requests still
-cannot call `CharacterCreationService`. No schema migration, listener change, creation packet
-handling, or automatic database write comes with this feature.
+The authenticated login route sends `NEW_ROLE`, validates packet 1001 under the
+original account identity, and calls the existing atomic creation service.
+Invalid name, profession/body selection and taken-name responses are bounded and
+use native-supported creation-channel error text. Malformed frames, cancellation,
+exhausted attempts and uncertain writes fail closed. The server sends `ANSWER_OK`
+only after a durable success and consumes the single permitted repeated 1052 before
+joining normal existing-character bootstrap. No new database principal, migration
+or ticket redemption occurs.
 
 `CharacterCreationStore` runs one parameterized INSERT into the `characters` table and handles
 uniqueness conflicts. Registering the service does not open a connection. If the configured spawn
 content is invalid, starting-state validation still stops host startup before the world is
 published.
 
-Before the creation route can be enabled, the server needs checked handling of the 5517 request, a
-strict binding to the account identity, ownership tied to the same connection, continuation of the
-login when the client repeats its login proof, a reliable signal that the write is durable, time
-limits on requests and their failures, and a check of the account's privileges. No 5095 data is
-imported. Historical sources are reconciled separately, and that work may correct 5517 content and
-the schema where the sources support it.
+Before enabling creation on a deployed realm, provision an independently reviewed
+starting map/tile and the six source-derived level-one allotments. Confirm the single
+GameServer database identity has only the required `SELECT, INSERT` character
+permissions and existing location-writer rights. No 5095 data is imported.
+Never enable an arbitrary nearby tile merely because the raw terrain says passable.
+Client-side creation UI, gameplay and a live MySQL error/restart drill remain
+separate release gates.

@@ -1,3 +1,4 @@
+using OpenConquer.Application.Characters.Creation;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Packets;
@@ -16,6 +17,23 @@ public sealed class GameCharacterCreationControlPacketsTests
     public void Accepted_IsNativeCreationChannelControlTalk()
     {
         AssertControl(GameCharacterCreationControlPackets.Accepted, 0x834, "ANSWER_OK");
+    }
+
+    [Theory]
+    [InlineData(CharacterCreationStatus.InvalidName, "Invalid character name.")]
+    [InlineData(CharacterCreationStatus.InvalidSelection, "Invalid character selection.")]
+    [InlineData(CharacterCreationStatus.NameAlreadyInUse, "Character name is already in use.")]
+    public void CreationRefusal_IsNativeCreationChannelMessageWithServerDefinedText(
+        CharacterCreationStatus status, string expected)
+    {
+        AssertControl(GameCharacterCreationControlPackets.Rejected(status), 0x834, expected);
+    }
+
+    [Fact]
+    public void CreationRefusal_UnsupportedStatusDoesNotProduceAccidentalSuccess()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            GameCharacterCreationControlPackets.Rejected(CharacterCreationStatus.Created));
     }
 
     [Fact]

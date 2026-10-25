@@ -218,6 +218,11 @@ client disassembly.
 The packet `1001` request parser can be tested on its own. It validates the request structure and
 exposes the decoded fields as untrusted values.
 
-The character-creation route in the running GameServer stays disabled. The current code does not
-create characters, change database permissions, send guessed creation responses or transfer
-connection ownership. Full character creation is separate work.
+The authenticated GameServer can opt into this route through a reviewed starting-state
+configuration. On a valid create packet, the server persists once, emits only the
+verified success control message, consumes the bounded repeat proof and transfers
+ownership to the existing-character bootstrap. Name, selection and taken-name refusals receive bounded server-authored creation-channel
+error text; malformed requests, cancellation, exhausted attempts and uncertain writes
+terminate the connection without inventing retail failure wording.
+The default deployment does not configure a creation spawn. A live client and MySQL
+restart/error smoke test remain required before release.

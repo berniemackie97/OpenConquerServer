@@ -166,9 +166,10 @@ the implemented parts work and link here instead of repeating the list.
 - Automated realm provisioning. An operator adds and changes realms by following
   [Realm operations](operations/realms.md).
 - Staff tooling.
-- Character creation in the running GameServer: a spawn point confirmed to be walkable, the
-  GameServer's `INSERT` grant on `characters`, the 5517 control-message exchange, creation for the
-  authenticated session, and continuing into the world on the same connection.
+- Live character-creation deployment and a retail 5517 smoke test. The authenticated
+  create-role route is implemented as an opt-in GameServer path, but an approved
+  starting tile and corresponding permissions must be provisioned; the separate
+  client implementation must support the role-creation UI and packet exchange.
 - Remaining gameplay: server-owned mounted status, jump limits for mounted characters, replication
   of non-player entities, saving positions, combat, NPCs, missions (no 1134 mission states are sent),
   complete trading, and nonlocal and group chat channels. The 5517 position correction already handles refused predicted movement and drift
