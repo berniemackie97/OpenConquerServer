@@ -4,6 +4,7 @@ using OpenConquer.Application.Skills.Hydration;
 using OpenConquer.Application.Social.Hydration;
 using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Application.World;
+using OpenConquer.GameServer.Login.Bootstrap.Missions;
 using OpenConquer.GameServer.Login.Character;
 
 namespace OpenConquer.GameServer.Login.Bootstrap;
@@ -34,6 +35,7 @@ internal sealed class ExistingCharacterLoginContext : IAsyncDisposable
     public CharacterLoginProfile Profile { get; }
     public uint CharacterId => Profile.Identity.CharacterId;
     public WorldMapContent Map { get; }
+    public ExistingCharacterMissionCatalogReport MissionCatalog { get; } = new();
 
     public CharacterItemSet? ItemSet { get; set => field = RequireCharacter(value, value?.CharacterId, "item set"); }
     public CharacterSocialRelationSet? SocialRelationSet { get; set => field = RequireCharacter(value, value?.CharacterId, "social-relation set"); }

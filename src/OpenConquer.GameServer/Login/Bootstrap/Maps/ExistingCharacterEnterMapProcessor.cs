@@ -15,7 +15,8 @@ internal sealed class ExistingCharacterEnterMapProcessor(IGameTickSource tickSou
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction request = await LoginActionRequest.ReadAsync(connection, GameAction.EnterMapAction, "EnterMap request", cancellationToken).ConfigureAwait(false);
+        GameAction request = await LoginActionRequest.ReadAfterMissionCatalogAsync(login, GameAction.EnterMapAction, "EnterMap request", cancellationToken)
+            .ConfigureAwait(false);
 
         if (request.EntityId != login.CharacterId)
         {

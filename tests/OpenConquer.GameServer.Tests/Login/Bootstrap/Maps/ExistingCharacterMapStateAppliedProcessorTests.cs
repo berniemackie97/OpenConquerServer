@@ -23,6 +23,38 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_RetailMissionCatalogBeforeNotification_WritesNothing()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+
+        harness.QueueRetailMissionCatalog();
+        harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
+
+        await new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, harness.UnreadServerBytes);
+        Assert.Equal(0, harness.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MissionCatalogAfterACompletedCatalog_RejectsWithoutWriting()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+
+        login.MissionCatalog.Accept(new GameMissionCatalogReport(64, 1, 64));
+        harness.QueueRetailMissionCatalog();
+        harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
+
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains("second mission catalog", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, harness.UnreadServerBytes);
+    }
+
+    [Fact]
     public async Task ProcessAsync_PeerClosesBeforeNotification_ThrowsWithoutWriting()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
@@ -146,6 +178,24 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
+        Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
+
+        Assert.Equal(0, harness.UnreadServerBytes);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CancellationWhileAwaitingNotificationAfterMissionCatalog_WritesNothing()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
+        harness.QueueRetailMissionCatalog();
 
         Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
 

@@ -39,7 +39,9 @@ the implemented parts work and link here instead of repeating the list.
 - Diffie-Hellman key exchange, CAST5 encrypted framing, and single-use ticket redemption.
 - Login with an existing character. The server resolves the character, sends the initial bootstrap
   packets, and answers the full client request sequence (map entry, items, friends, weapon skills,
-  magic, syndicate, client reports).
+  magic, syndicate, client reports). The mission catalog (1134) that the 5517 client sends during
+  map entry is validated and discarded (see the
+  [protocol documentation](protocol/README.md#gameserver-login)).
 - The world runtime: one partition per map, a shared scheduler, and size-limited command queues.
   Characters are admitted and removed with a generation number, so a request that belongs to an
   older admission is rejected.
@@ -168,8 +170,8 @@ the implemented parts work and link here instead of repeating the list.
   GameServer's `INSERT` grant on `characters`, the 5517 control-message exchange, creation for the
   authenticated session, and continuing into the world on the same connection.
 - Remaining gameplay: server-owned mounted status, jump limits for mounted characters, replication
-  of non-player entities, saving positions, combat, NPCs, complete trading, and nonlocal and group
-  chat channels. The 5517 position correction already handles refused predicted movement and drift
+  of non-player entities, saving positions, combat, NPCs, missions (no 1134 mission states are sent),
+  complete trading, and nonlocal and group chat channels. The 5517 position correction already handles refused predicted movement and drift
   reports within its limited history.
 - World simulation: monsters, timers, visibility of NPCs, monsters and ground items, and
   non-portal map transfers (revival, NPC and administrative teleports). Elevation and

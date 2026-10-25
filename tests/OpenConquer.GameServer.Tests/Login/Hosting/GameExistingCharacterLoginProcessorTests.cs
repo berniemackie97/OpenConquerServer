@@ -22,6 +22,7 @@ using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Hosting;
 using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.Tests.Login.Bootstrap;
+using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
@@ -140,6 +141,80 @@ public sealed class GameExistingCharacterLoginProcessorTests
 
         await session.DisposeAsync();
 
+        Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(CharacterId));
+    }
+
+    // Step 1 is where the retail client's catalog arrived on 2026-10-25: after the EnterMap exchange, before the
+    // client-state-applied notification. Step 0 is the same catalog when the client handles ANSWER_OK before character info arrives.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task ProcessAsync_RetailMissionCatalogBeforeStep_SendsKnownResponsesAndAdmitsCharacter(int catalogStep)
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        for (int step = 0; step < s_loadsByStep.Length; step++)
+        {
+            if (step == catalogStep)
+            {
+                fixture.Harness.QueueRetailMissionCatalog();
+            }
+
+            fixture.QueueRequest(step);
+        }
+
+        await using WorldSession session = Assert.IsType<WorldSession>(await fixture.ProcessAsync());
+
+        Assert.Equal(s_expectedResponses.SelectMany(static step => step), fixture.Harness.ReadServerPackets().Select(Convert.ToHexString));
+        Assert.Equal(["items", "relations", "weapon skills", "magic", "syndicate"], fixture.Store.Loads);
+        Assert.True(fixture.Presence.IsOnline(CharacterId));
+        Assert.Equal(0, fixture.Harness.Transport.DisposeCount);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    public async Task ProcessAsync_MissionCatalogAfterClientStateApplied_ClosesConnectionWithoutLaterLoads(int catalogStep)
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        for (int previous = 0; previous < catalogStep; previous++)
+        {
+            fixture.QueueRequest(previous);
+        }
+
+        fixture.Harness.QueueRetailMissionCatalog();
+
+        InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(fixture.ProcessAsync);
+
+        Assert.Contains(nameof(GameActionParseError.InvalidPacketId), failure.Message, StringComparison.Ordinal);
+        Assert.Equal(s_loadsByStep.Take(catalogStep).OfType<string>(), fixture.Store.Loads);
+        Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
+        Assert.False(fixture.Presence.IsOnline(CharacterId));
+        await AssertNotInWorldAsync(fixture);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MissionCatalogSplitAroundEnterMap_ClosesConnectionWithoutLoads()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        fixture.Harness.QueuePacket(RetailMissionCatalog.Frames[0]);
+        fixture.QueueRequest(0);
+        fixture.Harness.QueuePacket(RetailMissionCatalog.Frames[1]);
+        fixture.Harness.QueuePacket(RetailMissionCatalog.Frames[2]);
+        fixture.QueueRequest(1);
+
+        InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(fixture.ProcessAsync);
+
+        Assert.Contains("second mission catalog", failure.Message, StringComparison.Ordinal);
+        Assert.Empty(fixture.Store.Loads);
         Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
         Assert.False(fixture.Presence.IsOnline(CharacterId));
     }

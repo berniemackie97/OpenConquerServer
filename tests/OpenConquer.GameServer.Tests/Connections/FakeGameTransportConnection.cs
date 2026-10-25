@@ -24,6 +24,9 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     private int _disposeCount;
     private int _receiveCallCount;
 
+    // Rest of a queued receive that did not fit the caller's buffer. Only the single input pump calls ReceiveAsync.
+    private ReadOnlyMemory<byte> _pendingReceive;
+
     public FakeGameTransportConnection(EndPoint? localEndPoint = null, EndPoint? remoteEndPoint = null, bool blockDispose = false, Exception? disposeFailure = null)
     {
         LocalEndPoint = localEndPoint ?? new IPEndPoint(IPAddress.Loopback, 5816);
@@ -58,6 +61,11 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         Interlocked.Increment(ref _receiveCallCount);
         _receiveStarted.TrySetResult();
 
+        if (!_pendingReceive.IsEmpty)
+        {
+            return DeliverPendingReceive(buffer);
+        }
+
         ReceiveOperation operation;
 
         try
@@ -80,15 +88,9 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
             throw operation.Failure;
         }
 
-        byte[] bytes = operation.Bytes ?? throw new InvalidOperationException("Receive operation does not contain bytes.");
+        _pendingReceive = operation.Bytes ?? throw new InvalidOperationException("Receive operation does not contain bytes.");
 
-        if (bytes.Length > buffer.Length)
-        {
-            throw new InvalidOperationException($"Queued test receive contains {bytes.Length} bytes but the transport supplied only {buffer.Length} bytes.");
-        }
-
-        bytes.CopyTo(buffer);
-        return bytes.Length;
+        return DeliverPendingReceive(buffer);
     }
 
     public async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
@@ -168,6 +170,19 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         {
             throw new InvalidOperationException("Unable to queue test receive operation.");
         }
+    }
+
+    /// <summary>
+    /// Copies as much of the pending receive as fits, like a socket returning part of what has arrived.
+    /// </summary>
+    private int DeliverPendingReceive(Memory<byte> buffer)
+    {
+        int count = Math.Min(buffer.Length, _pendingReceive.Length);
+
+        _pendingReceive[..count].CopyTo(buffer);
+        _pendingReceive = _pendingReceive[count..];
+
+        return count;
     }
 
     private readonly record struct ReceiveOperation(byte[]? Bytes, Exception? Failure, bool IsEndOfStream);

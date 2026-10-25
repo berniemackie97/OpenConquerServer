@@ -6,7 +6,7 @@ internal sealed class ExistingCharacterMapStateAppliedProcessor
 {
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
-        GameAction notification = await LoginActionRequest.ReadAsync(login.Connection, GameAction.ClientStateAppliedAction,
+        GameAction notification = await LoginActionRequest.ReadAfterMissionCatalogAsync(login, GameAction.ClientStateAppliedAction,
             "client-state-applied notification", cancellationToken).ConfigureAwait(false);
 
         if (notification.EntityId != 0 || notification.ParameterPair != 0 || notification.ActionParameter != 0

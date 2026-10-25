@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;
+using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.Login.Bootstrap.Maps;
@@ -63,6 +64,54 @@ public sealed class ExistingCharacterEnterMapProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
 
+        harness.Transport.QueueEndOfStream();
+
+        await Assert.ThrowsAsync<EndOfStreamException>(() => CreateProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal(0, harness.UnreadServerBytes);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RetailMissionCatalogBeforeRequest_ConsumesItAndAnswersTheRequest()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+
+        harness.QueueRetailMissionCatalog();
+        harness.QueueAction(GameAction.EnterMapAction);
+
+        await CreateProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+
+        Assert.Equal([GameMapInfoPacket.PacketIdentifier, GameWeatherUpdatePacket.PacketIdentifier, GameAction.PacketIdentifier],
+            harness.ReadServerPackets().Select(LoginStepHarness.ReadPacketId));
+        Assert.Equal(0, harness.Transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MalformedMissionCatalog_RejectsWithoutWriting()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+        byte[] frame = RetailMissionCatalog.Build([600]);
+
+        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(4), 4);
+        harness.QueuePacket(frame);
+        harness.QueueAction(GameAction.EnterMapAction);
+
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains($"before the EnterMap request is malformed: {nameof(GameMissionCatalogReportParseError.UnsupportedSubtype)}", exception.Message,
+            StringComparison.Ordinal);
+        Assert.Equal(0, harness.UnreadServerBytes);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_PeerClosesDuringMissionCatalog_ThrowsWithoutWriting()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+
+        harness.QueuePacket(RetailMissionCatalog.Frames[0]);
         harness.Transport.QueueEndOfStream();
 
         await Assert.ThrowsAsync<EndOfStreamException>(() => CreateProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
