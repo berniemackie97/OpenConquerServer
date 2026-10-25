@@ -142,10 +142,10 @@ Body selection:
 
 | Vocation index parity | Body-size selection | Body identifier |
 | --------------------- | ------------------- | --------------: |
-| Even                  | 1                   |            2001 |
-| Even                  | Other               |            2002 |
-| Odd                   | 1                   |            1003 |
-| Odd                   | Other               |            1004 |
+| Even                  | 1                   |            1003 |
+| Even                  | Other               |            1004 |
+| Odd                   | 1                   |            2001 |
+| Odd                   | Other               |            2002 |
 
 These mappings show the values that the client sends.
 
