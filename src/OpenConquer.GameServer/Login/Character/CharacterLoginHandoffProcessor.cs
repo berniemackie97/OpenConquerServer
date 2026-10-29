@@ -51,7 +51,7 @@ internal sealed class CharacterLoginHandoffProcessor(ICharacterLoginResolver res
         }
     }
 
-    private static AggregateException CreateProcessingFailure(Exception processingException, Exception cleanupException)
+    private static GameLoginCleanupException CreateProcessingFailure(Exception processingException, Exception cleanupException)
     {
         List<Exception> failures = [processingException];
 
@@ -64,6 +64,6 @@ internal sealed class CharacterLoginHandoffProcessor(ICharacterLoginResolver res
             failures.Add(cleanupException);
         }
 
-        return new AggregateException("GameServer character-login handoff failed and connection cleanup also failed.", failures);
+        return new GameLoginCleanupException("GameServer character-login handoff failed and connection cleanup also failed.", failures);
     }
 }

@@ -124,9 +124,16 @@ internal sealed class AuthenticatedGameConnection : IAsyncDisposable
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         DiscardRepeatedLoginProof();
-        return _session.DisposeAsync();
+        try
+        {
+            await _session.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception failure)
+        {
+            throw new GameLoginCleanupException("Authenticated GameServer connection cleanup failed.", [failure]);
+        }
     }
 }

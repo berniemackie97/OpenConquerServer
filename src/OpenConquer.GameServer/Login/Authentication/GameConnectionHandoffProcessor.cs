@@ -29,7 +29,14 @@ internal sealed class GameConnectionHandoffProcessor(GameTransportHandshakeProce
                 GameConnectionSession closingSession = session;
                 session = null;
 
-                await closingSession.DisposeAsync().ConfigureAwait(false);
+                try
+                {
+                    await closingSession.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception failure)
+                {
+                    throw new GameLoginCleanupException("Unauthenticated GameServer session cleanup failed.", [failure]);
+                }
 
                 return GameConnectionAuthenticationResult.PeerClosed();
             }
@@ -59,7 +66,7 @@ internal sealed class GameConnectionHandoffProcessor(GameTransportHandshakeProce
         }
     }
 
-    private static AggregateException CreateProcessingFailure(Exception processingException, Exception cleanupException)
+    private static GameLoginCleanupException CreateProcessingFailure(Exception processingException, Exception cleanupException)
     {
         List<Exception> failures = [processingException];
 
@@ -72,6 +79,6 @@ internal sealed class GameConnectionHandoffProcessor(GameTransportHandshakeProce
             failures.Add(cleanupException);
         }
 
-        return new AggregateException("GameServer connection handoff failed and session cleanup also failed.", failures);
+        return new GameLoginCleanupException("GameServer connection handoff failed and session cleanup also failed.", failures);
     }
 }

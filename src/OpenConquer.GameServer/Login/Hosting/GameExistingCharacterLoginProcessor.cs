@@ -77,7 +77,7 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
         return await _admission.ProcessAsync(completed, cancellationToken).ConfigureAwait(false);
     }
 
-    private static AggregateException CreateLoginFailure(Exception loginFailure, Exception cleanupFailure)
+    private static GameLoginCleanupException CreateLoginFailure(Exception loginFailure, Exception cleanupFailure)
     {
         List<Exception> failures = [loginFailure];
 
@@ -90,6 +90,6 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
             failures.Add(cleanupFailure);
         }
 
-        return new AggregateException("Existing-character login failed and connection cleanup also failed.", failures);
+        return new GameLoginCleanupException("Existing-character login failed and connection cleanup also failed.", failures);
     }
 }

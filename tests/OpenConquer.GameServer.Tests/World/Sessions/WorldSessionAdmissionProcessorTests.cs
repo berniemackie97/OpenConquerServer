@@ -1,3 +1,4 @@
+using OpenConquer.GameServer.Login;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
@@ -339,7 +340,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => session.DisposeAsync().AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() => session.DisposeAsync().AsTask());
 
         Assert.Contains(disposalFailure, exception.Flatten().InnerExceptions);
         Assert.False(presence.IsOnline(CharacterId));
@@ -347,7 +348,7 @@ public sealed class WorldSessionAdmissionProcessorTests
 
         WorldCharacterOwnership replacement = await runtime.AdmitCharacterAsync(CreateProfile(CharacterId), TestContext.Current.CancellationToken);
         Assert.NotEqual(session.Ownership.Generation, replacement.Generation);
-        await Assert.ThrowsAsync<AggregateException>(() => session.DisposeAsync().AsTask());
+        await Assert.ThrowsAsync<GameLoginCleanupException>(() => session.DisposeAsync().AsTask());
     }
 
     [Theory]

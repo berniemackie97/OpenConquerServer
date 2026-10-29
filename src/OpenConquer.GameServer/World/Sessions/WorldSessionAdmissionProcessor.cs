@@ -1,5 +1,6 @@
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.World;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Execution;
@@ -125,7 +126,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
 
             if (failures.Count > 1)
             {
-                throw new AggregateException("World-session admission failed and cleanup also failed.", failures);
+                throw new GameLoginCleanupException("World-session admission failed and cleanup also failed.", failures);
             }
 
             throw;

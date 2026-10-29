@@ -44,7 +44,14 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
 
         if (result.Status != GameConnectionAuthenticationStatus.Authenticated)
         {
-            await session.DisposeAsync().ConfigureAwait(false);
+            try
+            {
+                await session.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception failure)
+            {
+                throw new GameLoginCleanupException("Unauthenticated GameServer session cleanup failed.", [failure]);
+            }
         }
 
         return result;
@@ -86,7 +93,7 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
         return GameConnectionAuthenticationResult.Authenticated(authenticatedConnection);
     }
 
-    private static AggregateException CreateAuthenticationFailure(Exception authenticationException, Exception cleanupException)
+    private static GameLoginCleanupException CreateAuthenticationFailure(Exception authenticationException, Exception cleanupException)
     {
         List<Exception> failures = [authenticationException];
 
@@ -99,6 +106,6 @@ internal sealed class GameConnectionAuthenticator(GameLoginTicketRedeemer ticket
             failures.Add(cleanupException);
         }
 
-        return new AggregateException("GameServer connection authentication failed and session cleanup also failed.", failures);
+        return new GameLoginCleanupException("GameServer connection authentication failed and session cleanup also failed.", failures);
     }
 }

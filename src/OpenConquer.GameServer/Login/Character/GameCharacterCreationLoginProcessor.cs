@@ -49,7 +49,7 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
             }
             catch (Exception failure)
             {
-                throw new GameCharacterCreationCleanupException(failure);
+                throw new GameLoginCleanupException("Character creation transport cleanup failed.", [failure]);
             }
             return null;
         }
@@ -148,7 +148,7 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
                 Exception cause = processingFailure is null ? cleanupFailure :
                     new AggregateException("Character creation and transport disposal both failed.",
                         processingFailure, cleanupFailure);
-                throw new GameCharacterCreationCleanupException(cause);
+                throw new GameLoginCleanupException("Character creation transport cleanup failed.", [cause]);
             }
             finally
             {
@@ -156,9 +156,4 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
             }
         }
     }
-}
-
-internal sealed class GameCharacterCreationCleanupException(Exception cause) :
-    Exception("Character creation transport cleanup failed; the realm must stop.", cause)
-{
 }

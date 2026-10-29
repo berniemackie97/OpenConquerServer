@@ -1,3 +1,4 @@
+using OpenConquer.GameServer.Login;
 using System.Buffers.Binary;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
@@ -250,7 +251,7 @@ public sealed class GameConnectionAuthenticatorTests
         {
             transport.QueueReceive(client.EncryptClientFrame(BuildPacket(1004, new byte[24])));
 
-            AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() =>
                 authenticator.AuthenticateAsync(session, TestContext.Current.CancellationToken).AsTask());
 
             Assert.Equal(2, exception.InnerExceptions.Count);
