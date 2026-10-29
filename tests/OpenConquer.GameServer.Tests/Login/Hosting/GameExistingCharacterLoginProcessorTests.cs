@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Login;
 using System.Buffers.Binary;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
@@ -12,6 +11,7 @@ using OpenConquer.Domain.Items;
 using OpenConquer.Domain.Skills;
 using OpenConquer.Domain.Social;
 using OpenConquer.Domain.Syndicates;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Items;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;

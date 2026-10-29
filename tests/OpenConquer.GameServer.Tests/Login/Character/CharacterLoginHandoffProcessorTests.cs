@@ -1,8 +1,8 @@
-using OpenConquer.GameServer.Login;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;

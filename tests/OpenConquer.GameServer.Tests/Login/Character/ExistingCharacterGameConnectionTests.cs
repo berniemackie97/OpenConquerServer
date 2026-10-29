@@ -1,6 +1,7 @@
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Realms;
@@ -321,7 +322,7 @@ public sealed class ExistingCharacterGameConnectionTests
         FakePresenceLease presence = new(CharacterId, presenceFailure);
         ExistingCharacterGameConnection owner = new(connection, CreateProfile(), presence, CreateAccountSession());
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => owner.DisposeAsync().AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() => owner.DisposeAsync().AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.Same(presenceFailure, exception.InnerExceptions[0]);

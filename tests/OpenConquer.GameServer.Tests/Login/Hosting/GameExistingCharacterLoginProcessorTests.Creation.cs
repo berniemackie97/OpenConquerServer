@@ -204,6 +204,7 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         Assert.False(resolver.Entered.Task.IsCompleted);
         byte[][] responses = fixture.Harness.ReadServerPackets();
         Assert.Equal(9, responses.Length);
+        AssertCreationMessage(responses[0], 0x835, "NEW_ROLE");
         Assert.All(responses.Skip(1), packet => AssertCreationMessage(packet, 0x834, "Invalid character selection."));
         Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
     }

@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Login;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
@@ -8,6 +7,7 @@ using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;

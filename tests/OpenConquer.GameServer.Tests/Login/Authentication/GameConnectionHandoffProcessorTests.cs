@@ -1,8 +1,8 @@
-using OpenConquer.GameServer.Login;
 using System.Buffers.Binary;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Handshake;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.Protocol.Framing;

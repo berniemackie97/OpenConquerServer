@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Login;
 using System.Buffers.Binary;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,6 +10,7 @@ using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Hosting;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
