@@ -161,8 +161,14 @@ and six corrected profession-family allotments have been installed.
 Before enabling on a live realm, verify the starting tile against canonical collision,
 confirm the six profession-family allotments, and validate the GameServer's `INSERT` grant.
 Perform live 5517 client testing and MySQL fault-injection/restart tests separately.
-The client must implement its creation UI and secured packet-1001 continuation for an
-end-to-end signup experience; this server slice does not modify OpenConquerClient.
+OpenConquerClient PR #147 now has a retail Flash role stage, a secured 1001 continuation,
+same-session repeated 1052 and an initial world-entry action ladder. Those protocol changes
+do not make this server ready to accept new characters: live creation remains disabled
+until a verified 5517 map-1010 spawn tile and the six corrected starting allotments are
+configured, the runtime database INSERT grant is verified, and the original role INI
+is staged in the client content set. The client does not yet host the active world
+scene after the map bootstrap. Neither repository's isolated CI substitutes for
+a live client/server/database smoke test.
 
 The repeated proof is not a second chance to redeem the single-use login ticket, which has already
 been consumed.
