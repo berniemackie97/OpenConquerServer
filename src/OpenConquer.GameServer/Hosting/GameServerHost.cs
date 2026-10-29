@@ -175,7 +175,8 @@ internal static class GameServerHost
             provider.GetRequiredService<WorldRuntime>(),
             provider.GetRequiredService<WorldVisibilityService>(),
             provider.GetRequiredService<FencedCharacterAdmission>(),
-            provider.GetRequiredService<WorldConnectedPortalTransferCoordinator>()));
+            provider.GetRequiredService<WorldConnectedPortalTransferCoordinator>(),
+            provider.GetRequiredService<GameServerFailureState>()));
         services.AddSingleton<GameExistingCharacterLoginProcessor>();
         services.AddSingleton<GameLoginConnectionProcessor>();
 
