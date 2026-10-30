@@ -61,8 +61,10 @@ The validated allotments are copied into an immutable lookup. Attributes, appear
 position, and profession family sent by the client are never trusted.
 
 The optional `GameServer:CharacterCreation` configuration section supplies this immutable starting
-state. The default configuration shipped with the server does not include it. Without it, the world
-host starts normally for existing characters and character creation stays unavailable.
+state. The production `appsettings.json` does not include it. Local Development explicitly configures
+map 1010 portal0 at (60,108) and the six corrected profession allotments in
+`appsettings.Development.json`. Without the section, the world host starts normally for
+existing characters and creation stays unavailable.
 
 When the section is present, it is bound with unknown properties rejected and validated before the
 host is built. After the world maps are loaded, the world hosted service checks that the configured
@@ -74,8 +76,8 @@ composed static collision: any nonzero passability flag is refused. This does no
 replace a separate approval of the spawn map and tile from native/content evidence.
 
 The section explicitly enables the authenticated runtime creation route and registers
-its existing store and service. The default configuration omits it; existing-character
-login remains available without enabling creation.
+its existing store and service. Production environments without the explicit section
+continue to allow existing-character login with creation disabled.
 
 See [Character creation starting-state operations](../operations/character-creation-starting-state.md).
 
@@ -153,8 +155,9 @@ The creation waiting period is five minutes; the post-success proof deadline is
 thirty seconds. Once that proof is accepted, character resolution and the existing-character
 bootstrap receive a fresh `GameServer:Network:ConnectionTimeout` window. Up to
 `min(AdmissionCapacity, 1024)` creations can wait independently of the fixed handshake workers. The server shutdown token cancels and drains them.
-The shipped configuration leaves creation disabled until a verified starting tile
-and six corrected profession-family allotments have been installed.
+The Development configuration provides the archive's map-1010 portal0 coordinate
+and six corrected profession-family allotments. Production continues to leave
+creation disabled until the deployment opts in explicitly.
 
 ## Remaining operational validation
 
@@ -164,9 +167,11 @@ Perform live 5517 client testing and MySQL fault-injection/restart tests separat
 OpenConquerClient PR #147 now has a retail Flash role stage, a secured 1001 continuation,
 same-session repeated 1052 and an initial world-entry action ladder. Those protocol changes
 do not make this server ready to accept new characters: live creation remains disabled
-until a verified 5517 map-1010 spawn tile and the six corrected starting allotments are
-configured, the runtime database INSERT grant is verified, and the original role INI
-is staged in the client content set. The client does not yet host the active world
+on a production realm until an approved starting map and tile are configured.
+The Development configuration uses the 5517 map catalog's portal0 candidate at
+(60,108), and verifies the tile against composed collision at startup.
+Live operation still requires verification of the runtime database INSERT grant,
+the original role INI in the client content set, and a complete world renderer. The client does not yet host the active world
 scene after the map bootstrap. Neither repository's isolated CI substitutes for
 a live client/server/database smoke test.
 
