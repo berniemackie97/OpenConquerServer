@@ -134,6 +134,44 @@ The creation service never retries a database operation whose write outcome is u
 rejected before persistence leaves stored data unchanged. The persistence store owns the write and
 decides up to which point it can be cancelled.
 
+## Historical 15.10 behavior versus this server's security contract
+
+The recovered TQ 15.10 socket-to-registration path
+(`CMsgRegister__ProcessCharacterCreation_15_10` at `0x4B0B17`,
+`CUserList__CreateNewUser` at `0x4AA79A`) performs one
+`INSERT cq_user` using a **request-supplied account ID**. It has no
+creation-time account ownership or existing-character precheck on that
+identified route. An invalid body, missing map, or SQL failure can all
+produce the same duplicate-name refusal; that message does **not**
+establish a name collision. The historical profession branch preserves
+10, 40, 50 and 100 and normalizes other values to 20. These are
+**15.10 observations**, not a verified 5517 server acceptance policy.
+
+Our GameServer intentionally does not reproduce those weaknesses. It
+derives account ownership from the redeemed session, restricts the
+client's creation selections, and relies on database-enforced
+unique name and account constraints. Its explicit application result
+categories describe OpenConquer behavior; they must not be presented
+as original retail server refusal semantics. The 5517 client packet
+layout and character creation UI remain independently authoritative.
+
+On historical 15.10 SQL success, the handler attempts the client
+`ANSWER_OK` response, then an AccountServer notice. The identified
+path performs no compensating deletion after either notification.
+The recovered database wrapper does not distinguish duplicate-key
+errors from other query failures and does not prove that every false
+query result left storage unchanged. Our one-INSERT store likewise
+does not infer a failed commit from a transport error: ambiguous write
+outcomes fail closed without an automatic retry, and a missed success
+response may leave a character that is recovered on a later login.
+Proving failure atomicity for a deployment still requires its actual
+database schema/engine/settings and fault-injection testing.
+
+Source: `20_notes/Server/character-creation-decision-15.10.md`
+(2026-10-30, IDA path and byte-validated evidence). This historical
+finding cannot certify 5517 GameServer parity, deployed database
+behavior, or end-to-end notification delivery.
+
 ## Runtime creation continuation
 
 A newly authenticated account without a character receives login-channel `NEW_ROLE`.
