@@ -171,7 +171,7 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
         }
     }
 
-    private static AggregateException CreateProcessingFailure(Exception processingException, Exception cleanupException)
+    private static GameLoginCleanupException CreateProcessingFailure(Exception processingException, Exception cleanupException)
     {
         List<Exception> failures = [processingException];
 
@@ -184,6 +184,6 @@ internal sealed class ExistingCharacterBootstrapProcessor(ICharacterPresenceRegi
             failures.Add(cleanupException);
         }
 
-        return new AggregateException("Existing-character bootstrap failed and cleanup also failed.", failures);
+        return new GameLoginCleanupException("Existing-character bootstrap failed and cleanup also failed.", failures);
     }
 }

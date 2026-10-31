@@ -86,6 +86,9 @@ public sealed class MapCollisionContentTests
             (1015, 511, 533, false),
             (1001, 312, 646, true),
             (1002, 69, 473, true),
+            // Retail map catalog portal0; earlier (61,101) spawn example is obstructed.
+            (1010, 60, 108, true),
+            (1010, 61, 101, false),
             (1015, 1008, 707, true)
         ];
 

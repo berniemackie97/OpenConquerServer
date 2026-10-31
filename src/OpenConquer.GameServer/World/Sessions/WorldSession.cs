@@ -4,6 +4,7 @@ using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.World;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Chat;
@@ -769,7 +770,7 @@ internal sealed class WorldSession : IAsyncDisposable
         }
         catch (Exception cleanupFailure)
         {
-            throw new AggregateException("World-session I/O failed and cleanup also failed.", operationFailure, cleanupFailure);
+            throw new GameLoginCleanupException("World-session I/O failed and cleanup also failed.", [operationFailure, cleanupFailure]);
         }
     }
 
@@ -902,13 +903,10 @@ internal sealed class WorldSession : IAsyncDisposable
             {
                 _completion.TrySetResult();
             }
-            else if (failures.Count == 1)
-            {
-                _completion.TrySetException(failures[0]);
-            }
             else
             {
-                _completion.TrySetException(new AggregateException("World session connection and ownership cleanup encountered multiple failures.", failures));
+                _completion.TrySetException(new GameLoginCleanupException(
+                    "World session connection and ownership cleanup failed.", failures));
             }
         }
         finally

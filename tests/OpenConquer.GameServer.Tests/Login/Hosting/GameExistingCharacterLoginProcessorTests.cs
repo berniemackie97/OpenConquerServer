@@ -11,6 +11,7 @@ using OpenConquer.Domain.Items;
 using OpenConquer.Domain.Skills;
 using OpenConquer.Domain.Social;
 using OpenConquer.Domain.Syndicates;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Items;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;
@@ -386,7 +387,7 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
 
         fixture.Harness.QueueAction(UnexpectedAction);
 
-        AggregateException failure = await Assert.ThrowsAsync<AggregateException>(fixture.ProcessAsync);
+        AggregateException failure = await Assert.ThrowsAsync<GameLoginCleanupException>(fixture.ProcessAsync);
 
         Assert.Equal(2, failure.InnerExceptions.Count);
         Assert.IsType<InvalidDataException>(failure.InnerExceptions[0]);

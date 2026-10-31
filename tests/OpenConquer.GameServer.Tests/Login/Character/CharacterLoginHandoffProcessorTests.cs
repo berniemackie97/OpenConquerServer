@@ -2,6 +2,7 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
@@ -233,7 +234,7 @@ public sealed class CharacterLoginHandoffProcessorTests
         StubResolver resolver = new(default, processingFailure);
         CharacterLoginHandoffProcessor processor = new(resolver);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() =>
             processor.ProcessAsync(authentication, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);

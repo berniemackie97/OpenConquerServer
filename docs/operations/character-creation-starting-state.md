@@ -1,13 +1,17 @@
 # Character creation: starting state
 
 You can optionally configure the starting state for new characters, and the GameServer validates it
-at startup. This also explicitly enables the authenticated creation route; do not
-supply it until the spawn and database grants have been reviewed.
+at startup. This also explicitly enables the authenticated creation route. The
+source-backed Birth Village portal0 candidate is enabled in Development only;
+production still requires an explicit starting-state deployment decision and
+verification of database grants.
 
 ## Configuration
 
-The `GameServer:CharacterCreation` section is left out of `appsettings.json` on purpose. Supply it
-yourself through the usual configuration providers.
+The `GameServer:CharacterCreation` section is left out of production `appsettings.json`.
+The checked-in `appsettings.Development.json` enables the map-1010 portal0
+candidate at (60,108) with the six allotments below for local integration tests.
+Production deployments must explicitly supply their validated starting state.
 
 | Setting | Meaning |
 | --- | --- |
@@ -40,8 +44,13 @@ The 5095 MyISAM `cq_point_allot` table has an older family-5 level-one row `(2,7
 family-6 row. Neither difference overrides the later-version values above. See
 [Historical source reconciliation](../content/historical-source-reconciliation.md).
 
-Choose a starting map and coordinates from your 5517 map content. No default spawn point is
-provided.
+The historical TQ 15.10 creation routine initializes Birth Village (map 1010)
+from its `portal0` location, and the archived 5517 map catalog records
+`portal0=(60,108)`, with `portal0_walkable=true` and map data ID 1010.
+The released composed-collision test checks (60,108) is passable and that
+the older sample (61,101) remains blocked. These sources justify the
+Development candidate; they do not demonstrate that every retail 5517
+realm created every character at precisely this tile.
 
 ## Validation
 
@@ -63,10 +72,10 @@ sense, and it does not mean creation can be enabled. Portal rules, occupancy by 
 placement, per-map restrictions, and whether retail meant players to spawn there are still left to
 the runtime and to further research.
 
-The coordinate previously used in tests and examples, `mapId 1010, (61,101)`, is blocked in sampled
-5095/5517 references and is not an approved spawn. A released 5517 content test checks that it stays
-blocked in the composed collision. Do not switch to a nearby coordinate that is passable in the raw
-map without the same separate approval.
+The previously suggested `mapId 1010, (61,101)` tile is blocked in sampled
+5095/5517 references. The composed-collision regression test checks both
+its blocked status and the portal0 candidate's passability, rather than
+assuming any neighboring raw-terrain cell is a valid spawn.
 
 ## Deployment security
 
@@ -76,6 +85,10 @@ an authenticated character-less GameServer connection to create a character once
 A successful creation requires a subsequent same-session game-login proof before
 existing-character world admission. Unconfigured realms remain unchanged.
 
-Supply this configuration only when the source data and an approved spawn point are ready. The
-GameServer identity's `INSERT` on `characters` is listed in
+In local Development, use the source-backed portal0 candidate to exercise
+the authenticated creation path. For production, approve the deployment's
+spawn and confirm the GameServer identity has `INSERT` on `characters` as listed in
 [Database identities](database-identities.md#gameserver-runtime-per-realm).
+The live client role UI still requires the exact English 5517
+`ini/selectCharacter.ini` asset and a functioning world renderer before
+end-to-end login can be certified.

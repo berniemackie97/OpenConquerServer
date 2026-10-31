@@ -7,6 +7,8 @@ using OpenConquer.Application.Syndicates.Hydration;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Connections;
+using OpenConquer.GameServer.Hosting;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
@@ -59,6 +61,30 @@ public sealed class WorldSessionAdmissionProcessorTests
         Assert.Equal(1, transport.DisposeCount);
         Assert.False(presence.IsOnline(CharacterId));
         Assert.Null(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_FatalRealmFailureRejectsWorldEntryAndReleasesOwnership()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        CharacterPresenceDirectory presence = new();
+        FakeGameTransportConnection transport = new();
+        ExistingCharacterBootstrapCompleteConnection bootstrap = await CreateBootstrapAsync(transport, presence, map);
+        GameServerFailureState failure = new();
+        IOException fatal = new("unreleased login ownership");
+        failure.Record(fatal);
+        WorldSessionAdmissionProcessor processor = new(runtime, failureState: failure);
+
+        InvalidOperationException rejection = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => processor.ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Same(fatal, rejection.InnerException);
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.False(presence.IsOnline(CharacterId));
+        WorldCharacterOwnership next = await runtime.AdmitCharacterAsync(CreateProfile(CharacterId), TestContext.Current.CancellationToken);
+        Assert.True(await runtime.RemoveCharacterAsync(next, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -339,7 +365,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => session.DisposeAsync().AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() => session.DisposeAsync().AsTask());
 
         Assert.Contains(disposalFailure, exception.Flatten().InnerExceptions);
         Assert.False(presence.IsOnline(CharacterId));
@@ -347,7 +373,7 @@ public sealed class WorldSessionAdmissionProcessorTests
 
         WorldCharacterOwnership replacement = await runtime.AdmitCharacterAsync(CreateProfile(CharacterId), TestContext.Current.CancellationToken);
         Assert.NotEqual(session.Ownership.Generation, replacement.Generation);
-        await Assert.ThrowsAsync<AggregateException>(() => session.DisposeAsync().AsTask());
+        await Assert.ThrowsAsync<GameLoginCleanupException>(() => session.DisposeAsync().AsTask());
     }
 
     [Theory]

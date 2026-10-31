@@ -1,5 +1,7 @@
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.World;
+using OpenConquer.GameServer.Hosting;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.World.Execution;
@@ -11,12 +13,14 @@ namespace OpenConquer.GameServer.World.Sessions;
 /// Admits a completed existing-character login into the world as a world session.
 /// </summary>
 internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null,
-    FencedCharacterAdmission? fencing = null, WorldConnectedPortalTransferCoordinator? portals = null)
+    FencedCharacterAdmission? fencing = null, WorldConnectedPortalTransferCoordinator? portals = null,
+    GameServerFailureState? failureState = null)
 {
     private readonly WorldRuntime _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     private readonly WorldVisibilityService? _visibility = visibility;
     private readonly FencedCharacterAdmission? _fencing = fencing;
     private readonly WorldConnectedPortalTransferCoordinator? _portals = portals;
+    private readonly GameServerFailureState? _failureState = failureState;
 
     public async ValueTask<WorldSession> ProcessAsync(ExistingCharacterBootstrapCompleteConnection bootstrap, CancellationToken cancellationToken = default)
     {
@@ -68,7 +72,15 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
             cancellationToken.ThrowIfCancellationRequested();
             session.ThrowIfInactive();
             await session.SynchronizeInitialStatusAsync(cancellationToken).ConfigureAwait(false);
-            session.EnterVisibility();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_failureState is { } failureState)
+            {
+                failureState.EnterWorld(session.EnterVisibility);
+            }
+            else
+            {
+                session.EnterVisibility();
+            }
 
             return session;
         }
@@ -125,7 +137,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
 
             if (failures.Count > 1)
             {
-                throw new AggregateException("World-session admission failed and cleanup also failed.", failures);
+                throw new GameLoginCleanupException("World-session admission failed and cleanup also failed.", failures);
             }
 
             throw;

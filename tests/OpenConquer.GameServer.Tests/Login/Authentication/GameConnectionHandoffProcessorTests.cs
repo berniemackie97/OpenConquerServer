@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Net;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Handshake;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.Protocol.Framing;
@@ -184,7 +185,7 @@ public sealed class GameConnectionHandoffProcessorTests
 
         transport.QueueReceiveFailure(processingFailure);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() =>
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() =>
             processor.ProcessAsync(transport, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);

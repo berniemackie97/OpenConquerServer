@@ -1,6 +1,6 @@
-using System.Runtime.ExceptionServices;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.World.Presence;
@@ -133,55 +133,46 @@ internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
-        Exception? presenceFailure = null;
+        List<Exception> failures = [];
 
         try
         {
             _presenceLease.Dispose();
         }
-        catch (Exception exception)
+        catch (Exception failure)
         {
-            presenceFailure = exception;
+            failures.Add(failure);
         }
 
         try
         {
             await _connection.DisposeAsync().ConfigureAwait(false);
         }
-        catch (Exception connectionFailure)
+        catch (Exception failure)
         {
-            if (presenceFailure is not null)
+            if (failure is AggregateException aggregate)
             {
-                throw CreateDisposalFailure(presenceFailure, connectionFailure);
+                failures.AddRange(aggregate.Flatten().InnerExceptions);
             }
-
-            throw;
+            else
+            {
+                failures.Add(failure);
+            }
         }
-        finally
+
+        try
         {
             await _accountSession.DisposeAsync().ConfigureAwait(false);
         }
-
-        if (presenceFailure is not null)
+        catch (Exception failure)
         {
-            ExceptionDispatchInfo.Capture(presenceFailure).Throw();
-        }
-    }
-
-    private static AggregateException CreateDisposalFailure(Exception presenceFailure, Exception connectionFailure)
-    {
-        List<Exception> failures = [presenceFailure];
-
-        if (connectionFailure is AggregateException aggregate)
-        {
-            failures.AddRange(aggregate.Flatten().InnerExceptions);
-        }
-        else
-        {
-            failures.Add(connectionFailure);
+            failures.Add(failure);
         }
 
-        return new AggregateException("Existing-character presence release and connection disposal both failed.", failures);
+        if (failures.Count != 0)
+        {
+            throw new GameLoginCleanupException("Existing-character connection cleanup failed.", failures);
+        }
     }
 
     private void ThrowIfDisposed()

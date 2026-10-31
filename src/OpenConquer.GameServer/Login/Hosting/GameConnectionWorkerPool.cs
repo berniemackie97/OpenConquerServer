@@ -136,6 +136,11 @@ internal sealed partial class GameConnectionWorkerPool(
                     _metrics.RecordTimeout(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                     LogConnectionTimeout(_logger, workerIndex, local, remote, _options.ConnectionTimeout);
                 }
+                catch (GameLoginCleanupException)
+                {
+                    _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    throw;
+                }
                 catch (Exception exception)
                 {
                     _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
@@ -211,13 +216,13 @@ internal sealed partial class GameConnectionWorkerPool(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch (GameCharacterCreationCleanupException failure)
+        catch (GameLoginCleanupException failure)
         {
             _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             _failureState.Record(failure);
             try
             {
-                LogFatalCreationCleanup(_logger, failure);
+                LogFatalLoginCleanup(_logger, failure);
             }
             finally
             {
@@ -394,8 +399,8 @@ internal sealed partial class GameConnectionWorkerPool(
     private static partial void LogCreationSessionFailure(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 6207, Level = LogLevel.Critical,
-        Message = "Authenticated character-creation transport cleanup failed; stopping the realm.")]
-    private static partial void LogFatalCreationCleanup(ILogger logger, Exception exception);
+        Message = "GameServer login cleanup failed; stopping the realm.")]
+    private static partial void LogFatalLoginCleanup(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 6200, Level = LogLevel.Debug, Message = "GameServer login processing timed out after {Timeout} on worker {WorkerIndex}. Local: {LocalEndPoint}; remote: {RemoteEndPoint}.")]
     private static partial void LogConnectionTimeout(ILogger logger, int workerIndex, EndPoint localEndPoint, EndPoint remoteEndPoint, TimeSpan timeout);

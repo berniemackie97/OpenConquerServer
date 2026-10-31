@@ -10,6 +10,7 @@ using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Hosting;
+using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
@@ -321,7 +322,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         WorldMapContent unavailableMap = WorldMapTestContent.Create(MapId + 1, MapDataId, MapFlags);
         ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(), WorldMapTestContent.CreateCatalog(unavailableMap), s_metrics);
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
@@ -489,7 +490,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.CharacterCreation());
         ExistingCharacterBootstrapProcessor processor = CreateProcessor(new CharacterPresenceDirectory());
 
-        AggregateException exception = await Assert.ThrowsAsync<AggregateException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
+        AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() => processor.ProcessAsync(handoff, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.IsType<ArgumentException>(exception.InnerExceptions[0]);
