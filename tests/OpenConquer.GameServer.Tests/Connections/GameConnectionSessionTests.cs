@@ -86,6 +86,48 @@ public sealed class GameConnectionSessionTests
     }
 
     [Fact]
+    public async Task DisposeAsync_PreservesInputPumpFailureAfterReleasingTransport()
+    {
+        FakeGameTransportConnection transport = new();
+        GameConnectionSession session = await GameConnectionSession.OpenAsync(
+            transport, TestContext.Current.CancellationToken);
+        using GameHandshakeExchange exchange = GameHandshakeExchange.Create();
+        await session.SendHandshakeChallengeAsync(exchange.EncryptedChallenge, TestContext.Current.CancellationToken);
+
+        IOException failure = new("receive failed");
+        transport.QueueReceiveFailure(failure);
+
+        IOException readFailure = await Assert.ThrowsAsync<IOException>(() =>
+            session.ReadClientKeyExchangeResponseAsync(TestContext.Current.CancellationToken).AsTask());
+        Assert.Same(failure, readFailure);
+
+        AggregateException cleanup = await Assert.ThrowsAsync<AggregateException>(
+            () => session.DisposeAsync().AsTask());
+        Assert.Contains(failure, cleanup.Flatten().InnerExceptions);
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_PreservesOutputPumpFailureAfterReleasingTransport()
+    {
+        FakeGameTransportConnection transport = new();
+        GameConnectionSession session = await GameConnectionSession.OpenAsync(
+            transport, TestContext.Current.CancellationToken);
+        using GameClientTestPeer peer = await GameConnectionTestHandshake.CompleteAsync(
+            session, transport, TestContext.Current.CancellationToken);
+
+        IOException failure = new("send failed");
+        transport.FailSends(failure);
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            session.WriteAsync(new TestPacket(1201, [0x11]), TestContext.Current.CancellationToken).AsTask());
+
+        AggregateException cleanup = await Assert.ThrowsAsync<AggregateException>(
+            () => session.DisposeAsync().AsTask());
+        Assert.Contains(failure, cleanup.Flatten().InnerExceptions);
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
     public async Task DisposeAsync_DrainsActiveKeyExchangeReadBeforeDisposingTransport()
     {
         FakeGameTransportConnection connection = new(blockDispose: true);
