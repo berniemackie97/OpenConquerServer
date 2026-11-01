@@ -14,9 +14,11 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     private readonly Exception? _disposeFailure;
     private Exception? _sendFailure;
     private readonly TaskCompletionSource _sendCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _sendFailed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _sendBlocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _sendRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _receiveFailed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _receiveCancellationObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _disposeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _disposeRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -41,8 +43,10 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     public int DisposeCount => Volatile.Read(ref _disposeCount);
     public int ReceiveCallCount => Volatile.Read(ref _receiveCallCount);
     public Task SendCompleted => _sendCompleted.Task;
+    public Task SendFailed => _sendFailed.Task;
     public Task SendBlocked => _sendBlocked.Task;
     public Task ReceiveStarted => _receiveStarted.Task;
+    public Task ReceiveFailed => _receiveFailed.Task;
     public Task ReceiveCancellationObserved => _receiveCancellationObserved.Task;
     public Task DisposeStarted => _disposeStarted.Task;
 
@@ -97,6 +101,7 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
 
         if (operation.Failure is not null)
         {
+            _receiveFailed.TrySetResult();
             throw operation.Failure;
         }
 
@@ -120,6 +125,7 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         {
             if (_sendFailure is { } failure)
             {
+                _sendFailed.TrySetResult();
                 throw failure;
             }
 

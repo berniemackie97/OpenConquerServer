@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Net;
+using System.Net.Sockets;
 using OpenConquer.GameServer.Connections.Framing;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.Protocol.Game;
@@ -51,6 +52,8 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     private int _keyExchangeState = KeyExchangeStateNotStarted;
     private int _activeOperationCount;
     private int _disposeState;
+    private int _inputPumpFailureObserved;
+    private int _outputPumpFailureObserved;
 
     private GameConnectionSession(ITransportConnection connection)
     {
@@ -179,10 +182,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             {
                 MarkProtocolTerminal();
 
-                if (_inputPump.IsFaulted)
-                {
-                    await _inputPump.ConfigureAwait(false);
-                }
+                await ThrowIfInputPumpFaultedAsync().ConfigureAwait(false);
 
                 throw;
             }
@@ -249,10 +249,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             }
             catch
             {
-                if (_inputPump.IsFaulted)
-                {
-                    await _inputPump.ConfigureAwait(false);
-                }
+                await ThrowIfInputPumpFaultedAsync().ConfigureAwait(false);
 
                 throw;
             }
@@ -417,8 +414,17 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             (cleanupExceptions ??= []).Add(exception);
         }
 
-        await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false);
-        await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false);
+        if (await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false) is { } inputFailure &&
+            Volatile.Read(ref _inputPumpFailureObserved) == 0)
+        {
+            (cleanupExceptions ??= []).Add(inputFailure);
+        }
+
+        if (await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false) is { } outputFailure &&
+            Volatile.Read(ref _outputPumpFailureObserved) == 0)
+        {
+            (cleanupExceptions ??= []).Add(outputFailure);
+        }
 
         try
         {
@@ -628,8 +634,21 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             minimumSegmentSize: GameWireProtocol.MaximumWireFrameLength, useSynchronizationContext: false));
     }
 
+    private async Task ThrowIfInputPumpFaultedAsync()
+    {
+        if (_inputPump.IsFaulted)
+        {
+            Volatile.Write(ref _inputPumpFailureObserved, 1);
+            await _inputPump.ConfigureAwait(false);
+        }
+    }
+
     private async Task ThrowForOutputPumpCompletionAsync()
     {
+        if (_outputPump.IsFaulted)
+        {
+            Volatile.Write(ref _outputPumpFailureObserved, 1);
+        }
         await _outputPump.ConfigureAwait(false);
 
         throw new EndOfStreamException("The GameServer connection output pump completed before the pending write.");
@@ -651,18 +670,34 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         return new AggregateException("Failed to open the GameServer connection session and cleanup also failed.", failures);
     }
 
-    private static async Task ObservePumpShutdownAsync(Task pump)
+    private async Task<Exception?> ObservePumpShutdownAsync(Task pump)
     {
         try
         {
             await pump.ConfigureAwait(false);
+            return null;
         }
-        catch
+        catch (OperationCanceledException exception) when (
+            _lifetimeCancellation.IsCancellationRequested &&
+            exception.CancellationToken == _lifetimeCancellation.Token)
         {
-            // Session disposal intentionally aborts outstanding transport I/O.
-            // Awaiting here observes the terminal pump state so no background
-            // task escapes the session lifetime.
+            return null;
         }
+        catch (Exception exception) when (IsPeerDisconnect(exception))
+        {
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
+    }
+
+    private static bool IsPeerDisconnect(Exception exception)
+    {
+        SocketException? socket = exception as SocketException ??
+            (exception as IOException)?.InnerException as SocketException;
+        return socket?.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionAborted;
     }
 
     private void ThrowIfDisposed()
