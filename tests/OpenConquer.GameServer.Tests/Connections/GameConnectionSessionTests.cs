@@ -86,7 +86,7 @@ public sealed class GameConnectionSessionTests
     }
 
     [Fact]
-    public async Task DisposeAsync_PreservesInputPumpFailureAfterReleasingTransport()
+    public async Task DisposeAsync_DoesNotReportAnObservedInputFailureAgain()
     {
         FakeGameTransportConnection transport = new();
         GameConnectionSession session = await GameConnectionSession.OpenAsync(
@@ -106,7 +106,7 @@ public sealed class GameConnectionSessionTests
     }
 
     [Fact]
-    public async Task DisposeAsync_ReportsInputPumpFailureNotObservedByAReader()
+    public async Task DisposeAsync_ReportsUnobservedInputFailure()
     {
         FakeGameTransportConnection transport = new();
         GameConnectionSession session = await GameConnectionSession.OpenAsync(
@@ -123,7 +123,7 @@ public sealed class GameConnectionSessionTests
     }
 
     [Fact]
-    public async Task DisposeAsync_PreservesOutputPumpFailureAfterReleasingTransport()
+    public async Task DisposeAsync_ReportsOutputFailureExactlyOnce()
     {
         FakeGameTransportConnection transport = new();
         GameConnectionSession session = await GameConnectionSession.OpenAsync(
