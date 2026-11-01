@@ -264,8 +264,12 @@ public sealed class WorldSessionAdmissionProcessorTests
         runtime.Start();
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new();
+        GameConnectionSession connection = await GameConnectionSession.OpenAsync(
+            transport, TestContext.Current.CancellationToken);
+        using GameClientTestPeer peer = await GameConnectionTestHandshake.CompleteAsync(
+            connection, transport, TestContext.Current.CancellationToken);
         WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
-            await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
+            CreateBootstrap(connection, presence, map), TestContext.Current.CancellationToken);
 
         CryptographicException sendFailure = new("farewell send failed");
         transport.FailSends(sendFailure);
@@ -497,6 +501,13 @@ public sealed class WorldSessionAdmissionProcessorTests
         ICharacterPresenceRegistrar presence, WorldMapContent map, uint characterId = CharacterId, CharacterLocationWriteAuthority? locationAuthority = null)
     {
         GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
+        return CreateBootstrap(session, presence, map, characterId, locationAuthority);
+    }
+
+    private static ExistingCharacterBootstrapCompleteConnection CreateBootstrap(GameConnectionSession session,
+        ICharacterPresenceRegistrar presence, WorldMapContent map, uint characterId = CharacterId,
+        CharacterLocationWriteAuthority? locationAuthority = null)
+    {
         AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,
             localeTag: 0x6E45, hardwareAddress: 0x0000665544332211, resourceVersion: 5517, session: session);
         CharacterLoginProfile profile = CreateProfile(characterId);
