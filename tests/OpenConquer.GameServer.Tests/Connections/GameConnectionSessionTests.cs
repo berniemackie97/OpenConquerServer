@@ -101,8 +101,23 @@ public sealed class GameConnectionSessionTests
             session.ReadClientKeyExchangeResponseAsync(TestContext.Current.CancellationToken).AsTask());
         Assert.Same(failure, readFailure);
 
+        await session.DisposeAsync();
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_ReportsInputPumpFailureNotObservedByAReader()
+    {
+        FakeGameTransportConnection transport = new();
+        GameConnectionSession session = await GameConnectionSession.OpenAsync(
+            transport, TestContext.Current.CancellationToken);
+        IOException failure = new("receive failed without a reader");
+        transport.QueueReceiveFailure(failure);
+        await transport.ReceiveFailed.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
         AggregateException cleanup = await Assert.ThrowsAsync<AggregateException>(
             () => session.DisposeAsync().AsTask());
+
         Assert.Contains(failure, cleanup.Flatten().InnerExceptions);
         Assert.Equal(1, transport.DisposeCount);
     }
@@ -118,13 +133,22 @@ public sealed class GameConnectionSessionTests
 
         IOException failure = new("send failed");
         transport.FailSends(failure);
-        _ = await Record.ExceptionAsync(() =>
+        Exception? writeFailure = await Record.ExceptionAsync(() =>
             session.WriteAsync(new TestPacket(1201, [0x11]), TestContext.Current.CancellationToken).AsTask());
         await transport.SendFailed.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
 
-        AggregateException cleanup = await Assert.ThrowsAsync<AggregateException>(
-            () => session.DisposeAsync().AsTask());
-        Assert.Contains(failure, cleanup.Flatten().InnerExceptions);
+        Exception? cleanupFailure = await Record.ExceptionAsync(() => session.DisposeAsync().AsTask());
+        if (writeFailure is null)
+        {
+            AggregateException cleanup = Assert.IsType<AggregateException>(cleanupFailure);
+            Assert.Contains(failure, cleanup.Flatten().InnerExceptions);
+        }
+        else
+        {
+            Assert.Same(failure, writeFailure);
+            Assert.Null(cleanupFailure);
+        }
+
         Assert.Equal(1, transport.DisposeCount);
     }
 
