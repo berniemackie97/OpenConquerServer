@@ -152,8 +152,8 @@ internal static class Program
         byte[] sourcePayload = ToolSourceFileReader.Read(sourcePath, MaximumItemTypeSourceLengthBytes);
         ItemTypeDatTable source = ItemTypeDatTable.Parse(sourcePayload);
 
-        ItemTypeNativeSourceFileWriter.Write(destinationPath, source.Records.ToArray(), sourcePayload);
-        PrintResult("native item-type source", source.RecordCount, sourcePayload, destinationPath);
+        ItemTypeSourceFileWriter.Write(destinationPath, source.Records.ToArray(), sourcePayload);
+        PrintResult("item-type source", source.RecordCount, sourcePayload, destinationPath);
 
         return SuccessExitCode;
     }

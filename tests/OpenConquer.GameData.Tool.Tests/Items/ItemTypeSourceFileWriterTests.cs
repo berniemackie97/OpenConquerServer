@@ -5,10 +5,10 @@ using OpenConquer.GameData.Tool.Items;
 
 namespace OpenConquer.GameData.Tool.Tests.Items;
 
-public sealed class ItemTypeNativeSourceFileWriterTests
+public sealed class ItemTypeSourceFileWriterTests
 {
     [Fact]
-    public void Write_PreservesEveryNativeFieldInOriginalOrderAndPinsSourceHash()
+    public void Write_PreservesDecodedFieldsInSourceOrderAndRecordsSourceHash()
     {
         byte[] source = [0, 1, 2, 3, 4, 255];
         string[] fields = CreateFields(100001, "青虹剑");
@@ -25,7 +25,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
         using TemporaryDirectory directory = new();
         string path = Path.Combine(directory.Path, "source.json");
 
-        ItemTypeNativeSourceFileWriter.Write(path, [record], source);
+        ItemTypeSourceFileWriter.Write(path, [record], source);
 
         using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
         JsonElement root = document.RootElement;
@@ -49,8 +49,8 @@ public sealed class ItemTypeNativeSourceFileWriterTests
         string pathA = Path.Combine(directory.Path, "a.json");
         string pathB = Path.Combine(directory.Path, "b.json");
 
-        ItemTypeNativeSourceFileWriter.Write(pathA, [second, first], source);
-        ItemTypeNativeSourceFileWriter.Write(pathB, [first, second], source);
+        ItemTypeSourceFileWriter.Write(pathA, [second, first], source);
+        ItemTypeSourceFileWriter.Write(pathB, [first, second], source);
 
         Assert.Equal(File.ReadAllBytes(pathA), File.ReadAllBytes(pathB));
 
@@ -68,21 +68,9 @@ public sealed class ItemTypeNativeSourceFileWriterTests
         File.WriteAllText(path, "original");
 
         Assert.Throws<InvalidDataException>(() =>
-            ItemTypeNativeSourceFileWriter.Write(path, [record, record], [1]));
+            ItemTypeSourceFileWriter.Write(path, [record, record], [1]));
 
         Assert.Equal("original", File.ReadAllText(path));
-    }
-
-    [Fact]
-    public void Write_NullRecordIsRejectedBeforeCreatingOutput()
-    {
-        using TemporaryDirectory directory = new();
-        string path = Path.Combine(directory.Path, "source.json");
-
-        Assert.Throws<InvalidDataException>(() =>
-            ItemTypeNativeSourceFileWriter.Write(path, [null!], [1]));
-
-        Assert.False(File.Exists(path));
     }
 
     [Fact]
@@ -94,7 +82,7 @@ public sealed class ItemTypeNativeSourceFileWriterTests
         File.WriteAllText(path, "original");
 
         Assert.Throws<InvalidDataException>(() =>
-            ItemTypeNativeSourceFileWriter.Write(path, [record], [1]));
+            ItemTypeSourceFileWriter.Write(path, [record], [1]));
 
         Assert.Equal("original", File.ReadAllText(path));
     }
@@ -106,8 +94,8 @@ public sealed class ItemTypeNativeSourceFileWriterTests
         string path = Path.Combine(directory.Path, "source.json");
         ItemTypeDatRecord record = CreateRecord(100001, CreateFields(100001, "First"));
 
-        Assert.Throws<ArgumentException>(() => ItemTypeNativeSourceFileWriter.Write(path, [], [1]));
-        Assert.Throws<ArgumentException>(() => ItemTypeNativeSourceFileWriter.Write(path, [record], []));
+        Assert.Throws<ArgumentException>(() => ItemTypeSourceFileWriter.Write(path, [], [1]));
+        Assert.Throws<ArgumentException>(() => ItemTypeSourceFileWriter.Write(path, [record], []));
         Assert.False(File.Exists(path));
     }
 

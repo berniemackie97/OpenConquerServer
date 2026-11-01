@@ -5,22 +5,17 @@ using OpenConquer.GameData.Tool.Formats.Items;
 
 namespace OpenConquer.GameData.Tool.Items;
 
-/// <summary>
-/// Exports every decoded itemtype.dat field so it can be compared with other sources. It is a reference file
-/// only; the GameServer doesn't read it.
-/// </summary>
-internal static class ItemTypeNativeSourceFileWriter
+internal static class ItemTypeSourceFileWriter
 {
     public const int FormatVersion = 1;
 
     public static void Write(string destinationPath, IReadOnlyCollection<ItemTypeDatRecord> records, ReadOnlySpan<byte> sourcePayload)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
-        ArgumentNullException.ThrowIfNull(records);
 
         if (sourcePayload.IsEmpty)
         {
-            throw new ArgumentException("Item-type source bytes are required to establish provenance.", nameof(sourcePayload));
+            throw new ArgumentException("Item-type source bytes are required to record the source fingerprint.", nameof(sourcePayload));
         }
 
         if (records.Count == 0)
@@ -28,23 +23,18 @@ internal static class ItemTypeNativeSourceFileWriter
             throw new ArgumentException("Item-type source catalog cannot be empty.", nameof(records));
         }
 
-        if (records.Any(record => record is null))
-        {
-            throw new InvalidDataException("Native item-type source records cannot contain null entries.");
-        }
-
         ItemTypeDatRecord[] ordered = records.OrderBy(record => record.ItemTypeId).ToArray();
         uint previousId = 0;
 
-        foreach (ItemTypeDatRecord? record in ordered)
+        foreach (ItemTypeDatRecord record in ordered)
         {
-            if (record is null || record.ItemTypeId == 0 || record.ItemTypeId <= previousId
+            if (record.ItemTypeId == 0 || record.ItemTypeId <= previousId
                 || record.FieldCount != ItemTypeDatRecord.RecordFieldCount
                 || !uint.TryParse(record.FieldTexts[ItemTypeDatRecord.ItemTypeIdFieldIndex],
                     NumberStyles.None, CultureInfo.InvariantCulture, out uint encodedId)
                 || encodedId != record.ItemTypeId)
             {
-                throw new InvalidDataException("Native item-type records must have unique, positive, consistent identities and exactly 59 fields.");
+                throw new InvalidDataException("Item-type records must have unique, positive, consistent identities and exactly 59 fields.");
             }
 
             previousId = record.ItemTypeId;
