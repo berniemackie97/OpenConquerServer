@@ -118,8 +118,9 @@ public sealed class GameConnectionSessionTests
 
         IOException failure = new("send failed");
         transport.FailSends(failure);
-        await Assert.ThrowsAnyAsync<Exception>(() =>
+        _ = await Record.ExceptionAsync(() =>
             session.WriteAsync(new TestPacket(1201, [0x11]), TestContext.Current.CancellationToken).AsTask());
+        await transport.SendFailed.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
 
         AggregateException cleanup = await Assert.ThrowsAsync<AggregateException>(
             () => session.DisposeAsync().AsTask());
