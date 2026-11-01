@@ -21,17 +21,7 @@ internal static class GameConnectionTestHandshake
                 await session.ReadClientKeyExchangeResponseAsync(cancellationToken));
             Assert.Equal(client.PublicKeyHex, publicKey);
 
-            GameSessionCipher? cipher = exchange.Complete(publicKey);
-            try
-            {
-                session.CompleteHandshake(cipher);
-                cipher = null;
-            }
-            finally
-            {
-                cipher?.Dispose();
-            }
-
+            CompleteCipher(exchange, session, publicKey);
             return client;
         }
         catch
@@ -40,4 +30,20 @@ internal static class GameConnectionTestHandshake
             throw;
         }
     }
+
+    internal static void CompleteCipher(GameHandshakeExchange exchange, GameConnectionSession session,
+        string clientPublicKeyHex)
+    {
+        GameSessionCipher? cipher = exchange.Complete(clientPublicKeyHex);
+        try
+        {
+            session.CompleteHandshake(cipher);
+            cipher = null;
+        }
+        finally
+        {
+            cipher?.Dispose();
+        }
+    }
+
 }
