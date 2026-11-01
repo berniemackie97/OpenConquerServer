@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using OpenConquer.GameServer.Connections;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
@@ -83,6 +84,55 @@ public sealed class GameConnectionSessionTests
 
         await Assert.ThrowsAsync<EndOfStreamException>(() =>
             session.ReadClientKeyExchangeResponseAsync(TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task DisposeAsync_PeerResetDoesNotBecomeFatalCleanupFailure(bool wrapped, bool observed)
+    {
+        FakeGameTransportConnection transport = new();
+        GameConnectionSession session = await GameConnectionSession.OpenAsync(
+            transport, TestContext.Current.CancellationToken);
+        using GameHandshakeExchange exchange = GameHandshakeExchange.Create();
+        await session.SendHandshakeChallengeAsync(exchange.EncryptedChallenge, TestContext.Current.CancellationToken);
+
+        SocketException reset = new((int)SocketError.ConnectionReset);
+        Exception failure = wrapped ? new IOException("peer reset", reset) : reset;
+        transport.QueueReceiveFailure(failure);
+
+        if (observed)
+        {
+            Exception readFailure = await Assert.ThrowsAnyAsync<Exception>(() =>
+                session.ReadClientKeyExchangeResponseAsync(TestContext.Current.CancellationToken).AsTask());
+            Assert.Same(failure, readFailure);
+        }
+        else
+        {
+            await transport.ReceiveFailed.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+        }
+
+        await session.DisposeAsync();
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_PreservesCancellationUnrelatedToSessionShutdown()
+    {
+        FakeGameTransportConnection transport = new();
+        GameConnectionSession session = await GameConnectionSession.OpenAsync(
+            transport, TestContext.Current.CancellationToken);
+        OperationCanceledException failure = new("independent transport cancellation", CancellationToken.None);
+        transport.QueueReceiveFailure(failure);
+        await transport.ReceiveFailed.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+        AggregateException cleanup = await Assert.ThrowsAsync<AggregateException>(
+            () => session.DisposeAsync().AsTask());
+
+        Assert.Contains(failure, cleanup.Flatten().InnerExceptions);
+        Assert.Equal(1, transport.DisposeCount);
     }
 
     [Fact]
