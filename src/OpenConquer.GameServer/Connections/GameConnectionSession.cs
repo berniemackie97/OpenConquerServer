@@ -417,8 +417,15 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             (cleanupExceptions ??= []).Add(exception);
         }
 
-        await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false);
-        await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false);
+        if (await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false) is { } inputFailure)
+        {
+            (cleanupExceptions ??= []).Add(inputFailure);
+        }
+
+        if (await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false) is { } outputFailure)
+        {
+            (cleanupExceptions ??= []).Add(outputFailure);
+        }
 
         try
         {
@@ -651,17 +658,20 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         return new AggregateException("Failed to open the GameServer connection session and cleanup also failed.", failures);
     }
 
-    private static async Task ObservePumpShutdownAsync(Task pump)
+    private async Task<Exception?> ObservePumpShutdownAsync(Task pump)
     {
         try
         {
             await pump.ConfigureAwait(false);
+            return null;
         }
-        catch
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
-            // Session disposal intentionally aborts outstanding transport I/O.
-            // Awaiting here observes the terminal pump state so no background
-            // task escapes the session lifetime.
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
         }
     }
 
