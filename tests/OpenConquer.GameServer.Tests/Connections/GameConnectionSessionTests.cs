@@ -136,7 +136,7 @@ public sealed class GameConnectionSessionTests
 
         Assert.Equal(client.PublicKeyHex, clientPublicKeyHex);
 
-        TransferSessionCipher(exchange, session, clientPublicKeyHex);
+        GameConnectionTestHandshake.CompleteCipher(exchange, session, clientPublicKeyHex);
 
         using GameInboundFrame frame = Assert.IsType<GameInboundFrame>(
             await session.ReadAsync(TestContext.Current.CancellationToken));
