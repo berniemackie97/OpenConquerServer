@@ -51,6 +51,8 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     private int _keyExchangeState = KeyExchangeStateNotStarted;
     private int _activeOperationCount;
     private int _disposeState;
+    private int _inputPumpFailureObserved;
+    private int _outputPumpFailureObserved;
 
     private GameConnectionSession(ITransportConnection connection)
     {
@@ -181,6 +183,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
 
                 if (_inputPump.IsFaulted)
                 {
+                    Volatile.Write(ref _inputPumpFailureObserved, 1);
                     await _inputPump.ConfigureAwait(false);
                 }
 
@@ -251,6 +254,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             {
                 if (_inputPump.IsFaulted)
                 {
+                    Volatile.Write(ref _inputPumpFailureObserved, 1);
                     await _inputPump.ConfigureAwait(false);
                 }
 
@@ -417,12 +421,14 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             (cleanupExceptions ??= []).Add(exception);
         }
 
-        if (await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false) is { } inputFailure)
+        if (await ObservePumpShutdownAsync(_inputPump).ConfigureAwait(false) is { } inputFailure &&
+            Volatile.Read(ref _inputPumpFailureObserved) == 0)
         {
             (cleanupExceptions ??= []).Add(inputFailure);
         }
 
-        if (await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false) is { } outputFailure)
+        if (await ObservePumpShutdownAsync(_outputPump).ConfigureAwait(false) is { } outputFailure &&
+            Volatile.Read(ref _outputPumpFailureObserved) == 0)
         {
             (cleanupExceptions ??= []).Add(outputFailure);
         }
@@ -637,6 +643,10 @@ internal sealed class GameConnectionSession : IAsyncDisposable
 
     private async Task ThrowForOutputPumpCompletionAsync()
     {
+        if (_outputPump.IsFaulted)
+        {
+            Volatile.Write(ref _outputPumpFailureObserved, 1);
+        }
         await _outputPump.ConfigureAwait(false);
 
         throw new EndOfStreamException("The GameServer connection output pump completed before the pending write.");
