@@ -285,6 +285,58 @@ public sealed class WorldRuntimeTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => runtime.AdmitCharacterAsync(CreateProfile(), TestContext.Current.CancellationToken).AsTask());
     }
 
+    [Fact]
+    public async Task GameplayCommandSubmission_RejectsFullPartitionAndResumesAfterDrain()
+    {
+        await using WorldRuntime runtime = CreateRuntime(workerCount: 1, queueCapacity: 1, maxCommandsPerTurn: 1);
+        runtime.Start();
+        WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(
+            CreateProfile(), TestContext.Current.CancellationToken);
+        using ManualResetEventSlim entered = new(false);
+        using ManualResetEventSlim release = new(false);
+
+        ValueTask<bool> blocker = runtime.TryPublishAvatarActionAsync(owner, _ =>
+        {
+            entered.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The partition worker was not released.");
+            }
+        }, TestContext.Current.CancellationToken);
+
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+            ValueTask<WorldCharacterSnapshot?> queued = runtime.ReadCharacterAsync(
+                owner, TestContext.Current.CancellationToken);
+            Assert.False(queued.IsCompleted);
+
+            Action[] submissions =
+            [
+                () => { _ = runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken); },
+                () => { _ = runtime.TryWalkCharacterAsync(owner, 0, TestContext.Current.CancellationToken); },
+                () => { _ = runtime.TryPublishAvatarActionAsync(owner, _ => { }, TestContext.Current.CancellationToken); },
+                () => { _ = runtime.TryEnterGhostAsync(owner, 0, cancellationToken: TestContext.Current.CancellationToken); },
+                () => { _ = runtime.TryJumpCharacterAsync(owner, 1, 1, TestContext.Current.CancellationToken); },
+            ];
+
+            foreach (Action submit in submissions)
+            {
+                InvalidOperationException error = Assert.Throws<InvalidOperationException>(submit);
+                Assert.Equal($"World partition {MapId} command queue is full.", error.Message);
+            }
+
+            release.Set();
+            Assert.True(await blocker);
+            Assert.Equal(owner, Assert.IsType<WorldCharacterSnapshot>(await queued).Ownership);
+            Assert.NotNull(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
     private static WorldRuntime CreateRuntime(int workerCount = 2, int queueCapacity = 32, int maxCommandsPerTurn = 8)
     {
         WorldMapContent first = WorldMapTestContent.Create(MapId, 1015, 0);
