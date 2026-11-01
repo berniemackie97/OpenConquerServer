@@ -18,6 +18,7 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     private readonly TaskCompletionSource _sendBlocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _sendRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _receiveFailed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _receiveCancellationObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _disposeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _disposeRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -45,6 +46,7 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     public Task SendFailed => _sendFailed.Task;
     public Task SendBlocked => _sendBlocked.Task;
     public Task ReceiveStarted => _receiveStarted.Task;
+    public Task ReceiveFailed => _receiveFailed.Task;
     public Task ReceiveCancellationObserved => _receiveCancellationObserved.Task;
     public Task DisposeStarted => _disposeStarted.Task;
 
@@ -99,6 +101,7 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
 
         if (operation.Failure is not null)
         {
+            _receiveFailed.TrySetResult();
             throw operation.Failure;
         }
 
