@@ -45,5 +45,4 @@ internal static class GameConnectionTestHandshake
             cipher?.Dispose();
         }
     }
-
 }
