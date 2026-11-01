@@ -181,11 +181,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             {
                 MarkProtocolTerminal();
 
-                if (_inputPump.IsFaulted)
-                {
-                    Volatile.Write(ref _inputPumpFailureObserved, 1);
-                    await _inputPump.ConfigureAwait(false);
-                }
+                await ThrowIfInputPumpFaultedAsync().ConfigureAwait(false);
 
                 throw;
             }
@@ -252,11 +248,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             }
             catch
             {
-                if (_inputPump.IsFaulted)
-                {
-                    Volatile.Write(ref _inputPumpFailureObserved, 1);
-                    await _inputPump.ConfigureAwait(false);
-                }
+                await ThrowIfInputPumpFaultedAsync().ConfigureAwait(false);
 
                 throw;
             }
@@ -639,6 +631,15 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     {
         return new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1,
             minimumSegmentSize: GameWireProtocol.MaximumWireFrameLength, useSynchronizationContext: false));
+    }
+
+    private async Task ThrowIfInputPumpFaultedAsync()
+    {
+        if (_inputPump.IsFaulted)
+        {
+            Volatile.Write(ref _inputPumpFailureObserved, 1);
+            await _inputPump.ConfigureAwait(false);
+        }
     }
 
     private async Task ThrowForOutputPumpCompletionAsync()
