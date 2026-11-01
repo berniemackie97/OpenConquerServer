@@ -1,7 +1,6 @@
 using OpenConquer.GameServer.Connections;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game;
-using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Handshake;
 using OpenConquer.Protocol.Serialization;
@@ -150,7 +149,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         byte[] encryptedFrame = client.EncryptClientFrame(BuildPacket(1052, [0x11, 0x22, 0x33]));
 
@@ -166,7 +165,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         byte[] encryptedFrame = client.EncryptClientFrame(BuildPacket(1052, [0x11, 0x22, 0x33, 0x44]));
         encryptedFrame[^1] ^= 0xFF;
@@ -182,7 +181,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         int securedOffset = connection.SentBytes.Length;
         TestPacket packet = new(1004, [0x10, 0x20, 0x30, 0x40]);
@@ -203,7 +202,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         int securedOffset = connection.SentBytes.Length;
         TestPacket firstPacket = new(1201, [0x11, 0x22, 0x33]);
@@ -225,7 +224,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         int securedOffset = connection.SentBytes.Length;
         TestPacket firstPacket = new(1201, [0x11, 0x22, 0x33]);
@@ -260,7 +259,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         int securedOffset = connection.SentBytes.Length;
 
@@ -288,7 +287,7 @@ public sealed class GameConnectionSessionTests
     {
         FakeGameTransportConnection connection = new(blockDispose: true);
         GameConnectionSession session = await GameConnectionSession.OpenAsync(connection, TestContext.Current.CancellationToken);
-        using GameClientTestPeer client = await CompleteHandshakeAsync(session, connection);
+        using GameClientTestPeer client = await GameConnectionTestHandshake.CompleteAsync(session, connection, TestContext.Current.CancellationToken);
 
         Task disposeTask = session.DisposeAsync().AsTask();
 
@@ -343,48 +342,6 @@ public sealed class GameConnectionSessionTests
         await firstDispose;
 
         Assert.Equal(1, connection.DisposeCount);
-    }
-
-    private static async Task<GameClientTestPeer> CompleteHandshakeAsync(GameConnectionSession session, FakeGameTransportConnection connection)
-    {
-        using GameHandshakeExchange exchange = GameHandshakeExchange.Create();
-        GameClientTestPeer client = GameClientTestPeer.Create(exchange.EncryptedChallenge.Span);
-
-        try
-        {
-            await session.SendHandshakeChallengeAsync(exchange.EncryptedChallenge, TestContext.Current.CancellationToken);
-
-            connection.QueueReceive(client.EncryptedKeyExchangeResponse);
-
-            string clientPublicKeyHex = Assert.IsType<string>(
-                await session.ReadClientKeyExchangeResponseAsync(TestContext.Current.CancellationToken));
-
-            Assert.Equal(client.PublicKeyHex, clientPublicKeyHex);
-
-            TransferSessionCipher(exchange, session, clientPublicKeyHex);
-
-            return client;
-        }
-        catch
-        {
-            client.Dispose();
-            throw;
-        }
-    }
-
-    private static void TransferSessionCipher(GameHandshakeExchange exchange, GameConnectionSession session, string clientPublicKeyHex)
-    {
-        GameSessionCipher? sessionCipher = exchange.Complete(clientPublicKeyHex);
-
-        try
-        {
-            session.CompleteHandshake(sessionCipher);
-            sessionCipher = null;
-        }
-        finally
-        {
-            sessionCipher?.Dispose();
-        }
     }
 
     private static byte[] BuildPacket(ushort packetId, ReadOnlySpan<byte> payload)
