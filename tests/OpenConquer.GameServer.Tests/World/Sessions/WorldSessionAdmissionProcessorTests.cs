@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
@@ -252,6 +253,36 @@ public sealed class WorldSessionAdmissionProcessorTests
         Assert.NotEqual(session.Ownership.Generation, newOwner.Generation);
         await session.DisposeAsync();
         Assert.NotNull(await runtime.ReadCharacterAsync(newOwner, TestContext.Current.CancellationToken));
+    }
+
+
+    [Fact]
+    public async Task Revocation_FarewellSendFailureStillReleasesWorldOwnership()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+        CharacterPresenceDirectory presence = new();
+        FakeGameTransportConnection transport = new();
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+            await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
+
+        CryptographicException sendFailure = new("farewell send failed");
+        transport.FailSends(sendFailure);
+        using ICharacterPresenceLease replacement = presence.Register(CharacterId);
+
+        GameLoginCleanupException cleanupFailure = await Assert.ThrowsAsync<GameLoginCleanupException>(
+            () => session.Completion.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken));
+
+        Assert.Contains(sendFailure, cleanupFailure.Flatten().InnerExceptions);
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.True(presence.IsOnline(CharacterId));
+        Assert.Null(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<GameLoginCleanupException>(() => session.DisposeAsync().AsTask());
+
+        WorldCharacterOwnership next = await runtime.AdmitCharacterAsync(
+            CreateProfile(CharacterId), TestContext.Current.CancellationToken);
+        Assert.True(await runtime.RemoveCharacterAsync(next, TestContext.Current.CancellationToken));
     }
 
     [Fact]
