@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Net;
+using System.Net.Sockets;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login;
@@ -168,6 +169,29 @@ public sealed class GameConnectionHandoffProcessorTests
 
         await Assert.ThrowsAsync<InvalidDataException>(() => processing);
 
+        Assert.Equal(1, transport.DisposeCount);
+        Assert.Equal(0, store.RedemptionCount);
+        Assert.Equal(0, limiter.BeginCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessAsync_PeerResetDoesNotBecomeFatalCleanupFailure(bool wrapped)
+    {
+        FakeGameTransportConnection transport = new();
+        FakeRedemptionStore store = new();
+        FakeAttemptLimiter limiter = new();
+        GameConnectionHandoffProcessor processor = CreateProcessor(store, limiter);
+        SocketException reset = new((int)SocketError.ConnectionReset);
+        Exception failure = wrapped ? new IOException("peer reset", reset) : reset;
+
+        transport.QueueReceiveFailure(failure);
+
+        Exception processing = await Assert.ThrowsAnyAsync<Exception>(() =>
+            processor.ProcessAsync(transport, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Same(failure, processing);
         Assert.Equal(1, transport.DisposeCount);
         Assert.Equal(0, store.RedemptionCount);
         Assert.Equal(0, limiter.BeginCount);
