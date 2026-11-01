@@ -317,12 +317,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
 
             WorldPartitionCommand<WorldCharacterSnapshot?> command = new(map => map.Find(ownership));
 
-            return partition.TryEnqueue(command) switch
-            {
-                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
-                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
-                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
-            };
+            return EnqueueCommand(partition, command);
         }
     }
 
@@ -816,12 +811,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 return committed;
             });
 
-            return partition.TryEnqueue(command) switch
-            {
-                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
-                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
-                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
-            };
+            return EnqueueCommand(partition, command);
         }
     }
 
@@ -858,12 +848,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 onAuthorized(snapshot);
                 return true;
             });
-            return partition.TryEnqueue(command) switch
-            {
-                WorldPartitionEnqueueResult.Accepted => new ValueTask<bool>(command.Completion),
-                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
-                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
-            };
+            return EnqueueCommand(partition, command);
         }
     }
 
@@ -897,12 +882,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 }
                 return transitioned;
             });
-            return partition.TryEnqueue(command) switch
-            {
-                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
-                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
-                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
-            };
+            return EnqueueCommand(partition, command);
         }
     }
 
@@ -942,12 +922,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 }
                 return committed;
             });
-            return partition.TryEnqueue(command) switch
-            {
-                WorldPartitionEnqueueResult.Accepted => new ValueTask<WorldCharacterSnapshot?>(command.Completion),
-                WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException($"World partition {partition.Map.MapId} command queue is full."),
-                _ => throw new InvalidOperationException($"World partition {partition.Map.MapId} is not accepting commands."),
-            };
+            return EnqueueCommand(partition, command);
         }
     }
 
@@ -1128,6 +1103,19 @@ internal sealed class WorldRuntime : IAsyncDisposable
                 entry.RemovalTask = null;
             }
         }
+    }
+
+    private static ValueTask<TResult> EnqueueCommand<TResult>(
+        WorldPartition partition, WorldPartitionCommand<TResult> command)
+    {
+        return partition.TryEnqueue(command) switch
+        {
+            WorldPartitionEnqueueResult.Accepted => new ValueTask<TResult>(command.Completion),
+            WorldPartitionEnqueueResult.CapacityExhausted => throw new InvalidOperationException(
+                $"World partition {partition.Map.MapId} command queue is full."),
+            _ => throw new InvalidOperationException(
+                $"World partition {partition.Map.MapId} is not accepting commands."),
+        };
     }
 
     private static void AddFailure(List<Exception> failures, Exception exception)
