@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Net;
+using System.Net.Sockets;
 using OpenConquer.GameServer.Connections.Framing;
 using OpenConquer.GameServer.Handshake;
 using OpenConquer.Protocol.Game;
@@ -676,7 +677,13 @@ internal sealed class GameConnectionSession : IAsyncDisposable
             await pump.ConfigureAwait(false);
             return null;
         }
-        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (
+            _lifetimeCancellation.IsCancellationRequested &&
+            exception.CancellationToken == _lifetimeCancellation.Token)
+        {
+            return null;
+        }
+        catch (Exception exception) when (IsPeerDisconnect(exception))
         {
             return null;
         }
@@ -684,6 +691,13 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         {
             return exception;
         }
+    }
+
+    private static bool IsPeerDisconnect(Exception exception)
+    {
+        SocketException? socket = exception as SocketException ??
+            (exception as IOException)?.InnerException as SocketException;
+        return socket?.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionAborted;
     }
 
     private void ThrowIfDisposed()
