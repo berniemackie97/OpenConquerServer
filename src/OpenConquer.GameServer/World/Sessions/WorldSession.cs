@@ -846,7 +846,14 @@ internal sealed class WorldSession : IAsyncDisposable
 
         if (Volatile.Read(ref _supersededByLogin) != 0)
         {
-            await SendOtherLoginNoticeAsync().ConfigureAwait(false);
+            try
+            {
+                await SendOtherLoginNoticeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
         }
 
         try

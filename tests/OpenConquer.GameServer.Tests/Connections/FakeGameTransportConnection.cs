@@ -12,6 +12,7 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
     private readonly Lock _sentGate = new();
     private readonly bool _blockDispose;
     private readonly Exception? _disposeFailure;
+    private Exception? _sendFailure;
     private readonly TaskCompletionSource _sendCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _sendBlocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _sendRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -117,6 +118,11 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
 
         lock (_sentGate)
         {
+            if (_sendFailure is { } failure)
+            {
+                throw failure;
+            }
+
             Span<byte> destination = _sent.GetSpan(buffer.Length);
             buffer.Span.CopyTo(destination);
             _sent.Advance(buffer.Length);
@@ -171,6 +177,14 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         if (Interlocked.Exchange(ref _blockSends, 1) != 0)
         {
             throw new InvalidOperationException("Test transport sends are already blocked.");
+        }
+    }
+
+    public void FailSends(Exception failure)
+    {
+        lock (_sentGate)
+        {
+            _sendFailure = failure;
         }
     }
 
