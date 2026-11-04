@@ -78,7 +78,8 @@ dotnet run --project tools/OpenConquer.GameData.Tool -c Release -- <command> <ar
 | `generate-item-types`          | `<itemtype.dat> <item-types.json>`                              | Item catalog from client data              |
 | `generate-map-definitions`     | `<source.json> <map-definitions.json>`                          | Normalized map catalog                     |
 | `import-map-catalog`           | `<source.json> <new-directory>`                                 | Map catalog and manifest from import data  |
-| `generate-base-terrain`        | `<terrain.json> <MapDataId.ocbt>`                               | One terrain from hand-authored JSON        |
+| `generate-base-terrain`        | `<terrain.json> <MapDataId.ocbt>`                               | One terrain from authored JSON             |
+| `build-authored-terrain`       | `<terrain.json> <new-directory>`                                | Validated terrain/collision pair           |
 | `generate-map-terrains`        | `<client-root> <map-definitions.json> <new-directory>`          | All required terrains from client maps     |
 | `verify-map-collision-sources` | `<client-root> <map-definitions.json> <terrain-directory>`      | Report only; writes nothing                |
 | `generate-map-collisions`      | `<client-root> <map-definitions.json> <terrain-directory> <new-directory>` | All required collision files    |
