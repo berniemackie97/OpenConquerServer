@@ -22,6 +22,7 @@ internal static class Program
     {
         bool validArguments = args is [("generate-item-types" or "export-item-type-source" or "generate-map-definitions" or "generate-base-terrain" or "import-map-catalog"), _, _]
             or ["generate-map-terrains", _, _, _]
+            or ["build-authored-terrain", _, _]
             or ["verify-map-collision-sources", _, _, _]
             or ["generate-map-collisions", _, _, _, _];
 
@@ -35,6 +36,28 @@ internal static class Program
         {
             string sourcePath = Path.GetFullPath(args[1]);
             string destinationPath = Path.GetFullPath(args[2]);
+
+            if (args[0] == "build-authored-terrain")
+            {
+                using CancellationTokenSource cancel = new();
+                ConsoleCancelEventHandler interrupted = (_, e) =>
+                {
+                    e.Cancel = true;
+                    cancel.Cancel();
+                };
+                Console.CancelKeyPress += interrupted;
+                try
+                {
+                    uint mapDataId = await MapAuthoredTerrainPublisher.PublishAsync(sourcePath, destinationPath, cancel.Token)
+                        .ConfigureAwait(false);
+                    Console.WriteLine($"Built and validated terrain and collision for MapDataId {mapDataId}.");
+                    return SuccessExitCode;
+                }
+                finally
+                {
+                    Console.CancelKeyPress -= interrupted;
+                }
+            }
 
             if (args[0] == "generate-map-terrains")
             {
@@ -75,6 +98,11 @@ internal static class Program
                 "import-map-catalog" => ImportMapCatalog(sourcePath, destinationPath),
                 _ => InvalidArgumentsExitCode
             };
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Terrain build canceled.");
+            return OperationFailedExitCode;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidDataException
             or IOException or UnauthorizedAccessException or NotSupportedException or OverflowException)
@@ -198,6 +226,7 @@ internal static class Program
         Console.Error.WriteLine("  OpenConquer.GameData.Tool export-item-type-source <itemtype.dat> <item-type-source.json>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-definitions <source.json> <map-definitions.json>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-base-terrain <source.json> <terrain.ocbt>");
+        Console.Error.WriteLine("  OpenConquer.GameData.Tool build-authored-terrain <source.json> <new-output-directory>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool generate-map-terrains <client-root> <map-definitions.json> <destination-directory>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool import-map-catalog <source.json> <new-destination-directory>");
         Console.Error.WriteLine("  OpenConquer.GameData.Tool verify-map-collision-sources <client-root> <map-definitions.json> <terrain-directory>");
