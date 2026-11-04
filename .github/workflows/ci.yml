@@ -73,6 +73,49 @@ jobs:
       - name: Test
         run: dotnet test OpenConquer.Server.slnx --configuration Release --no-build --no-restore
 
+  studio-terrain-integration:
+    name: Studio terrain integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout verified Studio revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: berniemackie97/OpenConquerStudio
+          ref: 3c45a1fd2deebbb82c3630ed2820e69223234007
+          path: studio
+          persist-credentials: false
+
+      - name: Set up both pinned SDKs
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            10.0.400
+            10.0.401
+
+      - name: Build server content tool
+        run: |
+          dotnet restore tools/OpenConquer.GameData.Tool/OpenConquer.GameData.Tool.csproj --locked-mode
+          dotnet build tools/OpenConquer.GameData.Tool/OpenConquer.GameData.Tool.csproj -c Release --no-restore
+
+      - name: Build Studio content tool
+        working-directory: studio
+        run: |
+          dotnet restore tools/OpenConquerStudio.Tool/OpenConquerStudio.Tool.csproj --locked-mode
+          dotnet build tools/OpenConquerStudio.Tool/OpenConquerStudio.Tool.csproj -c Release --no-restore
+
+      - name: Verify full authoring and terrain publication
+        run: |
+          python3 tests/integration/studio_terrain_pair.py \
+            studio/tools/OpenConquerStudio.Tool/bin/Release/net10.0/OpenConquerStudio.Tool.dll \
+            tools/OpenConquer.GameData.Tool/bin/Release/net10.0/OpenConquer.GameData.Tool.dll
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
