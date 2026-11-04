@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.World;
 using OpenConquer.GameData.Tool.Maps.Terrain;
@@ -78,7 +77,6 @@ public sealed class MapAuthoredTerrainPublisherTests
             byte[] a = File.ReadAllBytes(Path.Combine(first, Path.Combine(segments)));
             byte[] b = File.ReadAllBytes(Path.Combine(second, Path.Combine(segments)));
             Assert.Equal(a, b);
-            Assert.Equal(SHA256.HashData(a), SHA256.HashData(b));
         }
     }
 
