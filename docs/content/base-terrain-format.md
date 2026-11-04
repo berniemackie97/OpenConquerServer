@@ -52,8 +52,14 @@ A terrain can be written by hand as JSON and converted with `generate-base-terra
 }
 ```
 
-`cells` must have `width × height` entries. The output file name must match `mapDataId`. Large
-terrain editors can write the binary format directly.
+`cells` must have `width × height` entries. The output file name must match `mapDataId`.
+For a complete base-terrain and static-collision pair, use
+`build-authored-terrain <terrain.json> <new-directory>`. It emits
+`terrains/<MapDataId>.ocbt` and `collisions/<MapDataId>.ocmc`, validating both with
+production catalog readers before publishing an entirely new directory. The collision file
+has no overrides because the version 1 authoring source does not represent scenery footprints.
+This is not a world-map definition or a visual-map build. Terrain and collision binary encoding
+remain owned by the server tooling.
 
 ## Importing from client maps
 
