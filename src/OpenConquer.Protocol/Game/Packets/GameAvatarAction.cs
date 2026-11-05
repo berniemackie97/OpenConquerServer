@@ -50,7 +50,13 @@ public readonly record struct GameAvatarAction(uint EntityId, ushort Kind, byte 
         action: Kind, direction: Direction,
         positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
 
-    /// <summary>5517-era EntityAction values corroborated by FoxConquer5517.</summary>
+    /// <summary>
+    /// Pose payloads the 5517 client gives their own action: <c>Role_CommandType06_SelectActionFromCommandPayloadMap</c>
+    /// (0x73450B) maps 1-17, 150, 160, 170, 190, 200, 210, 474, 478, 903, 913 and 915-917 directly, and 230, 250, 270
+    /// and 473 through two stages. Every other payload becomes standby (100), which is accepted as the explicit stand
+    /// pose. Refusing the remaining values is a server policy; the client itself would show them as standby.
+    /// </summary>
     public static bool IsSupportedPose(ushort pose) => pose is
-        (>= 1 and <= 8) or 100 or 150 or 160 or 170 or 190 or 200 or 210 or 230 or 250 or 270;
+        (>= 1 and <= 17) or StandingPose or 150 or 160 or 170 or 190 or 200 or 210 or 230 or 250 or 270
+        or 473 or 474 or 478 or 903 or 913 or (>= 915 and <= 917);
 }
