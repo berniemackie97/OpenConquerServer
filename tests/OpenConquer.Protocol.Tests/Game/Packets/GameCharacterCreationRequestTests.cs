@@ -27,6 +27,19 @@ public sealed class GameCharacterCreationRequestTests
     }
 
     [Fact]
+    public void ToString_OmitsClientReportedMacAddress()
+    {
+        using GameInboundFrame frame = CreateFrame(CreatePacket());
+        Assert.True(GameCharacterCreationRequest.TryParse(frame, out GameCharacterCreationRequest request, out _));
+
+        string text = request.ToString();
+
+        Assert.Contains("Name = NewHero", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("ClientReportedMacAddress", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(request.ClientReportedMacAddress, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TryParse_DecodesNativeCancellationRequest()
     {
         byte[] packet = CreatePacket();

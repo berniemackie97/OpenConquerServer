@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Globalization;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -35,6 +36,22 @@ public sealed class GameLoginProofTests
 
         Assert.True(GameLoginProof.TryParse(frame, out GameLoginProof proof, out _));
         Assert.Equal(0UL, proof.HardwareAddress);
+    }
+
+    [Fact]
+    public void ToString_OmitsAuthenticationKeyAndHardwareAddress()
+    {
+        using GameInboundFrame frame = CreateFrame(BuildValidPacket());
+        Assert.True(GameLoginProof.TryParse(frame, out GameLoginProof proof, out _));
+
+        string text = proof.ToString();
+
+        Assert.Contains("SessionUid = 270544960", text, StringComparison.Ordinal);
+        Assert.Contains("ResourceVersion = 5517", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("AuthenticationKey", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(proof.AuthenticationKey.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
+        Assert.DoesNotContain("HardwareAddress", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(proof.HardwareAddress.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
     }
 
     [Fact]

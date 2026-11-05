@@ -147,4 +147,19 @@ public readonly record struct GameCharacterCreationRequest(bool CancelRequested,
 
         return false;
     }
+
+    /// <summary>
+    /// Limits the generated <see cref="ToString"/> to fields that are safe in diagnostics. The client-reported MAC
+    /// address identifies the player's machine, so it is not printed.
+    /// </summary>
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("CancelRequested = ").Append(CancelRequested)
+            .Append(", Name = ").Append(Name)
+            .Append(", Body = ").Append(Body)
+            .Append(", Profession = ").Append(Profession)
+            .Append(", ClientReportedSessionUid = ").Append(ClientReportedSessionUid);
+
+        return true;
+    }
 }
