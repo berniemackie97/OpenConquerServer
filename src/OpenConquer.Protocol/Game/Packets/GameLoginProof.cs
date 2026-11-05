@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using OpenConquer.Protocol.Game.Framing;
 
 namespace OpenConquer.Protocol.Game.Packets;
@@ -67,6 +68,20 @@ public readonly record struct GameLoginProof(uint SessionUid, uint Authenticatio
             BinaryPrimitives.ReadUInt32LittleEndian(packet[AuthenticationKeyOffset..]), mode,
             BinaryPrimitives.ReadUInt16LittleEndian(packet[LocaleTagOffset..]), hardwareAddress,
             BinaryPrimitives.ReadInt32LittleEndian(packet[ResourceVersionOffset..]));
+
+        return true;
+    }
+
+    /// <summary>
+    /// Limits the generated <see cref="ToString"/> to fields that are safe in diagnostics. The authentication key is a
+    /// login secret and the hardware address identifies the player's machine, so neither is printed.
+    /// </summary>
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("SessionUid = ").Append(SessionUid)
+            .Append(", Mode = ").Append(Mode)
+            .Append(", LocaleTag = ").Append(LocaleTag)
+            .Append(", ResourceVersion = ").Append(ResourceVersion);
 
         return true;
     }
