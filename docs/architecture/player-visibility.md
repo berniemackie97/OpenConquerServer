@@ -16,7 +16,7 @@ both directions. Both sides of a pair are updated under a single map lock. The 1
 fixed on purpose: the 5517 client removes more distant players in its own per-frame cull, so a
 larger server radius would leave server and client permanently out of step.
 
-- When world admission completes, players already in range exchange `MsgPlayerSpawn` (`10014`)
+- When world admission completes, players already in range exchange `MsgPlayer` (`10014`)
   built from the saved appearance, level, profession, life, syndicate ID and equipped item type IDs
   from the catalog (not item instance UIDs). Each spawn uses the tile where the server admitted that
   player.

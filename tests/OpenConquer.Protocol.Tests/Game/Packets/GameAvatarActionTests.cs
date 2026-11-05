@@ -30,9 +30,13 @@ public sealed class GameAvatarActionTests
         Assert.Equal(123u, BinaryPrimitives.ReadUInt32LittleEndian(wire.AsSpan(16)));
     }
 
+    // Every payload Role_CommandType06_SelectActionFromCommandPayloadMap (0x73450B) maps to its own action, plus the
+    // explicit standby pose.
     [Theory]
     [InlineData(1u)]
     [InlineData(8u)]
+    [InlineData(9u)]
+    [InlineData(17u)]
     [InlineData(100u)]
     [InlineData(150u)]
     [InlineData(160u)]
@@ -43,6 +47,13 @@ public sealed class GameAvatarActionTests
     [InlineData(230u)]
     [InlineData(250u)]
     [InlineData(270u)]
+    [InlineData(473u)]
+    [InlineData(474u)]
+    [InlineData(478u)]
+    [InlineData(903u)]
+    [InlineData(913u)]
+    [InlineData(915u)]
+    [InlineData(917u)]
     public void Pose_UsesNativeDirectionAndNormalizesUntrustedSecondaryRoleId(uint pose)
     {
         // In native action 81 the DWORD at +16 can also be resolved as a role ID.
@@ -74,7 +85,10 @@ public sealed class GameAvatarActionTests
     [InlineData((ushort)81, 100u, (ushort)8)]
     [InlineData((ushort)81, 100u, (ushort)333)]
     [InlineData((ushort)81, 0u, (ushort)0)]
-    [InlineData((ushort)81, 9u, (ushort)0)]
+    [InlineData((ushort)81, 18u, (ushort)0)]
+    [InlineData((ushort)81, 231u, (ushort)0)]
+    [InlineData((ushort)81, 914u, (ushort)0)]
+    [InlineData((ushort)81, 918u, (ushort)0)]
     [InlineData((ushort)81, 65536u, (ushort)0)]
     [InlineData((ushort)137, 100u, (ushort)0)]
     public void RejectsUnsupportedDirectionPoseAndAction(ushort kind, uint pose, ushort direction)

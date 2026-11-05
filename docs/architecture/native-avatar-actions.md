@@ -2,17 +2,30 @@
 
 On an authenticated world session, `MsgAction` (`10010`) subtypes 79 (facing) and 81 (pose) change
 how other players see a character without changing its world position. The packet layouts are
-confirmed by `20_notes/Network/01_core_packets.md`,
-`FoxConquer5517/MsgServer/Network/GameServer/Handlers/10010-MsgAction.cs` and
-`LongV6270/src/Long.Kernel/Network/Game/Packets/MsgAction.cs`. The original 5517 client reads spawn
-facing from `10014 +0x5A` and the action from `+0x5B`.
+recorded in `20_notes/Network/01_core_packets.md` from `CMsgAction__Process` (`0x6FED1F`). The
+original 5517 client reads spawn facing from `10014 +0x5A` and the action from `+0x5B`.
 
 Only 38-byte actions with no strings and a nonzero actor ID are parsed. The actor must be the
 session's authenticated world owner for the current admission generation. Both subtypes require a
-direction of 0-7 at `10010 +22`. Pose 81 also requires a known 5517-era `EntityAction` value in
-the low word of `+8`, with the high word zero. Unsupported directions or poses, forged actor IDs and
-malformed actions close the session. The server normalizes the other client-controlled action
-fields before relaying them.
+direction of 0-7 at `10010 +22`. Pose 81 also requires a pose payload in the low word of `+8`, with
+the high word zero. Unsupported directions or poses, forged actor IDs and malformed actions close the
+session. The server normalizes the other client-controlled action fields before relaying them.
+
+## Pose payloads
+
+The client sends pose 81 from `Role_SendCommandStartPacketsAndSelectAction` (`0x74353F`), using the
+role's command-6 payload, and gives every received payload its role action in
+`Role_CommandType06_SelectActionFromCommandPayloadMap` (`0x73450B`):
+
+| Payload | Client action |
+|---|---|
+| 1-17, 150, 160, 170, 190, 200, 210, 474, 478, 903, 913, 915-917 | the payload |
+| 230, 270, 473 | the payload, then payload + 1 |
+| 250 | two stages chosen by `0x64F0D5` / `0x64F102` |
+| anything else, including 0 | standby (100) |
+
+The server accepts these payloads and 100 itself. It refuses any other value. That is server policy:
+the client would not reject such a pose, it would show standby.
 
 ## Subtype 81 role resolution in the 5517 client
 

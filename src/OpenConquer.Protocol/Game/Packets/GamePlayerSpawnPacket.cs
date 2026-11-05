@@ -4,8 +4,8 @@ using OpenConquer.Protocol.Text;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// 5517 MsgPlayerSpawn (10014). Spawns another player, never the local hero. Field offsets are checked against
-/// CMsgPlayerSpawn__Process (0x755F64).
+/// 5517 MsgPlayer (10014). Spawns another player, never the local hero. Field offsets are checked against
+/// CMsgPlayer__Process (0x755F64).
 /// </summary>
 public sealed class GamePlayerSpawnPacket : IPacket
 {
