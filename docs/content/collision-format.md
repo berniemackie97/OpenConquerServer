@@ -37,6 +37,14 @@ fingerprint against the loaded base terrain, validates the layout, ordering, and
 applies limits across the whole catalog, such as the total number of overrides. Any problem fails
 the load.
 
+## Generating from authored terrain
+
+`build-authored-terrain <terrain.json> <new-directory>` generates an empty-override collision
+file bound to the exact accompanying base-terrain fingerprint. Both outputs are loaded by the
+production readers before the directory is published. This is correct for terrain without
+additional static collision attachments; it must not be used to represent scenery that changes
+collision. A future authored scenery contract must generate and validate its ordered overrides.
+
 ## Generating from client maps
 
 `generate-map-collisions` loads the base terrains, re-reads the client's base grids to confirm they
