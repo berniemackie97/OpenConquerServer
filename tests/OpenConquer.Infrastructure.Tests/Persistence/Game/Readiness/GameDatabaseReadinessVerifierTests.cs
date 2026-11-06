@@ -151,7 +151,9 @@ public sealed class GameDatabaseReadinessVerifierTests(GameDatabaseFixture datab
                     Verifier.VerifyAsync(CancellationToken)
                 );
 
-            Assert.IsType<MySqlException>(exception.InnerException);
+            // ER_NO_SUCH_TABLE. The driver exception is withheld; only its codes are kept.
+            Assert.Null(exception.InnerException);
+            Assert.Contains("MySQL error 1146, SQLSTATE 42S02", exception.Message, StringComparison.Ordinal);
         }
         finally
         {

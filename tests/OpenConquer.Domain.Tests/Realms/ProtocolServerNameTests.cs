@@ -30,6 +30,29 @@ public sealed class ProtocolServerNameTests
         Assert.ThrowsAny<ArgumentException>(() => new ProtocolServerName(value));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("ABCDEFGHIJKLMNOP")]
+    [InlineData("Main World")]
+    [InlineData("naïve")]
+    [InlineData("Name.With.Dot")]
+    public void TryCreate_InvalidNativeProtocolName_ReturnsFalseWithoutThrowing(string? value)
+    {
+        Assert.False(ProtocolServerName.TryCreate(value, out ProtocolServerName name));
+        Assert.Equal(default, name);
+    }
+
+    [Theory]
+    [InlineData("A")]
+    [InlineData("Fire(World)-01")]
+    [InlineData("ABCDEFGHIJKLMNO")]
+    public void TryCreate_ValidNativeProtocolName_MatchesConstructor(string value)
+    {
+        Assert.True(ProtocolServerName.TryCreate(value, out ProtocolServerName name));
+        Assert.Equal(new ProtocolServerName(value), name);
+    }
+
     [Fact]
     public void Constructor_IsCaseSensitiveAndNeverNormalizes()
     {

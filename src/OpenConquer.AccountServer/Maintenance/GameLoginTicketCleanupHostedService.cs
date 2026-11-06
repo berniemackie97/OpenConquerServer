@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.AccountServer.Hosting;
+using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts.GameLogin;
 
 namespace OpenConquer.AccountServer.Maintenance;
@@ -91,7 +92,7 @@ internal sealed partial class GameLoginTicketCleanupHostedService(IGameLoginTick
         }
         catch (Exception exception)
         {
-            LogCleanupFailed(_logger, exception);
+            LogCleanupFailed(_logger, DatabaseFailureCode.RedactForDiagnostics(exception));
         }
     }
 

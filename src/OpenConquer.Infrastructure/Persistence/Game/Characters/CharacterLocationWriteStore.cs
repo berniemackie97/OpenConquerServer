@@ -233,7 +233,8 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
         catch (MySqlException exception)
         {
             throw new InvalidOperationException(
-                "Character-location persistence failed after dispatch. Keep the transfer fenced: only exact operation ID, next revision and destination provide positive commit evidence. A different observation remains unresolved; do not retry.", exception);
+                "Character-location persistence failed after dispatch. Keep the transfer fenced: only exact operation ID, next revision and destination provide positive commit evidence. A different observation remains unresolved; do not retry. " +
+                $"{DatabaseFailureCode.Describe(exception)}.");
         }
     }
 }

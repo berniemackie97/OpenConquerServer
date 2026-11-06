@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
+using OpenConquer.Infrastructure.Persistence;
 
 namespace OpenConquer.GameServer.Realms;
 
@@ -41,7 +42,7 @@ internal sealed partial class RealmStatusHostedService(
         }
         catch (Exception exception) when (exception is DbException or OperationCanceledException)
         {
-            LogWithdrawFailed(_logger, _options.ReportLifetime, exception);
+            LogWithdrawFailed(_logger, _options.ReportLifetime, exception is DbException database ? DatabaseFailureCode.Describe(database) : "operation canceled");
         }
     }
 
@@ -78,14 +79,14 @@ internal sealed partial class RealmStatusHostedService(
         }
         catch (DbException exception)
         {
-            LogPublishFailed(_logger, exception);
+            LogPublishFailed(_logger, DatabaseFailureCode.Describe(exception));
         }
     }
 
     [LoggerMessage(EventId = 6300, Level = LogLevel.Information, Message = "Realm status report withdrawn.")]
     private static partial void LogStatusWithdrawn(ILogger logger);
-    [LoggerMessage(EventId = 6301, Level = LogLevel.Warning, Message = "Realm status report could not be written; the next interval will retry.")]
-    private static partial void LogPublishFailed(ILogger logger, Exception exception);
-    [LoggerMessage(EventId = 6302, Level = LogLevel.Warning, Message = "Realm status report could not be withdrawn; it expires within {ReportLifetime}.")]
-    private static partial void LogWithdrawFailed(ILogger logger, TimeSpan reportLifetime, Exception exception);
+    [LoggerMessage(EventId = 6301, Level = LogLevel.Warning, Message = "Realm status report could not be written ({DatabaseFailure}); the next interval will retry.")]
+    private static partial void LogPublishFailed(ILogger logger, string databaseFailure);
+    [LoggerMessage(EventId = 6302, Level = LogLevel.Warning, Message = "Realm status report could not be withdrawn ({DatabaseFailure}); it expires within {ReportLifetime}.")]
+    private static partial void LogWithdrawFailed(ILogger logger, TimeSpan reportLifetime, string databaseFailure);
 }

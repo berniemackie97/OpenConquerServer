@@ -13,17 +13,38 @@ public readonly record struct ProtocolServerName
             throw new ArgumentOutOfRangeException(nameof(value), "A realm protocol name must contain 1–15 ASCII bytes.");
         }
 
-        foreach (char character in value)
+        if (!ContainsOnlyProtocolCharacters(value))
         {
-            if (character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '(' or ')' or '-')
-            {
-                continue;
-            }
-
             throw new ArgumentException("A realm protocol name may contain only ASCII letters, digits, underscore, parentheses and hyphen.", nameof(value));
         }
 
         Value = value;
+    }
+
+    /// <summary>Validates an untrusted name, such as one read from a login packet, without throwing.</summary>
+    public static bool TryCreate(string? value, out ProtocolServerName name)
+    {
+        if (value is null || value.Length is < 1 or > MaximumLength || !ContainsOnlyProtocolCharacters(value))
+        {
+            name = default;
+            return false;
+        }
+
+        name = new ProtocolServerName(value);
+        return true;
+    }
+
+    private static bool ContainsOnlyProtocolCharacters(string value)
+    {
+        foreach (char character in value)
+        {
+            if (character is not (>= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '(' or ')' or '-'))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public string Value

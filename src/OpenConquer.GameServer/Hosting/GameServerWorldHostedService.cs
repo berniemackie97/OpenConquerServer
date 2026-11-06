@@ -7,6 +7,7 @@ using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.World.Execution;
+using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Persistence.Accounts.Readiness;
 using OpenConquer.Infrastructure.Persistence.Game.Readiness;
 
@@ -233,7 +234,8 @@ internal sealed partial class GameServerWorldHostedService(
         try
         {
             _failureState.Record(failure);
-            LogUnexpectedWorldStop(_logger, failure);
+            Exception redacted = DatabaseFailureCode.RedactForDiagnostics(failure);
+            LogUnexpectedWorldStop(_logger, redacted);
         }
         finally
         {

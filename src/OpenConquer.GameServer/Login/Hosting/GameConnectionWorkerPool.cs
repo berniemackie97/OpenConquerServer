@@ -6,6 +6,7 @@ using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.World.Sessions;
+using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Transport.Admission;
@@ -143,7 +144,7 @@ internal sealed partial class GameConnectionWorkerPool(
                 catch (Exception exception)
                 {
                     _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                    LogConnectionFailure(_logger, workerIndex, local, remote, exception);
+                    LogConnectionFailure(_logger, workerIndex, local, remote, DatabaseFailureCode.RedactForDiagnostics(exception));
                 }
             }
         }
@@ -156,7 +157,8 @@ internal sealed partial class GameConnectionWorkerPool(
 
             try
             {
-                LogFatalWorkerFailure(_logger, workerIndex, failure);
+                Exception redacted = DatabaseFailureCode.RedactForDiagnostics(failure);
+                LogFatalWorkerFailure(_logger, workerIndex, redacted);
             }
             finally
             {
@@ -221,7 +223,8 @@ internal sealed partial class GameConnectionWorkerPool(
             _failureState.Record(failure);
             try
             {
-                LogFatalLoginCleanup(_logger, failure);
+                Exception redacted = DatabaseFailureCode.RedactForDiagnostics(failure);
+                LogFatalLoginCleanup(_logger, redacted);
             }
             finally
             {
@@ -231,7 +234,7 @@ internal sealed partial class GameConnectionWorkerPool(
         catch (Exception exception)
         {
             _metrics.RecordFailure(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            LogCreationSessionFailure(_logger, exception);
+            LogCreationSessionFailure(_logger, DatabaseFailureCode.RedactForDiagnostics(exception));
         }
     }
 
@@ -359,11 +362,12 @@ internal sealed partial class GameConnectionWorkerPool(
             }
             catch (InvalidDataException exception)
             {
-                LogUnsupportedGameplay(_logger, session.Ownership.CharacterId, exception);
+                Exception redacted = DatabaseFailureCode.RedactForDiagnostics(exception);
+                LogUnsupportedGameplay(_logger, session.Ownership.CharacterId, redacted);
             }
             catch (Exception exception)
             {
-                LogWorldSessionFailure(_logger, session.Ownership.CharacterId, exception);
+                LogWorldSessionFailure(_logger, session.Ownership.CharacterId, DatabaseFailureCode.RedactForDiagnostics(exception));
             }
             finally
             {
@@ -376,7 +380,8 @@ internal sealed partial class GameConnectionWorkerPool(
 
             try
             {
-                LogFatalSessionCleanup(_logger, failure);
+                Exception redacted = DatabaseFailureCode.RedactForDiagnostics(failure);
+                LogFatalSessionCleanup(_logger, redacted);
             }
             finally
             {

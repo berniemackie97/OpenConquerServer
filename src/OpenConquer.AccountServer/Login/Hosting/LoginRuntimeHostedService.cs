@@ -7,6 +7,7 @@ using OpenConquer.AccountServer.Login.Admission;
 using OpenConquer.AccountServer.Login.Handshake;
 using OpenConquer.AccountServer.Login.Observability;
 using OpenConquer.AccountServer.Login.Workers;
+using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Infrastructure.Security.Accounts.Authentication;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
@@ -296,13 +297,13 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
     private void ReportConnectionFailure(LoginConnectionProcessingFailure failure)
     {
         _metrics.RecordConnectionFailure();
-        LogConnectionFailure(_logger, failure.WorkerIndex, failure.LocalEndPoint, failure.RemoteEndPoint, failure.Exception);
+        LogConnectionFailure(_logger, failure.WorkerIndex, failure.LocalEndPoint, failure.RemoteEndPoint, DatabaseFailureCode.RedactForDiagnostics(failure.Exception));
     }
 
     private void ReportRejectionDisposalFailure(TransportConnectionRejectionDisposalFailure failure)
     {
         _metrics.RecordRejectionDisposalFailure();
-        LogRejectionDisposalFailure(_logger, failure.LocalEndPoint, failure.RemoteEndPoint, failure.Exception);
+        LogRejectionDisposalFailure(_logger, failure.LocalEndPoint, failure.RemoteEndPoint, DatabaseFailureCode.RedactForDiagnostics(failure.Exception));
     }
 
     [LoggerMessage(EventId = 1100, Level = LogLevel.Information, Message = "Account login runtime started.")]

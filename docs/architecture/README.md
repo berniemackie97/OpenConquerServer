@@ -104,6 +104,7 @@ measurements show the need. See [World execution](world-execution.md).
 - [Persistence](persistence.md)
 - [World execution](world-execution.md)
 - [Server responsibility review](server-responsibilities.md)
+- [Exception handling](exception-handling.md)
 - [World command load baseline](world-command-load.md)
 - [Connected portal transfers](connected-portal-transfers.md)
 - [Protocol](../protocol/README.md)

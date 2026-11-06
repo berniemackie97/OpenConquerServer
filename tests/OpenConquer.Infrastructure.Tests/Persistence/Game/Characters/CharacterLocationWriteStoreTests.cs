@@ -151,8 +151,9 @@ public sealed class CharacterLocationWriteStoreTests(GameDatabaseFixture databas
             await writer.TryCommitAsync(Change(account, character, new CharacterLocation(1002, 431, 379),
                 new CharacterLocation(1011, 193, 266)), CancellationToken));
 
-        MySqlException denied = Assert.IsType<MySqlException>(failure.InnerException);
-        Assert.Contains(denied.Number, s_collection0);
+        // The driver exception is withheld; only its error number and SQLSTATE are kept.
+        Assert.Null(failure.InnerException);
+        Assert.Contains(s_collection0, number => failure.Message.Contains($"MySQL error {number}, SQLSTATE ", StringComparison.Ordinal));
         CharacterLoginProfile profile = await LoadAsync(account);
         Assert.Equal(1002u, profile.Location.MapId);
     }

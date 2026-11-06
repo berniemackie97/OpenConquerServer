@@ -133,7 +133,7 @@ public sealed class CharacterCreationStore : ICharacterCreationStore
         catch (MySqlException exception)
         {
             throw new InvalidOperationException(
-                "Character creation failed during insertion. Its commit outcome may be uncertain; do not retry blindly.", exception);
+                $"Character creation failed during insertion. Its commit outcome may be uncertain; do not retry blindly. {DatabaseFailureCode.Describe(exception)}.");
         }
     }
 

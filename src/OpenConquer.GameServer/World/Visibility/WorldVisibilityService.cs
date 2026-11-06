@@ -7,6 +7,7 @@ using OpenConquer.Domain.Items;
 using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Sessions;
+using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Protocol.Serialization;
 
@@ -23,7 +24,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     private readonly ConcurrentDictionary<string, WorldSession> _onlineByName = new(StringComparer.OrdinalIgnoreCase);
 
     internal void ReportPeerWriteFailure(uint characterId, Exception exception) =>
-        LogPeerWriteFailed(_logger, characterId, exception);
+        LogPeerWriteFailed(_logger, characterId, DatabaseFailureCode.RedactForDiagnostics(exception));
 
     [LoggerMessage(EventId = 6650, Level = LogLevel.Warning,
         Message = "Peer-visibility delivery failed for character {CharacterId}; closing that recipient's session.")]
