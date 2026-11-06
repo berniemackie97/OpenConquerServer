@@ -203,3 +203,11 @@ constant, and type names describe the message rather than its number.
 A packet type is added when a server feature needs it, together with tests that pin its byte
 layout. Unknown fields are kept as raw values or written as zero. They are never given a guessed
 meaning.
+
+## Native evidence
+
+- Packet registry: every type the 5517 client dispatches, with constructor, `Process` address and the
+  class names proven by assert source paths: `20_notes/Network/00_protocol_overview.md`
+  (`CNetMsg__ProcessMsg_Dispatch` `0x6DF3B5`).
+- Login and game connection sequence: `20_notes/Network/13_connection_lifecycle.md`.
+- Per-packet layouts: `20_notes/Network/01_core_packets.md` and the family files beside it.

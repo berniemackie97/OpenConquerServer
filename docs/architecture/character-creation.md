@@ -41,10 +41,11 @@ budget is ten points. The client's base maximum-life formula is:
 
 `(strength + agility + spirit + vitality * 8) * 3`
 
-The level-one allotments come from the earlier, tested OpenConquerPublic implementation and its
-corrected auto-allot data. The client research confirms the arithmetic and the attribute budget. For
-Ninja and Monk, the source is still the corrected later auto-allot data that the earlier server
-used.
+Families 1, 2, 4, 5 and 10 use the level-one allotments of the historical TQ CQServer 15.10
+`CUserList__CreateNewUser` (`0x4AA79A`, `20_notes/Server/tq-server-15.10-runtime-semantics.md`):
+professions 10 and 20 get 5/2/3/0 (STR/AGI/VIT/SPI), 40 gets 2/7/1/0, 50 gets 1/8/1/0 and 100 gets
+0/2/3/5. That server predates Monk, so the family-6 row has no binary source and is this server's
+policy. The client research confirms the life arithmetic and the ten-point budget.
 
 ## Starting-state content
 
@@ -86,18 +87,21 @@ See [Character creation starting-state operations](../operations/character-creat
 Packet `1001` carries the selected body. The four accepted bodies are `1003`, `1004`, `2001`, and
 `2002`.
 
-The initial face and hairstyle follow the earlier OpenConquerPublic implementation:
+The initial face and hairstyle follow the historical TQ CQServer 15.10 `CUserList__CreateNewUser`
+(`0x4AA79A`):
 
-- Male face identifier: `201`.
-- Female face identifier: `1`.
+- Male bodies (`1003`, `1004`): face `1`. Female bodies (`2001`, `2002`): face `201`.
 - Appearance composite: `face * 10000 + body`.
-- Hairstyle color component: `3` through `8`.
-- Hairstyle style component: `30` through `55`.
+- Hair: `100 * rand(7) + 310`, that is color `3` through `9` with style `10`.
 - Hair composite: `color * 100 + style`.
 
-The hairstyle components come from a cryptographic random-number generator.
+The retail client agrees with the face split: `C3DRoleData__LoadCommonIniPlayerFaceAndStatuary`
+(GameData.dll `0x10003CE3`) reads `ini/Common.ini` `[Playerface]`, which sets 107 male faces from
+face 1 and 95 female faces, with the female monk and VIP blocks starting at 299 and 325. The hair color
+comes from a cryptographic random-number generator instead of the C runtime `rand`.
 
-These choices are this server's own policy. They are not confirmed retail-server defaults.
+That server is older than 5517, so these are historical defaults, not confirmed retail-5517 values.
+Characters created before this change keep the appearance they were created with.
 
 ## Application service
 

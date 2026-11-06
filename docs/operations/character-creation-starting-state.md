@@ -29,7 +29,8 @@ Each of the six family rows must add up to ten attribute points. Take the values
 auto-allot data. The ten-point check cannot tell whether a distribution that adds up to ten actually
 matches that source.
 
-Level-one starting allotments from the audited OpenConquerPublic reference:
+Level-one starting allotments. Families 1, 2, 4, 5 and 10 match the historical TQ
+`CUserList__CreateNewUser` (`0x4AA79A`); family 6 (Monk) has no binary source and is server policy:
 
 | Family | STR | AGI | VIT | SPI |
 | ---: | ---: | ---: | ---: | ---: |

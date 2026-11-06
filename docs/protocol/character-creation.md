@@ -22,23 +22,8 @@ Client functions, verified in the 5517 executable:
 | `CMyShellDlg_HandleCreateRoleStatusSystemTalk`                    | `0x5DCDDF` |
 | `CConnectionFlow__SendGameSessionBootstrap`                       | `0x6DF1D0` |
 
-Server references, one for the same client version and one historical:
-
-**FoxConquer 5517**
-
-- `ServerCore/Networking/Packets/1001-CharacterCreation.cs`
-- `MsgServer/Network/GameServer/Handlers/1001-MsgRegister.cs`
-
-**OpenConquerPublic**
-
-- `src/OpenConquer.Protocol/Game/Packets/CreatePlayerRequest1001.cs`
-- `src/OpenConquer.GameServer/Characters/GameCharacterCreationSessionProcessor.cs`
-- `tests/OpenConquer.Protocol.Tests/CharacterCreationPacketTests.cs`
-
-OpenConquerPublic is this project's previous working implementation, which was only partly
-verified. It is a useful reference for implementation and regression tests.
-
-For what the client sends on the wire, the client disassembly is the source of truth. Historical
+Historical server behavior comes from the TQ CQServer 15.10 binaries
+(`20_notes/Server/character-creation-decision-15.10.md`). For what the client sends on the wire, the client disassembly is the source of truth. Historical
 server implementations do not, on their own, show how the retail server behaved.
 
 ## Request layout
@@ -108,10 +93,8 @@ that decodes successfully is not necessarily a valid character name.
 
 The packet reserves 40 bytes starting at offset 80 for MAC address text.
 
-OpenConquerPublic accepted either an empty value or 12 uppercase hexadecimal characters, and the
-client's account login code also formats the MAC address as uppercase hexadecimal. These facts do
-not show that the client always uses that one format in character creation, under every condition
-the client supports.
+The client's account login code formats the MAC address as uppercase hexadecimal. That does not show
+that the client uses the same format in character creation under every condition it supports.
 
 The parser therefore:
 
@@ -120,7 +103,7 @@ The parser therefore:
 - Requires the decoded part to be ASCII.
 - Keeps the resulting string without interpreting it as an identity.
 
-It does not copy OpenConquerPublic's MAC address format rule.
+It applies no MAC address format rule.
 
 Hardware identifiers reported by the client are untrusted. They must not be used to establish
 account ownership, authorization or identity.

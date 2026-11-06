@@ -3,8 +3,7 @@
 The 5517 `Conquer.exe` chat send path and `CMsgTalk__Process` are documented in
 `20_notes/Server/chat.md` (verified 2026-08-28) and `20_notes/Network/04_social_packets.md`. On the
 authenticated world session, the server implements the operations those sources confirm: local
-chat, whispers to a character, and role words. FoxConquer5517 was used to check how 5517-era
-channels are classified; its implementation and trust model are not copied.
+chat, whispers to a character, and role words.
 
 ## Wire format and authorization
 

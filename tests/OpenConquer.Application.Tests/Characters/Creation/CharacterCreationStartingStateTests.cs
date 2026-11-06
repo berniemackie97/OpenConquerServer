@@ -34,10 +34,10 @@ public sealed class CharacterCreationStartingStateTests
     }
 
     [Theory]
-    [InlineData(1003, 2_011_003u)]
-    [InlineData(1004, 2_011_004u)]
-    [InlineData(2001, 12_001u)]
-    [InlineData(2002, 12_002u)]
+    [InlineData(1003, 11_003u)]
+    [InlineData(1004, 11_004u)]
+    [InlineData(2001, 2_012_001u)]
+    [InlineData(2002, 2_012_002u)]
     public void CreateCandidate_UsesHistoricalServerAppearancePolicy(
         ushort body,
         uint appearance)
@@ -50,8 +50,8 @@ public sealed class CharacterCreationStartingStateTests
         Assert.Equal(body, character.Body);
         Assert.Equal(appearance, character.AppearanceComposite);
 
-        Assert.InRange(character.HairComposite / 100, 3, 8);
-        Assert.InRange(character.HairComposite % 100, 30, 55);
+        Assert.InRange(character.HairComposite / 100, 3, 9);
+        Assert.Equal(10, character.HairComposite % 100);
 
         Assert.Equal(1010u, character.MapId);
         Assert.Equal((ushort)61, character.PositionX);

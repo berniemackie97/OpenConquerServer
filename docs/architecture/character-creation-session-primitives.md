@@ -92,4 +92,3 @@ route, and character creation stays disabled.
   create-role continuation.
 - `docs/protocol/character-creation.md`: the packet `1001` layout and the client flow.
 - `ExistingCharacterBootstrapPacketFactory`: the `ANSWER_OK` channel used for existing characters.
-- `GameCharacterCreationSessionProcessor` in the earlier OpenConquerPublic project, for comparison.

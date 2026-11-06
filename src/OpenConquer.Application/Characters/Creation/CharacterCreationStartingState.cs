@@ -9,9 +9,15 @@ namespace OpenConquer.Application.Characters.Creation;
 public sealed class CharacterCreationStartingState
 {
     private const int RequiredFamilyCount = 6;
-    private const uint MaleFace = 201;
-    private const uint FemaleFace = 1;
+    // Historical TQ CQServer 15.10 CUserList__CreateNewUser (0x4AA79A): male bodies start with face 1 and female bodies
+    // with face 201, the first face of each block in the retail client's ini/Common.ini [Playerface]; hair is
+    // 100 * rand(7) + 310, so color 3-9 with style 10.
+    private const uint MaleFace = 1;
+    private const uint FemaleFace = 201;
     private const uint AppearanceScale = 10_000;
+    private const int MinimumHairColor = 3;
+    private const int MaximumHairColor = 9;
+    private const int HairStyle = 10;
 
     private readonly FrozenDictionary<ushort, CharacterCreationStartingAllotment> _allotments;
 
@@ -86,10 +92,9 @@ public sealed class CharacterCreationStartingState
         ushort family = checked((ushort)(profession % 1000 / 10));
         CharacterCreationStartingAllotment allotment = _allotments[family];
 
-        int hairColor = RandomNumberGenerator.GetInt32(3, 9);
-        int hairStyle = RandomNumberGenerator.GetInt32(30, 56);
+        int hairColor = RandomNumberGenerator.GetInt32(MinimumHairColor, MaximumHairColor + 1);
 
-        ushort hairComposite = checked((ushort)(hairColor * 100 + hairStyle));
+        ushort hairComposite = checked((ushort)(hairColor * 100 + HairStyle));
         uint appearanceComposite = checked(face * AppearanceScale + body);
 
         return new CharacterCreationCandidate(accountId, name, body, profession, appearanceComposite, hairComposite, allotment.Strength, allotment.Agility, allotment.Vitality, allotment.Spirit, currentMana: 0, MapId, PositionX, PositionY);

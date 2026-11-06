@@ -49,3 +49,8 @@ reason padding is zeroed: reused buffers must not leak old data onto the wire.
 
 Add a `WireTextEncoding` value only when a real field requires it. The change needs the enum value,
 its internal mapping, and reader and writer tests for the observable bytes.
+
+## Native evidence
+
+String fields, their capacities and the client's validation of account, password and server-name
+text: `20_notes/Network/Native-auth-string-validation-2026-10-18.md`.

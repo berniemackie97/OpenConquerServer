@@ -78,3 +78,11 @@ the payload succeeds.
 Zeroing the attempted region keeps reused buffers from exposing a stale or partial frame. Bytes
 after the frame are never touched. `GetFrameLength` applies the same metadata checks, so callers can
 size buffers for the frames the encoder will accept.
+
+## Native evidence
+
+- Frame receive and decryption in the client: `CGameSocket_ReceiveMsg` `0x6E1C83`
+  (`20_notes/Network/Native-auth-string-validation-2026-10-18.md`).
+- Game cipher (CAST5 CFB64, fixed key `BC234xs45nme7HU9`, DH key agreement): `20_notes/Crypto/00_tqcipher64.md`.
+- Login-stream cipher and session mask: `20_notes/Network/14_session_derived_legacy_cipher_mask.md`
+  (`CGameSocketLegacyCipher_ApplySessionXorMask` `0x755DF3`).

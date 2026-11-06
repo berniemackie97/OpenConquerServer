@@ -48,3 +48,8 @@ service, or change to character, login, or realm routing.
 
 Shopping, trading, equipment permission checks, and combat-speed calculations are not implemented.
 Each of these needs its own reviewed sources, server-side checks, and regression tests.
+
+## Native evidence
+
+The 5517 client reads `ini/Itemtype.dat` through `DecodedTextDatReader` with seed `0x2537`
+(`0x677AE0`): `20_notes/Server/database-provenance.md` and `20_notes/Entity_System/citem_class.md`.
