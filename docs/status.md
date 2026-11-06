@@ -25,8 +25,12 @@ the implemented parts work and link here instead of repeating the list.
   AccountServer has no fixed GameServer endpoint of its own.
 - Realm load is checked at login, both before and after the password is verified. A realm whose
   GameServer is not reporting is refused with code 10, a busy one with 20 and a full one with 21.
+  The client only shows the text for a code (retail `ini/Cn_Res.ini`: 10 "The Server is down.",
+  20 "Server is busy.", 21 "Server is busy. Please try again, later."); using 21 for a full realm is
+  this server's policy.
 - An account plays in one realm at a time. A login for an account that is still playing in another
-  realm is refused with code 11, and that realm is asked to disconnect it.
+  realm is refused with code 11, and that realm is asked to disconnect it. Code 11 shows "Please try
+  again later." in the client; using it for this case is this server's policy.
 - Opt-in in-client account registration (OpenConquer packets `0xF001`/`0xF002`) through the
   AccountServer's database identity, with per-source quotas and bounded password hashing. See
   [account registration](architecture/account-registration.md).
@@ -70,7 +74,9 @@ the implemented parts work and link here instead of repeating the list.
 - Position reports (10010 subtypes 100 and 146) from authenticated sessions. Each session keeps
   the last 64 tiles the server accepted. After three reports in a row name a tile outside that
   history, the server sends a 108 position correction, at most once per second. Reports are never
-  echoed.
+  echoed. The client defines the 100/146 reports and the 108 correction
+  (`20_notes/Server/position-sync.md`); the 64-tile history, three-report threshold and rate limit
+  are this server's policy.
 - Walking in eight and 24 directions, applied by the map partition that owns the character.
   Directions use the 5517 order, and each step is checked against the composed static collision
   and the admission generation. A walk command can be cancelled until the partition accepts it.

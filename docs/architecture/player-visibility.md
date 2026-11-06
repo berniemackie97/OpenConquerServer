@@ -4,8 +4,7 @@ Player visibility shows each player to the other players near them. It builds on
 world sessions, eight-direction ground walking checked by the server, and world residency tied to
 an ownership generation, and it sends the packets the 5517 client uses to show other players.
 Sources: `20_notes/Server/entity-visibility.md` (client xrefs 0x61ED75, 0x755F64, 0x70051A,
-0x7407B4 and 0x740730) and `20_notes/Server/movement.md`. The separate `OpenConquerPublic`
-reference is used only to cross-check field offsets and does not replace the client trace.
+0x7407B4 and 0x740730) and `20_notes/Server/movement.md`.
 
 ## Visibility rules
 

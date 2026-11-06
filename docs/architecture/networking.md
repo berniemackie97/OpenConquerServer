@@ -171,3 +171,9 @@ Session cleanup failures are handled the same way.
 | `openconquer.game_server.login.connection.timeouts`              | Login exceeded its timeout       |
 | `openconquer.game_server.login.connection.duration`              | Login duration in milliseconds   |
 | `openconquer.game_server.world_sessions.active`                  | World sessions currently open    |
+
+## Native evidence
+
+- Connection lifecycle, AccountServer to GameServer handoff and the game-session bootstrap
+  (`CConnectionFlow__SendGameSessionBootstrap` `0x6DF1D0`): `20_notes/Network/13_connection_lifecycle.md`.
+- Inbound dispatch: `CNetMsg__ProcessMsg_Dispatch` `0x6DF3B5` (`20_notes/Network/00_protocol_overview.md`).

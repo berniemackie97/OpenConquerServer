@@ -98,8 +98,8 @@ The insert sets these starting values, which are server policy:
 
 - Level 1 and zero experience.
 - Fully allotted initial attributes.
-- Current and historical profession fields initialized to the selected profession, following the
-  previous OpenConquerPublic implementation.
+- Current profession set to the selected profession, as the historical `CUserList__CreateNewUser`
+  (`0x4AA79A`) insert does. The previous-profession field is set to it as well; that part is policy.
 - Zero rebirth state, unspent points, money, Conquer Points, bound Conquer Points, PK points, title,
   and enlightenment points.
 

@@ -35,7 +35,7 @@ public sealed class CharacterCreationServiceTests
         Assert.Equal("NewHero", character.Name);
         Assert.Equal((ushort)2001, character.Body);
         Assert.Equal((byte)100, character.Profession);
-        Assert.Equal(12_001u, character.AppearanceComposite);
+        Assert.Equal(2_012_001u, character.AppearanceComposite);
 
         Assert.Equal((ushort)0, character.Strength);
         Assert.Equal((ushort)2, character.Agility);

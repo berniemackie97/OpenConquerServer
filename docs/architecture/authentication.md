@@ -133,3 +133,12 @@ Both live in `OpenConquer.Infrastructure.DependencyInjection`. The key ring deco
 keys once and clears them when the service provider is disposed. Both use `TimeProvider.System`
 unless the host registers another. Listeners, workers, readiness checks, and cleanup scheduling
 belong to the hosts.
+
+## Native evidence
+
+- Credential envelope: RC5 key derived from the login seed by
+  `CMsgLoginSeed__Process_DeriveCredentialRc5KeyFromSeed` `0x764BC6`, then the per-account keypad
+  permutation (`CGameInput_ResetPasswordKeypadSeedFromAccount` `0x59F02D`); proven against the native
+  client in `20_notes/Server/login-credential-envelope.md` and `20_notes/Crypto/01_rc5_credential_field.md`.
+- Login request send: `CGameMain_AccountSetupAndSendLoginAuthPacket` `0x66D4CB`.
+- Realm selection and the `1055` redirect: `20_notes/Network/5517-server-selection-and-realm-handoff.md`.

@@ -8,9 +8,9 @@ the tile at wire `+24`/`+26`, then sends 146. The server never echoes an inbound
 client has a response branch for 146, so an echo could start an endless exchange.
 
 The client behavior is documented in `20_notes/Server/position-sync.md`, verified against
-Conquer.exe 5517. Its `What this server does` section describes the separate OpenConquerPublic
-reference, not earlier behavior of this repository. This server implements only the part that the
-client research confirms and that matters for the existing eight-direction walking path.
+Conquer.exe 5517. Its `What this server does` section is a server design, not client evidence. This
+server implements only the part that the client research confirms and that matters for the existing
+eight-direction walking path.
 
 ## Handling
 

@@ -9,11 +9,10 @@ the direction dword at `+4` is reduced modulo the table length. The upper bits a
 fields the server does not interpret must come back unchanged in the acknowledgement sent after the
 move commits.
 
-The 24-element delta arrays are recorded in
-`OpenConquerPublic/src/OpenConquer.Protocol/Game/Packets/MsgEntityAction10005.cs`.
-`20_notes/Server/movement.md` identifies the same retail tables independently and describes the
-retail behavior in which the client's move stands once the server echoes it. FoxConquer5517 also
-treats selector 9 as the old riding movement path, not as general directional walking.
+The 24-element delta arrays are the client's own tables in `CMsgEntityAction__Process`: 24 int32
+values each at `0x86C804` (x) and `0x86C864` (y), checked byte for byte against the clean
+`Conquer.exe`. `20_notes/Server/movement.md` records them and the retail behavior in which the
+client's move stands once the server echoes it.
 
 ## Server-side handling
 

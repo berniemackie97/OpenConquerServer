@@ -10,8 +10,7 @@ when the server echoes the jump or sends position correction `108`. A rejected j
 a correction; staying silent is not enough. The retail `Role_RequestJumpToTile` check (`0x658965`)
 requires a rounded Euclidean distance of `1..16` and refuses maps with flag `0x0200_0000`. The
 rounding algorithm is recorded at `Map_CalculateRoundedTileDistanceByAdjustmentMode` `0x61E5F0`
-(mode 1). The OpenConquerPublic reference, an independent source, documents the same target, range,
-and movement and echo behavior. The server does not invent any client packet fields.
+(mode 1). The server does not invent any client packet fields.
 
 ## Server-side handling
 
