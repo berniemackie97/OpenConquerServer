@@ -45,7 +45,7 @@ public sealed class GameRealmBindingVerifier(IDbContextFactory<GameDbContext> co
         }
         catch (DbException exception)
         {
-            throw new GameDatabaseReadinessException("Game database realm-binding verification failed because the database could not be queried.", exception);
+            throw new GameDatabaseReadinessException($"Game database realm-binding verification failed because the database could not be queried ({DatabaseFailureCode.Describe(exception)}).");
         }
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Accounts.Sessions;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.World.Presence;
+using OpenConquer.Infrastructure.Persistence;
 
 namespace OpenConquer.GameServer.Realms;
 
@@ -44,7 +45,7 @@ internal sealed partial class AccountSessionKickHostedService(
         }
         catch (Exception exception) when (exception is DbException or OperationCanceledException)
         {
-            LogResetFailed(_logger, exception);
+            LogResetFailed(_logger, exception is DbException database ? DatabaseFailureCode.Describe(database) : "operation canceled");
         }
     }
 
@@ -58,7 +59,7 @@ internal sealed partial class AccountSessionKickHostedService(
         }
         catch (DbException exception)
         {
-            LogPollFailed(_logger, exception);
+            LogPollFailed(_logger, DatabaseFailureCode.Describe(exception));
             return;
         }
 
@@ -80,7 +81,7 @@ internal sealed partial class AccountSessionKickHostedService(
                 }
                 catch (DbException exception)
                 {
-                    LogPollFailed(_logger, exception);
+                    LogPollFailed(_logger, DatabaseFailureCode.Describe(exception));
                 }
             }
         }
@@ -109,8 +110,8 @@ internal sealed partial class AccountSessionKickHostedService(
 
     [LoggerMessage(EventId = 6311, Level = LogLevel.Information, Message = "Disconnected account {AccountId} (character {CharacterId}) after it logged in to another realm.")]
     private static partial void LogAccountDisconnected(ILogger logger, uint accountId, uint characterId);
-    [LoggerMessage(EventId = 6312, Level = LogLevel.Warning, Message = "Account kick requests could not be processed; the next poll will retry.")]
-    private static partial void LogPollFailed(ILogger logger, Exception exception);
-    [LoggerMessage(EventId = 6313, Level = LogLevel.Warning, Message = "This realm's account session records could not be cleared at shutdown; they are cleared at the next start.")]
-    private static partial void LogResetFailed(ILogger logger, Exception exception);
+    [LoggerMessage(EventId = 6312, Level = LogLevel.Warning, Message = "Account kick requests could not be processed ({DatabaseFailure}); the next poll will retry.")]
+    private static partial void LogPollFailed(ILogger logger, string databaseFailure);
+    [LoggerMessage(EventId = 6313, Level = LogLevel.Warning, Message = "This realm's account session records could not be cleared at shutdown ({DatabaseFailure}); they are cleared at the next start.")]
+    private static partial void LogResetFailed(ILogger logger, string databaseFailure);
 }

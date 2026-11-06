@@ -80,7 +80,7 @@ public sealed class GameDatabaseReadinessVerifier(IDbContextFactory<GameDbContex
         }
         catch (DbException exception)
         {
-            throw new GameDatabaseReadinessException("Game database readiness verification failed because the database could not be queried.", exception);
+            throw new GameDatabaseReadinessException($"Game database readiness verification failed because the database could not be queried ({DatabaseFailureCode.Describe(exception)}).");
         }
     }
 }

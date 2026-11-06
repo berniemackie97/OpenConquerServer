@@ -294,6 +294,7 @@ internal sealed class WorldRuntime : IAsyncDisposable
         }
         catch (InvalidOperationException) when (!IsRunning)
         {
+            // The runtime stopped while the removal was queued; its partition rejected it. Take the stopping path above.
             await _scheduler.StopAsync().ConfigureAwait(false);
         }
     }

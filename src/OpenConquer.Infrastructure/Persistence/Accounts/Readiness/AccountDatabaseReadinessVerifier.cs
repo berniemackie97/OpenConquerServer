@@ -80,7 +80,7 @@ public sealed class AccountDatabaseReadinessVerifier(IDbContextFactory<AccountDb
         }
         catch (DbException exception)
         {
-            throw new AccountDatabaseReadinessException("Account database readiness verification failed because the database could not be queried.", exception);
+            throw new AccountDatabaseReadinessException($"Account database readiness verification failed because the database could not be queried ({DatabaseFailureCode.Describe(exception)}).");
         }
     }
 }

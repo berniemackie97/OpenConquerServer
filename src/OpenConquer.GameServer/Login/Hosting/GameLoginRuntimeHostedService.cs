@@ -7,6 +7,7 @@ using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login.Admission;
 using OpenConquer.GameServer.Login.Observability;
+using OpenConquer.Infrastructure.Persistence;
 using OpenConquer.Transport.Admission;
 using OpenConquer.Transport.Connections;
 
@@ -280,7 +281,8 @@ internal sealed partial class GameLoginRuntimeHostedService(
 
         try
         {
-            LogFatalRuntimeFailure(_logger, failure);
+            Exception redacted = DatabaseFailureCode.RedactForDiagnostics(failure);
+            LogFatalRuntimeFailure(_logger, redacted);
         }
         catch (Exception exception)
         {
@@ -301,7 +303,8 @@ internal sealed partial class GameLoginRuntimeHostedService(
 
         try
         {
-            LogFatalTransportDisposal(_logger, failure);
+            Exception redacted = DatabaseFailureCode.RedactForDiagnostics(failure);
+            LogFatalTransportDisposal(_logger, redacted);
         }
         finally
         {
@@ -315,7 +318,7 @@ internal sealed partial class GameLoginRuntimeHostedService(
 
         try
         {
-            LogRejectionDisposalFailure(_logger, failure.LocalEndPoint, failure.RemoteEndPoint, failure.Exception);
+            LogRejectionDisposalFailure(_logger, failure.LocalEndPoint, failure.RemoteEndPoint, DatabaseFailureCode.RedactForDiagnostics(failure.Exception));
         }
         finally
         {

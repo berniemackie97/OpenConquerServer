@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Accounts.Sessions;
+using OpenConquer.Infrastructure.Persistence;
 
 namespace OpenConquer.GameServer.Realms;
 
@@ -36,10 +37,10 @@ internal sealed partial class RealmAccountSessions(IAccountSessionStore store, I
         }
         catch (DbException exception)
         {
-            LogReleaseFailed(_logger, accountId, exception);
+            LogReleaseFailed(_logger, accountId, DatabaseFailureCode.Describe(exception));
         }
     }
 
-    [LoggerMessage(EventId = 6310, Level = LogLevel.Warning, Message = "The session record of account {AccountId} could not be removed.")]
-    private static partial void LogReleaseFailed(ILogger logger, uint accountId, Exception exception);
+    [LoggerMessage(EventId = 6310, Level = LogLevel.Warning, Message = "The session record of account {AccountId} could not be removed ({DatabaseFailure}).")]
+    private static partial void LogReleaseFailed(ILogger logger, uint accountId, string databaseFailure);
 }

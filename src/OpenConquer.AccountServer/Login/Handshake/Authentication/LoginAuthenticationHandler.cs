@@ -136,12 +136,7 @@ internal sealed class LoginAuthenticationHandler(IAccountAuthenticator authentic
 
     private async ValueTask<RealmRegistration?> FindRealmAsync(string serverName, CancellationToken cancellationToken)
     {
-        ProtocolServerName protocolName;
-        try
-        {
-            protocolName = new ProtocolServerName(serverName);
-        }
-        catch (ArgumentException)
+        if (!ProtocolServerName.TryCreate(serverName, out ProtocolServerName protocolName))
         {
             return null;
         }
