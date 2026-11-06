@@ -5,5 +5,8 @@ namespace OpenConquer.GameServer.Time;
 /// </summary>
 internal interface IGameTickSource
 {
-    uint CurrentTick { get; }
+    uint CurrentTick
+    {
+        get;
+    }
 }

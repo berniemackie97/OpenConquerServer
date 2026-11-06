@@ -86,7 +86,10 @@ public sealed class GameLoginTicketRedeemerTests
     public async Task RedeemAsync_ProtectionRejectionReturnsNullWithoutPersistence()
     {
         FakeRedemptionStore store = new();
-        FakeAttemptLimiter limiter = new() { Admit = false };
+        FakeAttemptLimiter limiter = new()
+        {
+            Admit = false
+        };
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
         GameLoginTicketIdentity? identity = await redeemer.RedeemAsync(SessionUid, AuthenticationKey, s_remoteAddress, TestContext.Current.CancellationToken);
@@ -104,7 +107,11 @@ public sealed class GameLoginTicketRedeemerTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeAttemptLimiter limiter = new() { Admit = false, OnBegin = cancellation.Cancel };
+        FakeAttemptLimiter limiter = new()
+        {
+            Admit = false,
+            OnBegin = cancellation.Cancel
+        };
         FakeRedemptionStore store = new();
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
@@ -118,7 +125,10 @@ public sealed class GameLoginTicketRedeemerTests
     public async Task RedeemAsync_SuccessForwardsCredentialsAndCompletesAttemptAsAccepted()
     {
         GameLoginTicketIdentity expected = new(AccountId, Username, SessionUid);
-        FakeRedemptionStore store = new() { Result = expected };
+        FakeRedemptionStore store = new()
+        {
+            Result = expected
+        };
         FakeAttemptLimiter limiter = new();
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
@@ -143,7 +153,10 @@ public sealed class GameLoginTicketRedeemerTests
     [Fact]
     public async Task RedeemAsync_UnredeemableTicketCompletesAttemptAsRejected()
     {
-        FakeRedemptionStore store = new() { Result = null };
+        FakeRedemptionStore store = new()
+        {
+            Result = null
+        };
         FakeAttemptLimiter limiter = new();
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
@@ -162,7 +175,10 @@ public sealed class GameLoginTicketRedeemerTests
     [Fact]
     public async Task RedeemAsync_PersistenceFailureAbandonsAttemptWithoutRetry()
     {
-        FakeRedemptionStore store = new() { Exception = new IOException("Persistence failed.") };
+        FakeRedemptionStore store = new()
+        {
+            Exception = new IOException("Persistence failed.")
+        };
         FakeAttemptLimiter limiter = new();
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
@@ -203,7 +219,10 @@ public sealed class GameLoginTicketRedeemerTests
     [Fact]
     public async Task RedeemAsync_MismatchedSessionIdentityFailsClosedAndAbandonsAttempt()
     {
-        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid + 1) };
+        FakeRedemptionStore store = new()
+        {
+            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid + 1)
+        };
         FakeAttemptLimiter limiter = new();
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
@@ -223,7 +242,11 @@ public sealed class GameLoginTicketRedeemerTests
         using CancellationTokenSource cancellation = new();
 
         GameLoginTicketIdentity expected = new(AccountId, Username, SessionUid);
-        FakeRedemptionStore store = new() { Result = expected, OnRedeem = cancellation.Cancel };
+        FakeRedemptionStore store = new()
+        {
+            Result = expected,
+            OnRedeem = cancellation.Cancel
+        };
         FakeAttemptLimiter limiter = new();
         GameLoginTicketRedeemer redeemer = new(store, limiter);
 
@@ -243,11 +266,26 @@ public sealed class GameLoginTicketRedeemerTests
     private sealed class FakeAttemptLimiter : IGameLoginTicketRedemptionAttemptLimiter
     {
         public bool Admit { get; init; } = true;
-        public Action? OnBegin { get; init; }
-        public int BeginCount { get; private set; }
-        public IPAddress? LastRemoteAddress { get; private set; }
-        public uint LastSessionUid { get; private set; }
-        public FakeAttemptLease? LastAttempt { get; private set; }
+        public Action? OnBegin
+        {
+            get; init;
+        }
+        public int BeginCount
+        {
+            get; private set;
+        }
+        public IPAddress? LastRemoteAddress
+        {
+            get; private set;
+        }
+        public uint LastSessionUid
+        {
+            get; private set;
+        }
+        public FakeAttemptLease? LastAttempt
+        {
+            get; private set;
+        }
 
         public bool TryBeginRedemption(IPAddress remoteAddress, uint sessionUid, [NotNullWhen(true)] out IGameLoginTicketRedemptionAttemptLease? attemptLease)
         {
@@ -276,16 +314,22 @@ public sealed class GameLoginTicketRedeemerTests
 
     private sealed class FakeAttemptLease : IGameLoginTicketRedemptionAttemptLease
     {
-        public bool IsCompleted { get; private set; }
-        public bool AuthorizationAccepted { get; private set; }
-        public bool IsDisposed { get; private set; }
+        public bool IsCompleted
+        {
+            get; private set;
+        }
+        public bool AuthorizationAccepted
+        {
+            get; private set;
+        }
+        public bool IsDisposed
+        {
+            get; private set;
+        }
 
         public void Complete(bool authorizationAccepted)
         {
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(nameof(FakeAttemptLease));
-            }
+            ObjectDisposedException.ThrowIf(IsDisposed, nameof(FakeAttemptLease));
 
             if (IsCompleted)
             {
@@ -304,13 +348,34 @@ public sealed class GameLoginTicketRedeemerTests
 
     private sealed class FakeRedemptionStore : IGameLoginTicketRedemptionStore
     {
-        public GameLoginTicketIdentity? Result { get; init; }
-        public Exception? Exception { get; init; }
-        public Action? OnRedeem { get; init; }
-        public bool ObserveCancellationAfterCallback { get; init; }
-        public int RedemptionCount { get; private set; }
-        public uint? LastSessionUid { get; private set; }
-        public uint? LastAuthenticationKey { get; private set; }
+        public GameLoginTicketIdentity? Result
+        {
+            get; init;
+        }
+        public Exception? Exception
+        {
+            get; init;
+        }
+        public Action? OnRedeem
+        {
+            get; init;
+        }
+        public bool ObserveCancellationAfterCallback
+        {
+            get; init;
+        }
+        public int RedemptionCount
+        {
+            get; private set;
+        }
+        public uint? LastSessionUid
+        {
+            get; private set;
+        }
+        public uint? LastAuthenticationKey
+        {
+            get; private set;
+        }
 
         public ValueTask<GameLoginTicketIdentity?> TryRedeemAsync(uint sessionUid, uint authenticationKey, CancellationToken cancellationToken = default)
         {

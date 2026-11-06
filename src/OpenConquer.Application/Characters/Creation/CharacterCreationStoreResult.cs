@@ -18,8 +18,14 @@ public readonly record struct CharacterCreationStoreResult
         CharacterId = characterId;
     }
 
-    public CharacterCreationStoreStatus Status { get; }
-    public uint CharacterId { get; }
+    public CharacterCreationStoreStatus Status
+    {
+        get;
+    }
+    public uint CharacterId
+    {
+        get;
+    }
 
     public static CharacterCreationStoreResult Created(uint characterId)
     {

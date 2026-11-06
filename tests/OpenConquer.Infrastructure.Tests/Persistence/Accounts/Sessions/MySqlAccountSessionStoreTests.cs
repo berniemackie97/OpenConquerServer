@@ -8,7 +8,7 @@ using OpenConquer.Infrastructure.DependencyInjection;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts.Sessions;
 
-[Collection(AccountSchemaDatabaseCollection.Name)]
+[Collection(AccountSchemaDatabaseDefinition.Name)]
 public sealed class MySqlAccountSessionStoreTests(AccountDatabaseFixture database)
 {
     private const uint CharacterId = 1_000_001;

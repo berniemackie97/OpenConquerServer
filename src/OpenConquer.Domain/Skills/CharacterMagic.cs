@@ -15,10 +15,22 @@ public readonly record struct CharacterMagic
         Experience = experience;
     }
 
-    public uint OwnerCharacterId { get; }
-    public ushort Type { get; }
-    public ushort Level { get; }
-    public uint Experience { get; }
+    public uint OwnerCharacterId
+    {
+        get;
+    }
+    public ushort Type
+    {
+        get;
+    }
+    public ushort Level
+    {
+        get;
+    }
+    public uint Experience
+    {
+        get;
+    }
     public bool IsValid => CharacterIdentityPolicy.IsPlayerEntityId(OwnerCharacterId);
 
     public static CharacterMagic Create(uint ownerCharacterId, ushort type, ushort level, uint experience)

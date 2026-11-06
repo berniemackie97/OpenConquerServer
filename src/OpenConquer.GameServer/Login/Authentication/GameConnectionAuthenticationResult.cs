@@ -10,7 +10,10 @@ internal sealed class GameConnectionAuthenticationResult : IAsyncDisposable
         _connection = connection;
     }
 
-    public GameConnectionAuthenticationStatus Status { get; }
+    public GameConnectionAuthenticationStatus Status
+    {
+        get;
+    }
 
     public AuthenticatedGameConnection TakeConnection()
     {

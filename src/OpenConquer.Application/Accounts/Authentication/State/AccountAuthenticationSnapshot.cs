@@ -41,10 +41,28 @@ public sealed class AccountAuthenticationSnapshot
         PasswordCredentialRevision = passwordCredentialRevision;
     }
 
-    public uint AccountId { get; }
-    public string Username { get; }
-    public string PasswordHash { get; }
-    public AccountLoginAccess Access { get; }
-    public ulong AccountStateRevision { get; }
-    public ulong PasswordCredentialRevision { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Username
+    {
+        get;
+    }
+    public string PasswordHash
+    {
+        get;
+    }
+    public AccountLoginAccess Access
+    {
+        get;
+    }
+    public ulong AccountStateRevision
+    {
+        get;
+    }
+    public ulong PasswordCredentialRevision
+    {
+        get;
+    }
 }

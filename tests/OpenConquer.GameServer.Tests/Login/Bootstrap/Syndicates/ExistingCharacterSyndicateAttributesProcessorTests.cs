@@ -279,7 +279,10 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         IOException failure = new("syndicate repository failed");
-        FakeSyndicateRepository repository = new(CreateMemberState()) { Failure = failure };
+        FakeSyndicateRepository repository = new(CreateMemberState())
+        {
+            Failure = failure
+        };
 
         harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
@@ -488,9 +491,15 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
     {
         private int _loadCount;
 
-        public Exception? Failure { get; init; }
+        public Exception? Failure
+        {
+            get; init;
+        }
         public int LoadCount => Volatile.Read(ref _loadCount);
-        public uint? LastCharacterId { get; private set; }
+        public uint? LastCharacterId
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterSyndicateState> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
         {
@@ -507,7 +516,10 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Started => _started.Task;
-        public uint? CharacterId { get; private set; }
+        public uint? CharacterId
+        {
+            get; private set;
+        }
 
         public async ValueTask<CharacterSyndicateState> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
         {

@@ -28,7 +28,10 @@ public sealed class LoginAccountRegistrationResponsePacket : IPacket
 
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PayloadSize;
-    public LoginAccountRegistrationResultCode ResultCode { get; }
+    public LoginAccountRegistrationResultCode ResultCode
+    {
+        get;
+    }
 
     public void WritePayload(ref PacketWriter writer)
     {

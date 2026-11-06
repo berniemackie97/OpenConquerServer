@@ -13,13 +13,13 @@ using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.AccountServer.Login.Hosting;
 
-internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue admissionQueue,
+internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmission admission,
     IAccountLoginConnectionLimiter connectionLimiter, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor,
     LoginConnectionWorkerPoolConfiguration workerConfiguration, LoginRuntimeMetrics metrics, FatalBackgroundServiceFailureState fatalFailureState,
     ILogger<LoginRuntimeHostedService> logger) : BackgroundService
 {
     private readonly LoginTransportListenerFactory _listenerFactory = listenerFactory ?? throw new ArgumentNullException(nameof(listenerFactory));
-    private readonly TransportConnectionAdmissionQueue _admissionQueue = admissionQueue ?? throw new ArgumentNullException(nameof(admissionQueue));
+    private readonly TransportConnectionAdmission _admission = admission ?? throw new ArgumentNullException(nameof(admission));
     private readonly IAccountLoginConnectionLimiter _connectionLimiter = connectionLimiter ?? throw new ArgumentNullException(nameof(connectionLimiter));
     private readonly ILoginSeedGenerator _seedGenerator = seedGenerator ?? throw new ArgumentNullException(nameof(seedGenerator));
     private readonly LoginHandshakeProcessor _handshakeProcessor = handshakeProcessor ?? throw new ArgumentNullException(nameof(handshakeProcessor));
@@ -70,7 +70,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
         }
         catch (Exception startupException)
         {
-            Exception? cleanupException = await StopRuntimeAsync(CancellationToken.None, logStopped: false).ConfigureAwait(false);
+            Exception? cleanupException = await StopRuntimeAsync(logStopped: false, cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
             if (cleanupException is not null)
             {
@@ -83,7 +83,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        Exception? failure = await StopRuntimeAsync(cancellationToken, logStopped: true).ConfigureAwait(false);
+        Exception? failure = await StopRuntimeAsync(logStopped: true, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         if (failure is not null)
         {
@@ -99,8 +99,8 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
             using CancellationTokenSource runtimeCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
 
-            Task workerTask = LoginConnectionWorkerPool.RunAsync(_admissionQueue, _seedGenerator, _handshakeProcessor, _workerConfiguration, ReportConnectionTimeout, ReportConnectionFailure, runtimeCancellation.Token);
-            Task acceptTask = TransportConnectionAcceptLoop.RunAsync(listener, _admissionQueue, _metrics.RecordCapacityRejection, ReportRejectionDisposalFailure, runtimeCancellation.Token);
+            Task workerTask = LoginConnectionWorkerPool.RunAsync(_admission, _seedGenerator, _handshakeProcessor, _workerConfiguration, ReportConnectionTimeout, ReportConnectionFailure, runtimeCancellation.Token);
+            Task acceptTask = TransportConnectionAcceptLoop.RunAsync(listener, _admission, _metrics.RecordCapacityRejection, ReportRejectionDisposalFailure, runtimeCancellation.Token);
 
             _runtimeStarted.TrySetResult();
 
@@ -130,7 +130,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
         if (stoppingToken.IsCancellationRequested)
         {
-            _admissionQueue.Complete();
+            _admission.Complete();
 
             Exception? acceptFailure = await CaptureShutdownFailureAsync(acceptTask, runtimeCancellation.Token).ConfigureAwait(false);
             Exception? workerFailure = await CaptureShutdownFailureAsync(workerTask, runtimeCancellation.Token).ConfigureAwait(false);
@@ -145,7 +145,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
 
         Exception primaryFailure = await CaptureUnexpectedCompletionAsync(completedTask, unexpectedCompletionMessage).ConfigureAwait(false);
 
-        _admissionQueue.Complete();
+        _admission.Complete();
 
         Exception? cancellationFailure = null;
 
@@ -164,7 +164,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
         ExceptionDispatchInfo.Capture(CombineRuntimeFailure(primaryFailure, cancellationFailure, siblingFailure)).Throw();
     }
 
-    private async Task<Exception?> StopRuntimeAsync(CancellationToken cancellationToken, bool logStopped)
+    private async Task<Exception?> StopRuntimeAsync(bool logStopped, CancellationToken cancellationToken)
     {
         Exception? stopFailure = null;
         Exception? listenerDisposalFailure = null;
@@ -181,7 +181,7 @@ internal sealed partial class LoginRuntimeHostedService(LoginTransportListenerFa
             }
         }
 
-        _admissionQueue.Complete();
+        _admission.Complete();
 
         listenerDisposalFailure = await DisposeListenerAsync().ConfigureAwait(false);
 

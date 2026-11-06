@@ -47,14 +47,23 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     public int PayloadLength => PayloadSize;
     public bool IsSuccess => SessionUid != 0;
 
-    public uint SessionUid { get; }
+    public uint SessionUid
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets the authentication key on success or the failure code on failure.
     /// </summary>
-    public uint AuthenticationKeyOrFailureCode { get; }
+    public uint AuthenticationKeyOrFailureCode
+    {
+        get;
+    }
 
-    public uint GameServerPort { get; }
+    public uint GameServerPort
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets the additional success field the client stores with the local
@@ -64,9 +73,15 @@ public sealed class LoginAccountAuthenticationResponsePacket : IPacket
     /// Its exact meaning is unknown. It is intentionally
     /// modeled independently from <see cref="AuthenticationKeyOrFailureCode"/>.
     /// </remarks>
-    public uint AdditionalSessionField { get; }
+    public uint AdditionalSessionField
+    {
+        get;
+    }
 
-    public string GameServerIp { get; }
+    public string GameServerIp
+    {
+        get;
+    }
 
     /// <summary>
     /// Creates a successful account authentication response.

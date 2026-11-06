@@ -8,7 +8,6 @@ using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
 using OpenConquer.Application.World;
 using OpenConquer.Domain.Characters;
-using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
@@ -79,7 +78,10 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginProfile profile = CreateProfile();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
         CharacterPresenceDirectory presence = new();
-        RecordingAccountSessionStore sessions = new() { AdmitEntries = false };
+        RecordingAccountSessionStore sessions = new()
+        {
+            AdmitEntries = false
+        };
         RefusingLocationFence fence = new();
         FencedCharacterAdmission fencing = new(fence, new UnreachableLocationObserver(), new UnreachableCharacterProfiles());
         ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(sessions), CreateCatalog(), s_metrics, fencing);
@@ -132,7 +134,10 @@ public sealed class ExistingCharacterBootstrapProcessorTests
 
     private sealed class RefusingLocationFence : ICharacterLocationFenceStore
     {
-        public int Calls { get; private set; }
+        public int Calls
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
         {
@@ -273,7 +278,10 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         CharacterLoginProfile profile = CreateProfile();
         CharacterLoginHandoffResult handoff = new(fixture.Connection, CharacterLoginResolution.ExistingCharacter(profile));
         CharacterPresenceDirectory presence = new();
-        RecordingAccountSessionStore sessions = new() { AdmitEntries = false };
+        RecordingAccountSessionStore sessions = new()
+        {
+            AdmitEntries = false
+        };
         ExistingCharacterBootstrapProcessor processor = new(presence, TestAccountSessions.Create(sessions), CreateCatalog(), s_metrics);
 
         ExistingCharacterLoginContext? result = await processor.ProcessAsync(handoff, TestContext.Current.CancellationToken);
@@ -283,7 +291,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
         Assert.Equal(1, fixture.Transport.DisposeCount);
         Assert.Empty(sessions.Left);
 
-        byte[] plaintext = fixture.Client.DecryptServerBytes(fixture.Transport.SentBytes[fixture.AuthenticationBoundary..]);
+        byte[] plaintext = fixture.Client.DecryptServerBytes(fixture.Transport.SentBytes.AsSpan(fixture.AuthenticationBoundary));
 
         Assert.Equal([GameChatPacket.PacketIdentifier], ReadPacketIds(plaintext));
         Assert.Equal(0x835, BinaryPrimitives.ReadUInt16LittleEndian(plaintext.AsSpan(WireFrameHeader.Size + sizeof(uint))));
@@ -513,7 +521,10 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     private static async Task<AuthenticatedFixture> AuthenticateAsync(Exception? disposeFailure = null)
     {
         FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000), disposeFailure: disposeFailure);
-        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid) };
+        FakeRedemptionStore store = new()
+        {
+            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid)
+        };
         FakeAttemptLimiter limiter = new();
         GameConnectionHandoffProcessor processor = CreateHandoffProcessor(store, limiter);
         Task<GameConnectionAuthenticationResult> processing = processor.ProcessAsync(transport, TestContext.Current.CancellationToken).AsTask();
@@ -548,7 +559,7 @@ public sealed class ExistingCharacterBootstrapProcessorTests
     {
         GameLoginTicketRedeemer redeemer = new(store, limiter);
         GameConnectionAuthenticator authenticator = new(redeemer);
-        return new GameConnectionHandoffProcessor(new GameTransportHandshakeProcessor(), authenticator);
+        return new GameConnectionHandoffProcessor(authenticator);
     }
 
     private static CharacterLoginProfile CreateProfile(byte rebirthCount = 0, byte preRebirthLevel = 0)

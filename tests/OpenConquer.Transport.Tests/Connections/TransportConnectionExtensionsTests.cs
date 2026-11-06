@@ -9,9 +9,9 @@ public sealed class TransportConnectionExtensionsTests
     public async Task TryReceiveExactlyAsync_FillsBufferAcrossPartialReceives()
     {
         ScriptedTransportConnection connection = new([
-            new byte[] { 0x11, 0x22 },
-            new byte[] { 0x33 },
-            new byte[] { 0x44, 0x55 },
+            [0x11, 0x22],
+            [0x33],
+            [0x44, 0x55],
         ]);
 
         byte[] buffer = new byte[5];
@@ -26,7 +26,7 @@ public sealed class TransportConnectionExtensionsTests
     [Fact]
     public async Task TryReceiveExactlyAsync_ReturnsFalseOnImmediateEndOfStream()
     {
-        ScriptedTransportConnection connection = new([Array.Empty<byte>()]);
+        ScriptedTransportConnection connection = new([[]]);
 
         byte[] buffer = new byte[3];
 
@@ -41,8 +41,8 @@ public sealed class TransportConnectionExtensionsTests
     public async Task TryReceiveExactlyAsync_ReturnsFalseWhenEndOfStreamFollowsPartialProgress()
     {
         ScriptedTransportConnection connection = new([
-            new byte[] { 0x11, 0x22 },
-            Array.Empty<byte>(),
+            [0x11, 0x22],
+            [],
         ]);
 
         byte[] buffer = new byte[4];
@@ -124,7 +124,10 @@ public sealed class TransportConnectionExtensionsTests
 
         public EndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Loopback, 2000);
 
-        public int ReceiveCallCount { get; private set; }
+        public int ReceiveCallCount
+        {
+            get; private set;
+        }
 
         public ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

@@ -32,18 +32,45 @@ internal sealed class ExistingCharacterLoginContext : IAsyncDisposable
     public ExistingCharacterGameConnection Connection =>
         _connection ?? throw new InvalidOperationException("The login connection has already been handed to world admission or disposed.");
 
-    public CharacterLoginProfile Profile { get; }
+    public CharacterLoginProfile Profile
+    {
+        get;
+    }
     public uint CharacterId => Profile.Identity.CharacterId;
-    public WorldMapContent Map { get; }
+    public WorldMapContent Map
+    {
+        get;
+    }
     public ExistingCharacterMissionCatalogReport MissionCatalog { get; } = new();
 
-    public CharacterItemSet? ItemSet { get; set => field = RequireCharacter(value, value?.CharacterId, "item set"); }
-    public CharacterSocialRelationSet? SocialRelationSet { get; set => field = RequireCharacter(value, value?.CharacterId, "social-relation set"); }
-    public CharacterWeaponSkillSet? WeaponSkillSet { get; set => field = RequireCharacter(value, value?.CharacterId, "weapon-skill set"); }
-    public CharacterMagicSet? MagicSet { get; set => field = RequireCharacter(value, value?.CharacterId, "magic set"); }
-    public CharacterSyndicateState? SyndicateState { get; set => field = RequireCharacter(value, value?.CharacterId, "syndicate state"); }
-    public uint? ClientReportedSilentDataChecksum { get; set; }
-    public uint? ClientReportedSilentDataVersion { get; set; }
+    public CharacterItemSet? ItemSet
+    {
+        get; set => field = RequireCharacter(value, value?.CharacterId, "item set");
+    }
+    public CharacterSocialRelationSet? SocialRelationSet
+    {
+        get; set => field = RequireCharacter(value, value?.CharacterId, "social-relation set");
+    }
+    public CharacterWeaponSkillSet? WeaponSkillSet
+    {
+        get; set => field = RequireCharacter(value, value?.CharacterId, "weapon-skill set");
+    }
+    public CharacterMagicSet? MagicSet
+    {
+        get; set => field = RequireCharacter(value, value?.CharacterId, "magic set");
+    }
+    public CharacterSyndicateState? SyndicateState
+    {
+        get; set => field = RequireCharacter(value, value?.CharacterId, "syndicate state");
+    }
+    public uint? ClientReportedSilentDataChecksum
+    {
+        get; set;
+    }
+    public uint? ClientReportedSilentDataVersion
+    {
+        get; set;
+    }
 
     /// <summary>
     /// Builds the completed bootstrap from every step's state and hands the connection to it.

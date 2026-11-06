@@ -14,10 +14,7 @@ public sealed class CharacterCreationCandidate
         ushort hairComposite, ushort strength, ushort agility, ushort vitality, ushort spirit, ushort currentMana,
         uint mapId, ushort positionX, ushort positionY)
     {
-        if (accountId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(accountId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(accountId);
 
         if (!CharacterNamePolicy.IsValid(name))
         {
@@ -53,10 +50,7 @@ public sealed class CharacterCreationCandidate
             throw new ArgumentOutOfRangeException(nameof(vitality), "Starting attributes produce an invalid maximum life.");
         }
 
-        if (mapId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(mapId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(mapId);
 
         AccountId = accountId;
         Name = name;
@@ -75,19 +69,64 @@ public sealed class CharacterCreationCandidate
         PositionY = positionY;
     }
 
-    public uint AccountId { get; }
-    public string Name { get; }
-    public ushort Body { get; }
-    public byte Profession { get; }
-    public uint AppearanceComposite { get; }
-    public ushort HairComposite { get; }
-    public ushort Strength { get; }
-    public ushort Agility { get; }
-    public ushort Vitality { get; }
-    public ushort Spirit { get; }
-    public ushort CurrentLife { get; }
-    public ushort CurrentMana { get; }
-    public uint MapId { get; }
-    public ushort PositionX { get; }
-    public ushort PositionY { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Name
+    {
+        get;
+    }
+    public ushort Body
+    {
+        get;
+    }
+    public byte Profession
+    {
+        get;
+    }
+    public uint AppearanceComposite
+    {
+        get;
+    }
+    public ushort HairComposite
+    {
+        get;
+    }
+    public ushort Strength
+    {
+        get;
+    }
+    public ushort Agility
+    {
+        get;
+    }
+    public ushort Vitality
+    {
+        get;
+    }
+    public ushort Spirit
+    {
+        get;
+    }
+    public ushort CurrentLife
+    {
+        get;
+    }
+    public ushort CurrentMana
+    {
+        get;
+    }
+    public uint MapId
+    {
+        get;
+    }
+    public ushort PositionX
+    {
+        get;
+    }
+    public ushort PositionY
+    {
+        get;
+    }
 }

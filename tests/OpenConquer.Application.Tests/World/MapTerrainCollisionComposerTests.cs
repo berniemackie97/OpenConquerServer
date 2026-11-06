@@ -91,6 +91,8 @@ public sealed class MapTerrainCollisionComposerTests
             ], 1));
     }
 
+    private static readonly int[] s_expected = [0, 1];
+
     [Fact]
     public void Compose_OverridesHaveDeterministicCellIndexOrder()
     {
@@ -104,7 +106,7 @@ public sealed class MapTerrainCollisionComposerTests
             new MapTerrainAttachment(0, 0, 30, 1, 0)
         ], 10);
 
-        Assert.Equal(new[] { 0, 1 },
+        Assert.Equal(s_expected,
             collision.Overrides.Select(entry => entry.CellIndex).ToArray());
     }
 

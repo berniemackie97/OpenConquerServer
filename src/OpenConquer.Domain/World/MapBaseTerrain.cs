@@ -12,11 +12,7 @@ public sealed class MapBaseTerrain
 
     public MapBaseTerrain(uint mapDataId, int width, int height, IEnumerable<MapBaseTerrainCell> cells, IEnumerable<MapTerrainExit> exits)
     {
-        if (mapDataId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(mapDataId));
-        }
-
+        ArgumentOutOfRangeException.ThrowIfZero(mapDataId);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         ArgumentNullException.ThrowIfNull(cells);
@@ -43,9 +39,18 @@ public sealed class MapBaseTerrain
         _exits = [.. exits];
     }
 
-    public uint MapDataId { get; }
-    public int Width { get; }
-    public int Height { get; }
+    public uint MapDataId
+    {
+        get;
+    }
+    public int Width
+    {
+        get;
+    }
+    public int Height
+    {
+        get;
+    }
     public int CellCount => _cells.Length;
     public ImmutableArray<MapBaseTerrainCell> Cells => _cells;
     public ImmutableArray<MapTerrainExit> Exits => _exits;
@@ -55,15 +60,8 @@ public sealed class MapBaseTerrain
         ArgumentOutOfRangeException.ThrowIfNegative(x);
         ArgumentOutOfRangeException.ThrowIfNegative(y);
 
-        if (x >= Width)
-        {
-            throw new ArgumentOutOfRangeException(nameof(x));
-        }
-
-        if (y >= Height)
-        {
-            throw new ArgumentOutOfRangeException(nameof(y));
-        }
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(x, Width);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(y, Height);
 
         return _cells[(y * Width) + x];
     }

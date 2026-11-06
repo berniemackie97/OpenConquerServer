@@ -8,7 +8,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Items;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Items;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterItemSetResolverIntegrationTests(GameDatabaseFixture database)
 {
     private const uint ItemTypeId = 100_000;

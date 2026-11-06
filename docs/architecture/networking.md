@@ -21,7 +21,7 @@ Each server limits connections in two stages before any login work starts.
    released when the connection is disposed, so queued and active connections both count toward
    the limit. IPv4 addresses are tracked individually, IPv4-mapped IPv6 addresses count as their
    IPv4 address, and other IPv6 addresses are grouped by `/64`.
-2. **Global.** `TransportConnectionAdmissionQueue` holds admitted connections until a worker takes
+2. **Global.** `TransportConnectionAdmission` holds admitted connections until a worker takes
    them. When it is full, the new connection is rejected.
 
 Rejected connections are disposed before the listener accepts another. Rejections are counted in

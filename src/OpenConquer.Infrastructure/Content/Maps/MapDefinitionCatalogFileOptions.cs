@@ -23,7 +23,16 @@ public sealed class MapDefinitionCatalogFileOptions
         MaximumDefinitions = maximumDefinitions;
     }
 
-    public string FilePath { get; }
-    public int MaximumFileLengthBytes { get; }
-    public int MaximumDefinitions { get; }
+    public string FilePath
+    {
+        get;
+    }
+    public int MaximumFileLengthBytes
+    {
+        get;
+    }
+    public int MaximumDefinitions
+    {
+        get;
+    }
 }

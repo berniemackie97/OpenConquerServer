@@ -21,6 +21,12 @@ internal sealed class GameLoginTicketCleanupConfiguration
         MaximumBatchesPerRun = maximumBatchesPerRun;
     }
 
-    public TimeSpan Interval { get; }
-    public int MaximumBatchesPerRun { get; }
+    public TimeSpan Interval
+    {
+        get;
+    }
+    public int MaximumBatchesPerRun
+    {
+        get;
+    }
 }

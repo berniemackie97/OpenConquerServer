@@ -16,7 +16,10 @@ internal sealed class LoginRequestReadResult : IDisposable
         Registration = registration;
     }
 
-    public LoginRequestReadStatus Status { get; }
+    public LoginRequestReadStatus Status
+    {
+        get;
+    }
 
     /// <summary>
     /// The decoded request when <see cref="Status"/> is <see cref="LoginRequestReadStatus.AuthenticationRequest"/>.
@@ -24,19 +27,28 @@ internal sealed class LoginRequestReadResult : IDisposable
     /// <remarks>
     /// The result owns this request and wipes its password on disposal.
     /// </remarks>
-    public LoginAccountRequest? Request { get; }
+    public LoginAccountRequest? Request
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets the received packet identifier when <see cref="Status"/> is
     /// <see cref="LoginRequestReadStatus.UnexpectedPacket"/>.
     /// </summary>
-    public ushort? UnexpectedPacketId { get; }
+    public ushort? UnexpectedPacketId
+    {
+        get;
+    }
 
     /// <summary>
     /// The decoded registration when <see cref="Status"/> is <see cref="LoginRequestReadStatus.RegistrationRequest"/>.
     /// The result owns this request and wipes its password on disposal.
     /// </summary>
-    public LoginAccountRegistrationRequest? Registration { get; }
+    public LoginAccountRegistrationRequest? Registration
+    {
+        get;
+    }
 
     public static LoginRequestReadResult AuthenticationRequest(LoginAccountRequest request)
     {

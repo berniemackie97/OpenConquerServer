@@ -28,10 +28,22 @@ public sealed class GameLoginHistoryPacket : IPacket
     }
 
     public ushort PacketId => PacketIdentifier;
-    public int PayloadLength { get; }
-    public uint LastLoginTimestamp { get; }
-    public byte LocationWarningFlag { get; }
-    public string LastLoginLocation { get; }
+    public int PayloadLength
+    {
+        get;
+    }
+    public uint LastLoginTimestamp
+    {
+        get;
+    }
+    public byte LocationWarningFlag
+    {
+        get;
+    }
+    public string LastLoginLocation
+    {
+        get;
+    }
 
     public void WritePayload(ref PacketWriter writer)
     {

@@ -551,7 +551,7 @@ public sealed class GameLoginTicketExpirationCleanerTests : IClassFixture<Accoun
         return DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc);
     }
 
-    private async Task LockTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid)
+    private static async Task LockTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid)
     {
         await using MySqlCommand command = connection.CreateCommand();
 

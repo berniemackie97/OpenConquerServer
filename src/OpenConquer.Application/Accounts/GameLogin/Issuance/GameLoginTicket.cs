@@ -49,10 +49,28 @@ public sealed class GameLoginTicket
         ExpiresAtUtc = expiresAtUtc;
     }
 
-    public uint AccountId { get; }
-    public string Username { get; }
-    public uint SessionUid { get; }
-    public uint AuthenticationKey { get; }
-    public DateTimeOffset IssuedAtUtc { get; }
-    public DateTimeOffset ExpiresAtUtc { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Username
+    {
+        get;
+    }
+    public uint SessionUid
+    {
+        get;
+    }
+    public uint AuthenticationKey
+    {
+        get;
+    }
+    public DateTimeOffset IssuedAtUtc
+    {
+        get;
+    }
+    public DateTimeOffset ExpiresAtUtc
+    {
+        get;
+    }
 }

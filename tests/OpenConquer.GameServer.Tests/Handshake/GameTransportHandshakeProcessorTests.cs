@@ -13,9 +13,8 @@ public sealed class GameTransportHandshakeProcessorTests
     {
         FakeGameTransportConnection transport = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
-        GameTransportHandshakeProcessor processor = new();
 
-        Task<bool> handshake = processor.TryCompleteAsync(session, TestContext.Current.CancellationToken).AsTask();
+        Task<bool> handshake = GameTransportHandshakeProcessor.TryCompleteAsync(session, TestContext.Current.CancellationToken).AsTask();
 
         await transport.SendCompleted.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -39,11 +38,10 @@ public sealed class GameTransportHandshakeProcessorTests
     {
         FakeGameTransportConnection transport = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
-        GameTransportHandshakeProcessor processor = new();
 
         transport.QueueEndOfStream();
 
-        bool completed = await processor.TryCompleteAsync(session, TestContext.Current.CancellationToken);
+        bool completed = await GameTransportHandshakeProcessor.TryCompleteAsync(session, TestContext.Current.CancellationToken);
 
         Assert.False(completed);
         Assert.NotEmpty(transport.SentBytes);
@@ -55,17 +53,16 @@ public sealed class GameTransportHandshakeProcessorTests
     {
         FakeGameTransportConnection transport = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
-        GameTransportHandshakeProcessor processor = new();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.TryCompleteAsync(session, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => GameTransportHandshakeProcessor.TryCompleteAsync(session, cancellation.Token).AsTask());
 
         Assert.Empty(transport.SentBytes);
         Assert.Equal(0, transport.DisposeCount);
 
-        Task<bool> retry = processor.TryCompleteAsync(session, TestContext.Current.CancellationToken).AsTask();
+        Task<bool> retry = GameTransportHandshakeProcessor.TryCompleteAsync(session, TestContext.Current.CancellationToken).AsTask();
 
         await transport.SendCompleted.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -82,9 +79,8 @@ public sealed class GameTransportHandshakeProcessorTests
     {
         FakeGameTransportConnection transport = new();
         await using GameConnectionSession session = await GameConnectionSession.OpenAsync(transport, TestContext.Current.CancellationToken);
-        GameTransportHandshakeProcessor processor = new();
 
-        Task<bool> handshake = processor.TryCompleteAsync(session, TestContext.Current.CancellationToken).AsTask();
+        Task<bool> handshake = GameTransportHandshakeProcessor.TryCompleteAsync(session, TestContext.Current.CancellationToken).AsTask();
 
         await transport.SendCompleted.WaitAsync(TestContext.Current.CancellationToken);
 

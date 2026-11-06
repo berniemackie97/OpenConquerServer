@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
@@ -41,7 +42,8 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
     public async Task<WorldSession?> ProcessAsync(AuthenticatedGameConnection connection, CancellationToken stoppingToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (!_slots.Wait(0))
+        // Ownership has already transferred. Cancellation is observed inside the cleanup scope.
+        if (!_slots.Wait(0, CancellationToken.None))
         {
             try
             {
@@ -55,30 +57,69 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
         }
 
         AuthenticatedGameConnection? owned = connection;
+        WorldSession? session = null;
         Exception? processingFailure = null;
         try
+        {
+            session = await CreateAndHandOffAsync(connection).ConfigureAwait(false);
+        }
+        catch (Exception failure)
+        {
+            processingFailure = failure;
+        }
+
+        // Cleanup runs after the creation attempt, never from a finally block, so a cleanup failure
+        // cannot hide the creation failure: both are kept together.
+        try
+        {
+            if (owned is not null)
+            {
+                await owned.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception cleanupFailure)
+        {
+            Exception cause = processingFailure is null ? cleanupFailure :
+                new AggregateException("Character creation and transport disposal both failed.",
+                    processingFailure, cleanupFailure);
+            throw new GameLoginCleanupException("Character creation transport cleanup failed.", [cause]);
+        }
+        finally
+        {
+            _slots.Release();
+        }
+
+        if (processingFailure is not null)
+        {
+            ExceptionDispatchInfo.Throw(processingFailure);
+        }
+
+        return session;
+
+        // Sets owned to null once the existing-character bootstrap has taken the connection.
+        async Task<WorldSession?> CreateAndHandOffAsync(AuthenticatedGameConnection creating)
         {
             using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             deadline.CancelAfter(s_creationDeadline);
             CancellationToken operation = deadline.Token;
 
-            await owned.WriteAsync(GameCharacterCreationControlPackets.NewRole, operation).ConfigureAwait(false);
+            await creating.WriteAsync(GameCharacterCreationControlPackets.NewRole, operation).ConfigureAwait(false);
 
             uint createdCharacterId = 0;
             for (int attempt = 0; attempt < MaximumCreationAttempts; attempt++)
             {
                 GameCharacterCreationRequest request;
-                using (GameInboundFrame? frame = await owned.ReadAsync(operation).ConfigureAwait(false))
+                using (GameInboundFrame? frame = await creating.ReadAsync(operation).ConfigureAwait(false))
                 {
                     if (frame is null || !GameCharacterCreationRequest.TryParse(frame, out request, out _) ||
-                        request.ClientReportedSessionUid != owned.SessionUid || request.CancelRequested)
+                        request.ClientReportedSessionUid != creating.SessionUid || request.CancelRequested)
                     {
                         return null;
                     }
                 }
 
                 // Only the redeemed ticket's account identity is trusted.
-                CharacterCreationResult result = await _creation.CreateAsync(owned.AccountId,
+                CharacterCreationResult result = await _creation.CreateAsync(creating.AccountId,
                     request.Name, request.Body, request.Profession, operation).ConfigureAwait(false);
 
                 if (result.Status == CharacterCreationStatus.Created)
@@ -92,7 +133,7 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
                     return null;
                 }
 
-                await owned.WriteAsync(GameCharacterCreationControlPackets.Rejected(result.Status), operation)
+                await creating.WriteAsync(GameCharacterCreationControlPackets.Rejected(result.Status), operation)
                     .ConfigureAwait(false);
             }
 
@@ -101,59 +142,33 @@ internal sealed class GameCharacterCreationLoginProcessor : IDisposable
                 return null;
             }
 
-            await owned.WriteAsync(GameCharacterCreationControlPackets.Accepted, operation).ConfigureAwait(false);
+            await creating.WriteAsync(GameCharacterCreationControlPackets.Accepted, operation).ConfigureAwait(false);
             deadline.CancelAfter(s_repeatProofDeadline);
-            using (GameInboundFrame? frame = await owned.ReadAsync(operation).ConfigureAwait(false))
+            using (GameInboundFrame? frame = await creating.ReadAsync(operation).ConfigureAwait(false))
             {
                 if (frame is null || !GameLoginProof.TryParse(frame, out GameLoginProof proof, out _) ||
-                    !owned.TryConsumeRepeatedLoginProof(proof))
+                    !creating.TryConsumeRepeatedLoginProof(proof))
                 {
                     throw new InvalidDataException("Character creation was followed by an invalid or missing game-session proof.");
                 }
             }
 
-            owned.DiscardRepeatedLoginProof();
+            creating.DiscardRepeatedLoginProof();
             deadline.CancelAfter(_bootstrapTimeout);
-            CharacterLoginResolution resolved = await _resolver.ResolveAsync(owned.AccountId, operation).ConfigureAwait(false);
+            CharacterLoginResolution resolved = await _resolver.ResolveAsync(creating.AccountId, operation).ConfigureAwait(false);
             CharacterLoginProfile? profile = resolved.Profile;
             if (resolved.Route != CharacterLoginRoute.ExistingCharacter || profile is null ||
                 profile.Identity.CharacterId != createdCharacterId ||
-                profile.Identity.AccountId != owned.AccountId)
+                profile.Identity.AccountId != creating.AccountId)
             {
                 throw new InvalidDataException("Created character could not be resolved to the authenticated account.");
             }
 
             // The existing bootstrap takes sole ownership of the connection and every
             // subsequent account lease, writer fence, world admission and cleanup.
-            await using CharacterLoginHandoffResult handoff = new(owned, resolved);
+            await using CharacterLoginHandoffResult handoff = new(creating, resolved);
             owned = null;
             return await _existingCharacter.ProcessAsync(handoff, operation).ConfigureAwait(false);
-        }
-        catch (Exception failure)
-        {
-            processingFailure = failure;
-            throw;
-        }
-        finally
-        {
-            try
-            {
-                if (owned is not null)
-                {
-                    await owned.DisposeAsync().ConfigureAwait(false);
-                }
-            }
-            catch (Exception cleanupFailure)
-            {
-                Exception cause = processingFailure is null ? cleanupFailure :
-                    new AggregateException("Character creation and transport disposal both failed.",
-                        processingFailure, cleanupFailure);
-                throw new GameLoginCleanupException("Character creation transport cleanup failed.", [cause]);
-            }
-            finally
-            {
-                _slots.Release();
-            }
         }
     }
 }

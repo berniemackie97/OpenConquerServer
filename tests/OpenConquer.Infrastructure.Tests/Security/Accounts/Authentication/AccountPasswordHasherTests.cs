@@ -234,4 +234,4 @@ public sealed class AccountPasswordHasherTests
 }
 
 [CollectionDefinition("Password verification work", DisableParallelization = true)]
-public sealed class PasswordVerificationWorkCollection;
+public sealed class PasswordVerificationWorkDefinition;

@@ -13,6 +13,12 @@ public sealed class CharacterAppearance
         Hair = hair;
     }
 
-    public uint Composite { get; }
-    public ushort Hair { get; }
+    public uint Composite
+    {
+        get;
+    }
+    public ushort Hair
+    {
+        get;
+    }
 }

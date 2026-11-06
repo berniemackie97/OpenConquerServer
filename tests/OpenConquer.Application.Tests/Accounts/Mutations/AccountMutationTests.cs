@@ -74,7 +74,10 @@ public sealed class AccountMutationTests
     [Fact]
     public async Task ChangeAccessStatus_ForwardsValidatedMutation()
     {
-        FakeMutationStore store = new() { Result = AccountMutationStatus.Applied };
+        FakeMutationStore store = new()
+        {
+            Result = AccountMutationStatus.Applied
+        };
         AccountMutationService service = new(store, new FakePasswordHasher());
         AccountMutationContext context = AccountMutationContext.ForSystem(s_correlationId, "moderation");
 
@@ -269,7 +272,10 @@ public sealed class AccountMutationTests
     public async Task ResetPassword_RejectsInvalidHasherResult()
     {
         FakeMutationStore store = new();
-        FakePasswordHasher hasher = new() { Result = string.Empty };
+        FakePasswordHasher hasher = new()
+        {
+            Result = string.Empty
+        };
         AccountMutationService service = new(store, hasher);
         AccountMutationContext context = AccountMutationContext.ForSystem(s_correlationId);
 
@@ -285,7 +291,10 @@ public sealed class AccountMutationTests
         using CancellationTokenSource cancellation = new();
 
         FakeMutationStore store = new();
-        FakePasswordHasher hasher = new() { OnHash = cancellation.Cancel };
+        FakePasswordHasher hasher = new()
+        {
+            OnHash = cancellation.Cancel
+        };
         AccountMutationService service = new(store, hasher);
         AccountMutationContext context = AccountMutationContext.ForSystem(s_correlationId);
 
@@ -298,7 +307,10 @@ public sealed class AccountMutationTests
     [Fact]
     public async Task StoreStatusPropagatesWithoutTranslation()
     {
-        FakeMutationStore store = new() { Result = AccountMutationStatus.StateConflict };
+        FakeMutationStore store = new()
+        {
+            Result = AccountMutationStatus.StateConflict
+        };
         AccountMutationService service = new(store, new FakePasswordHasher());
         AccountMutationContext context = AccountMutationContext.ForSystem(s_correlationId);
 
@@ -310,9 +322,18 @@ public sealed class AccountMutationTests
     private sealed class FakePasswordHasher : IAccountPasswordHasher
     {
         public string Result { get; init; } = "$test$new-password-hash$";
-        public Action? OnHash { get; init; }
-        public int HashCount { get; private set; }
-        public string? LastPassword { get; private set; }
+        public Action? OnHash
+        {
+            get; init;
+        }
+        public int HashCount
+        {
+            get; private set;
+        }
+        public string? LastPassword
+        {
+            get; private set;
+        }
 
         public AccountPasswordVerificationStatus VerifyPassword(string passwordHash, ReadOnlySpan<char> password) => throw new NotSupportedException();
 
@@ -331,15 +352,42 @@ public sealed class AccountMutationTests
     private sealed class FakeMutationStore : IAccountMutationStore
     {
         public AccountMutationStatus Result { get; init; } = AccountMutationStatus.Applied;
-        public int CallCount { get; private set; }
-        public string? Operation { get; private set; }
-        public uint AccountId { get; private set; }
-        public ulong ExpectedStateRevision { get; private set; }
-        public ulong ExpectedPasswordCredentialRevision { get; private set; }
-        public AccountAccessStatus? AccessStatus { get; private set; }
-        public AccountAuthorityRole? AuthorityRole { get; private set; }
-        public string? PasswordHash { get; private set; }
-        public AccountMutationContext? Context { get; private set; }
+        public int CallCount
+        {
+            get; private set;
+        }
+        public string? Operation
+        {
+            get; private set;
+        }
+        public uint AccountId
+        {
+            get; private set;
+        }
+        public ulong ExpectedStateRevision
+        {
+            get; private set;
+        }
+        public ulong ExpectedPasswordCredentialRevision
+        {
+            get; private set;
+        }
+        public AccountAccessStatus? AccessStatus
+        {
+            get; private set;
+        }
+        public AccountAuthorityRole? AuthorityRole
+        {
+            get; private set;
+        }
+        public string? PasswordHash
+        {
+            get; private set;
+        }
+        public AccountMutationContext? Context
+        {
+            get; private set;
+        }
 
         public ValueTask<AccountMutationStatus> ChangeAccessStatusAsync(uint accountId, AccountAccessStatus newAccessStatus, ulong expectedStateRevision, AccountMutationContext context, CancellationToken cancellationToken = default)
         {

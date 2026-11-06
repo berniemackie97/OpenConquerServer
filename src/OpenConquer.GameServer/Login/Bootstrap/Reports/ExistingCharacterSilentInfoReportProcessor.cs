@@ -6,9 +6,9 @@ namespace OpenConquer.GameServer.Login.Bootstrap.Reports;
 /// <summary>
 /// The report carries a client checksum and data version. Neither is trusted; both are echoed in the acknowledgement and kept for the world session.
 /// </summary>
-internal sealed class ExistingCharacterSilentInfoReportProcessor
+internal static class ExistingCharacterSilentInfoReportProcessor
 {
-    public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
+    public static async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
         GameAction report = await LoginActionRequest.ReadAsync(connection, GameAction.ReportSilentInfoAction, "silent-info report", cancellationToken)

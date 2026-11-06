@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenConquer.Application.Items.Catalog;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Items.Resolution;
@@ -87,8 +88,8 @@ public sealed class CharacterItemSetResolverTests
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
             () => resolver.ResolveAsync(CharacterId, s_utcNow, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Contains(otherCharacterId.ToString(), exception.Message, StringComparison.Ordinal);
-        Assert.Contains(CharacterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(otherCharacterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(CharacterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -160,8 +161,14 @@ public sealed class CharacterItemSetResolverTests
         private int _loadCount;
 
         public int LoadCount => Volatile.Read(ref _loadCount);
-        public uint? CharacterId { get; private set; }
-        public DateTimeOffset? UtcNow { get; private set; }
+        public uint? CharacterId
+        {
+            get; private set;
+        }
+        public DateTimeOffset? UtcNow
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterItemSet> LoadAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {

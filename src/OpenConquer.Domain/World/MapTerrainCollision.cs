@@ -39,12 +39,18 @@ public sealed class MapTerrainCollision
         _overrides = indexed.ToFrozenDictionary();
     }
 
-    public MapBaseTerrain BaseTerrain { get; }
+    public MapBaseTerrain BaseTerrain
+    {
+        get;
+    }
     public uint MapDataId => BaseTerrain.MapDataId;
     public int Width => BaseTerrain.Width;
     public int Height => BaseTerrain.Height;
     public int OverrideCount => Overrides.Length;
-    public ImmutableArray<MapTerrainCollisionOverride> Overrides { get; }
+    public ImmutableArray<MapTerrainCollisionOverride> Overrides
+    {
+        get;
+    }
 
     public MapBaseTerrainCell GetEffectiveCell(int x, int y)
     {

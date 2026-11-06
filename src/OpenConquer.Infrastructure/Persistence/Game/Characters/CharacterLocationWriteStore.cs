@@ -67,10 +67,8 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
     public async ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
         CancellationToken cancellationToken = default)
     {
-        if (accountId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(accountId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(accountId);
+
         if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
         {
             throw new ArgumentOutOfRangeException(nameof(characterId));
@@ -115,10 +113,8 @@ public sealed class CharacterLocationWriteStore : ICharacterLocationWriteStore, 
     public async ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId,
         CancellationToken cancellationToken = default)
     {
-        if (accountId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(accountId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(accountId);
+
         if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
         {
             throw new ArgumentOutOfRangeException(nameof(characterId));

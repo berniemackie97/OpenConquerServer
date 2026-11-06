@@ -10,6 +10,12 @@ internal sealed class DMapScenerySection
         TerrainObjectGroups = terrainObjectGroups;
     }
 
-    public int SubcomponentCount { get; }
-    public ImmutableArray<DMapTerrainObjectGroup> TerrainObjectGroups { get; }
+    public int SubcomponentCount
+    {
+        get;
+    }
+    public ImmutableArray<DMapTerrainObjectGroup> TerrainObjectGroups
+    {
+        get;
+    }
 }

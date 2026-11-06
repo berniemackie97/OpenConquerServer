@@ -52,7 +52,10 @@ public sealed class CharacterSocialRelationSet
         _relations = Array.AsReadOnly(materializedRelations);
     }
 
-    public uint CharacterId { get; }
+    public uint CharacterId
+    {
+        get;
+    }
     public IReadOnlyList<CharacterSocialRelation> Relations => _relations;
     public int Count => _relations.Count;
 }

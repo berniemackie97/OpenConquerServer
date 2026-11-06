@@ -50,7 +50,10 @@ internal sealed class LoginConnectionSession : IAsyncDisposable
         _outputPump = TransportConnectionOutput.PumpAsync(connection, _outputPipe.Reader, _lifetimeCancellation.Token);
     }
 
-    public uint LoginSeed { get; private set; }
+    public uint LoginSeed
+    {
+        get; private set;
+    }
 
     public EndPoint LocalEndPoint => _connection.LocalEndPoint;
     public EndPoint RemoteEndPoint => _connection.RemoteEndPoint;

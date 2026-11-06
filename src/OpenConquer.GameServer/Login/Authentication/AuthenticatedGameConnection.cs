@@ -45,12 +45,30 @@ internal sealed class AuthenticatedGameConnection : IAsyncDisposable
         ResourceVersion = resourceVersion;
     }
 
-    public uint AccountId { get; }
-    public string Username { get; }
-    public uint SessionUid { get; }
-    public ushort LocaleTag { get; }
-    public ulong HardwareAddress { get; }
-    public int ResourceVersion { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Username
+    {
+        get;
+    }
+    public uint SessionUid
+    {
+        get;
+    }
+    public ushort LocaleTag
+    {
+        get;
+    }
+    public ulong HardwareAddress
+    {
+        get;
+    }
+    public int ResourceVersion
+    {
+        get;
+    }
 
     public EndPoint LocalEndPoint => _session.LocalEndPoint;
     public EndPoint RemoteEndPoint => _session.RemoteEndPoint;

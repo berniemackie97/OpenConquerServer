@@ -1142,11 +1142,20 @@ internal sealed class WorldRuntime : IAsyncDisposable
     {
         public WorldCharacterOwnership Ownership { get; set; } = ownership;
 
-        public bool Transferring { get; set; }
+        public bool Transferring
+        {
+            get; set;
+        }
 
-        public WorldDurableTransferSeal? DurableTransferSeal { get; set; }
+        public WorldDurableTransferSeal? DurableTransferSeal
+        {
+            get; set;
+        }
 
-        public WorldTransferReservation? TransferReservation { get; set; }
+        public WorldTransferReservation? TransferReservation
+        {
+            get; set;
+        }
 
         public Task<bool>? RemovalTask
         {

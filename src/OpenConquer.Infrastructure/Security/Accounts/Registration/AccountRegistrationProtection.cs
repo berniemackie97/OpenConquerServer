@@ -107,9 +107,18 @@ internal sealed class AccountRegistrationProtection(AccountRegistrationProtectio
     {
         public RemoteAddressSourceKey Key { get; } = key;
         public long WindowStart { get; } = windowStart;
-        public int Attempts { get; set; }
-        public bool InFlight { get; set; }
-        public bool WindowExpired { get; set; }
+        public int Attempts
+        {
+            get; set;
+        }
+        public bool InFlight
+        {
+            get; set;
+        }
+        public bool WindowExpired
+        {
+            get; set;
+        }
     }
 
     private sealed class Lease(AccountRegistrationProtection owner, SourceState source) : IDisposable

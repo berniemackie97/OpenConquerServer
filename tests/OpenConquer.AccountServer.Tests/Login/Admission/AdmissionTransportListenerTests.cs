@@ -364,8 +364,14 @@ public sealed class AdmissionTransportListenerTests
             _disposeFailure = disposeFailure;
         }
 
-        public EndPoint LocalEndPoint { get; }
-        public EndPoint RemoteEndPoint { get; }
+        public EndPoint LocalEndPoint
+        {
+            get;
+        }
+        public EndPoint RemoteEndPoint
+        {
+            get;
+        }
         public int DisposeCount => Volatile.Read(ref _disposeCount);
 
         public ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)

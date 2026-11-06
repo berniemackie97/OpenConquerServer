@@ -21,7 +21,7 @@ internal sealed partial class GameLoginRuntimeHostedService(
     IItemTypeCatalogRepository itemRepository,
     GameServerItemCatalogState itemState,
     GameNetworkOptions options,
-    TransportConnectionAdmissionQueue queue,
+    TransportConnectionAdmission queue,
     GameLoginMetrics metrics,
     GameServerFailureState failureState,
     IHostApplicationLifetime applicationLifetime,
@@ -33,7 +33,7 @@ internal sealed partial class GameLoginRuntimeHostedService(
     private readonly IItemTypeCatalogRepository _itemRepository = itemRepository ?? throw new ArgumentNullException(nameof(itemRepository));
     private readonly GameServerItemCatalogState _itemState = itemState ?? throw new ArgumentNullException(nameof(itemState));
     private readonly GameNetworkOptions _options = options ?? throw new ArgumentNullException(nameof(options));
-    private readonly TransportConnectionAdmissionQueue _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private readonly TransportConnectionAdmission _queue = queue ?? throw new ArgumentNullException(nameof(queue));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     private readonly GameServerFailureState _failureState = failureState ?? throw new ArgumentNullException(nameof(failureState));
     private readonly IHostApplicationLifetime _applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));

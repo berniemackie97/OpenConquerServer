@@ -5,6 +5,11 @@ namespace OpenConquer.Application.Tests.World;
 
 public sealed class WorldMapContentLoaderTests
 {
+    private static readonly string[] s_expected = ["definitions", "terrains", "collisions"];
+    private static readonly string[] s_expectedSimple = ["definitions"];
+    private static readonly string[] s_expectedArraySimple = ["definitions", "terrains"];
+    private static readonly string[] s_expectedArray0 = ["definitions", "terrains", "collisions"];
+
     [Fact]
     public async Task LoadAsync_ValidCatalogs_ResolvesWorldMapsAndSharesTerrain()
     {
@@ -13,7 +18,7 @@ public sealed class WorldMapContentLoaderTests
         WorldMapContentCatalog catalog = await fixture.CreateLoader().LoadAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, catalog.Count);
-        Assert.Equal(new[] { "definitions", "terrains", "collisions" }, fixture.Calls);
+        Assert.Equal(s_expected, fixture.Calls);
 
         Assert.True(catalog.TryGet(1000, out WorldMapContent? first));
         Assert.True(catalog.TryGet(1001, out WorldMapContent? second));
@@ -112,7 +117,7 @@ public sealed class WorldMapContentLoaderTests
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
             await fixture.CreateLoader().LoadAsync(TestContext.Current.CancellationToken));
 
-        Assert.Equal(new[] { "definitions" }, fixture.Calls);
+        Assert.Equal(s_expectedSimple, fixture.Calls);
     }
 
     [Fact]
@@ -124,7 +129,7 @@ public sealed class WorldMapContentLoaderTests
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
             await fixture.CreateLoader().LoadAsync(TestContext.Current.CancellationToken));
 
-        Assert.Equal(new[] { "definitions", "terrains" }, fixture.Calls);
+        Assert.Equal(s_expectedArraySimple, fixture.Calls);
     }
 
     [Fact]
@@ -136,7 +141,7 @@ public sealed class WorldMapContentLoaderTests
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
             await fixture.CreateLoader().LoadAsync(TestContext.Current.CancellationToken));
 
-        Assert.Equal(new[] { "definitions", "terrains", "collisions" }, fixture.Calls);
+        Assert.Equal(s_expectedArray0, fixture.Calls);
     }
 
     [Fact]
@@ -175,20 +180,44 @@ public sealed class WorldMapContentLoaderTests
         }
 
         public List<string> Calls { get; } = [];
-        public MapBaseTerrain FirstTerrain { get; }
-        public MapBaseTerrain SecondTerrain { get; }
-        public MapTerrainCollision FirstCollision { get; }
-        public MapTerrainCollision SecondCollision { get; }
-        public StubDefinitionRepository DefinitionRepository { get; }
-        public StubTerrainRepository TerrainRepository { get; }
-        public StubCollisionRepository CollisionRepository { get; }
+        public MapBaseTerrain FirstTerrain
+        {
+            get;
+        }
+        public MapBaseTerrain SecondTerrain
+        {
+            get;
+        }
+        public MapTerrainCollision FirstCollision
+        {
+            get;
+        }
+        public MapTerrainCollision SecondCollision
+        {
+            get;
+        }
+        public StubDefinitionRepository DefinitionRepository
+        {
+            get;
+        }
+        public StubTerrainRepository TerrainRepository
+        {
+            get;
+        }
+        public StubCollisionRepository CollisionRepository
+        {
+            get;
+        }
 
         public WorldMapContentLoader CreateLoader() => new(DefinitionRepository, TerrainRepository, CollisionRepository);
     }
 
     private sealed class StubDefinitionRepository(MapDefinitionCatalog catalog, List<string> calls) : IMapDefinitionCatalogRepository
     {
-        public Exception? Failure { get; set; }
+        public Exception? Failure
+        {
+            get; set;
+        }
 
         public ValueTask<MapDefinitionCatalog> LoadAsync(CancellationToken cancellationToken = default)
         {
@@ -207,7 +236,10 @@ public sealed class WorldMapContentLoaderTests
     private sealed class StubTerrainRepository(MapBaseTerrainCatalog catalog, List<string> calls) : IMapBaseTerrainCatalogRepository
     {
         public MapBaseTerrainCatalog Catalog { get; set; } = catalog;
-        public Exception? Failure { get; set; }
+        public Exception? Failure
+        {
+            get; set;
+        }
 
         public ValueTask<MapBaseTerrainCatalog> LoadAsync(MapDefinitionCatalog definitions, CancellationToken cancellationToken = default)
         {
@@ -226,7 +258,10 @@ public sealed class WorldMapContentLoaderTests
     private sealed class StubCollisionRepository(MapTerrainCollisionCatalog catalog, List<string> calls) : IMapTerrainCollisionCatalogRepository
     {
         public MapTerrainCollisionCatalog Catalog { get; set; } = catalog;
-        public Exception? Failure { get; set; }
+        public Exception? Failure
+        {
+            get; set;
+        }
 
         public ValueTask<MapTerrainCollisionCatalog> LoadAsync(MapDefinitionCatalog definitions, MapBaseTerrainCatalog terrains,
             CancellationToken cancellationToken = default)

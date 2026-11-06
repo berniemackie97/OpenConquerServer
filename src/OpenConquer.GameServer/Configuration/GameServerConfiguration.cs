@@ -47,34 +47,88 @@ internal sealed class GameServerConfiguration
         MaximumTransitions = maximumTransitions;
     }
 
-    public RealmId RealmId { get; }
-    public string AccountConnectionString { get; }
-    public string GameConnectionString { get; }
-    public MapDefinitionCatalogFileOptions MapDefinitions { get; }
-    public string TerrainDirectory { get; }
-    public string CollisionDirectory { get; }
-    public MapTerrainLoadLimits TerrainLimits { get; }
-    public MapCollisionLoadLimits CollisionLimits { get; }
-    public WorldExecutionOptions World { get; }
-    public GameNetworkOptions? Network { get; }
+    public RealmId RealmId
+    {
+        get;
+    }
+    public string AccountConnectionString
+    {
+        get;
+    }
+    public string GameConnectionString
+    {
+        get;
+    }
+    public MapDefinitionCatalogFileOptions MapDefinitions
+    {
+        get;
+    }
+    public string TerrainDirectory
+    {
+        get;
+    }
+    public string CollisionDirectory
+    {
+        get;
+    }
+    public MapTerrainLoadLimits TerrainLimits
+    {
+        get;
+    }
+    public MapCollisionLoadLimits CollisionLimits
+    {
+        get;
+    }
+    public WorldExecutionOptions World
+    {
+        get;
+    }
+    public GameNetworkOptions? Network
+    {
+        get;
+    }
 
     /// <summary>
     /// Realm status reporting settings. Set only when network ingress is enabled, because a GameServer that accepts
     /// no logins must not be reported as available.
     /// </summary>
-    public RealmStatusOptions? RealmStatus { get; }
-    public ItemTypeCatalogFileOptions? ItemTypes { get; }
-    public ushort ActiveVerificationKeyId { get; }
-    public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys { get; }
+    public RealmStatusOptions? RealmStatus
+    {
+        get;
+    }
+    public ItemTypeCatalogFileOptions? ItemTypes
+    {
+        get;
+    }
+    public ushort ActiveVerificationKeyId
+    {
+        get;
+    }
+    public IReadOnlyList<KeyValuePair<ushort, string>> VerificationKeys
+    {
+        get;
+    }
 
     /// <summary>
     /// The validated creation spawn, or <see langword="null"/> when character creation is not configured. Creation
     /// writes through <see cref="GameConnectionString"/>, the GameServer's only Game database identity.
     /// </summary>
-    public CharacterCreationStartingState? CharacterCreationStartingState { get; }
-    public string TransitionsPath { get; }
-    public int MaximumTransitionFileBytes { get; }
-    public int MaximumTransitions { get; }
+    public CharacterCreationStartingState? CharacterCreationStartingState
+    {
+        get;
+    }
+    public string TransitionsPath
+    {
+        get;
+    }
+    public int MaximumTransitionFileBytes
+    {
+        get;
+    }
+    public int MaximumTransitions
+    {
+        get;
+    }
 
     public static GameServerConfiguration Load(IConfiguration configuration, string contentRootPath)
     {
@@ -140,8 +194,7 @@ internal sealed class GameServerConfiguration
 
             if (ticketSettings.ActiveVerificationKeyId == 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(ticketSettings.ActiveVerificationKeyId),
-                    $"{SectionName}:GameLoginTickets:ActiveVerificationKeyId must be nonzero.");
+                throw new InvalidOperationException($"{SectionName}:GameLoginTickets:ActiveVerificationKeyId must be nonzero.");
             }
 
             KeyValuePair<ushort, string>[] keys = CreateVerificationKeys(ticketSettings.VerificationKeys);
@@ -223,7 +276,7 @@ internal sealed class GameServerConfiguration
         return value;
     }
 
-    private static KeyValuePair<ushort, string>[] CreateVerificationKeys(IReadOnlyCollection<GameServerSettings.VerificationKeySettings> configuredKeys)
+    private static KeyValuePair<ushort, string>[] CreateVerificationKeys(List<GameServerSettings.VerificationKeySettings> configuredKeys)
     {
         ArgumentNullException.ThrowIfNull(configuredKeys);
 

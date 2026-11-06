@@ -3,7 +3,7 @@ using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.Transport.Tests.Admission;
 
-public sealed class TransportConnectionAdmissionQueueTests
+public sealed class TransportConnectionAdmissionTests
 {
     [Theory]
     [InlineData(0)]
@@ -11,7 +11,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     public void Constructor_RejectsInvalidCapacity(int capacity)
     {
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new TransportConnectionAdmissionQueue(capacity)
+            new TransportConnectionAdmission(capacity)
         );
 
         Assert.Equal("capacity", exception.ParamName);
@@ -20,7 +20,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task TryAdmit_RejectsNullConnection()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         Assert.Throws<ArgumentNullException>(() => queue.TryAdmit(null!));
 
@@ -30,7 +30,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task TryAdmit_EnforcesCapacityWithoutTakingOwnershipOfRejectedConnection()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 2);
+        TransportConnectionAdmission queue = new(capacity: 2);
 
         TrackingTransportConnection first = new();
         TrackingTransportConnection second = new();
@@ -63,7 +63,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task Complete_PreventsFurtherAdmissionWithoutTakingOwnership()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
         TrackingTransportConnection connection = new();
 
         queue.Complete();
@@ -83,7 +83,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task ReadAllAsync_PreservesAdmissionOrderAndTransfersOwnership()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 3);
+        TransportConnectionAdmission queue = new(capacity: 3);
 
         TrackingTransportConnection first = new();
         TrackingTransportConnection second = new();
@@ -124,7 +124,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task ReadAllAsync_PropagatesCancellation()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         using CancellationTokenSource cancellation =
             CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -145,7 +145,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task Complete_WithErrorDrainsBufferedConnectionsBeforePropagatingFailure()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         TrackingTransportConnection connection = new();
         InvalidOperationException failure = new("admission failed");
@@ -178,7 +178,7 @@ public sealed class TransportConnectionAdmissionQueueTests
     [Fact]
     public async Task DisposeAsync_ContinuesCleanupAfterIndividualDisposalFailures()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 3);
+        TransportConnectionAdmission queue = new(capacity: 3);
 
         InvalidOperationException firstFailure = new("first disposal failed");
 

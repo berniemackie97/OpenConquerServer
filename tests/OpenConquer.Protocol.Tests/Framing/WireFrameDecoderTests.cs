@@ -8,7 +8,7 @@ public sealed class WireFrameDecoderTests
     [Fact]
     public void Decode_ReturnsCompleteFrameAndHeader()
     {
-        ReadOnlySequence<byte> source = new(new byte[] { 0x06, 0x00, 0x78, 0x56, 0xAA, 0xBB });
+        ReadOnlySequence<byte> source = new([0x06, 0x00, 0x78, 0x56, 0xAA, 0xBB]);
 
         WireFrameDecodeStatus status = WireFrameDecoder.Decode(
             source,
@@ -25,7 +25,7 @@ public sealed class WireFrameDecoderTests
     [Fact]
     public void Decode_AllowsHeaderOnlyFrame()
     {
-        ReadOnlySequence<byte> source = new(new byte[] { 0x04, 0x00, 0x34, 0x12 });
+        ReadOnlySequence<byte> source = new([0x04, 0x00, 0x34, 0x12]);
 
         WireFrameDecodeStatus status = WireFrameDecoder.Decode(
             source,
@@ -62,7 +62,7 @@ public sealed class WireFrameDecoderTests
     [Fact]
     public void Decode_ReturnsIncompleteFrameWhenDeclaredBytesAreMissing()
     {
-        ReadOnlySequence<byte> source = new(new byte[] { 0x06, 0x00, 0x34, 0x12, 0xAA });
+        ReadOnlySequence<byte> source = new([0x06, 0x00, 0x34, 0x12, 0xAA]);
 
         WireFrameDecodeStatus status = WireFrameDecoder.Decode(
             source,
@@ -334,7 +334,10 @@ public sealed class WireFrameDecoderTests
 
         public TestSequenceSegment Append(ReadOnlyMemory<byte> memory)
         {
-            TestSequenceSegment next = new(memory) { RunningIndex = RunningIndex + Memory.Length };
+            TestSequenceSegment next = new(memory)
+            {
+                RunningIndex = RunningIndex + Memory.Length
+            };
 
             Next = next;
 

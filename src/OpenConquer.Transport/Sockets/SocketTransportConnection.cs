@@ -41,8 +41,14 @@ public sealed class SocketTransportConnection : ITransportConnection
         }
     }
 
-    public EndPoint LocalEndPoint { get; }
-    public EndPoint RemoteEndPoint { get; }
+    public EndPoint LocalEndPoint
+    {
+        get;
+    }
+    public EndPoint RemoteEndPoint
+    {
+        get;
+    }
 
     public async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {

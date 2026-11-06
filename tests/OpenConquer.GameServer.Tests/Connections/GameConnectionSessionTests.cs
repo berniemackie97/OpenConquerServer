@@ -328,7 +328,7 @@ public sealed class GameConnectionSessionTests
         await session.WriteAsync(firstPacket, TestContext.Current.CancellationToken);
         await session.WriteAsync(secondPacket, TestContext.Current.CancellationToken);
 
-        byte[] plaintext = client.DecryptServerBytes(connection.SentBytes[securedOffset..]);
+        byte[] plaintext = client.DecryptServerBytes(connection.SentBytes.AsSpan()[securedOffset..]);
         List<byte[]> frames = ParseServerFrames(plaintext);
 
         Assert.Equal(2, frames.Count);
@@ -364,7 +364,7 @@ public sealed class GameConnectionSessionTests
 
         await firstWrite;
 
-        byte[] plaintext = client.DecryptServerBytes(connection.SentBytes[securedOffset..]);
+        byte[] plaintext = client.DecryptServerBytes(connection.SentBytes.AsSpan()[securedOffset..]);
         List<byte[]> frames = ParseServerFrames(plaintext);
 
         byte[] frame = Assert.Single(frames);

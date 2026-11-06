@@ -10,8 +10,14 @@ public readonly record struct CharacterLoginResolution
         Profile = profile;
     }
 
-    public CharacterLoginRoute Route { get; }
-    public CharacterLoginProfile? Profile { get; }
+    public CharacterLoginRoute Route
+    {
+        get;
+    }
+    public CharacterLoginProfile? Profile
+    {
+        get;
+    }
 
     public static CharacterLoginResolution CharacterCreation()
     {

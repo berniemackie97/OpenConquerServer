@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
@@ -16,7 +15,6 @@ using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.Realms;
-using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
@@ -31,7 +29,10 @@ using OpenConquer.Protocol.Game.Packets;
 namespace OpenConquer.GameServer.Tests.World;
 
 /// <summary>Injected location-store outcome for connected-portal persistence tests.</summary>
-public enum PortalPersistenceFault { None, Conflict, CommittedButUnknown, WrongReceipt }
+public enum PortalPersistenceFault
+{
+    None, Conflict, CommittedButUnknown, WrongReceipt
+}
 
 /// <summary>
 /// Admits world sessions over the negotiated, encrypted production game transport and records the
@@ -74,9 +75,18 @@ internal sealed class WorldSessionTestWorld : IAsyncDisposable, ICharacterLocati
     }
 
     public WorldRuntime Runtime => _runtime;
-    public PortalPersistenceFault PersistenceFault { get; set; }
-    public TaskCompletionSource? CommitReached { get; set; }
-    public TaskCompletionSource? ReleaseCommit { get; set; }
+    public PortalPersistenceFault PersistenceFault
+    {
+        get; set;
+    }
+    public TaskCompletionSource? CommitReached
+    {
+        get; set;
+    }
+    public TaskCompletionSource? ReleaseCommit
+    {
+        get; set;
+    }
 
     public PersistedCharacterLocation Saved(uint accountId, uint characterId)
     {

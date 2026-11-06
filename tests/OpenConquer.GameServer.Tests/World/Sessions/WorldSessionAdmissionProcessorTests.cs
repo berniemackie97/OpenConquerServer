@@ -461,7 +461,10 @@ public sealed class WorldSessionAdmissionProcessorTests
 
     private sealed class FencedObservation(PersistedCharacterLocation snapshot, int supersedeOnObservation) : ICharacterLocationObservationStore
     {
-        public int Calls { get; private set; }
+        public int Calls
+        {
+            get; private set;
+        }
 
         public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId,
             CancellationToken cancellationToken = default)

@@ -40,11 +40,32 @@ public sealed class CharacterProgression
         PreRebirthLevel = preRebirthLevel;
     }
 
-    public byte Level { get; }
-    public ulong Experience { get; }
-    public byte Profession { get; }
-    public byte FirstProfession { get; }
-    public byte PreviousProfession { get; }
-    public byte RebirthCount { get; }
-    public byte PreRebirthLevel { get; }
+    public byte Level
+    {
+        get;
+    }
+    public ulong Experience
+    {
+        get;
+    }
+    public byte Profession
+    {
+        get;
+    }
+    public byte FirstProfession
+    {
+        get;
+    }
+    public byte PreviousProfession
+    {
+        get;
+    }
+    public byte RebirthCount
+    {
+        get;
+    }
+    public byte PreRebirthLevel
+    {
+        get;
+    }
 }

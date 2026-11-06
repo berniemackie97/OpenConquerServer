@@ -7,9 +7,8 @@ namespace OpenConquer.GameServer.Login.Authentication;
 /// <summary>
 /// Takes an accepted connection through the secure handshake and game-login authentication.
 /// </summary>
-internal sealed class GameConnectionHandoffProcessor(GameTransportHandshakeProcessor handshakeProcessor, GameConnectionAuthenticator authenticator)
+internal sealed class GameConnectionHandoffProcessor(GameConnectionAuthenticator authenticator)
 {
-    private readonly GameTransportHandshakeProcessor _handshakeProcessor = handshakeProcessor ?? throw new ArgumentNullException(nameof(handshakeProcessor));
     private readonly GameConnectionAuthenticator _authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
 
     public async ValueTask<GameConnectionAuthenticationResult> ProcessAsync(ITransportConnection connection, CancellationToken cancellationToken = default)
@@ -22,7 +21,7 @@ internal sealed class GameConnectionHandoffProcessor(GameTransportHandshakeProce
         {
             session = await GameConnectionSession.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
 
-            bool handshakeCompleted = await _handshakeProcessor.TryCompleteAsync(session, cancellationToken).ConfigureAwait(false);
+            bool handshakeCompleted = await GameTransportHandshakeProcessor.TryCompleteAsync(session, cancellationToken).ConfigureAwait(false);
 
             if (!handshakeCompleted)
             {

@@ -58,7 +58,10 @@ public sealed class WorldGroundWalkTests
         Assert.True(corpse.Status.Has(WorldPrimaryStatusMask.Dead));
         Assert.False(corpse.IsGhost);
         Assert.Null(map.TryEnterGhost(owner, corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency - 1));
-        Assert.Null(map.TryEnterGhost(owner with { Generation = 2 }, corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency));
+        Assert.Null(map.TryEnterGhost(owner with
+        {
+            Generation = 2
+        }, corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency));
         WorldCharacterSnapshot ghost = Assert.IsType<WorldCharacterSnapshot>(map.TryEnterGhost(owner,
             corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency));
         Assert.True(ghost.IsGhost);
@@ -81,7 +84,10 @@ public sealed class WorldGroundWalkTests
         WorldCharacterSnapshot corpse = Assert.IsType<WorldCharacterSnapshot>(
             await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken));
         long ready = corpse.DeadSinceTimestamp + 3L * System.Diagnostics.Stopwatch.Frequency;
-        Assert.Null(await runtime.TryEnterGhostAsync(owner with { Generation = owner.Generation + 1 }, ready,
+        Assert.Null(await runtime.TryEnterGhostAsync(owner with
+        {
+            Generation = owner.Generation + 1
+        }, ready,
             cancellationToken: TestContext.Current.CancellationToken));
         Assert.Null(await runtime.TryEnterGhostAsync(owner, ready - 1,
             cancellationToken: TestContext.Current.CancellationToken));
@@ -148,8 +154,14 @@ public sealed class WorldGroundWalkTests
 
         Assert.Null(map.TryWalk(owner, 2));
         Assert.Null(map.TryWalk(owner, 4));
-        Assert.Null(map.TryWalk(owner with { Generation = 3 }, 0));
-        Assert.Null(map.TryWalk(owner with { MapId = OtherMapId }, 0));
+        Assert.Null(map.TryWalk(owner with
+        {
+            Generation = 3
+        }, 0));
+        Assert.Null(map.TryWalk(owner with
+        {
+            MapId = OtherMapId
+        }, 0));
         Assert.Null(map.TryWalk(new WorldCharacterOwnership(CharacterId + 1, MapId, 4), 0));
         Assert.Equal((0, 0), GetPosition(map, owner));
         Assert.True(map.Remove(owner));
@@ -185,8 +197,14 @@ public sealed class WorldGroundWalkTests
         WorldCharacterOwnership current = await runtime.AdmitCharacterAsync(CreateProfile(2, 2), TestContext.Current.CancellationToken);
         Assert.NotEqual(old.Generation, current.Generation);
         Assert.Null(await runtime.TryWalkCharacterAsync(old, 0, TestContext.Current.CancellationToken));
-        Assert.Null(await runtime.TryWalkCharacterAsync(current with { RuntimeId = Guid.NewGuid() }, 0, TestContext.Current.CancellationToken));
-        Assert.Null(await runtime.TryWalkCharacterAsync(current with { MapId = OtherMapId }, 0, TestContext.Current.CancellationToken));
+        Assert.Null(await runtime.TryWalkCharacterAsync(current with
+        {
+            RuntimeId = Guid.NewGuid()
+        }, 0, TestContext.Current.CancellationToken));
+        Assert.Null(await runtime.TryWalkCharacterAsync(current with
+        {
+            MapId = OtherMapId
+        }, 0, TestContext.Current.CancellationToken));
         Assert.Equal((2, 2), Position(await runtime.ReadCharacterAsync(current, TestContext.Current.CancellationToken)));
         Assert.Equal((2, 3), Position(await runtime.TryWalkCharacterAsync(current, 0, TestContext.Current.CancellationToken)));
     }

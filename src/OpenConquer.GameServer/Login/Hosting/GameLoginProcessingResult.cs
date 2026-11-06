@@ -16,6 +16,12 @@ internal readonly record struct GameLoginProcessingResult
         PendingCreation = pendingCreation;
     }
 
-    public WorldSession? WorldSession { get; }
-    public Task<WorldSession?>? PendingCreation { get; }
+    public WorldSession? WorldSession
+    {
+        get;
+    }
+    public Task<WorldSession?>? PendingCreation
+    {
+        get;
+    }
 }

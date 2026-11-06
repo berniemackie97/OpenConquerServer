@@ -38,8 +38,14 @@ internal sealed class FakeGameTransportConnection : ITransportConnection
         _disposeFailure = disposeFailure;
     }
 
-    public EndPoint LocalEndPoint { get; }
-    public EndPoint RemoteEndPoint { get; }
+    public EndPoint LocalEndPoint
+    {
+        get;
+    }
+    public EndPoint RemoteEndPoint
+    {
+        get;
+    }
     public int DisposeCount => Volatile.Read(ref _disposeCount);
     public int ReceiveCallCount => Volatile.Read(ref _receiveCallCount);
     public Task SendCompleted => _sendCompleted.Task;

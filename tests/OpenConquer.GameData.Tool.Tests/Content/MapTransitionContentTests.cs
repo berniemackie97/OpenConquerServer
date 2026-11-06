@@ -8,6 +8,8 @@ namespace OpenConquer.GameData.Tool.Tests.Content;
 
 public sealed class MapTransitionContentTests
 {
+    private static readonly string[] s_collection = ["L", "T7", "Q"];
+
     [Fact]
     public async Task CanonicalTransitionCatalog_PinsProvenanceAndUnresolvedExits()
     {
@@ -39,12 +41,20 @@ public sealed class MapTransitionContentTests
                 case "resolved":
                     resolved++;
                     Assert.True(transition.TryGetProperty("targetMapId", out _));
-                    Assert.Contains(transition.GetProperty("source").GetString(), new[] { "L", "T7", "Q" });
+                    Assert.Contains(transition.GetProperty("source").GetString(), s_collection);
                     break;
-                case "blocked-destination": blocked++; break;
-                case "no-source": missing++; break;
-                case "shared-terrain-unresolved": shared++; break;
-                default: Assert.Fail($"Unknown transition status for ({mapId},{passwayIndex})."); break;
+                case "blocked-destination":
+                    blocked++;
+                    break;
+                case "no-source":
+                    missing++;
+                    break;
+                case "shared-terrain-unresolved":
+                    shared++;
+                    break;
+                default:
+                    Assert.Fail($"Unknown transition status for ({mapId},{passwayIndex}).");
+                    break;
             }
         }
 

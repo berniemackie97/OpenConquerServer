@@ -345,12 +345,30 @@ public sealed class FileMapTerrainCollisionCatalogRepositoryTests
             WriteArtifact(502, CreateCollision(SecondTerrain, withOverride: false));
         }
 
-        public string WorkspacePath { get; }
-        public string RootPath { get; }
-        public MapBaseTerrain FirstTerrain { get; }
-        public MapBaseTerrain SecondTerrain { get; }
-        public MapDefinitionCatalog Definitions { get; }
-        public MapBaseTerrainCatalog Terrains { get; }
+        public string WorkspacePath
+        {
+            get;
+        }
+        public string RootPath
+        {
+            get;
+        }
+        public MapBaseTerrain FirstTerrain
+        {
+            get;
+        }
+        public MapBaseTerrain SecondTerrain
+        {
+            get;
+        }
+        public MapDefinitionCatalog Definitions
+        {
+            get;
+        }
+        public MapBaseTerrainCatalog Terrains
+        {
+            get;
+        }
 
         public string ArtifactPath(uint mapDataId) => Path.Combine(RootPath, $"{mapDataId}.ocmc");
 

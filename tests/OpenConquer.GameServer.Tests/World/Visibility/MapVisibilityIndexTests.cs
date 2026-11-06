@@ -127,9 +127,9 @@ public sealed class MapVisibilityIndexTests
             ushort y = (ushort)random.Next(50, 151);
             index.Move(id, x, y);
             positions[id] = (x, y);
-            foreach (var a in positions)
+            foreach (KeyValuePair<uint, (ushort X, ushort Y)> a in positions)
             {
-                foreach (var b in positions)
+                foreach (KeyValuePair<uint, (ushort X, ushort Y)> b in positions)
                 {
                     bool expected = a.Key != b.Key &&
                         Math.Abs(a.Value.X - b.Value.X) <= MapVisibilityIndex.Radius &&

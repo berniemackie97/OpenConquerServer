@@ -2,9 +2,9 @@ using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Login.Bootstrap.Maps;
 
-internal sealed class ExistingCharacterMapStateAppliedProcessor
+internal static class ExistingCharacterMapStateAppliedProcessor
 {
-    public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
+    public static async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         GameAction notification = await LoginActionRequest.ReadAfterMissionCatalogAsync(login, GameAction.ClientStateAppliedAction,
             "client-state-applied notification", cancellationToken).ConfigureAwait(false);

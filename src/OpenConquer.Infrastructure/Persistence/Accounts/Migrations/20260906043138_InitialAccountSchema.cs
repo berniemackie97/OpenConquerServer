@@ -8,6 +8,8 @@ namespace OpenConquer.Infrastructure.Persistence.Accounts.Migrations;
 /// <inheritdoc />
 public partial class InitialAccountSchema : Migration
 {
+    private static readonly string[] s_accountAuditIndexColumns = ["account_id", "occurred_at_utc"];
+
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
@@ -392,7 +394,7 @@ public partial class InitialAccountSchema : Migration
         migrationBuilder.CreateIndex(
             name: "IX_account_audit_events_account_id_occurred_at_utc",
             table: "account_audit_events",
-            columns: new[] { "account_id", "occurred_at_utc" }
+            columns: s_accountAuditIndexColumns
         );
 
         migrationBuilder.CreateIndex(

@@ -8,5 +8,8 @@ public readonly record struct RealmId
         Value = value;
     }
 
-    public uint Value { get; }
+    public uint Value
+    {
+        get;
+    }
 }

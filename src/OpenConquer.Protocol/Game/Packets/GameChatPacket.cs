@@ -34,15 +34,42 @@ public sealed class GameChatPacket : IPacket
     }
 
     public ushort PacketId => PacketIdentifier;
-    public int PayloadLength { get; }
-    public uint Color { get; }
-    public ushort Channel { get; }
-    public ushort Style { get; }
-    public uint Identity { get; }
-    public string Sender { get; }
-    public string Recipient { get; }
-    public string Suffix { get; }
-    public string Message { get; }
+    public int PayloadLength
+    {
+        get;
+    }
+    public uint Color
+    {
+        get;
+    }
+    public ushort Channel
+    {
+        get;
+    }
+    public ushort Style
+    {
+        get;
+    }
+    public uint Identity
+    {
+        get;
+    }
+    public string Sender
+    {
+        get;
+    }
+    public string Recipient
+    {
+        get;
+    }
+    public string Suffix
+    {
+        get;
+    }
+    public string Message
+    {
+        get;
+    }
 
     public void WritePayload(ref PacketWriter writer)
     {

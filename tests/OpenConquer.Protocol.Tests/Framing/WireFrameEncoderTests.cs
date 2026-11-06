@@ -496,9 +496,15 @@ public sealed class WireFrameEncoderTests
 
     private sealed class MetadataChangingPacket : IPacket
     {
-        public int PacketIdReadCount { get; private set; }
+        public int PacketIdReadCount
+        {
+            get; private set;
+        }
 
-        public int PayloadLengthReadCount { get; private set; }
+        public int PayloadLengthReadCount
+        {
+            get; private set;
+        }
 
         public ushort PacketId
         {

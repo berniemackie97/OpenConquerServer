@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -1062,7 +1063,7 @@ public sealed class ItemMigrationTests
 
         Assert.NotNull(result);
 
-        return Convert.ToInt64(result);
+        return Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
     private static async Task AssertItemColumnCountAsync(string connectionString, long expectedCount)
@@ -1081,7 +1082,7 @@ public sealed class ItemMigrationTests
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(expectedCount, Convert.ToInt64(result));
+        Assert.Equal(expectedCount, Convert.ToInt64(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertItemRowCountAsync(string connectionString, long expectedCount)
@@ -1098,7 +1099,7 @@ public sealed class ItemMigrationTests
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(expectedCount, Convert.ToInt64(result));
+        Assert.Equal(expectedCount, Convert.ToInt64(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertLifetimePersistenceStructurePresentAsync(string connectionString)
@@ -1122,7 +1123,7 @@ public sealed class ItemMigrationTests
 
         object? columnCount = await columns.ExecuteScalarAsync(CancellationToken);
         Assert.NotNull(columnCount);
-        Assert.Equal(3L, Convert.ToInt64(columnCount));
+        Assert.Equal(3L, Convert.ToInt64(columnCount, CultureInfo.InvariantCulture));
 
         await using MySqlCommand indexes = connection.CreateCommand();
         indexes.CommandText = """
@@ -1135,7 +1136,7 @@ public sealed class ItemMigrationTests
 
         object? indexCount = await indexes.ExecuteScalarAsync(CancellationToken);
         Assert.NotNull(indexCount);
-        Assert.Equal(2L, Convert.ToInt64(indexCount));
+        Assert.Equal(2L, Convert.ToInt64(indexCount, CultureInfo.InvariantCulture));
 
         await using MySqlCommand checks = connection.CreateCommand();
         checks.CommandText = """
@@ -1150,7 +1151,7 @@ public sealed class ItemMigrationTests
 
         object? checkCount = await checks.ExecuteScalarAsync(CancellationToken);
         Assert.NotNull(checkCount);
-        Assert.Equal(1L, Convert.ToInt64(checkCount));
+        Assert.Equal(1L, Convert.ToInt64(checkCount, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertLifetimePersistenceStructureAbsentAsync(string connectionString)
@@ -1174,7 +1175,7 @@ public sealed class ItemMigrationTests
 
         object? columnCount = await columns.ExecuteScalarAsync(CancellationToken);
         Assert.NotNull(columnCount);
-        Assert.Equal(0L, Convert.ToInt64(columnCount));
+        Assert.Equal(0L, Convert.ToInt64(columnCount, CultureInfo.InvariantCulture));
 
         await using MySqlCommand indexes = connection.CreateCommand();
         indexes.CommandText = """
@@ -1187,7 +1188,7 @@ public sealed class ItemMigrationTests
 
         object? indexCount = await indexes.ExecuteScalarAsync(CancellationToken);
         Assert.NotNull(indexCount);
-        Assert.Equal(0L, Convert.ToInt64(indexCount));
+        Assert.Equal(0L, Convert.ToInt64(indexCount, CultureInfo.InvariantCulture));
 
         await using MySqlCommand checks = connection.CreateCommand();
         checks.CommandText = """
@@ -1200,7 +1201,7 @@ public sealed class ItemMigrationTests
 
         object? checkCount = await checks.ExecuteScalarAsync(CancellationToken);
         Assert.NotNull(checkCount);
-        Assert.Equal(0L, Convert.ToInt64(checkCount));
+        Assert.Equal(0L, Convert.ToInt64(checkCount, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertCompatibilityAsync(string connectionString, uint expectedSchemaVersion, string expectedMigrationId)

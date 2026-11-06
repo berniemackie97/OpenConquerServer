@@ -44,14 +44,44 @@ public sealed class Syndicate
         RequiredMetempsychosis = requiredMetempsychosis;
     }
 
-    public ushort SyndicateId { get; }
-    public string Name { get; }
-    public uint LeaderCharacterId { get; }
-    public string LeaderName { get; }
-    public ulong SilverFund { get; }
-    public uint EmoneyFund { get; }
-    public uint Population { get; }
-    public byte RequiredLevel { get; }
-    public byte RequiredProfession { get; }
-    public byte RequiredMetempsychosis { get; }
+    public ushort SyndicateId
+    {
+        get;
+    }
+    public string Name
+    {
+        get;
+    }
+    public uint LeaderCharacterId
+    {
+        get;
+    }
+    public string LeaderName
+    {
+        get;
+    }
+    public ulong SilverFund
+    {
+        get;
+    }
+    public uint EmoneyFund
+    {
+        get;
+    }
+    public uint Population
+    {
+        get;
+    }
+    public byte RequiredLevel
+    {
+        get;
+    }
+    public byte RequiredProfession
+    {
+        get;
+    }
+    public byte RequiredMetempsychosis
+    {
+        get;
+    }
 }

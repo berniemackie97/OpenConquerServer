@@ -7,7 +7,13 @@ namespace OpenConquer.Protocol.Serialization;
 /// </summary>
 public interface IPacket
 {
-    ushort PacketId { get; }
-    int PayloadLength { get; }
+    ushort PacketId
+    {
+        get;
+    }
+    int PayloadLength
+    {
+        get;
+    }
     void WritePayload(ref PacketWriter writer);
 }

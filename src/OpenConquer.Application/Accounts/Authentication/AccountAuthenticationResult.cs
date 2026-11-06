@@ -16,11 +16,26 @@ public readonly record struct AccountAuthenticationResult
         PasswordCredentialRevision = passwordCredentialRevision;
     }
 
-    public AccountAuthenticationStatus Status { get; }
-    public uint AccountId { get; }
-    public string? Username { get; }
-    public ulong AccountStateRevision { get; }
-    public ulong PasswordCredentialRevision { get; }
+    public AccountAuthenticationStatus Status
+    {
+        get;
+    }
+    public uint AccountId
+    {
+        get;
+    }
+    public string? Username
+    {
+        get;
+    }
+    public ulong AccountStateRevision
+    {
+        get;
+    }
+    public ulong PasswordCredentialRevision
+    {
+        get;
+    }
 
     public bool IsSuccess => Status == AccountAuthenticationStatus.Success;
 

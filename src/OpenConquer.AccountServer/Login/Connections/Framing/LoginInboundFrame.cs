@@ -30,8 +30,14 @@ internal sealed class LoginInboundFrame : IDisposable
         PacketId = packetId;
     }
 
-    public int FrameLength { get; }
-    public ushort PacketId { get; }
+    public int FrameLength
+    {
+        get;
+    }
+    public ushort PacketId
+    {
+        get;
+    }
 
     public ReadOnlyMemory<byte> Payload
     {

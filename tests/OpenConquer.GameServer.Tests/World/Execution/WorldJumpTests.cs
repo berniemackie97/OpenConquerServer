@@ -47,7 +47,10 @@ public sealed class WorldJumpTests
         WorldCharacterOwnership owner = new(CharacterId, MapId, 1);
         map.Admit(owner, 2, 2);
         Assert.Null(map.TryJump(owner, 64, 2));
-        Assert.Null(map.TryJump(owner with { Generation = 2 }, 3, 2));
+        Assert.Null(map.TryJump(owner with
+        {
+            Generation = 2
+        }, 3, 2));
         Assert.Equal((2, 2), Position(map.Find(owner)));
     }
 
@@ -61,7 +64,10 @@ public sealed class WorldJumpTests
         WorldCharacterSnapshot moved = Assert.IsType<WorldCharacterSnapshot>(await runtime.TryJumpCharacterAsync(owner, 8, 8,
             TestContext.Current.CancellationToken));
         Assert.Equal((8, 8), (moved.X, moved.Y));
-        Assert.Null(await runtime.TryJumpCharacterAsync(owner with { Generation = owner.Generation + 1 }, 9, 9,
+        Assert.Null(await runtime.TryJumpCharacterAsync(owner with
+        {
+            Generation = owner.Generation + 1
+        }, 9, 9,
             TestContext.Current.CancellationToken));
         Assert.Equal((8, 8), Position(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken)));
         Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));

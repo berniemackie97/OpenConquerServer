@@ -85,32 +85,107 @@ public sealed class CharacterItem
         Lifetime = lifetime;
     }
 
-    public uint ItemId { get; }
-    public uint OwnerCharacterId { get; }
-    public uint ItemTypeId { get; }
-    public ItemPlacement Placement { get; }
+    public uint ItemId
+    {
+        get;
+    }
+    public uint OwnerCharacterId
+    {
+        get;
+    }
+    public uint ItemTypeId
+    {
+        get;
+    }
+    public ItemPlacement Placement
+    {
+        get;
+    }
 
-    public ushort Durability { get; }
-    public ushort MaximumDurability { get; }
-    public byte RetailCompatibilityByteA { get; }
-    public uint TalismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline { get; }
-    public byte Socket1Code { get; }
-    public byte Socket2Code { get; }
-    public uint HiddenAttackEffect { get; }
-    public byte RetailCompatibilityByteB { get; }
-    public byte AdditionLevel { get; }
-    public byte DamageReductionPercentOrSteedCompositionRed { get; }
-    public byte ItemBindingCode { get; }
-    public byte EnchantmentLifeBonusOrSteedCompositionGreen { get; }
-    public uint MonsterRestraintIdOrSteedCompositionBlue { get; }
-    public bool IsSuspicious { get; }
+    public ushort Durability
+    {
+        get;
+    }
+    public ushort MaximumDurability
+    {
+        get;
+    }
+    public byte RetailCompatibilityByteA
+    {
+        get;
+    }
+    public uint TalismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline
+    {
+        get;
+    }
+    public byte Socket1Code
+    {
+        get;
+    }
+    public byte Socket2Code
+    {
+        get;
+    }
+    public uint HiddenAttackEffect
+    {
+        get;
+    }
+    public byte RetailCompatibilityByteB
+    {
+        get;
+    }
+    public byte AdditionLevel
+    {
+        get;
+    }
+    public byte DamageReductionPercentOrSteedCompositionRed
+    {
+        get;
+    }
+    public byte ItemBindingCode
+    {
+        get;
+    }
+    public byte EnchantmentLifeBonusOrSteedCompositionGreen
+    {
+        get;
+    }
+    public uint MonsterRestraintIdOrSteedCompositionBlue
+    {
+        get;
+    }
+    public bool IsSuspicious
+    {
+        get;
+    }
 
-    public ushort EquipmentLockStateMask { get; }
-    public DateTimeOffset? EquipmentUnlockAtUtc { get; }
+    public ushort EquipmentLockStateMask
+    {
+        get;
+    }
+    public DateTimeOffset? EquipmentUnlockAtUtc
+    {
+        get;
+    }
 
-    public ushort EquipmentColor { get; }
-    public uint CompositionProgress { get; }
-    public uint InscribedSyndicateId { get; }
-    public ushort StackQuantity { get; }
-    public ItemLifetime Lifetime { get; }
+    public ushort EquipmentColor
+    {
+        get;
+    }
+    public uint CompositionProgress
+    {
+        get;
+    }
+    public uint InscribedSyndicateId
+    {
+        get;
+    }
+    public ushort StackQuantity
+    {
+        get;
+    }
+    public ItemLifetime Lifetime
+    {
+        get;
+    }
 }

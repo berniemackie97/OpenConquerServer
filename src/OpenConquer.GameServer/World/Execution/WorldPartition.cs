@@ -129,6 +129,7 @@ internal sealed class WorldPartition
         }
 
         List<IWorldPartitionCommand>? rejected = null;
+        InvalidOperationException? rescheduleFailure = null;
 
         try
         {
@@ -171,15 +172,19 @@ internal sealed class WorldPartition
 
             if (rejected is not null)
             {
-                InvalidOperationException failure = new($"World partition {Map.MapId} could not be rescheduled.");
+                rescheduleFailure = new InvalidOperationException($"World partition {Map.MapId} could not be rescheduled.");
 
                 foreach (IWorldPartitionCommand command in rejected)
                 {
-                    command.Reject(failure);
+                    command.Reject(rescheduleFailure);
                 }
-
-                throw failure;
             }
+        }
+
+        // Thrown after the finally block so a failure from the turn itself is never replaced.
+        if (rescheduleFailure is not null)
+        {
+            throw rescheduleFailure;
         }
     }
 

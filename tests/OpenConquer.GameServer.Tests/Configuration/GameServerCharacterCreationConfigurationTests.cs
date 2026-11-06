@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenConquer.Application.Characters.Creation;
 using OpenConquer.GameServer.Configuration;
 
@@ -94,11 +95,11 @@ public sealed class GameServerCharacterCreationConfigurationTests
             CharacterCreationStartingAllotment allotment = allotments[i];
             string prefix = $"GameServer:CharacterCreation:Allotments:{i}";
 
-            values[$"{prefix}:Family"] = allotment.Family.ToString();
-            values[$"{prefix}:Strength"] = allotment.Strength.ToString();
-            values[$"{prefix}:Agility"] = allotment.Agility.ToString();
-            values[$"{prefix}:Vitality"] = allotment.Vitality.ToString();
-            values[$"{prefix}:Spirit"] = allotment.Spirit.ToString();
+            values[$"{prefix}:Family"] = allotment.Family.ToString(CultureInfo.InvariantCulture);
+            values[$"{prefix}:Strength"] = allotment.Strength.ToString(CultureInfo.InvariantCulture);
+            values[$"{prefix}:Agility"] = allotment.Agility.ToString(CultureInfo.InvariantCulture);
+            values[$"{prefix}:Vitality"] = allotment.Vitality.ToString(CultureInfo.InvariantCulture);
+            values[$"{prefix}:Spirit"] = allotment.Spirit.ToString(CultureInfo.InvariantCulture);
         }
     }
 }

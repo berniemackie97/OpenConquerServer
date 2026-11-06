@@ -124,7 +124,10 @@ public sealed class GameLoginTicketCleanupHostedServiceTests
         private readonly Queue<int> _results = new(results);
 
         public int MaximumBatchSize { get; } = maximumBatchSize;
-        public int CallCount { get; private set; }
+        public int CallCount
+        {
+            get; private set;
+        }
 
         public ValueTask<int> DeleteExpiredBatchAsync(CancellationToken cancellationToken = default)
         {

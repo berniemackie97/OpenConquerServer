@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Items.Hydration;
@@ -7,7 +8,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Items;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Items;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 200_000;
@@ -123,7 +124,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, s_utcNow, CancellationToken));
 
-        Assert.Contains(characterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(characterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Contains("configured item hydration limit of 2", exception.Message, StringComparison.Ordinal);
     }
 
@@ -218,7 +219,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         InvalidDataException exception = await AssertCorruptItemFailsClosedAsync(characterId, itemId, "`location_kind` = 3",
             "CK_items_location_kind", "CK_items_location_payload");
 
-        Assert.Contains(itemId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(itemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -230,7 +231,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         InvalidDataException exception = await AssertCorruptItemFailsClosedAsync(characterId, itemId, "`equipment_set` = 2",
             "CK_items_alternate_equipment_slot");
 
-        Assert.Contains(itemId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(itemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -242,7 +243,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         InvalidDataException exception = await AssertCorruptItemFailsClosedAsync(characterId, itemId, "`lifetime_duration_seconds` = 60",
             "CK_items_lifetime");
 
-        Assert.Contains(itemId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(itemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -254,7 +255,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
         InvalidDataException exception = await AssertCorruptItemFailsClosedAsync(characterId, itemId, "`equipment_lock_state_mask` = 2",
             "CK_items_equipment_unlock_schedule");
 
-        Assert.Contains(itemId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(itemId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.IsType<ArgumentException>(exception.InnerException);
     }
 
@@ -266,7 +267,7 @@ public sealed class CharacterItemSetRepositoryTests(GameDatabaseFixture database
 
         InvalidDataException exception = await AssertDuplicateEquipmentPositionFailsClosedAsync(characterId, firstItemId);
 
-        Assert.Contains(characterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(characterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Contains("invalid aggregate state", exception.Message, StringComparison.Ordinal);
         Assert.IsType<ArgumentException>(exception.InnerException);
     }

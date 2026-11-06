@@ -262,6 +262,28 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         Assert.Equal(0, store.CallCount);
     }
 
+    [Fact]
+    public async Task Creation_PreCanceledOperation_DisposesTransferredConnectionAndRestoresCapacity()
+    {
+        await using LoginFixture first = await LoginFixture.CreateAsync();
+        await using LoginFixture next = await LoginFixture.CreateAsync();
+        CreationStore store = new();
+        using GameCharacterCreationLoginProcessor processor = CreateCreationProcessor(first, store, new CreationResolver(first.Profile, false), capacity: 1);
+        using CancellationTokenSource stopping = new();
+        stopping.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            processor.ProcessAsync(first.Handoff.TakeConnection(), stopping.Token));
+
+        Assert.Equal(1, first.Harness.Transport.DisposeCount);
+        Assert.Empty(first.Harness.ReadServerPackets());
+        next.Harness.Transport.QueueEndOfStream();
+        Assert.Null(await processor.ProcessAsync(next.Handoff.TakeConnection(), TestContext.Current.CancellationToken));
+        AssertCreationMessage(Assert.Single(next.Harness.ReadServerPackets()), 0x835, "NEW_ROLE");
+        Assert.Equal(1, next.Harness.Transport.DisposeCount);
+        Assert.Equal(0, store.CallCount);
+    }
+
     private static GameCharacterCreationLoginProcessor CreateCreationProcessor(LoginFixture fixture, ICharacterCreationStore store,
         ICharacterLoginResolver resolver, TimeSpan? timeout = null, int capacity = 8)
     {
@@ -309,7 +331,10 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
 
     private sealed class CreationStore(CharacterCreationStoreResult? firstResult = null) : ICharacterCreationStore
     {
-        public int CallCount { get; private set; }
+        public int CallCount
+        {
+            get; private set;
+        }
         public ValueTask<CharacterCreationStoreResult> CreateAsync(CharacterCreationCandidate character, CancellationToken cancellationToken = default)
         {
             Assert.Equal(42u, character.AccountId);

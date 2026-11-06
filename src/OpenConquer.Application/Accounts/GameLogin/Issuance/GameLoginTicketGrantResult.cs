@@ -8,8 +8,14 @@ public readonly record struct GameLoginTicketGrantResult
         Ticket = ticket;
     }
 
-    public GameLoginTicketGrantStatus Status { get; }
-    public GameLoginTicket? Ticket { get; }
+    public GameLoginTicketGrantStatus Status
+    {
+        get;
+    }
+    public GameLoginTicket? Ticket
+    {
+        get;
+    }
 
     public bool IsGranted => Status == GameLoginTicketGrantStatus.Granted;
 

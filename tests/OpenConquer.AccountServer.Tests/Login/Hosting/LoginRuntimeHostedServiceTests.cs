@@ -24,7 +24,7 @@ public sealed class LoginRuntimeHostedServiceTests
     [Fact]
     public async Task StartAsync_CreatesListenerOnlyDuringStartupAndStopDisposesIt()
     {
-        await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        await using TransportConnectionAdmission queue = new(capacity: 1);
         using ServiceProvider services = CreateMetricServices();
         LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
@@ -58,7 +58,7 @@ public sealed class LoginRuntimeHostedServiceTests
     [Fact]
     public async Task StartAsync_RejectsMissingListenerFromFactory()
     {
-        await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        await using TransportConnectionAdmission queue = new(capacity: 1);
         using ServiceProvider services = CreateMetricServices();
         LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         using LoginRuntimeHostedService service = CreateService(static () => null!, queue, metrics);
@@ -71,7 +71,7 @@ public sealed class LoginRuntimeHostedServiceTests
     [Fact]
     public async Task ExecuteTask_PropagatesAcceptLoopFailureAndImmediatelyDisposesListener()
     {
-        await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        await using TransportConnectionAdmission queue = new(capacity: 1);
         using ServiceProvider services = CreateMetricServices();
         LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
@@ -98,7 +98,7 @@ public sealed class LoginRuntimeHostedServiceTests
     [Fact]
     public async Task ExecuteTask_TreatsUnexpectedAdmissionCompletionAsRuntimeFailure()
     {
-        await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        await using TransportConnectionAdmission queue = new(capacity: 1);
         using ServiceProvider services = CreateMetricServices();
         LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
@@ -122,7 +122,7 @@ public sealed class LoginRuntimeHostedServiceTests
     [Fact]
     public async Task ExecuteTask_SourceRejectedConnectionIsDisposedBeforeWorkerProcessing()
     {
-        await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        await using TransportConnectionAdmission queue = new(capacity: 1);
         using ServiceProvider services = CreateMetricServices();
         LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         TrackingTransportConnection connection = new();
@@ -154,7 +154,7 @@ public sealed class LoginRuntimeHostedServiceTests
     [Fact]
     public async Task StopAsync_IsIdempotentForListenerOwnership()
     {
-        await using TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        await using TransportConnectionAdmission queue = new(capacity: 1);
         using ServiceProvider services = CreateMetricServices();
         LoginRuntimeMetrics metrics = services.GetRequiredService<LoginRuntimeMetrics>();
         ControlledTransportConnectionListener listener = new();
@@ -174,12 +174,12 @@ public sealed class LoginRuntimeHostedServiceTests
         return new ServiceCollection().AddMetrics().AddSingleton<LoginRuntimeMetrics>().BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
-    private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue queue, LoginRuntimeMetrics metrics, IAccountLoginConnectionLimiter? connectionLimiter = null)
+    private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmission queue, LoginRuntimeMetrics metrics, IAccountLoginConnectionLimiter? connectionLimiter = null)
     {
         return CreateService(listenerFactory, queue, metrics, out _, connectionLimiter);
     }
 
-    private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmissionQueue queue, LoginRuntimeMetrics metrics, out FatalBackgroundServiceFailureState fatalFailureState, IAccountLoginConnectionLimiter? connectionLimiter = null)
+    private static LoginRuntimeHostedService CreateService(LoginTransportListenerFactory listenerFactory, TransportConnectionAdmission queue, LoginRuntimeMetrics metrics, out FatalBackgroundServiceFailureState fatalFailureState, IAccountLoginConnectionLimiter? connectionLimiter = null)
     {
         GameLoginTicketIssuer ticketIssuer = new(new ThrowingGameLoginTicketGrantStore(), new TestGameLoginTicketTokenGenerator());
         LoginHandshakeProcessor handshakeProcessor = TestLoginHandshakeFactory.Create(new ThrowingAccountAuthenticator(), ticketIssuer, new UnusedRealmRegistry(), new UnusedRealmStatusDirectory(), new UnusedKickRequester(), new LoginHandshakeConfiguration(TimeSpan.FromSeconds(5)));

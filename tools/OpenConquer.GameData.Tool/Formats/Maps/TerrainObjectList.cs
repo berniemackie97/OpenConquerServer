@@ -9,5 +9,8 @@ internal sealed class TerrainObjectList
         Entries = entries;
     }
 
-    public ImmutableArray<TerrainObjectEntry> Entries { get; }
+    public ImmutableArray<TerrainObjectEntry> Entries
+    {
+        get;
+    }
 }

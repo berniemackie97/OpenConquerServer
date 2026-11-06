@@ -124,8 +124,12 @@ internal sealed partial class GameServerWorldHostedService(
 
         using Process process = Process.GetCurrentProcess();
 
-        LogWorldStartupMeasurements(_logger, Stopwatch.GetElapsedTime(started).TotalMilliseconds,
-            GC.GetTotalMemory(forceFullCollection: false), process.WorkingSet64);
+        double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        long totalMemory = GC.GetTotalMemory(forceFullCollection: false);
+        long workingSet = process.WorkingSet64;
+
+        LogWorldStartupMeasurements(_logger, elapsedMs, totalMemory, workingSet);
+
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -143,7 +147,8 @@ internal sealed partial class GameServerWorldHostedService(
                     _worldState.Unpublish(_runtime);
                 }
 
-                _stopTask = Task.Run(StopCoreAsync);
+                // Caller cancellation stops waiting, never the shared cleanup itself.
+                _stopTask = Task.Run(StopCoreAsync, CancellationToken.None);
             }
 
             shutdown = _stopTask;

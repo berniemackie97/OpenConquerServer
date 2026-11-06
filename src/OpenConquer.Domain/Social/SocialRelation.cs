@@ -11,9 +11,18 @@ public readonly record struct SocialRelation
         Kind = kind;
     }
 
-    public uint OwnerCharacterId { get; }
-    public uint CounterpartCharacterId { get; }
-    public SocialRelationKind Kind { get; }
+    public uint OwnerCharacterId
+    {
+        get;
+    }
+    public uint CounterpartCharacterId
+    {
+        get;
+    }
+    public SocialRelationKind Kind
+    {
+        get;
+    }
     public bool IsValid => CharacterIdentityPolicy.IsPlayerEntityId(OwnerCharacterId)
         && CharacterIdentityPolicy.IsPlayerEntityId(CounterpartCharacterId)
         && OwnerCharacterId != CounterpartCharacterId

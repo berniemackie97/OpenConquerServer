@@ -39,7 +39,10 @@ internal sealed class CharacterLoginHandoffResult : IAsyncDisposable
         Resolution = resolution;
     }
 
-    public CharacterLoginResolution Resolution { get; }
+    public CharacterLoginResolution Resolution
+    {
+        get;
+    }
 
     public AuthenticatedGameConnection TakeConnection()
     {

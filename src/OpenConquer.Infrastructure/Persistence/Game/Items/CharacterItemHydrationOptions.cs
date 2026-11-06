@@ -15,5 +15,8 @@ public sealed class CharacterItemHydrationOptions
         MaximumItemsPerCharacter = maximumItemsPerCharacter;
     }
 
-    public int MaximumItemsPerCharacter { get; }
+    public int MaximumItemsPerCharacter
+    {
+        get;
+    }
 }

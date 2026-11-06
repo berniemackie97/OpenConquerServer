@@ -7,13 +7,11 @@ using OpenConquer.Application.World;
 using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.Realms;
 using OpenConquer.GameServer.Configuration;
-using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login.Admission;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Items;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;
-using OpenConquer.GameServer.Login.Bootstrap.Reports;
 using OpenConquer.GameServer.Login.Bootstrap.Skills;
 using OpenConquer.GameServer.Login.Bootstrap.Social;
 using OpenConquer.GameServer.Login.Bootstrap.Syndicates;
@@ -148,7 +146,6 @@ internal static class GameServerHost
         services.AddSingleton<Func<IRealmLoadSource>>(provider => () => provider.GetRequiredService<IRealmLoadSource>());
         services.AddSingleton<GameLoginCapacityGate>();
 
-        services.AddSingleton<GameTransportHandshakeProcessor>();
         services.AddSingleton<GameConnectionAuthenticator>();
         services.AddSingleton<GameConnectionHandoffProcessor>();
         services.AddSingleton<CharacterLoginHandoffProcessor>();
@@ -160,14 +157,11 @@ internal static class GameServerHost
             provider.GetRequiredService<FencedCharacterAdmission>()));
 
         services.AddSingleton<ExistingCharacterEnterMapProcessor>();
-        services.AddSingleton<ExistingCharacterMapStateAppliedProcessor>();
         services.AddSingleton<ExistingCharacterItemSetProcessor>();
         services.AddSingleton<ExistingCharacterFriendListProcessor>();
         services.AddSingleton<ExistingCharacterWeaponSkillSetProcessor>();
         services.AddSingleton<ExistingCharacterMagicSetProcessor>();
         services.AddSingleton<ExistingCharacterSyndicateAttributesProcessor>();
-        services.AddSingleton<ExistingCharacterSilentInfoReportProcessor>();
-        services.AddSingleton<ExistingCharacterStatisticsRequestProcessor>();
 
         services.AddSingleton<WorldVisibilityService>();
         services.AddSingleton<WorldConnectedPortalTransferCoordinator>();
@@ -186,7 +180,7 @@ internal static class GameServerHost
         services.AddSingleton<Func<ITransportConnectionListener>>(_ =>
             () => new SocketTransportListener(network.EndPoint, network.ListenBacklog));
 
-        services.AddSingleton(_ => new TransportConnectionAdmissionQueue(network.AdmissionCapacity));
+        services.AddSingleton(_ => new TransportConnectionAdmission(network.AdmissionCapacity));
         services.AddSingleton<GameLoginMetrics>();
 
         // Clears this realm's account session records before ingress opens and after it closes.

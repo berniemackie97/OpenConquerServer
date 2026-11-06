@@ -69,7 +69,10 @@ internal sealed class GameLoginTicketAuthenticationKeyRing : IDisposable
         }
     }
 
-    public ushort ActiveKeyId { get; }
+    public ushort ActiveKeyId
+    {
+        get;
+    }
 
     public byte[] CreateVerifier(uint sessionUid, uint authenticationKey)
     {
@@ -140,10 +143,7 @@ internal sealed class GameLoginTicketAuthenticationKeyRing : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(GameLoginTicketAuthenticationKeyRing));
-        }
+        ObjectDisposedException.ThrowIf(_disposed, nameof(GameLoginTicketAuthenticationKeyRing));
     }
 
     private static void ZeroVerificationKeys(Dictionary<ushort, byte[]> verificationKeys)

@@ -276,7 +276,10 @@ public sealed class TransportConnectionInputTests
 
         public EndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Loopback, 2000);
 
-        public int ReceiveCallCount { get; private set; }
+        public int ReceiveCallCount
+        {
+            get; private set;
+        }
 
         public ValueTask<int> ReceiveAsync(
             Memory<byte> buffer,

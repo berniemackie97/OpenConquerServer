@@ -43,9 +43,18 @@ internal sealed class LoginStepHarness : IAsyncDisposable
         _readOffset = transport.SentBytes.Length;
     }
 
-    public FakeGameTransportConnection Transport { get; }
-    public GameClientTestPeer Client { get; }
-    public AuthenticatedGameConnection Connection { get; }
+    public FakeGameTransportConnection Transport
+    {
+        get;
+    }
+    public GameClientTestPeer Client
+    {
+        get;
+    }
+    public AuthenticatedGameConnection Connection
+    {
+        get;
+    }
     public CharacterPresenceDirectory Presence { get; } = new();
 
     /// <summary>

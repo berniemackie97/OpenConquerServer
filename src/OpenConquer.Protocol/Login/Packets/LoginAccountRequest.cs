@@ -29,9 +29,18 @@ public sealed class LoginAccountRequest : IDisposable
         _password = password;
     }
 
-    public string AccountName { get; }
-    public string ServerName { get; }
-    public int PasswordLength { get; }
+    public string AccountName
+    {
+        get;
+    }
+    public string ServerName
+    {
+        get;
+    }
+    public int PasswordLength
+    {
+        get;
+    }
 
     /// <summary>
     /// Copies the decoded password into <paramref name="destination"/>.

@@ -6,7 +6,7 @@ using OpenConquer.Domain.Realms;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts.Realms;
 
-[Collection(AccountSchemaDatabaseCollection.Name)]
+[Collection(AccountSchemaDatabaseDefinition.Name)]
 public sealed class MySqlRealmRegistryTests(AccountDatabaseFixture database)
 {
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;

@@ -550,7 +550,7 @@ public sealed class GameLoginTicketGrantStoreTests : IClassFixture<AccountDataba
         }
     }
 
-    private async Task LockAccountAsync(MySqlConnection connection, MySqlTransaction transaction, uint accountId)
+    private static async Task LockAccountAsync(MySqlConnection connection, MySqlTransaction transaction, uint accountId)
     {
         await using MySqlCommand command = connection.CreateCommand();
 

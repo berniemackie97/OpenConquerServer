@@ -148,7 +148,10 @@ public sealed class WorldTransferReservationTests
         await using WorldRuntime runtime = CreateRuntime(maxCharacters: 2, maxCharactersPerMap: 1);
         runtime.Start();
         WorldCharacterOwnership source = await runtime.AdmitCharacterAsync(Profile(CharacterId, SourceMapId), TestContext.Current.CancellationToken);
-        WorldCharacterOwnership stale = source with { Generation = source.Generation + 1 };
+        WorldCharacterOwnership stale = source with
+        {
+            Generation = source.Generation + 1
+        };
 
         Assert.Null(await runtime.TryReserveTransferAsync(stale, TargetMapId, 1, 1, TestContext.Current.CancellationToken));
         Assert.Null(await runtime.TryReserveTransferAsync(source, SourceMapId, 1, 1, TestContext.Current.CancellationToken));

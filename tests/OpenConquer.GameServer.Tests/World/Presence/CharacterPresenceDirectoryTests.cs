@@ -154,7 +154,7 @@ public sealed class CharacterPresenceDirectoryTests
     {
         CharacterPresenceDirectory directory = new();
         ICharacterPresenceLease registration = directory.Register(CharacterId);
-        ICharacterPresenceRevoker revoker = directory;
+        ICharacterPresenceRevoker revoker = Assert.IsAssignableFrom<ICharacterPresenceRevoker>(directory);
 
         Assert.True(revoker.Revoke(CharacterId));
 
@@ -224,7 +224,7 @@ public sealed class CharacterPresenceDirectoryTests
     public void ReaderCapability_ExposesPresenceWithoutRegistrationMutation()
     {
         CharacterPresenceDirectory directory = new();
-        ICharacterPresenceReader reader = directory;
+        ICharacterPresenceReader reader = Assert.IsAssignableFrom<ICharacterPresenceReader>(directory);
         using ICharacterPresenceLease registration = directory.Register(CharacterId);
 
         Assert.True(reader.IsOnline(CharacterId));
@@ -234,8 +234,8 @@ public sealed class CharacterPresenceDirectoryTests
     public void RegistrarCapability_RegistersPresenceWithoutRequiringConcreteDirectory()
     {
         CharacterPresenceDirectory directory = new();
-        ICharacterPresenceRegistrar registrar = directory;
-        ICharacterPresenceReader reader = directory;
+        ICharacterPresenceRegistrar registrar = Assert.IsAssignableFrom<ICharacterPresenceRegistrar>(directory);
+        ICharacterPresenceReader reader = Assert.IsAssignableFrom<ICharacterPresenceReader>(directory);
 
         using ICharacterPresenceLease registration = registrar.Register(CharacterId);
 

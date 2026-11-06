@@ -15,7 +15,10 @@ public sealed class MapTransitionCatalog
     /// <summary>
     /// The map content this catalog was validated against.
     /// </summary>
-    public WorldMapContentCatalog Maps { get; }
+    public WorldMapContentCatalog Maps
+    {
+        get;
+    }
 
     public MapTransitionCatalog(IEnumerable<MapTransitionEntry> entries, WorldMapContentCatalog maps)
     {
@@ -99,8 +102,14 @@ public sealed class MapTransitionCatalog
         _destinations = destinations.ToFrozenDictionary();
     }
 
-    public int Count { get; }
-    public int ResolvedCount { get; }
+    public int Count
+    {
+        get;
+    }
+    public int ResolvedCount
+    {
+        get;
+    }
     public int UnresolvedCount => Count - ResolvedCount;
 
     // PasswayIndex must come from the server's own DMap exit-marker lookup, never from a client-provided index.

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -515,7 +516,7 @@ public sealed class GameLoginTicketMigrationTests
 
         Assert.NotNull(result);
 
-        Assert.Equal(authenticationKey, Convert.ToUInt32(result));
+        Assert.Equal(authenticationKey, Convert.ToUInt32(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertTicketCountAsync(string connectionString, long expectedCount)
@@ -535,7 +536,7 @@ public sealed class GameLoginTicketMigrationTests
 
         Assert.NotNull(result);
 
-        Assert.Equal(expectedCount, Convert.ToInt64(result));
+        Assert.Equal(expectedCount, Convert.ToInt64(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertProtectedCredentialColumnsAsync(string connectionString)

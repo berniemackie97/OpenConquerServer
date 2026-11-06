@@ -21,7 +21,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
 
         harness.QueueAction(GameAction.GetStatisticAction, timestamp: timestamp);
 
-        await new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+        await ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, harness.UnreadServerBytes);
         Assert.Equal(0, harness.Transport.DisposeCount);
@@ -37,7 +37,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.Transport.QueueEndOfStream();
 
         await Assert.ThrowsAsync<EndOfStreamException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -52,7 +52,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.Transport.QueueReceiveFailure(failure);
 
         IOException exception = await Assert.ThrowsAsync<IOException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Same(failure, exception);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -67,7 +67,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueueAction(GameAction.ReportSilentInfoAction);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -83,7 +83,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueuePacket(packet);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -97,7 +97,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.GetStatisticAction, CharacterId, length: 37));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -111,7 +111,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.GetStatisticAction, CharacterId, length: 41));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -125,7 +125,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.GetStatisticAction, CharacterId, stringCount: 1));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -142,7 +142,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueueAction(GameAction.GetStatisticAction, entityId: entityId);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("does not match the authenticated character", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -167,7 +167,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         harness.QueuePacket(packet);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -183,7 +183,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, cancellation.Token).AsTask());
+            ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, cancellation.Token).AsTask());
 
         Assert.Equal(receiveCount, harness.Transport.ReceiveCallCount);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -196,7 +196,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        Task processing = new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+        Task processing = ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, cancellation.Token).AsTask();
 
         cancellation.Cancel();
 
@@ -211,7 +211,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
 
-        Task processing = new ExistingCharacterStatisticsRequestProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask();
+        Task processing = ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask();
 
         ICharacterPresenceLease replacement = harness.Presence.Register(CharacterId);
 

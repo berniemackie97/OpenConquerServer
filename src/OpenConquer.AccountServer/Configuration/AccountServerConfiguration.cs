@@ -29,23 +29,59 @@ internal sealed class AccountServerConfiguration
         RegistrationProtection = registrationProtection;
     }
 
-    public string AccountConnectionString { get; }
-    public IPEndPoint LoginEndPoint { get; }
-    public int ListenBacklog { get; }
-    public int AdmissionCapacity { get; }
-    public AccountLoginConnectionProtectionOptions LoginConnectionProtection { get; }
-    public LoginConnectionWorkerPoolConfiguration WorkerPool { get; }
-    public LoginHandshakeConfiguration Handshake { get; }
-    public AccountAuthenticationProtectionOptions AuthenticationProtection { get; }
-    public ushort ActiveVerificationKeyId { get; }
-    public IReadOnlyList<KeyValuePair<ushort, string>> EncodedVerificationKeys { get; }
-    public GameLoginTicketCleanupConfiguration TicketCleanup { get; }
+    public string AccountConnectionString
+    {
+        get;
+    }
+    public IPEndPoint LoginEndPoint
+    {
+        get;
+    }
+    public int ListenBacklog
+    {
+        get;
+    }
+    public int AdmissionCapacity
+    {
+        get;
+    }
+    public AccountLoginConnectionProtectionOptions LoginConnectionProtection
+    {
+        get;
+    }
+    public LoginConnectionWorkerPoolConfiguration WorkerPool
+    {
+        get;
+    }
+    public LoginHandshakeConfiguration Handshake
+    {
+        get;
+    }
+    public AccountAuthenticationProtectionOptions AuthenticationProtection
+    {
+        get;
+    }
+    public ushort ActiveVerificationKeyId
+    {
+        get;
+    }
+    public IReadOnlyList<KeyValuePair<ushort, string>> EncodedVerificationKeys
+    {
+        get;
+    }
+    public GameLoginTicketCleanupConfiguration TicketCleanup
+    {
+        get;
+    }
 
     /// <summary>
     /// Self-service registration limits, or <see langword="null"/> when registration is disabled. Registration
     /// writes through <see cref="AccountConnectionString"/>, the AccountServer's only database identity.
     /// </summary>
-    public AccountRegistrationProtectionOptions? RegistrationProtection { get; }
+    public AccountRegistrationProtectionOptions? RegistrationProtection
+    {
+        get;
+    }
 
     public static AccountServerConfiguration Load(IConfiguration configuration)
     {
@@ -133,7 +169,7 @@ internal sealed class AccountServerConfiguration
         return value;
     }
 
-    private static KeyValuePair<ushort, string>[] CreateVerificationKeys(IReadOnlyCollection<AccountServerSettings.GameLoginVerificationKeySettings> verificationKeySettings)
+    private static KeyValuePair<ushort, string>[] CreateVerificationKeys(List<AccountServerSettings.GameLoginVerificationKeySettings> verificationKeySettings)
     {
         if (verificationKeySettings.Count == 0)
         {

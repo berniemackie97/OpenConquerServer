@@ -13,18 +13,15 @@ namespace OpenConquer.GameServer.Login.Hosting;
 /// <summary>
 /// Advances one authenticated existing-character connection through the client bootstrap sequence.
 /// </summary>
-internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBootstrapProcessor bootstrap, ExistingCharacterEnterMapProcessor enterMap, ExistingCharacterMapStateAppliedProcessor mapStateApplied, ExistingCharacterItemSetProcessor itemSet, ExistingCharacterFriendListProcessor friendList, ExistingCharacterWeaponSkillSetProcessor weaponSkills, ExistingCharacterMagicSetProcessor magic, ExistingCharacterSyndicateAttributesProcessor syndicate, ExistingCharacterSilentInfoReportProcessor silentInfo, ExistingCharacterStatisticsRequestProcessor statistics, WorldSessionAdmissionProcessor admission)
+internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBootstrapProcessor bootstrap, ExistingCharacterEnterMapProcessor enterMap, ExistingCharacterItemSetProcessor itemSet, ExistingCharacterFriendListProcessor friendList, ExistingCharacterWeaponSkillSetProcessor weaponSkills, ExistingCharacterMagicSetProcessor magic, ExistingCharacterSyndicateAttributesProcessor syndicate, WorldSessionAdmissionProcessor admission)
 {
     private readonly ExistingCharacterBootstrapProcessor _bootstrap = bootstrap ?? throw new ArgumentNullException(nameof(bootstrap));
     private readonly ExistingCharacterEnterMapProcessor _enterMap = enterMap ?? throw new ArgumentNullException(nameof(enterMap));
-    private readonly ExistingCharacterMapStateAppliedProcessor _mapStateApplied = mapStateApplied ?? throw new ArgumentNullException(nameof(mapStateApplied));
     private readonly ExistingCharacterItemSetProcessor _itemSet = itemSet ?? throw new ArgumentNullException(nameof(itemSet));
     private readonly ExistingCharacterFriendListProcessor _friendList = friendList ?? throw new ArgumentNullException(nameof(friendList));
     private readonly ExistingCharacterWeaponSkillSetProcessor _weaponSkills = weaponSkills ?? throw new ArgumentNullException(nameof(weaponSkills));
     private readonly ExistingCharacterMagicSetProcessor _magic = magic ?? throw new ArgumentNullException(nameof(magic));
     private readonly ExistingCharacterSyndicateAttributesProcessor _syndicate = syndicate ?? throw new ArgumentNullException(nameof(syndicate));
-    private readonly ExistingCharacterSilentInfoReportProcessor _silentInfo = silentInfo ?? throw new ArgumentNullException(nameof(silentInfo));
-    private readonly ExistingCharacterStatisticsRequestProcessor _statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
     private readonly WorldSessionAdmissionProcessor _admission = admission ?? throw new ArgumentNullException(nameof(admission));
 
     /// <summary>
@@ -49,14 +46,14 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
             CancellationToken operationToken = operationCancellation.Token;
 
             await _enterMap.ProcessAsync(login, operationToken).ConfigureAwait(false);
-            await _mapStateApplied.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _itemSet.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _friendList.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _weaponSkills.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _magic.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _syndicate.ProcessAsync(login, operationToken).ConfigureAwait(false);
-            await _silentInfo.ProcessAsync(login, operationToken).ConfigureAwait(false);
-            await _statistics.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, operationToken).ConfigureAwait(false);
+            await ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, operationToken).ConfigureAwait(false);
 
             completed = login.Complete();
         }

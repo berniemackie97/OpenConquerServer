@@ -26,9 +26,18 @@ public sealed class AccountMutationContext
         ReasonCode = reasonCode;
     }
 
-    public AccountActorKind ActorKind { get; }
-    public Guid CorrelationId { get; }
-    public string? ReasonCode { get; }
+    public AccountActorKind ActorKind
+    {
+        get;
+    }
+    public Guid CorrelationId
+    {
+        get;
+    }
+    public string? ReasonCode
+    {
+        get;
+    }
 
     public static AccountMutationContext ForSystem(Guid correlationId, string? reasonCode = null)
     {

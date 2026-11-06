@@ -13,25 +13,37 @@ internal sealed class LoginPostAuthenticationReportReadResult
         UnexpectedPacketId = unexpectedPacketId;
     }
 
-    public LoginPostAuthenticationReportReadStatus Status { get; }
+    public LoginPostAuthenticationReportReadStatus Status
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets the report phase being processed when a non-success outcome
     /// occurred.
     /// </summary>
-    public LoginPostAuthenticationReportPhase? FailurePhase { get; }
+    public LoginPostAuthenticationReportPhase? FailurePhase
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets the validated reports when <see cref="Status"/> is
     /// <see cref="LoginPostAuthenticationReportReadStatus.Success"/>.
     /// </summary>
-    public LoginPostAuthenticationReports? Reports { get; }
+    public LoginPostAuthenticationReports? Reports
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets the received packet identifier when <see cref="Status"/> is
     /// <see cref="LoginPostAuthenticationReportReadStatus.UnexpectedPacket"/>.
     /// </summary>
-    public ushort? UnexpectedPacketId { get; }
+    public ushort? UnexpectedPacketId
+    {
+        get;
+    }
 
     public static LoginPostAuthenticationReportReadResult Success(LoginPostAuthenticationReports reports)
     {

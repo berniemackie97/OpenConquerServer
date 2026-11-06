@@ -3,7 +3,7 @@ using OpenConquer.Domain.Characters;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class GameSchemaIntegrityTests(GameDatabaseFixture database)
 {
     private static readonly string[] s_expectedCheckConstraints =

@@ -66,7 +66,10 @@ public sealed class AccountDatabaseReadinessHostedServiceTests
         private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Started => _started.Task;
-        public CancellationToken ObservedCancellationToken { get; private set; }
+        public CancellationToken ObservedCancellationToken
+        {
+            get; private set;
+        }
 
         public async Task VerifyAsync(CancellationToken cancellationToken = default)
         {

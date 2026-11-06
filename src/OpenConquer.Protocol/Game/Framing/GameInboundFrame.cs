@@ -16,7 +16,10 @@ public sealed class GameInboundFrame : IDisposable
         Header = header;
     }
 
-    public WireFrameHeader Header { get; }
+    public WireFrameHeader Header
+    {
+        get;
+    }
 
     public ushort PacketId => Header.PacketId;
 

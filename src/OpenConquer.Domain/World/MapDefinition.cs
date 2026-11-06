@@ -22,7 +22,16 @@ public sealed record MapDefinition
         Flags = flags;
     }
 
-    public uint MapId { get; }
-    public uint MapDataId { get; }
-    public ulong Flags { get; }
+    public uint MapId
+    {
+        get;
+    }
+    public uint MapDataId
+    {
+        get;
+    }
+    public ulong Flags
+    {
+        get;
+    }
 }

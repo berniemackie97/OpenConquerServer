@@ -18,12 +18,30 @@ public readonly record struct CharacterSyndicateMembership
         JoinDateUnixSeconds = joinDateUnixSeconds;
     }
 
-    public uint CharacterId { get; }
-    public ushort SyndicateId { get; }
-    public uint Rank { get; }
-    public uint Proffer { get; }
-    public uint PositionExpirationUnixSeconds { get; }
-    public uint JoinDateUnixSeconds { get; }
+    public uint CharacterId
+    {
+        get;
+    }
+    public ushort SyndicateId
+    {
+        get;
+    }
+    public uint Rank
+    {
+        get;
+    }
+    public uint Proffer
+    {
+        get;
+    }
+    public uint PositionExpirationUnixSeconds
+    {
+        get;
+    }
+    public uint JoinDateUnixSeconds
+    {
+        get;
+    }
 
     public bool IsValid => CharacterIdentityPolicy.IsPlayerEntityId(CharacterId) && SyndicateId != 0;
 

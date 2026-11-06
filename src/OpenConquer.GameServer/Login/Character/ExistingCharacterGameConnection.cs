@@ -1,6 +1,5 @@
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Realms;
 using OpenConquer.GameServer.World.Presence;
@@ -58,8 +57,14 @@ internal sealed class ExistingCharacterGameConnection : IAsyncDisposable
         Profile = profile;
     }
 
-    public CharacterLoginProfile Profile { get; }
-    public CharacterLocationWriteAuthority? LocationAuthority { get; }
+    public CharacterLoginProfile Profile
+    {
+        get;
+    }
+    public CharacterLocationWriteAuthority? LocationAuthority
+    {
+        get;
+    }
     public bool IsRevoked => _presenceLease.IsRevoked;
     public CancellationToken RevocationToken => _presenceLease.RevocationToken;
 

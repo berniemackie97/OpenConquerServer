@@ -40,7 +40,10 @@ public sealed class GamePlayerSpawnPacket : IPacket
         Player = player;
     }
 
-    public GamePlayerSpawnSnapshot Player { get; }
+    public GamePlayerSpawnSnapshot Player
+    {
+        get;
+    }
     public ushort PacketId => 10014;
     public int PayloadLength => FixedPayloadLength + 1 + StringEntryCount + _encodedNameLength;
 

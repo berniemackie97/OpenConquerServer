@@ -128,9 +128,15 @@ public sealed class AccountAuthenticatorRevisionTests
         private readonly AccountAuthenticationSnapshot _snapshot =
             snapshot ?? throw new ArgumentNullException(nameof(snapshot));
 
-        public int SuccessfulLoginRecordCount { get; private set; }
+        public int SuccessfulLoginRecordCount
+        {
+            get; private set;
+        }
 
-        public string? LastReplacementPasswordHash { get; private set; }
+        public string? LastReplacementPasswordHash
+        {
+            get; private set;
+        }
 
         public ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(
             string accountName,
@@ -224,11 +230,7 @@ public sealed class AccountAuthenticatorRevisionTests
         )
         {
             ArgumentNullException.ThrowIfNull(remoteAddress);
-
-            if (accountId == 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(accountId));
-            }
+            ArgumentOutOfRangeException.ThrowIfZero(accountId);
 
             attempt = new AttemptLease();
 
@@ -243,16 +245,11 @@ public sealed class AccountAuthenticatorRevisionTests
 
         public void Complete(bool credentialsAccepted)
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(AttemptLease));
-            }
+            ObjectDisposedException.ThrowIf(_disposed, nameof(AttemptLease));
 
             if (_completed)
             {
-                throw new InvalidOperationException(
-                    "The authentication attempt has already been completed."
-                );
+                throw new InvalidOperationException("The authentication attempt has already been completed.");
             }
 
             _completed = true;

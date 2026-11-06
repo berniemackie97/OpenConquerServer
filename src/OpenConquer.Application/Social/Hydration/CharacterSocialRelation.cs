@@ -21,8 +21,14 @@ public sealed class CharacterSocialRelation
         CounterpartName = counterpartName;
     }
 
-    public SocialRelation Relation { get; }
-    public string CounterpartName { get; }
+    public SocialRelation Relation
+    {
+        get;
+    }
+    public string CounterpartName
+    {
+        get;
+    }
 
     public uint OwnerCharacterId => Relation.OwnerCharacterId;
     public uint CounterpartCharacterId => Relation.CounterpartCharacterId;

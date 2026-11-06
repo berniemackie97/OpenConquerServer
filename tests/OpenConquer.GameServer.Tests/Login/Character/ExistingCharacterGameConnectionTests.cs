@@ -404,9 +404,15 @@ public sealed class ExistingCharacterGameConnectionTests
             RevocationToken = _revocation.Token;
         }
 
-        public uint CharacterId { get; }
+        public uint CharacterId
+        {
+            get;
+        }
         public bool IsRevoked => Volatile.Read(ref _revoked) != 0;
-        public CancellationToken RevocationToken { get; }
+        public CancellationToken RevocationToken
+        {
+            get;
+        }
 
         public void Dispose()
         {

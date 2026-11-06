@@ -54,16 +54,46 @@ public sealed class AccountAuthenticationProtectionOptions
         }
     }
 
-    public int RequestLimitPerSource { get; }
-    public TimeSpan RequestWindow { get; }
-    public int MaximumConcurrentRequestsPerSource { get; }
-    public int MaximumConcurrentRequests { get; }
-    public int MaximumConcurrentAttemptsPerAccount { get; }
-    public int FailedAttemptLimitPerAccountSource { get; }
-    public TimeSpan FailureWindow { get; }
-    public TimeSpan FailureLockout { get; }
-    public TimeSpan EntryRetention { get; }
-    public int MaximumTrackedEntries { get; }
+    public int RequestLimitPerSource
+    {
+        get;
+    }
+    public TimeSpan RequestWindow
+    {
+        get;
+    }
+    public int MaximumConcurrentRequestsPerSource
+    {
+        get;
+    }
+    public int MaximumConcurrentRequests
+    {
+        get;
+    }
+    public int MaximumConcurrentAttemptsPerAccount
+    {
+        get;
+    }
+    public int FailedAttemptLimitPerAccountSource
+    {
+        get;
+    }
+    public TimeSpan FailureWindow
+    {
+        get;
+    }
+    public TimeSpan FailureLockout
+    {
+        get;
+    }
+    public TimeSpan EntryRetention
+    {
+        get;
+    }
+    public int MaximumTrackedEntries
+    {
+        get;
+    }
 
     private static int ValidateLimit(int value, string parameterName, int maximum)
     {

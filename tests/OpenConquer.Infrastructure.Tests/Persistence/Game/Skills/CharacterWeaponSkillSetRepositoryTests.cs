@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Skills.Hydration;
@@ -6,7 +7,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Skills;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Skills;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterWeaponSkillSetRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 500_000;
@@ -99,7 +100,7 @@ public sealed class CharacterWeaponSkillSetRepositoryTests(GameDatabaseFixture d
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, CancellationToken));
 
-        Assert.Contains(characterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(characterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Contains("configured weapon-skill hydration limit of 2", exception.Message, StringComparison.Ordinal);
     }
 
@@ -134,7 +135,7 @@ public sealed class CharacterWeaponSkillSetRepositoryTests(GameDatabaseFixture d
 
         InvalidDataException exception = await AssertCorruptLevelFailsClosedAsync(characterId, 410);
 
-        Assert.Contains(characterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(characterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Contains("410", exception.Message, StringComparison.Ordinal);
         Assert.IsAssignableFrom<ArgumentException>(exception.InnerException);
     }

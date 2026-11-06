@@ -32,7 +32,10 @@ internal sealed class RegistrationCommitFaultProxy : IAsyncDisposable
         _accept = AcceptAsync();
     }
 
-    public int Port { get; }
+    public int Port
+    {
+        get;
+    }
     public int InsertCount => Volatile.Read(ref _insertCount);
     public bool CommitAcknowledged => Volatile.Read(ref _commitAcknowledged) != 0;
 

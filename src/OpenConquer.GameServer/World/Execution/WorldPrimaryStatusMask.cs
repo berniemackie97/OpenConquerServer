@@ -22,8 +22,14 @@ internal readonly record struct WorldPrimaryStatusMask(ulong Low, ulong High)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bit);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bit, 128);
-        return bit < 64 ? this with { Low = Low | (1UL << bit) }
-            : this with { High = High | (1UL << (bit - 64)) };
+        return bit < 64 ? this with
+        {
+            Low = Low | (1UL << bit)
+        }
+            : this with
+            {
+                High = High | (1UL << (bit - 64))
+            };
     }
 
     public static WorldPrimaryStatusMask ForAdmission(bool alive) =>

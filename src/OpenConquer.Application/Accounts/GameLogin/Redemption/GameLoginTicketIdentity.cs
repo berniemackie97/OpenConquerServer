@@ -26,7 +26,16 @@ public sealed class GameLoginTicketIdentity
         SessionUid = sessionUid;
     }
 
-    public uint AccountId { get; }
-    public string Username { get; }
-    public uint SessionUid { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Username
+    {
+        get;
+    }
+    public uint SessionUid
+    {
+        get;
+    }
 }

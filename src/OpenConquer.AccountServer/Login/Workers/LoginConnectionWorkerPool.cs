@@ -9,9 +9,9 @@ namespace OpenConquer.AccountServer.Login.Workers;
 
 internal static class LoginConnectionWorkerPool
 {
-    public static async Task RunAsync(TransportConnectionAdmissionQueue admissionQueue, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration configuration, Action<LoginConnectionProcessingTimeout> reportTimeout, Action<LoginConnectionProcessingFailure> reportFailure, CancellationToken cancellationToken = default)
+    public static async Task RunAsync(TransportConnectionAdmission admission, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration configuration, Action<LoginConnectionProcessingTimeout> reportTimeout, Action<LoginConnectionProcessingFailure> reportFailure, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(admissionQueue);
+        ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(seedGenerator);
         ArgumentNullException.ThrowIfNull(handshakeProcessor);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -25,7 +25,7 @@ internal static class LoginConnectionWorkerPool
 
         for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
         {
-            workers[workerIndex] = RunWorkerGuardedAsync(workerIndex, admissionQueue, seedGenerator, handshakeProcessor, configuration, reportTimeout, reportFailure, poolCancellation);
+            workers[workerIndex] = RunWorkerGuardedAsync(workerIndex, admission, seedGenerator, handshakeProcessor, configuration, reportTimeout, reportFailure, poolCancellation);
         }
 
         Exception?[] workerFailures = await Task.WhenAll(workers).ConfigureAwait(false);
@@ -52,11 +52,11 @@ internal static class LoginConnectionWorkerPool
         cancellationToken.ThrowIfCancellationRequested();
     }
 
-    private static async Task<Exception?> RunWorkerGuardedAsync(int workerIndex, TransportConnectionAdmissionQueue admissionQueue, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration configuration, Action<LoginConnectionProcessingTimeout> reportTimeout, Action<LoginConnectionProcessingFailure> reportFailure, CancellationTokenSource poolCancellation)
+    private static async Task<Exception?> RunWorkerGuardedAsync(int workerIndex, TransportConnectionAdmission admission, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration configuration, Action<LoginConnectionProcessingTimeout> reportTimeout, Action<LoginConnectionProcessingFailure> reportFailure, CancellationTokenSource poolCancellation)
     {
         try
         {
-            await RunWorkerAsync(workerIndex, admissionQueue, seedGenerator, handshakeProcessor, configuration, reportTimeout, reportFailure, poolCancellation.Token).ConfigureAwait(false);
+            await RunWorkerAsync(workerIndex, admission, seedGenerator, handshakeProcessor, configuration, reportTimeout, reportFailure, poolCancellation.Token).ConfigureAwait(false);
             return null;
         }
         catch (OperationCanceledException) when (poolCancellation.IsCancellationRequested)
@@ -77,9 +77,9 @@ internal static class LoginConnectionWorkerPool
         }
     }
 
-    private static async Task RunWorkerAsync(int workerIndex, TransportConnectionAdmissionQueue admissionQueue, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration configuration, Action<LoginConnectionProcessingTimeout> reportTimeout, Action<LoginConnectionProcessingFailure> reportFailure, CancellationToken cancellationToken)
+    private static async Task RunWorkerAsync(int workerIndex, TransportConnectionAdmission admission, ILoginSeedGenerator seedGenerator, LoginHandshakeProcessor handshakeProcessor, LoginConnectionWorkerPoolConfiguration configuration, Action<LoginConnectionProcessingTimeout> reportTimeout, Action<LoginConnectionProcessingFailure> reportFailure, CancellationToken cancellationToken)
     {
-        await foreach (ITransportConnection connection in admissionQueue.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        await foreach (ITransportConnection connection in admission.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
             await ProcessConnectionAsync(workerIndex, connection, seedGenerator, handshakeProcessor, configuration.ConnectionTimeout, reportTimeout, reportFailure, cancellationToken).ConfigureAwait(false);
         }

@@ -14,5 +14,8 @@ internal sealed class LoginHandshakeConfiguration
         PhaseTimeout = phaseTimeout;
     }
 
-    public TimeSpan PhaseTimeout { get; }
+    public TimeSpan PhaseTimeout
+    {
+        get;
+    }
 }

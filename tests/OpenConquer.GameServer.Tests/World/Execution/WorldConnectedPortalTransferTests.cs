@@ -1,32 +1,8 @@
 using System.Buffers.Binary;
-using Microsoft.Extensions.Logging.Abstractions;
 using OpenConquer.Application.Characters.Location;
-using OpenConquer.Application.Characters.Login.Profile;
-using OpenConquer.Application.Items.Hydration;
-using OpenConquer.Application.Skills.Hydration;
-using OpenConquer.Application.Social.Hydration;
-using OpenConquer.Application.Syndicates.Hydration;
-using OpenConquer.Application.World;
-using OpenConquer.Application.World.Transitions;
-using OpenConquer.Domain.Characters;
-using OpenConquer.Domain.World;
-using OpenConquer.GameServer.Connections;
-using OpenConquer.GameServer.Login.Authentication;
-using OpenConquer.GameServer.Login.Bootstrap;
-using OpenConquer.GameServer.Login.Character;
-using OpenConquer.GameServer.Tests.Connections;
-using OpenConquer.GameServer.Tests.Realms;
-using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
-using OpenConquer.GameServer.World.Presence;
-using OpenConquer.GameServer.World.Sessions;
-using OpenConquer.GameServer.World.Visibility;
-using OpenConquer.Protocol.Framing;
-using OpenConquer.Protocol.Game;
-using OpenConquer.Protocol.Game.Cryptography;
 using OpenConquer.Protocol.Game.Framing;
-using OpenConquer.Protocol.Game.Handshake;
 using OpenConquer.Protocol.Game.Packets;
 
 namespace OpenConquer.GameServer.Tests.World.Execution;
@@ -147,7 +123,10 @@ public sealed class WorldConnectedPortalTransferTests
         alice.Session.ProcessClientStateApplied(valid);
         Assert.Empty(alice.AvailableFrames());
 
-        GameAction forged = valid with { EntityId = alice.Session.Ownership.CharacterId };
+        GameAction forged = valid with
+        {
+            EntityId = alice.Session.Ownership.CharacterId
+        };
         Assert.Throws<InvalidDataException>(() => alice.Session.ProcessClientStateApplied(forged));
     }
 
@@ -172,7 +151,10 @@ public sealed class WorldConnectedPortalTransferTests
     public async Task ConnectedPortal_RefusedOrUncertainCommitClosesOnlyTheTraveller(
         PortalPersistenceFault fault, Type expectedException)
     {
-        await using WorldSessionTestWorld world = new(portals: true) { PersistenceFault = fault };
+        await using WorldSessionTestWorld world = new(portals: true)
+        {
+            PersistenceFault = fault
+        };
         WorldSessionTestClient alice = await world.AddAsync(0, "Alice", FirstMap, 2, 1);
         WorldSessionTestClient bobby = await world.AddAsync(1, "Bobby", FirstMap, 4, 1);
         WorldCharacterOwnership source = alice.Session.Ownership;

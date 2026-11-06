@@ -17,9 +17,15 @@ internal sealed class ExistingCharacterItemSetWireProjection
         ActiveEquipmentSnapshot = activeEquipmentSnapshot;
     }
 
-    public CharacterItemSet RuntimeItemSet { get; }
+    public CharacterItemSet RuntimeItemSet
+    {
+        get;
+    }
     public IReadOnlyList<GameLocalItemSnapshotPacket> ItemSnapshots => _itemSnapshots;
-    public GameActiveEquipmentSnapshotPacket? ActiveEquipmentSnapshot { get; }
+    public GameActiveEquipmentSnapshotPacket? ActiveEquipmentSnapshot
+    {
+        get;
+    }
 
     public static ExistingCharacterItemSetWireProjection Create(CharacterItemSet itemSet, DateTimeOffset utcNow)
     {
@@ -49,19 +55,54 @@ internal sealed class ExistingCharacterItemSetWireProjection
 
             switch (position.Slot)
             {
-                case EquipmentSlot.Headwear: headwearItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.Necklace: necklaceItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.Armor: armorItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.RightHand: rightHandItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.LeftHand: leftHandItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.Ring: ringItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.Bottle: bottleItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.Boots: bootsItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.Garment: garmentItemId = item.ItemId; requiresActiveEquipmentSnapshot = true; break;
-                case EquipmentSlot.RightWeaponAccessory: rightWeaponAccessoryItemId = item.ItemId; break;
-                case EquipmentSlot.LeftWeaponAccessory: leftWeaponAccessoryItemId = item.ItemId; break;
-                case EquipmentSlot.SteedArmor: steedArmorItemId = item.ItemId; break;
-                case EquipmentSlot.RidingCrop: ridingCropItemId = item.ItemId; break;
+                case EquipmentSlot.Headwear:
+                    headwearItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.Necklace:
+                    necklaceItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.Armor:
+                    armorItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.RightHand:
+                    rightHandItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.LeftHand:
+                    leftHandItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.Ring:
+                    ringItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.Bottle:
+                    bottleItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.Boots:
+                    bootsItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.Garment:
+                    garmentItemId = item.ItemId;
+                    requiresActiveEquipmentSnapshot = true;
+                    break;
+                case EquipmentSlot.RightWeaponAccessory:
+                    rightWeaponAccessoryItemId = item.ItemId;
+                    break;
+                case EquipmentSlot.LeftWeaponAccessory:
+                    leftWeaponAccessoryItemId = item.ItemId;
+                    break;
+                case EquipmentSlot.SteedArmor:
+                    steedArmorItemId = item.ItemId;
+                    break;
+                case EquipmentSlot.RidingCrop:
+                    ridingCropItemId = item.ItemId;
+                    break;
                 case EquipmentSlot.Fan:
                 case EquipmentSlot.Tower:
                 case EquipmentSlot.Steed:

@@ -5,21 +5,21 @@ namespace OpenConquer.Transport.Admission;
 
 public static class TransportConnectionAcceptLoop
 {
-    public static Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
+    public static Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmission admission, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
     {
-        return RunAsync(listener, admissionQueue, static () => { }, reportRejectionDisposalFailure, cancellationToken);
+        return RunAsync(listener, admission, static () => { }, reportRejectionDisposalFailure, cancellationToken);
     }
 
-    public static async Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmissionQueue admissionQueue, Action reportCapacityRejection, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
+    public static async Task RunAsync(ITransportConnectionListener listener, TransportConnectionAdmission admission, Action reportCapacityRejection, Action<TransportConnectionRejectionDisposalFailure> reportRejectionDisposalFailure, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(listener);
-        ArgumentNullException.ThrowIfNull(admissionQueue);
+        ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(reportCapacityRejection);
         ArgumentNullException.ThrowIfNull(reportRejectionDisposalFailure);
 
         while (true)
         {
-            if (admissionQueue.AdmissionCompleted.IsCompleted)
+            if (admission.AdmissionCompleted.IsCompleted)
             {
                 return;
             }
@@ -27,7 +27,7 @@ public static class TransportConnectionAcceptLoop
             using CancellationTokenSource acceptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
             Task<ITransportConnection> acceptTask = listener.AcceptAsync(acceptCancellation.Token).AsTask();
-            Task completedTask = await Task.WhenAny(acceptTask, admissionQueue.AdmissionCompleted).ConfigureAwait(false);
+            Task completedTask = await Task.WhenAny(acceptTask, admission.AdmissionCompleted).ConfigureAwait(false);
 
             ITransportConnection connection;
 
@@ -64,7 +64,7 @@ public static class TransportConnectionAcceptLoop
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            TransportConnectionAdmissionResult result = admissionQueue.TryAdmit(connection);
+            TransportConnectionAdmissionResult result = admission.TryAdmit(connection);
 
             switch (result)
             {

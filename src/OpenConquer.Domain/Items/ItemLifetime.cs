@@ -9,9 +9,18 @@ public readonly record struct ItemLifetime
         ExpiresAtUtc = expiresAtUtc;
     }
 
-    public ItemLifetimeState State { get; }
-    public int? PendingActivationDurationSeconds { get; }
-    public DateTimeOffset? ExpiresAtUtc { get; }
+    public ItemLifetimeState State
+    {
+        get;
+    }
+    public int? PendingActivationDurationSeconds
+    {
+        get;
+    }
+    public DateTimeOffset? ExpiresAtUtc
+    {
+        get;
+    }
 
     public bool IsValid => State switch
     {
