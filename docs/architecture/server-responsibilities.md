@@ -9,7 +9,7 @@ existing responsibilities while preserving wire behavior, gameplay and resource 
 | Reviewed type | Decision | Responsibility after review |
 | --- | --- | --- |
 | `WorldRuntime` (1,170 lines) | Retain | Authoritative cross-map residency, generations, reservations/seals and associated session lifetimes. |
-| `WorldSession` (932 → 654 lines) | Extract `WorldSessionGameplay` (364 lines) | Session owns connection, ordered delivery, world binding and teardown; gameplay component owns ingress policy, pacing and position reconciliation. |
+| `WorldSession` (932 → 650 lines) | Extract `WorldSessionGameplay` (364 lines) | Session owns connection, ordered delivery, world binding and teardown; gameplay component owns ingress policy, pacing and position reconciliation. |
 | `GameConnectionSession` (707 → 646 lines) | Extract `GameHandshakeProgress` (100 lines) | Session owns secure I/O, codecs/cipher, operation admission/drain and disposal; progress component owns legal handshake state transitions. |
 | `AccountMutationStore` (645 lines) | Retain | Atomic persistence of account-security changes, credential/ticket effects and audit evidence. |
 

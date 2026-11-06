@@ -411,10 +411,6 @@ internal sealed class WorldSession : IAsyncDisposable
         return frame;
     }
 
-
-
-
-
     /// <summary>
     /// Keep local gameplay responses in the same per-session FIFO as peer spawns and
     /// movement. Sessions without visibility preserve their original direct send.
