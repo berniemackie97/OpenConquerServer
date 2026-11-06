@@ -252,7 +252,10 @@ public sealed class TransportConnectionOutputTests
 
         public EndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Loopback, 2000);
 
-        public int SendCallCount { get; private set; }
+        public int SendCallCount
+        {
+            get; private set;
+        }
 
         public byte[] SentBytes => _sent.WrittenSpan.ToArray();
 

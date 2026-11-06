@@ -29,7 +29,11 @@ public sealed class GameConnectionAuthenticatorTests
     public async Task AuthenticateAsync_ValidLoginProofTransfersLiveAuthenticatedConnection()
     {
         FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000));
-        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid), AcceptedAuthenticationKey = AuthenticationKey };
+        FakeRedemptionStore store = new()
+        {
+            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid),
+            AcceptedAuthenticationKey = AuthenticationKey
+        };
         FakeAttemptLimiter limiter = new();
         GameConnectionAuthenticator authenticator = new(new GameLoginTicketRedeemer(store, limiter));
         (GameConnectionSession session, GameClientTestPeer client) = await OpenSecuredSessionAsync(transport);
@@ -85,7 +89,11 @@ public sealed class GameConnectionAuthenticatorTests
     public async Task AuthenticateAsync_WrongAuthenticationKeyIsRejectedAndSessionDisposed()
     {
         FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000));
-        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid), AcceptedAuthenticationKey = AuthenticationKey };
+        FakeRedemptionStore store = new()
+        {
+            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid),
+            AcceptedAuthenticationKey = AuthenticationKey
+        };
         FakeAttemptLimiter limiter = new();
         GameConnectionAuthenticator authenticator = new(new GameLoginTicketRedeemer(store, limiter));
         (GameConnectionSession session, GameClientTestPeer client) = await OpenSecuredSessionAsync(transport);
@@ -217,7 +225,10 @@ public sealed class GameConnectionAuthenticatorTests
     {
         IOException failure = new("redemption failed");
         FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000));
-        FakeRedemptionStore store = new() { Exception = failure };
+        FakeRedemptionStore store = new()
+        {
+            Exception = failure
+        };
         FakeAttemptLimiter limiter = new();
         GameConnectionAuthenticator authenticator = new(new GameLoginTicketRedeemer(store, limiter));
         (GameConnectionSession session, GameClientTestPeer client) = await OpenSecuredSessionAsync(transport);

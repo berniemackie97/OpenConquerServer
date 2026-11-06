@@ -15,7 +15,10 @@ public readonly record struct ItemPlacement
         EquipmentPosition = equipmentPosition;
     }
 
-    public EquipmentPosition? EquipmentPosition { get; }
+    public EquipmentPosition? EquipmentPosition
+    {
+        get;
+    }
 
     public bool IsInventory => _kind == InventoryKind && EquipmentPosition is null;
     public bool IsEquipment => _kind == EquipmentKind && EquipmentPosition is { IsValid: true };

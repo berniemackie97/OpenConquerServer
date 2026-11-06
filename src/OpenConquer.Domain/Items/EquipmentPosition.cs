@@ -8,8 +8,14 @@ public readonly record struct EquipmentPosition
         Slot = slot;
     }
 
-    public EquipmentSet Set { get; }
-    public EquipmentSlot Slot { get; }
+    public EquipmentSet Set
+    {
+        get;
+    }
+    public EquipmentSlot Slot
+    {
+        get;
+    }
     public bool IsValid => IsDefinedSet(Set) && IsDefinedSlot(Slot) && (Set != EquipmentSet.Alternate || SupportsAlternateSet(Slot));
 
     public static EquipmentPosition Create(EquipmentSet set, EquipmentSlot slot)

@@ -46,9 +46,18 @@ public sealed class GameKickoutNoticePacket : IPacket
     }
 
     public ushort PacketId => PacketIdentifier;
-    public int PayloadLength { get; }
-    public GameKickoutReason Reason { get; }
-    public string Text { get; }
+    public int PayloadLength
+    {
+        get;
+    }
+    public GameKickoutReason Reason
+    {
+        get;
+    }
+    public string Text
+    {
+        get;
+    }
 
     public void WritePayload(ref PacketWriter writer)
     {

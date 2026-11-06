@@ -14,5 +14,8 @@ public sealed class AccountLoginConnectionProtectionOptions
         MaximumConcurrentConnectionsPerSource = maximumConcurrentConnectionsPerSource;
     }
 
-    public int MaximumConcurrentConnectionsPerSource { get; }
+    public int MaximumConcurrentConnectionsPerSource
+    {
+        get;
+    }
 }

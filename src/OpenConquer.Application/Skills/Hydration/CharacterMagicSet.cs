@@ -44,7 +44,10 @@ public sealed class CharacterMagicSet
         _magic = Array.AsReadOnly(materializedMagic);
     }
 
-    public uint CharacterId { get; }
+    public uint CharacterId
+    {
+        get;
+    }
     public IReadOnlyList<CharacterMagic> Magic => _magic;
     public int Count => _magic.Count;
 }

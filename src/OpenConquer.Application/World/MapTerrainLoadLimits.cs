@@ -30,13 +30,34 @@ public sealed class MapTerrainLoadLimits
         MaximumContainerBytes = maximumContainerBytes;
     }
 
-    public int MaximumWidth { get; }
-    public int MaximumHeight { get; }
-    public int MaximumCellsPerTerrain { get; }
-    public long MaximumTotalCells { get; }
-    public int MaximumExitsPerTerrain { get; }
-    public int MaximumArtifactBytes { get; }
-    public long MaximumContainerBytes { get; }
+    public int MaximumWidth
+    {
+        get;
+    }
+    public int MaximumHeight
+    {
+        get;
+    }
+    public int MaximumCellsPerTerrain
+    {
+        get;
+    }
+    public long MaximumTotalCells
+    {
+        get;
+    }
+    public int MaximumExitsPerTerrain
+    {
+        get;
+    }
+    public int MaximumArtifactBytes
+    {
+        get;
+    }
+    public long MaximumContainerBytes
+    {
+        get;
+    }
 
     public static MapTerrainLoadLimits CreateDefault() => new(maximumWidth: 4096, maximumHeight: 4096, maximumCellsPerTerrain: 8_000_000,
             maximumTotalCells: 100_000_000, maximumExitsPerTerrain: 65_536,

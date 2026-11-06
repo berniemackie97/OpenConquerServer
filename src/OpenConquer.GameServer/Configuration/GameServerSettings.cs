@@ -2,14 +2,20 @@ namespace OpenConquer.GameServer.Configuration;
 
 internal sealed class GameServerSettings
 {
-    public uint RealmId { get; set; }
+    public uint RealmId
+    {
+        get; set;
+    }
     public ContentSettings Content { get; set; } = new();
     public WorldSettings World { get; set; } = new();
     public GameLoginTicketSettings GameLoginTickets { get; set; } = new();
     public NetworkSettings Network { get; set; } = new();
     public RealmStatusSettings RealmStatus { get; set; } = new();
     public ItemContentSettings Items { get; set; } = new();
-    public CharacterCreationSettings? CharacterCreation { get; set; }
+    public CharacterCreationSettings? CharacterCreation
+    {
+        get; set;
+    }
 
     internal sealed class ContentSettings
     {
@@ -176,18 +182,42 @@ internal sealed class GameServerSettings
 
     internal sealed class CharacterCreationSettings
     {
-        public uint StartingMapId { get; set; }
-        public ushort StartingX { get; set; }
-        public ushort StartingY { get; set; }
+        public uint StartingMapId
+        {
+            get; set;
+        }
+        public ushort StartingX
+        {
+            get; set;
+        }
+        public ushort StartingY
+        {
+            get; set;
+        }
         public List<CharacterCreationAllotmentSettings> Allotments { get; set; } = [];
     }
 
     internal sealed class CharacterCreationAllotmentSettings
     {
-        public ushort Family { get; set; }
-        public ushort Strength { get; set; }
-        public ushort Agility { get; set; }
-        public ushort Vitality { get; set; }
-        public ushort Spirit { get; set; }
+        public ushort Family
+        {
+            get; set;
+        }
+        public ushort Strength
+        {
+            get; set;
+        }
+        public ushort Agility
+        {
+            get; set;
+        }
+        public ushort Vitality
+        {
+            get; set;
+        }
+        public ushort Spirit
+        {
+            get; set;
+        }
     }
 }

@@ -22,6 +22,12 @@ internal sealed class GameLoginTicketExpirationCleanerOptions
         }
     }
 
-    public TimeSpan ExpirationGrace { get; }
-    public int MaximumBatchSize { get; }
+    public TimeSpan ExpirationGrace
+    {
+        get;
+    }
+    public int MaximumBatchSize
+    {
+        get;
+    }
 }

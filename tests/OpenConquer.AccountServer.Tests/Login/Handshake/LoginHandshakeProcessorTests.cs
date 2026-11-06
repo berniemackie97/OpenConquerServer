@@ -889,7 +889,10 @@ public sealed class LoginHandshakeProcessorTests
 
     private sealed class FakeRegistrationStore(uint? createdAccountId = null, Exception? failure = null) : IAccountRegistrationStore
     {
-        public string? Username { get; private set; }
+        public string? Username
+        {
+            get; private set;
+        }
 
         public ValueTask<uint?> TryCreateAsync(string username, string passwordHash, Guid creationOperationId, CancellationToken cancellationToken = default)
         {
@@ -930,7 +933,10 @@ public sealed class LoginHandshakeProcessorTests
             SetRegistration(availability, address, port);
         }
 
-        public int LookupCount { get; private set; }
+        public int LookupCount
+        {
+            get; private set;
+        }
 
         public void SetRegistration(RealmAvailability availability, IPAddress? address = null, ushort port = (ushort)GameServerPort, uint realmId = 1, string protocolName = ServerName)
         {
@@ -950,7 +956,10 @@ public sealed class LoginHandshakeProcessorTests
     private sealed class FakeRealmStatusDirectory(RealmLoad? load = RealmLoad.Normal) : IRealmStatusDirectory
     {
         public RealmLoad? Load { get; set; } = load;
-        public int LookupCount { get; private set; }
+        public int LookupCount
+        {
+            get; private set;
+        }
 
         public ValueTask<RealmLoad?> FindCurrentLoadAsync(RealmId realmId, CancellationToken cancellationToken = default)
         {
@@ -962,8 +971,14 @@ public sealed class LoginHandshakeProcessorTests
 
     private sealed class FakeKickRequester(bool activeElsewhere = false) : IAccountSessionKickRequester
     {
-        public uint? AccountId { get; private set; }
-        public RealmId? SelectedRealm { get; private set; }
+        public uint? AccountId
+        {
+            get; private set;
+        }
+        public RealmId? SelectedRealm
+        {
+            get; private set;
+        }
 
         public ValueTask<bool> TryKickFromOtherRealmAsync(uint accountId, RealmId selectedRealm, CancellationToken cancellationToken = default)
         {
@@ -976,10 +991,22 @@ public sealed class LoginHandshakeProcessorTests
 
     private sealed class FakeAuthenticator(AccountAuthenticationResult result, Action? onAuthenticate = null) : IAccountAuthenticator
     {
-        public int CallCount { get; private set; }
-        public string? AccountName { get; private set; }
-        public string? Password { get; private set; }
-        public IPAddress? RemoteAddress { get; private set; }
+        public int CallCount
+        {
+            get; private set;
+        }
+        public string? AccountName
+        {
+            get; private set;
+        }
+        public string? Password
+        {
+            get; private set;
+        }
+        public IPAddress? RemoteAddress
+        {
+            get; private set;
+        }
 
         public ValueTask<AccountAuthenticationResult> AuthenticateAsync(
             string accountName, ReadOnlyMemory<char> password, IPAddress remoteAddress, CancellationToken cancellationToken = default)
@@ -1003,10 +1030,22 @@ public sealed class LoginHandshakeProcessorTests
         private readonly TaskCompletionSource _grantStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _grantRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public int CallCount { get; private set; }
-        public GameLoginTicketGrantRequest? Request { get; private set; }
-        public ulong ExpectedAccountStateRevision { get; private set; }
-        public ulong ExpectedPasswordCredentialRevision { get; private set; }
+        public int CallCount
+        {
+            get; private set;
+        }
+        public GameLoginTicketGrantRequest? Request
+        {
+            get; private set;
+        }
+        public ulong ExpectedAccountStateRevision
+        {
+            get; private set;
+        }
+        public ulong ExpectedPasswordCredentialRevision
+        {
+            get; private set;
+        }
         public Task GrantStarted => _grantStarted.Task;
 
         public void ReleaseGrant() => _grantRelease.TrySetResult();

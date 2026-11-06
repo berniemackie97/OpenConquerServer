@@ -11,17 +11,27 @@ public static class ItemTypeFamily
 
         switch (thousandsGroup)
         {
-            case 123: return 1;
-            case 203: return 0x15;
-            case 300 when itemTypeId % 10u == 0: return 0x0E;
-            case 601: return 4;
+            case 123:
+                return 1;
+            case 203:
+                return 0x15;
+            case 300 when itemTypeId % 10u == 0:
+                return 0x0E;
+            case 601:
+                return 4;
             case 201:
-            case 202: return 0x0C;
-            case 200: return 0x14;
-            case 350: return 0x10;
-            case 360: return 0x0F;
-            case 370: return 0x11;
-            case 380: return 0x12;
+            case 202:
+                return 0x0C;
+            case 200:
+                return 0x14;
+            case 350:
+                return 0x10;
+            case 360:
+                return 0x0F;
+            case 370:
+                return 0x11;
+            case 380:
+                return 0x12;
         }
 
         int hundredThousands = checked((int)(itemTypeId % 10_000_000u / 100_000u));

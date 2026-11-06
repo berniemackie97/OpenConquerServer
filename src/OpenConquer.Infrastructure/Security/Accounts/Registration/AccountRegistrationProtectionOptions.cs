@@ -22,13 +22,25 @@ public sealed class AccountRegistrationProtectionOptions
     }
 
     /// <summary>Registration attempts one source (IPv4 address or IPv6 /64) may start per window.</summary>
-    public int AttemptLimitPerSource { get; }
+    public int AttemptLimitPerSource
+    {
+        get;
+    }
 
-    public TimeSpan AttemptWindow { get; }
+    public TimeSpan AttemptWindow
+    {
+        get;
+    }
 
     /// <summary>Registrations hashing a password or writing at once, across all sources.</summary>
-    public int MaximumConcurrentAttempts { get; }
+    public int MaximumConcurrentAttempts
+    {
+        get;
+    }
 
     /// <summary>Sources tracked before new sources are refused until their windows expire.</summary>
-    public int MaximumTrackedSources { get; }
+    public int MaximumTrackedSources
+    {
+        get;
+    }
 }

@@ -21,48 +21,159 @@ public sealed class GameCharacterInfoPacket(string playerName, string spouseName
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => FixedPayloadLength + StringListMetadataLength + _playerNameEncodedLength + _spouseNameEncodedLength;
 
-    public required uint EntityId { get; init; }
-    public required ushort TransformLookSourceId { get; init; }
-    public required uint PackedAppearance { get; init; }
-    public required ushort HairComposite { get; init; }
-    public required uint Silver { get; init; }
-    public required uint ConquerPoints { get; init; }
-    public required ulong Experience { get; init; }
+    public required uint EntityId
+    {
+        get; init;
+    }
+    public required ushort TransformLookSourceId
+    {
+        get; init;
+    }
+    public required uint PackedAppearance
+    {
+        get; init;
+    }
+    public required ushort HairComposite
+    {
+        get; init;
+    }
+    public required uint Silver
+    {
+        get; init;
+    }
+    public required uint ConquerPoints
+    {
+        get; init;
+    }
+    public required ulong Experience
+    {
+        get; init;
+    }
 
-    public required uint LegacyDeed { get; init; }
-    public required uint LegacyMedal { get; init; }
-    public required uint LegacyMedalSelect { get; init; }
-    public required uint VirtuePoints { get; init; }
-    public required uint EncodedPreRebirthLevel { get; init; }
+    public required uint LegacyDeed
+    {
+        get; init;
+    }
+    public required uint LegacyMedal
+    {
+        get; init;
+    }
+    public required uint LegacyMedalSelect
+    {
+        get; init;
+    }
+    public required uint VirtuePoints
+    {
+        get; init;
+    }
+    public required uint EncodedPreRebirthLevel
+    {
+        get; init;
+    }
 
-    public required ushort Strength { get; init; }
-    public required ushort Agility { get; init; }
-    public required ushort Vitality { get; init; }
-    public required ushort Spirit { get; init; }
-    public required ushort UnspentAttributePoints { get; init; }
-    public required ushort CurrentLife { get; init; }
-    public required ushort CurrentMana { get; init; }
-    public required short PkPoints { get; init; }
+    public required ushort Strength
+    {
+        get; init;
+    }
+    public required ushort Agility
+    {
+        get; init;
+    }
+    public required ushort Vitality
+    {
+        get; init;
+    }
+    public required ushort Spirit
+    {
+        get; init;
+    }
+    public required ushort UnspentAttributePoints
+    {
+        get; init;
+    }
+    public required ushort CurrentLife
+    {
+        get; init;
+    }
+    public required ushort CurrentMana
+    {
+        get; init;
+    }
+    public required short PkPoints
+    {
+        get; init;
+    }
 
-    public required byte Level { get; init; }
-    public required byte CurrentProfession { get; init; }
-    public required byte FirstProfession { get; init; }
-    public required byte PreviousProfession { get; init; }
-    public required byte LegacyNobility { get; init; }
-    public required byte RebirthCount { get; init; }
-    public required byte LegacyAutoAllot { get; init; }
+    public required byte Level
+    {
+        get; init;
+    }
+    public required byte CurrentProfession
+    {
+        get; init;
+    }
+    public required byte FirstProfession
+    {
+        get; init;
+    }
+    public required byte PreviousProfession
+    {
+        get; init;
+    }
+    public required byte LegacyNobility
+    {
+        get; init;
+    }
+    public required byte RebirthCount
+    {
+        get; init;
+    }
+    public required byte LegacyAutoAllot
+    {
+        get; init;
+    }
 
-    public required uint AuraTierScore { get; init; }
-    public required ushort CoachPointsHundredths { get; init; }
-    public required ushort CoachExperienceShareCount { get; init; }
-    public required ushort CoachSessionState { get; init; }
-    public required uint FlowerStatusTier { get; init; }
-    public required ushort TitleId { get; init; }
-    public required uint BoundConquerPoints { get; init; }
+    public required uint AuraTierScore
+    {
+        get; init;
+    }
+    public required ushort CoachPointsHundredths
+    {
+        get; init;
+    }
+    public required ushort CoachExperienceShareCount
+    {
+        get; init;
+    }
+    public required ushort CoachSessionState
+    {
+        get; init;
+    }
+    public required uint FlowerStatusTier
+    {
+        get; init;
+    }
+    public required ushort TitleId
+    {
+        get; init;
+    }
+    public required uint BoundConquerPoints
+    {
+        get; init;
+    }
 
-    public required byte ActiveSubProfessionId { get; init; }
-    public required ulong PackedSubProfessionPhases { get; init; }
-    public required uint RacePoints { get; init; }
+    public required byte ActiveSubProfessionId
+    {
+        get; init;
+    }
+    public required ulong PackedSubProfessionPhases
+    {
+        get; init;
+    }
+    public required uint RacePoints
+    {
+        get; init;
+    }
 
     public string PlayerName { get; } = playerName;
     public string SpouseName { get; } = spouseName;

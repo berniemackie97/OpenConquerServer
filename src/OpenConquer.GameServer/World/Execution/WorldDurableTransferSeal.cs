@@ -8,6 +8,9 @@ namespace OpenConquer.GameServer.World.Execution;
 /// </summary>
 internal sealed class WorldDurableTransferSeal(WorldTransferReservation reservation)
 {
-    internal WorldTransferReservation Reservation { get; } = reservation ??
+    internal WorldTransferReservation Reservation
+    {
+        get;
+    } = reservation ??
         throw new ArgumentNullException(nameof(reservation));
 }

@@ -46,10 +46,22 @@ public sealed class GameWeatherUpdatePacket : IPacket
 
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PayloadSize;
-    public uint Kind { get; }
-    public uint Intensity { get; }
-    public uint DirectionDegrees { get; }
-    public uint Parameter { get; }
+    public uint Kind
+    {
+        get;
+    }
+    public uint Intensity
+    {
+        get;
+    }
+    public uint DirectionDegrees
+    {
+        get;
+    }
+    public uint Parameter
+    {
+        get;
+    }
 
     public static GameWeatherUpdatePacket CreateClear() => new(ClearKind, intensity: 0, directionDegrees: 0, parameter: 0);
 

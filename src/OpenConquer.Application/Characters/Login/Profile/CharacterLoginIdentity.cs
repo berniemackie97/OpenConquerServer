@@ -26,7 +26,16 @@ public sealed class CharacterLoginIdentity
         Name = name;
     }
 
-    public uint CharacterId { get; }
-    public uint AccountId { get; }
-    public string Name { get; }
+    public uint CharacterId
+    {
+        get;
+    }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Name
+    {
+        get;
+    }
 }

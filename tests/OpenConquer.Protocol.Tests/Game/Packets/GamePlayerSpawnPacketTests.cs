@@ -52,7 +52,11 @@ public sealed class GamePlayerSpawnPacketTests
     [Fact]
     public void Encode_CarriesServerAuthorizedFacingAndPoseForLateObservers()
     {
-        GamePlayerSpawnPacket packet = new(Create(1_000_000, "Valid") with { Direction = 7, Action = 250 });
+        GamePlayerSpawnPacket packet = new(Create(1_000_000, "Valid") with
+        {
+            Direction = 7,
+            Action = 250
+        });
         byte[] wire = new byte[GameWireFrameEncoder.GetFrameLength(packet)];
         GameWireFrameEncoder.WriteFrame(packet, wire);
         Assert.Equal((byte)7, wire[0x5A]);
@@ -102,7 +106,10 @@ public sealed class GamePlayerSpawnPacketTests
     public void Encode_RejectsUnprovenSpawnPose(uint pose)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new GamePlayerSpawnPacket(Create(1_000_000, "Valid") with { Action = pose }));
+            new GamePlayerSpawnPacket(Create(1_000_000, "Valid") with
+            {
+                Action = pose
+            }));
     }
 
     [Fact]

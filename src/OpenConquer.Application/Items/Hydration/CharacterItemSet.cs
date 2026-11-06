@@ -50,7 +50,10 @@ public sealed class CharacterItemSet
         _items = Array.AsReadOnly(materializedItems);
     }
 
-    public uint CharacterId { get; }
+    public uint CharacterId
+    {
+        get;
+    }
     public IReadOnlyList<CharacterItem> Items => _items;
     public int Count => _items.Count;
 }

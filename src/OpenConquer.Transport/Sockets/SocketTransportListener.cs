@@ -36,7 +36,10 @@ public sealed class SocketTransportListener : ITransportConnectionListener
         }
     }
 
-    public IPEndPoint LocalEndPoint { get; }
+    public IPEndPoint LocalEndPoint
+    {
+        get;
+    }
 
     public async ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
     {

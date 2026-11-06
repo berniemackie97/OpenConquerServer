@@ -15,5 +15,8 @@ public sealed class CharacterWeaponSkillHydrationOptions
         MaximumSkillsPerCharacter = maximumSkillsPerCharacter;
     }
 
-    public int MaximumSkillsPerCharacter { get; }
+    public int MaximumSkillsPerCharacter
+    {
+        get;
+    }
 }

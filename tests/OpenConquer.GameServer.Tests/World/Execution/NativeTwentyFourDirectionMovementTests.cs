@@ -57,7 +57,10 @@ public sealed class NativeTwentyFourDirectionMovementTests
 
         Assert.Null(map.TryWalk(owner, 24, 9));
         Assert.Null(map.TryWalk(owner, byte.MaxValue, 9));
-        Assert.Null(map.TryWalk(owner with { Generation = 1 }, 0, 9));
+        Assert.Null(map.TryWalk(owner with
+        {
+            Generation = 1
+        }, 0, 9));
         Assert.Equal((2, 2), Position(map.Find(owner)));
     }
 
@@ -124,7 +127,10 @@ public sealed class NativeTwentyFourDirectionMovementTests
         Assert.Null(await runtime.TryWalkCharacterAsync(owner, 23, 9,
             TestContext.Current.CancellationToken));
         Assert.Equal((2, 2), Position(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken)));
-        Assert.Null(await runtime.TryWalkCharacterAsync(owner with { Generation = owner.Generation + 1 }, 0, 9,
+        Assert.Null(await runtime.TryWalkCharacterAsync(owner with
+        {
+            Generation = owner.Generation + 1
+        }, 0, 9,
             TestContext.Current.CancellationToken));
 
         WorldCharacterSnapshot groundStep = Assert.IsType<WorldCharacterSnapshot>(

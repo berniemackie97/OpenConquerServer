@@ -15,8 +15,14 @@ internal sealed class AccountSessionLease : IAsyncDisposable
         SessionUid = sessionUid;
     }
 
-    public uint AccountId { get; }
-    public uint SessionUid { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public uint SessionUid
+    {
+        get;
+    }
 
     public ValueTask DisposeAsync()
     {

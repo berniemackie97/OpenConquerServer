@@ -40,8 +40,17 @@ public sealed class CharacterSyndicateState
         Syndicate = syndicate;
     }
 
-    public uint CharacterId { get; }
-    public CharacterSyndicateMembership? Membership { get; }
-    public Syndicate? Syndicate { get; }
+    public uint CharacterId
+    {
+        get;
+    }
+    public CharacterSyndicateMembership? Membership
+    {
+        get;
+    }
+    public Syndicate? Syndicate
+    {
+        get;
+    }
     public bool HasMembership => Membership.HasValue;
 }

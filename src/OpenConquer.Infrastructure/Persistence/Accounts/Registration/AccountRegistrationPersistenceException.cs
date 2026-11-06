@@ -15,6 +15,12 @@ public sealed class AccountRegistrationPersistenceException : Exception
         DatabaseErrorNumber = databaseErrorNumber;
     }
 
-    public bool CommitOutcomeUnknown { get; }
-    public int? DatabaseErrorNumber { get; }
+    public bool CommitOutcomeUnknown
+    {
+        get;
+    }
+    public int? DatabaseErrorNumber
+    {
+        get;
+    }
 }

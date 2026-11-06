@@ -49,7 +49,10 @@ internal sealed class WorldExecutionOptions
         get;
     }
 
-    public TimeSpan TransferPreflightTimeout { get; }
+    public TimeSpan TransferPreflightTimeout
+    {
+        get;
+    }
 
     public int MaxCharactersPerMap
     {

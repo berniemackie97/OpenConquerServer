@@ -54,16 +54,46 @@ public sealed class GameLoginTicketRedemptionAttemptLimiterOptions
         }
     }
 
-    public int RequestLimitPerSource { get; }
-    public TimeSpan RequestWindow { get; }
-    public int MaximumConcurrentAttemptsPerSource { get; }
-    public int MaximumConcurrentAttemptsPerSession { get; }
-    public int FailedAttemptLimitPerSession { get; }
-    public TimeSpan FailureWindow { get; }
-    public TimeSpan FailureLockout { get; }
-    public TimeSpan EntryRetention { get; }
-    public int MaximumConcurrentAttempts { get; }
-    public int MaximumTrackedEntries { get; }
+    public int RequestLimitPerSource
+    {
+        get;
+    }
+    public TimeSpan RequestWindow
+    {
+        get;
+    }
+    public int MaximumConcurrentAttemptsPerSource
+    {
+        get;
+    }
+    public int MaximumConcurrentAttemptsPerSession
+    {
+        get;
+    }
+    public int FailedAttemptLimitPerSession
+    {
+        get;
+    }
+    public TimeSpan FailureWindow
+    {
+        get;
+    }
+    public TimeSpan FailureLockout
+    {
+        get;
+    }
+    public TimeSpan EntryRetention
+    {
+        get;
+    }
+    public int MaximumConcurrentAttempts
+    {
+        get;
+    }
+    public int MaximumTrackedEntries
+    {
+        get;
+    }
 
     private static int ValidateLimit(int value, string parameterName, int maximum)
     {

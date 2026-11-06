@@ -38,9 +38,24 @@ public sealed class RealmRegistration
         Availability = availability;
     }
 
-    public RealmId Id { get; }
-    public ProtocolServerName ProtocolName { get; }
-    public IPAddress PublicGameAddress { get; }
-    public ushort PublicGamePort { get; }
-    public RealmAvailability Availability { get; }
+    public RealmId Id
+    {
+        get;
+    }
+    public ProtocolServerName ProtocolName
+    {
+        get;
+    }
+    public IPAddress PublicGameAddress
+    {
+        get;
+    }
+    public ushort PublicGamePort
+    {
+        get;
+    }
+    public RealmAvailability Availability
+    {
+        get;
+    }
 }

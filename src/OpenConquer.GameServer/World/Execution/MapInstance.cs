@@ -117,7 +117,11 @@ internal sealed class MapInstance(WorldMapContent map)
             return null;
         }
 
-        WorldCharacterSnapshot moved = current with { X = (ushort)x, Y = (ushort)y };
+        WorldCharacterSnapshot moved = current with
+        {
+            X = (ushort)x,
+            Y = (ushort)y
+        };
         RelocateLivingOccupant(current, moved.X, moved.Y);
         _characters[ownership.CharacterId] = moved;
         return moved;
@@ -137,7 +141,10 @@ internal sealed class MapInstance(WorldMapContent map)
             return null;
         }
 
-        WorldCharacterSnapshot ghost = current with { Status = current.Status.With(WorldPrimaryStatusMask.Ghost) };
+        WorldCharacterSnapshot ghost = current with
+        {
+            Status = current.Status.With(WorldPrimaryStatusMask.Ghost)
+        };
         _characters[ownership.CharacterId] = ghost;
         return ghost;
     }
@@ -180,7 +187,11 @@ internal sealed class MapInstance(WorldMapContent map)
             return null;
         }
 
-        WorldCharacterSnapshot moved = current with { X = targetX, Y = targetY };
+        WorldCharacterSnapshot moved = current with
+        {
+            X = targetX,
+            Y = targetY
+        };
         RelocateLivingOccupant(current, targetX, targetY);
         _characters[ownership.CharacterId] = moved;
         return moved;

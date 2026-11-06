@@ -28,8 +28,14 @@ internal sealed class GameClientTestPeer : IDisposable
         _inbound = inbound;
     }
 
-    public string PublicKeyHex { get; }
-    public byte[] EncryptedKeyExchangeResponse { get; }
+    public string PublicKeyHex
+    {
+        get;
+    }
+    public byte[] EncryptedKeyExchangeResponse
+    {
+        get;
+    }
 
     public static GameClientTestPeer Create(ReadOnlySpan<byte> encryptedChallenge)
     {

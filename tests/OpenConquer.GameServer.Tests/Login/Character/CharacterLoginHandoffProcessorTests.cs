@@ -267,8 +267,14 @@ public sealed class CharacterLoginHandoffProcessorTests
 
     private sealed class StubResolver(CharacterLoginResolution result, Exception? failure = null) : ICharacterLoginResolver
     {
-        public int ResolveCallCount { get; private set; }
-        public uint? LastAccountId { get; private set; }
+        public int ResolveCallCount
+        {
+            get; private set;
+        }
+        public uint? LastAccountId
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterLoginResolution> ResolveAsync(uint accountId, CancellationToken cancellationToken = default)
         {
@@ -291,7 +297,10 @@ public sealed class CharacterLoginHandoffProcessorTests
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Entered => _entered.Task;
-        public int ResolveCallCount { get; private set; }
+        public int ResolveCallCount
+        {
+            get; private set;
+        }
 
         public async ValueTask<CharacterLoginResolution> ResolveAsync(uint accountId, CancellationToken cancellationToken = default)
         {

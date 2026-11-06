@@ -195,11 +195,23 @@ public sealed class CharacterCreationServiceTests
     private sealed class CapturingStore : ICharacterCreationStore
     {
         public CharacterCreationStoreResult Result { get; set; } = CharacterCreationStoreResult.Created(1_000_000);
-        public Exception? Failure { get; set; }
+        public Exception? Failure
+        {
+            get; set;
+        }
 
-        public int CallCount { get; private set; }
-        public CharacterCreationCandidate? Captured { get; private set; }
-        public CancellationToken LastCancellationToken { get; private set; }
+        public int CallCount
+        {
+            get; private set;
+        }
+        public CharacterCreationCandidate? Captured
+        {
+            get; private set;
+        }
+        public CancellationToken LastCancellationToken
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterCreationStoreResult> CreateAsync(
             CharacterCreationCandidate character,

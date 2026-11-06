@@ -227,7 +227,10 @@ public sealed class ExistingCharacterMagicSetProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         IOException repositoryFailure = new("magic repository failed");
-        FakeMagicRepository repository = new(new CharacterMagicSet(CharacterId, [])) { Failure = repositoryFailure };
+        FakeMagicRepository repository = new(new CharacterMagicSet(CharacterId, []))
+        {
+            Failure = repositoryFailure
+        };
 
         harness.QueueAction(GameAction.GetMagicSetAction);
 
@@ -401,9 +404,15 @@ public sealed class ExistingCharacterMagicSetProcessorTests
     {
         private int _loadCount;
 
-        public Exception? Failure { get; init; }
+        public Exception? Failure
+        {
+            get; init;
+        }
         public int LoadCount => Volatile.Read(ref _loadCount);
-        public uint? LastCharacterId { get; private set; }
+        public uint? LastCharacterId
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterMagicSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
         {
@@ -420,7 +429,10 @@ public sealed class ExistingCharacterMagicSetProcessorTests
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Started => _started.Task;
-        public uint? CharacterId { get; private set; }
+        public uint? CharacterId
+        {
+            get; private set;
+        }
 
         public async ValueTask<CharacterMagicSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
         {
@@ -436,7 +448,10 @@ public sealed class ExistingCharacterMagicSetProcessorTests
         private int _loadCount;
 
         public int LoadCount => Volatile.Read(ref _loadCount);
-        public uint? CharacterId { get; private set; }
+        public uint? CharacterId
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterMagicSet> LoadAsync(uint characterId, CancellationToken cancellationToken = default)
         {

@@ -227,11 +227,26 @@ public sealed class PasswordHashMigrationTests
         private ulong _passwordCredentialRevision = 1;
 
         public string Hash { get; private set; } = hash;
-        public string? ConflictHash { get; init; }
-        public string? LastName { get; private set; }
-        public string? ExpectedHash { get; private set; }
-        public DateTimeOffset? LastSuccessfulLoginAt { get; private set; }
-        public int Replacements { get; private set; }
+        public string? ConflictHash
+        {
+            get; init;
+        }
+        public string? LastName
+        {
+            get; private set;
+        }
+        public string? ExpectedHash
+        {
+            get; private set;
+        }
+        public DateTimeOffset? LastSuccessfulLoginAt
+        {
+            get; private set;
+        }
+        public int Replacements
+        {
+            get; private set;
+        }
 
         public ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(
             string accountName,
@@ -336,8 +351,12 @@ public sealed class PasswordHashMigrationTests
 
     private sealed class AttemptLease : IAccountAuthenticationAttemptLease
     {
-        public void Complete(bool credentialsAccepted) { }
+        public void Complete(bool credentialsAccepted)
+        {
+        }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 }

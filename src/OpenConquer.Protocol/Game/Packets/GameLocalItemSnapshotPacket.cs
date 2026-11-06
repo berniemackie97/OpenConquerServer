@@ -16,29 +16,98 @@ public sealed class GameLocalItemSnapshotPacket : IPacket
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PayloadSize;
 
-    public required uint ItemId { get; init; }
-    public required uint ItemTypeId { get; init; }
-    public required ushort Durability { get; init; }
-    public required ushort MaximumDurability { get; init; }
-    public required byte RetailCompatibilityByteA { get; init; }
-    public required byte ItemWirePlacement { get; init; }
-    public required uint TalismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline { get; init; }
-    public required byte Socket1Code { get; init; }
-    public required byte Socket2Code { get; init; }
-    public required uint HiddenAttackEffect { get; init; }
-    public required byte RetailCompatibilityByteB { get; init; }
-    public required byte AdditionLevel { get; init; }
-    public required byte DamageReductionPercentOrSteedCompositionRed { get; init; }
-    public required byte ItemBindingCode { get; init; }
-    public required byte EnchantmentLifeBonusOrSteedCompositionGreen { get; init; }
-    public required uint MonsterRestraintIdOrSteedCompositionBlue { get; init; }
-    public required bool IsSuspicious { get; init; }
-    public required ushort EquipmentLockStateMask { get; init; }
-    public required ushort EquipmentColor { get; init; }
-    public required uint CompositionProgress { get; init; }
-    public required uint InscribedSyndicateId { get; init; }
-    public required int WireLifetimeSeconds { get; init; }
-    public required ushort StackQuantity { get; init; }
+    public required uint ItemId
+    {
+        get; init;
+    }
+    public required uint ItemTypeId
+    {
+        get; init;
+    }
+    public required ushort Durability
+    {
+        get; init;
+    }
+    public required ushort MaximumDurability
+    {
+        get; init;
+    }
+    public required byte RetailCompatibilityByteA
+    {
+        get; init;
+    }
+    public required byte ItemWirePlacement
+    {
+        get; init;
+    }
+    public required uint TalismanSocketProgressOrSteedAppearanceColorOrMonsterKillCounterBaseline
+    {
+        get; init;
+    }
+    public required byte Socket1Code
+    {
+        get; init;
+    }
+    public required byte Socket2Code
+    {
+        get; init;
+    }
+    public required uint HiddenAttackEffect
+    {
+        get; init;
+    }
+    public required byte RetailCompatibilityByteB
+    {
+        get; init;
+    }
+    public required byte AdditionLevel
+    {
+        get; init;
+    }
+    public required byte DamageReductionPercentOrSteedCompositionRed
+    {
+        get; init;
+    }
+    public required byte ItemBindingCode
+    {
+        get; init;
+    }
+    public required byte EnchantmentLifeBonusOrSteedCompositionGreen
+    {
+        get; init;
+    }
+    public required uint MonsterRestraintIdOrSteedCompositionBlue
+    {
+        get; init;
+    }
+    public required bool IsSuspicious
+    {
+        get; init;
+    }
+    public required ushort EquipmentLockStateMask
+    {
+        get; init;
+    }
+    public required ushort EquipmentColor
+    {
+        get; init;
+    }
+    public required uint CompositionProgress
+    {
+        get; init;
+    }
+    public required uint InscribedSyndicateId
+    {
+        get; init;
+    }
+    public required int WireLifetimeSeconds
+    {
+        get; init;
+    }
+    public required ushort StackQuantity
+    {
+        get; init;
+    }
 
     public void WritePayload(ref PacketWriter writer)
     {

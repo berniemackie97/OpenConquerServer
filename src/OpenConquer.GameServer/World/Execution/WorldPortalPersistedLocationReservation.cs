@@ -20,7 +20,10 @@ internal sealed class WorldPortalPersistedLocationReservation : IDisposable
         }
     }
 
-    public PersistedCharacterLocation PersistedSource { get; }
+    public PersistedCharacterLocation PersistedSource
+    {
+        get;
+    }
     internal WorldTransferReservation Reservation => _reservation;
     public WorldCharacterOwnership SourceOwnership => _reservation.SourceOwnership;
     public WorldCharacterSnapshot SourceSnapshot => _reservation.SourceSnapshot;

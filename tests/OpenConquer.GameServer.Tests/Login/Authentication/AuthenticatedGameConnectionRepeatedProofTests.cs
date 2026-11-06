@@ -51,7 +51,10 @@ public sealed class AuthenticatedGameConnectionRepeatedProofTests
         await using AuthenticatedGameConnection connection = await CreateConnectionAsync();
         connection.ArmRepeatedLoginProof(CreateProof());
 
-        Assert.False(connection.TryConsumeRepeatedLoginProof(CreateProof() with { Mode = 0 }));
+        Assert.False(connection.TryConsumeRepeatedLoginProof(CreateProof() with
+        {
+            Mode = 0
+        }));
         Assert.False(connection.TryConsumeRepeatedLoginProof(CreateProof()));
     }
 

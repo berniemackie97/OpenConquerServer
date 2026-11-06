@@ -41,24 +41,72 @@ public sealed class ItemTypeDefinition
         ConquerPointsPrice = conquerPointsPrice;
     }
 
-    public uint ItemTypeId { get; }
-    public string Name { get; }
-    public byte RequiredLevel { get; }
-    public short SpeedPercentOffset { get; }
-    public short Life { get; }
-    public short Mana { get; }
-    public ushort InitialDurability { get; }
-    public ushort MaximumDurability { get; }
-    public uint StaticLifetimeMinutes { get; }
-    public ushort StackCapacity { get; }
+    public uint ItemTypeId
+    {
+        get;
+    }
+    public string Name
+    {
+        get;
+    }
+    public byte RequiredLevel
+    {
+        get;
+    }
+    public short SpeedPercentOffset
+    {
+        get;
+    }
+    public short Life
+    {
+        get;
+    }
+    public short Mana
+    {
+        get;
+    }
+    public ushort InitialDurability
+    {
+        get;
+    }
+    public ushort MaximumDurability
+    {
+        get;
+    }
+    public uint StaticLifetimeMinutes
+    {
+        get;
+    }
+    public ushort StackCapacity
+    {
+        get;
+    }
 
     // Fields carried over from the 5517 itemtype.dat. They are kept as-is; no gameplay rule uses them yet.
-    public int RequiredProfessionCode { get; }
-    public uint MonopolyFlags { get; }
-    public uint SilverPrice { get; }
-    public int AttackRange { get; }
-    public int AttackSpeed { get; }
-    public uint ConquerPointsPrice { get; }
+    public int RequiredProfessionCode
+    {
+        get;
+    }
+    public uint MonopolyFlags
+    {
+        get;
+    }
+    public uint SilverPrice
+    {
+        get;
+    }
+    public int AttackRange
+    {
+        get;
+    }
+    public int AttackSpeed
+    {
+        get;
+    }
+    public uint ConquerPointsPrice
+    {
+        get;
+    }
 
     public int StaticLifetimeDurationSeconds => checked((int)(StaticLifetimeMinutes * SecondsPerMinute));
     public ushort EffectiveStackCapacity => StackCapacity == 0 ? (ushort)1 : StackCapacity;

@@ -45,8 +45,14 @@ public sealed class AccountSessionKickHostedServiceTests
     [Fact]
     public async Task ProcessKicksAsync_DatabaseFailuresAreLeftForTheNextPoll()
     {
-        RecordingAccountSessionStore unreadable = new() { TakeKicksFailure = new TestDatabaseException() };
-        RecordingAccountSessionStore unwritable = new() { LeaveFailure = new TestDatabaseException() };
+        RecordingAccountSessionStore unreadable = new()
+        {
+            TakeKicksFailure = new TestDatabaseException()
+        };
+        RecordingAccountSessionStore unwritable = new()
+        {
+            LeaveFailure = new TestDatabaseException()
+        };
         unwritable.QueueKicks(new AccountSessionKick(AccountId, CharacterId, SessionUid));
 
         await CreateService(unreadable, new CharacterPresenceDirectory()).ProcessKicksAsync(TestContext.Current.CancellationToken);
@@ -75,7 +81,10 @@ public sealed class AccountSessionKickHostedServiceTests
     [Fact]
     public async Task ResetFailure_FailsStartupButNotShutdown()
     {
-        RecordingAccountSessionStore store = new() { ResetFailure = new TestDatabaseException() };
+        RecordingAccountSessionStore store = new()
+        {
+            ResetFailure = new TestDatabaseException()
+        };
         AccountSessionKickHostedService service = CreateService(store, new CharacterPresenceDirectory());
 
         await Assert.ThrowsAsync<TestDatabaseException>(() => service.StartAsync(TestContext.Current.CancellationToken));

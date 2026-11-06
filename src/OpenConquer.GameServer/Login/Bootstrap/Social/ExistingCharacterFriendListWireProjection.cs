@@ -16,7 +16,10 @@ internal sealed class ExistingCharacterFriendListWireProjection
         _relationPackets = Array.AsReadOnly(relationPackets);
     }
 
-    public CharacterSocialRelationSet RuntimeRelationSet { get; }
+    public CharacterSocialRelationSet RuntimeRelationSet
+    {
+        get;
+    }
     public IReadOnlyList<GameSocialRelationPacket> RelationPackets => _relationPackets;
 
     public static ExistingCharacterFriendListWireProjection Create(CharacterSocialRelationSet relationSet, ICharacterPresenceReader presenceReader)

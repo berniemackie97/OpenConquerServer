@@ -214,7 +214,10 @@ public sealed class GameLoginTicketIssuerTests
     [Fact]
     public async Task IssueAsync_PersistenceFailurePropagatesWithoutRetry()
     {
-        FakeGrantStore store = new() { Exception = new IOException("Persistence failed.") };
+        FakeGrantStore store = new()
+        {
+            Exception = new IOException("Persistence failed.")
+        };
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u], authenticationKeys: [303u, 404u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
@@ -228,7 +231,10 @@ public sealed class GameLoginTicketIssuerTests
     [Fact]
     public async Task IssueAsync_UnsupportedGrantStatusFailsClosed()
     {
-        FakeGrantStore store = new() { ResultFactory = static (_, _) => default };
+        FakeGrantStore store = new()
+        {
+            ResultFactory = static (_, _) => default
+        };
         GameLoginTicketIssuer issuer = new(store, new SequenceTokenGenerator());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), TestContext.Current.CancellationToken).AsTask());
@@ -279,7 +285,10 @@ public sealed class GameLoginTicketIssuerTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeGrantStore store = new(GameLoginTicketGrantStatus.SessionUidCollision) { OnGrant = cancellation.Cancel };
+        FakeGrantStore store = new(GameLoginTicketGrantStatus.SessionUidCollision)
+        {
+            OnGrant = cancellation.Cancel
+        };
         SequenceTokenGenerator tokens = new(sessionUids: [101u, 202u], authenticationKeys: [303u, 404u]);
         GameLoginTicketIssuer issuer = new(store, tokens);
 
@@ -295,7 +304,10 @@ public sealed class GameLoginTicketIssuerTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeGrantStore store = new(GameLoginTicketGrantStatus.Granted) { OnGrant = cancellation.Cancel };
+        FakeGrantStore store = new(GameLoginTicketGrantStatus.Granted)
+        {
+            OnGrant = cancellation.Cancel
+        };
         GameLoginTicketIssuer issuer = new(store, new SequenceTokenGenerator());
 
         GameLoginTicket? ticket = await issuer.IssueAsync(CreateSuccessfulAuthentication(), new RealmId(1), cancellation.Token);
@@ -321,8 +333,14 @@ public sealed class GameLoginTicketIssuerTests
             _authenticationKeys = new Queue<uint>(authenticationKeys ?? [0x5060_7080u]);
         }
 
-        public int SessionUidGenerationCount { get; private set; }
-        public int AuthenticationKeyGenerationCount { get; private set; }
+        public int SessionUidGenerationCount
+        {
+            get; private set;
+        }
+        public int AuthenticationKeyGenerationCount
+        {
+            get; private set;
+        }
 
         public uint GenerateSessionUid()
         {
@@ -358,11 +376,23 @@ public sealed class GameLoginTicketIssuerTests
             _statuses = new Queue<GameLoginTicketGrantStatus>(statuses.Length == 0 ? [GameLoginTicketGrantStatus.Granted] : statuses);
         }
 
-        public Exception? Exception { get; init; }
-        public Action? OnGrant { get; init; }
-        public Func<GameLoginTicketGrantRequest, TimeSpan, GameLoginTicketGrantResult>? ResultFactory { get; init; }
+        public Exception? Exception
+        {
+            get; init;
+        }
+        public Action? OnGrant
+        {
+            get; init;
+        }
+        public Func<GameLoginTicketGrantRequest, TimeSpan, GameLoginTicketGrantResult>? ResultFactory
+        {
+            get; init;
+        }
 
-        public int GrantCount { get; private set; }
+        public int GrantCount
+        {
+            get; private set;
+        }
         public List<GameLoginTicketGrantRequest> Requests { get; } = [];
         public List<GameLoginTicket> DurableTickets { get; } = [];
         public List<TimeSpan> TicketLifetimes { get; } = [];

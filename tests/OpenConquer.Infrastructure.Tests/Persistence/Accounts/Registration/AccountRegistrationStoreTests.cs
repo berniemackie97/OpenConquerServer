@@ -187,7 +187,11 @@ public sealed class AccountRegistrationStoreTests : IClassFixture<AccountDatabas
         finally
         {
             await cancellation.CancelAsync();
-            try { await create; } catch (OperationCanceledException) { }
+            try
+            {
+                await create;
+            }
+            catch (OperationCanceledException) { }
             await ExecuteAsync("DROP TRIGGER registration_pause;");
         }
     }

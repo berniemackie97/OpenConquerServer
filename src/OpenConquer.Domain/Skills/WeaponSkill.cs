@@ -15,10 +15,22 @@ public readonly record struct WeaponSkill
         Experience = experience;
     }
 
-    public uint OwnerCharacterId { get; }
-    public uint Type { get; }
-    public byte Level { get; }
-    public uint Experience { get; }
+    public uint OwnerCharacterId
+    {
+        get;
+    }
+    public uint Type
+    {
+        get;
+    }
+    public byte Level
+    {
+        get;
+    }
+    public uint Experience
+    {
+        get;
+    }
     public uint NextLevelExperienceRequirement => WeaponSkillExperienceCurve.GetNextLevelExperienceRequirement(Level);
     public bool IsValid => CharacterIdentityPolicy.IsPlayerEntityId(OwnerCharacterId) && Level <= WeaponSkillExperienceCurve.MaximumLevel;
 

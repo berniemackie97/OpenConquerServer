@@ -17,6 +17,12 @@ internal sealed class LoginConnectionWorkerPoolConfiguration
         ConnectionTimeout = connectionTimeout;
     }
 
-    public int WorkerCount { get; }
-    public TimeSpan ConnectionTimeout { get; }
+    public int WorkerCount
+    {
+        get;
+    }
+    public TimeSpan ConnectionTimeout
+    {
+        get;
+    }
 }

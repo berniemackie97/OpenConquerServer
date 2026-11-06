@@ -73,7 +73,10 @@ public sealed class ToolSourceFileReaderTests
             File.WriteAllBytes(Path, payload);
         }
 
-        public string Path { get; }
+        public string Path
+        {
+            get;
+        }
 
         public void Dispose() => File.Delete(Path);
     }

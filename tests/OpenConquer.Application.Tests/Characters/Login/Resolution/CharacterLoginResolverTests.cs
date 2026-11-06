@@ -98,8 +98,14 @@ public sealed class CharacterLoginResolverTests
 
     private sealed class StubRepository(CharacterLoginProfile? profile = null) : ICharacterLoginProfileRepository
     {
-        public int FindCallCount { get; private set; }
-        public uint? LastAccountId { get; private set; }
+        public int FindCallCount
+        {
+            get; private set;
+        }
+        public uint? LastAccountId
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterLoginProfile?> FindByAccountIdAsync(uint accountId, CancellationToken cancellationToken = default)
         {

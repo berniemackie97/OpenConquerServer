@@ -117,9 +117,18 @@ public sealed class AccountRegistrationServiceTests
 
     private sealed class FakeStore(uint? createdAccountId = null, Exception? failure = null) : IAccountRegistrationStore
     {
-        public string? Username { get; private set; }
-        public string? PasswordHash { get; private set; }
-        public Guid OperationId { get; private set; }
+        public string? Username
+        {
+            get; private set;
+        }
+        public string? PasswordHash
+        {
+            get; private set;
+        }
+        public Guid OperationId
+        {
+            get; private set;
+        }
 
         public ValueTask<uint?> TryCreateAsync(string username, string passwordHash, Guid creationOperationId,
             CancellationToken cancellationToken = default)
@@ -136,7 +145,10 @@ public sealed class AccountRegistrationServiceTests
     {
         public const string Hash = "$openconquer$pbkdf2-sha256$v=1$test";
 
-        public string? LastPassword { get; private set; }
+        public string? LastPassword
+        {
+            get; private set;
+        }
 
         public AccountPasswordVerificationStatus VerifyPassword(string passwordHash, ReadOnlySpan<char> password) =>
             throw new NotSupportedException();
@@ -153,9 +165,18 @@ public sealed class AccountRegistrationServiceTests
 
     private sealed class FakeLimiter(bool admit = true) : IAccountRegistrationLimiter
     {
-        public int Attempts { get; private set; }
-        public int InFlight { get; private set; }
-        public IPAddress? LastSource { get; private set; }
+        public int Attempts
+        {
+            get; private set;
+        }
+        public int InFlight
+        {
+            get; private set;
+        }
+        public IPAddress? LastSource
+        {
+            get; private set;
+        }
 
         public bool TryBeginRegistration(IPAddress remoteAddress, [NotNullWhen(true)] out IDisposable? lease)
         {

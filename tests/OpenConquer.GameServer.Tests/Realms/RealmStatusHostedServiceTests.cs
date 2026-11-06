@@ -43,7 +43,11 @@ public sealed class RealmStatusHostedServiceTests
     [Fact]
     public async Task DatabaseFailuresAreRetriedRatherThanStoppingTheServer()
     {
-        RecordingPublisher publisher = new() { PublishFailure = new TestDatabaseException(), WithdrawFailure = new TestDatabaseException() };
+        RecordingPublisher publisher = new()
+        {
+            PublishFailure = new TestDatabaseException(),
+            WithdrawFailure = new TestDatabaseException()
+        };
         GameServerFailureState failureState = new();
         RealmStatusHostedService service = CreateService(publisher, new RealmLoadSample(RealmLoad.Normal, 0), failureState);
 
@@ -81,10 +85,19 @@ public sealed class RealmStatusHostedServiceTests
     {
         private readonly TaskCompletionSource<Report> _firstReport = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Exception? PublishFailure { get; init; }
-        public Exception? WithdrawFailure { get; init; }
+        public Exception? PublishFailure
+        {
+            get; init;
+        }
+        public Exception? WithdrawFailure
+        {
+            get; init;
+        }
         public Task<Report> FirstReport => _firstReport.Task;
-        public int WithdrawCount { get; private set; }
+        public int WithdrawCount
+        {
+            get; private set;
+        }
 
         public ValueTask PublishAsync(RealmLoad load, int onlineCount, TimeSpan lifetime, CancellationToken cancellationToken = default)
         {

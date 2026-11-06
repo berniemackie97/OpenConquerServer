@@ -151,10 +151,19 @@ public sealed class FileMapBaseTerrainCatalogRepositoryTests
             WriteArtifact(ArtifactPath);
         }
 
-        public string WorkspacePath { get; }
-        public string RootPath { get; }
+        public string WorkspacePath
+        {
+            get;
+        }
+        public string RootPath
+        {
+            get;
+        }
         public string ArtifactPath => Path.Combine(RootPath, "501.ocbt");
-        public MapDefinitionCatalog Definitions { get; }
+        public MapDefinitionCatalog Definitions
+        {
+            get;
+        }
 
         public FileMapBaseTerrainCatalogRepository CreateRepository()
         {

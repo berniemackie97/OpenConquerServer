@@ -15,5 +15,8 @@ public sealed class CharacterMagicHydrationOptions
         MaximumMagicEntriesPerCharacter = maximumMagicEntriesPerCharacter;
     }
 
-    public int MaximumMagicEntriesPerCharacter { get; }
+    public int MaximumMagicEntriesPerCharacter
+    {
+        get;
+    }
 }

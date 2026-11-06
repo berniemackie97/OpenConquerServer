@@ -15,5 +15,8 @@ public sealed class CharacterSocialRelationHydrationOptions
         MaximumRelationsPerCharacter = maximumRelationsPerCharacter;
     }
 
-    public int MaximumRelationsPerCharacter { get; }
+    public int MaximumRelationsPerCharacter
+    {
+        get;
+    }
 }

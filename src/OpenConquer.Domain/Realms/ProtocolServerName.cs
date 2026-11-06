@@ -26,6 +26,9 @@ public readonly record struct ProtocolServerName
         Value = value;
     }
 
-    public string Value { get; }
+    public string Value
+    {
+        get;
+    }
     public override string ToString() => Value ?? string.Empty;
 }

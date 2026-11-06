@@ -20,10 +20,22 @@ internal sealed class WorldTransferReservation : IDisposable
         Y = y;
     }
 
-    public WorldCharacterOwnership SourceOwnership { get; }
-    public uint DestinationMapId { get; }
-    public ushort X { get; }
-    public ushort Y { get; }
+    public WorldCharacterOwnership SourceOwnership
+    {
+        get;
+    }
+    public uint DestinationMapId
+    {
+        get;
+    }
+    public ushort X
+    {
+        get;
+    }
+    public ushort Y
+    {
+        get;
+    }
 
     /// <summary>Committed source-map state after all previously admitted ordinary commands.</summary>
     public WorldCharacterSnapshot SourceSnapshot => _sourceSnapshot

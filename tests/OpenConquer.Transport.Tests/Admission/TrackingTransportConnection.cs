@@ -9,7 +9,10 @@ internal sealed class TrackingTransportConnection(Exception? disposalException =
 
     public EndPoint RemoteEndPoint { get; } = new IPEndPoint(IPAddress.Loopback, 2000);
 
-    public int DisposeCallCount { get; private set; }
+    public int DisposeCallCount
+    {
+        get; private set;
+    }
 
     public bool IsDisposed => DisposeCallCount != 0;
 

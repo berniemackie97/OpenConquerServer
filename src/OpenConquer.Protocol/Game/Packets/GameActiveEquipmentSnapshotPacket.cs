@@ -17,20 +17,62 @@ public sealed class GameActiveEquipmentSnapshotPacket : IPacket
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PayloadSize;
 
-    public required uint EquipmentMode { get; init; }
-    public required uint HeadwearItemId { get; init; }
-    public required uint NecklaceItemId { get; init; }
-    public required uint ArmorItemId { get; init; }
-    public required uint RightHandItemId { get; init; }
-    public required uint LeftHandItemId { get; init; }
-    public required uint RingItemId { get; init; }
-    public required uint BottleItemId { get; init; }
-    public required uint BootsItemId { get; init; }
-    public required uint GarmentItemId { get; init; }
-    public required uint RightWeaponAccessoryItemId { get; init; }
-    public required uint LeftWeaponAccessoryItemId { get; init; }
-    public required uint SteedArmorItemId { get; init; }
-    public required uint RidingCropItemId { get; init; }
+    public required uint EquipmentMode
+    {
+        get; init;
+    }
+    public required uint HeadwearItemId
+    {
+        get; init;
+    }
+    public required uint NecklaceItemId
+    {
+        get; init;
+    }
+    public required uint ArmorItemId
+    {
+        get; init;
+    }
+    public required uint RightHandItemId
+    {
+        get; init;
+    }
+    public required uint LeftHandItemId
+    {
+        get; init;
+    }
+    public required uint RingItemId
+    {
+        get; init;
+    }
+    public required uint BottleItemId
+    {
+        get; init;
+    }
+    public required uint BootsItemId
+    {
+        get; init;
+    }
+    public required uint GarmentItemId
+    {
+        get; init;
+    }
+    public required uint RightWeaponAccessoryItemId
+    {
+        get; init;
+    }
+    public required uint LeftWeaponAccessoryItemId
+    {
+        get; init;
+    }
+    public required uint SteedArmorItemId
+    {
+        get; init;
+    }
+    public required uint RidingCropItemId
+    {
+        get; init;
+    }
 
     public void WritePayload(ref PacketWriter writer)
     {

@@ -39,9 +39,24 @@ public sealed class GameLoginTicketGrantRequest
         RealmId = realmId;
     }
 
-    public uint AccountId { get; }
-    public string Username { get; }
-    public uint SessionUid { get; }
-    public uint AuthenticationKey { get; }
-    public RealmId RealmId { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public string Username
+    {
+        get;
+    }
+    public uint SessionUid
+    {
+        get;
+    }
+    public uint AuthenticationKey
+    {
+        get;
+    }
+    public RealmId RealmId
+    {
+        get;
+    }
 }

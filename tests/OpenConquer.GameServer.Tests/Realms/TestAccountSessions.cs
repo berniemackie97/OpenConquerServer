@@ -22,14 +22,26 @@ internal sealed class RecordingAccountSessionStore : IAccountSessionStore
     private int _resetCount;
 
     public bool AdmitEntries { get; init; } = true;
-    public Exception? LeaveFailure { get; init; }
-    public Exception? TakeKicksFailure { get; init; }
-    public Exception? ResetFailure { get; init; }
+    public Exception? LeaveFailure
+    {
+        get; init;
+    }
+    public Exception? TakeKicksFailure
+    {
+        get; init;
+    }
+    public Exception? ResetFailure
+    {
+        get; init;
+    }
 
     /// <summary>
     /// Runs after an entry is recorded and before <see cref="TryEnterAsync"/> returns.
     /// </summary>
-    public Func<ValueTask>? OnEnter { get; set; }
+    public Func<ValueTask>? OnEnter
+    {
+        get; set;
+    }
 
     public IReadOnlyList<(uint AccountId, uint CharacterId, uint SessionUid)> Entered
     {

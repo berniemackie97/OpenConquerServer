@@ -16,8 +16,14 @@ internal sealed class DMapBaseGrid
         _exits = exits;
     }
 
-    public int Width { get; }
-    public int Height { get; }
+    public int Width
+    {
+        get;
+    }
+    public int Height
+    {
+        get;
+    }
     public IReadOnlyList<DMapBaseCell> Cells => Array.AsReadOnly(_cells);
     public IReadOnlyList<DMapExitMarker> Exits => Array.AsReadOnly(_exits);
 }

@@ -25,8 +25,20 @@ public sealed class PersistedCharacterLocation
         WriterToken = writerToken;
     }
 
-    public CharacterLocation Location { get; }
-    public long Revision { get; }
-    public Guid? LastOperationId { get; }
-    public Guid? WriterToken { get; }
+    public CharacterLocation Location
+    {
+        get;
+    }
+    public long Revision
+    {
+        get;
+    }
+    public Guid? LastOperationId
+    {
+        get;
+    }
+    public Guid? WriterToken
+    {
+        get;
+    }
 }

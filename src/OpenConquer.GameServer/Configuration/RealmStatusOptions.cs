@@ -18,11 +18,17 @@ internal sealed class RealmStatusOptions
         ReportLifetime = reportInterval * ReportsPerLifetime;
     }
 
-    public TimeSpan ReportInterval { get; }
+    public TimeSpan ReportInterval
+    {
+        get;
+    }
 
     /// <summary>
     /// Gets how long one report stays valid. It outlasts two missed reports, so a single slow
     /// database write does not make a running realm look down.
     /// </summary>
-    public TimeSpan ReportLifetime { get; }
+    public TimeSpan ReportLifetime
+    {
+        get;
+    }
 }

@@ -14,7 +14,16 @@ public sealed class CharacterLocation
         Y = y;
     }
 
-    public uint MapId { get; }
-    public ushort X { get; }
-    public ushort Y { get; }
+    public uint MapId
+    {
+        get;
+    }
+    public ushort X
+    {
+        get;
+    }
+    public ushort Y
+    {
+        get;
+    }
 }

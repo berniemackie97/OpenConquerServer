@@ -83,7 +83,10 @@ public sealed class WorldPortalPreflightTests
         {
             runtime.Start();
             WorldCharacterOwnership owner = await runtime.AdmitCharacterAsync(Profile(life: 0), TestContext.Current.CancellationToken);
-            WorldCharacterOwnership stale = owner with { Generation = owner.Generation + 1 };
+            WorldCharacterOwnership stale = owner with
+            {
+                Generation = owner.Generation + 1
+            };
             Assert.Null(await WorldPortalPreflight.TryReserveAsync(runtime, transitions, stale, 2, 1, TestContext.Current.CancellationToken));
             Assert.Null(await WorldPortalPreflight.TryReserveAsync(runtime, transitions, owner, 2, 1, TestContext.Current.CancellationToken));
             WorldCharacterOwnership target = await runtime.AdmitCharacterAsync(

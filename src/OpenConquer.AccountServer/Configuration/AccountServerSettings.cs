@@ -15,45 +15,99 @@ internal sealed class AccountServerSettings
 
     internal sealed class NetworkSettings
     {
-        public string? BindAddress { get; set; }
-        public int LoginPort { get; set; }
-        public int ListenBacklog { get; set; }
+        public string? BindAddress
+        {
+            get; set;
+        }
+        public int LoginPort
+        {
+            get; set;
+        }
+        public int ListenBacklog
+        {
+            get; set;
+        }
     }
 
     internal sealed class AdmissionSettings
     {
-        public int Capacity { get; set; }
+        public int Capacity
+        {
+            get; set;
+        }
         public int MaximumConcurrentConnectionsPerSource { get; set; } = AccountLoginConnectionProtectionOptions.DefaultMaximumConcurrentConnectionsPerSource;
     }
 
     internal sealed class WorkerSettings
     {
-        public int Count { get; set; }
-        public TimeSpan ConnectionTimeout { get; set; }
+        public int Count
+        {
+            get; set;
+        }
+        public TimeSpan ConnectionTimeout
+        {
+            get; set;
+        }
     }
 
     internal sealed class HandshakeSettings
     {
-        public TimeSpan PhaseTimeout { get; set; }
+        public TimeSpan PhaseTimeout
+        {
+            get; set;
+        }
     }
 
     internal sealed class AuthenticationProtectionSettings
     {
-        public int RequestLimitPerSource { get; set; }
-        public TimeSpan RequestWindow { get; set; }
-        public int MaximumConcurrentRequestsPerSource { get; set; }
-        public int MaximumConcurrentRequests { get; set; }
-        public int MaximumConcurrentAttemptsPerAccount { get; set; }
-        public int FailedAttemptLimitPerAccountSource { get; set; }
-        public TimeSpan FailureWindow { get; set; }
-        public TimeSpan FailureLockout { get; set; }
-        public TimeSpan EntryRetention { get; set; }
-        public int MaximumTrackedEntries { get; set; }
+        public int RequestLimitPerSource
+        {
+            get; set;
+        }
+        public TimeSpan RequestWindow
+        {
+            get; set;
+        }
+        public int MaximumConcurrentRequestsPerSource
+        {
+            get; set;
+        }
+        public int MaximumConcurrentRequests
+        {
+            get; set;
+        }
+        public int MaximumConcurrentAttemptsPerAccount
+        {
+            get; set;
+        }
+        public int FailedAttemptLimitPerAccountSource
+        {
+            get; set;
+        }
+        public TimeSpan FailureWindow
+        {
+            get; set;
+        }
+        public TimeSpan FailureLockout
+        {
+            get; set;
+        }
+        public TimeSpan EntryRetention
+        {
+            get; set;
+        }
+        public int MaximumTrackedEntries
+        {
+            get; set;
+        }
     }
 
     internal sealed class RegistrationSettings
     {
-        public bool Enabled { get; set; }
+        public bool Enabled
+        {
+            get; set;
+        }
         public int AttemptLimitPerSource { get; set; } = AccountRegistrationProtectionOptions.DefaultAttemptLimitPerSource;
         public TimeSpan AttemptWindow { get; set; } = AccountRegistrationProtectionOptions.DefaultAttemptWindow;
         public int MaximumConcurrentAttempts { get; set; } = AccountRegistrationProtectionOptions.DefaultMaximumConcurrentAttempts;
@@ -62,20 +116,35 @@ internal sealed class AccountServerSettings
 
     internal sealed class GameLoginTicketSettings
     {
-        public ushort ActiveVerificationKeyId { get; set; }
+        public ushort ActiveVerificationKeyId
+        {
+            get; set;
+        }
         public List<GameLoginVerificationKeySettings> VerificationKeys { get; set; } = [];
         public GameLoginTicketCleanupSettings Cleanup { get; set; } = new();
     }
 
     internal sealed class GameLoginVerificationKeySettings
     {
-        public ushort Id { get; set; }
-        public string? EncodedKey { get; set; }
+        public ushort Id
+        {
+            get; set;
+        }
+        public string? EncodedKey
+        {
+            get; set;
+        }
     }
 
     internal sealed class GameLoginTicketCleanupSettings
     {
-        public TimeSpan Interval { get; set; }
-        public int MaximumBatchesPerRun { get; set; }
+        public TimeSpan Interval
+        {
+            get; set;
+        }
+        public int MaximumBatchesPerRun
+        {
+            get; set;
+        }
     }
 }

@@ -80,7 +80,10 @@ internal sealed class WorldSession : IAsyncDisposable
         _positionReconciler = new WorldPositionReconciler(bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
     }
 
-    public ExistingCharacterBootstrapCompleteConnection Bootstrap { get; }
+    public ExistingCharacterBootstrapCompleteConnection Bootstrap
+    {
+        get;
+    }
     public CharacterLoginProfile Profile => Bootstrap.Profile;
     public CharacterLocationWriteAuthority? LocationAuthority => _connection.LocationAuthority;
     public WorldMapContent Map => Volatile.Read(ref _location).Map;

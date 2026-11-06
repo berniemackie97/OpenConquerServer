@@ -16,6 +16,12 @@ internal sealed class LoginPostAuthenticationReports
         ResourceVersion = resourceVersion;
     }
 
-    public string MacAddress { get; }
-    public int ResourceVersion { get; }
+    public string MacAddress
+    {
+        get;
+    }
+    public int ResourceVersion
+    {
+        get;
+    }
 }
