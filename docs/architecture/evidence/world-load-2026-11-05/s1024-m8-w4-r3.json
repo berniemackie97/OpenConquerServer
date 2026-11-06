@@ -1,0 +1,46 @@
+{
+  "SchemaVersion": 1,
+  "RecordedAtUtc": "2026-11-06T01:40:12.682232+00:00",
+  "Options": {
+    "Sessions": 1024,
+    "Maps": 8,
+    "Workers": 4,
+    "Steps": 1024,
+    "Warmup": 1024,
+    "QueueCapacity": 1024,
+    "TurnBudget": 64,
+    "TimeoutSeconds": 120
+  },
+  "Environment": {
+    "Framework": ".NET 10.0.14",
+    "OperatingSystem": "macOS 26.6.2",
+    "Architecture": "Arm64",
+    "ProcessorCount": 10,
+    "ThreadPoolMinimumWorkers": 10,
+    "ServerGc": false
+  },
+  "Measurement": {
+    "CompletedCommands": 1048576,
+    "ElapsedSeconds": 0.5254682,
+    "CommandsPerSecond": 1995508.006003027,
+    "Completion": {
+      "P50Microseconds": 232.25,
+      "P99Microseconds": 3124.25,
+      "MaximumMicroseconds": 8200.667
+    },
+    "Submission": {
+      "P50Microseconds": 0.542,
+      "P99Microseconds": 35.208,
+      "MaximumMicroseconds": 3187.75
+    },
+    "SubmissionAllocatedBytes": 352322096,
+    "SubmissionBytesPerCommand": 336.0005340576172,
+    "ProcessAllocatedBytes": 353619216,
+    "ProcessBytesPerCommand": 337.23756408691406,
+    "Gen0Collections": 42,
+    "Gen1Collections": 0,
+    "Gen2Collections": 0
+  },
+  "VerifiedCharacters": 1024,
+  "FinalY": 1
+}

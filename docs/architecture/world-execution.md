@@ -137,3 +137,9 @@ optimize visibility queries, fan-out, allocations, AI, combat, and packet genera
 considering finer-grained ownership. Moving partitions to other processes is possible later and
 should be driven by scheduling lag, CPU, memory, and network measurements rather than player
 count alone.
+
+## Load measurements
+
+The [CP1.4 world-command baseline](world-command-load.md) measures the current runtime
+without changing locking or command representation. It includes raw trials, allocation
+boundaries and a reproducible in-process harness.
