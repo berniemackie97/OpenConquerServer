@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Social.Hydration;
@@ -7,7 +8,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Social;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Social;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterSocialRelationSetRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 300_000;
@@ -113,7 +114,7 @@ public sealed class CharacterSocialRelationSetRepositoryTests(GameDatabaseFixtur
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(ownerId, CancellationToken));
 
-        Assert.Contains(ownerId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(ownerId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Contains("configured social-relation hydration limit of 2", exception.Message, StringComparison.Ordinal);
     }
 
@@ -149,8 +150,8 @@ public sealed class CharacterSocialRelationSetRepositoryTests(GameDatabaseFixtur
 
         InvalidDataException exception = await AssertCorruptRelationKindFailsClosedAsync(ownerId, counterpartId);
 
-        Assert.Contains(ownerId.ToString(), exception.Message, StringComparison.Ordinal);
-        Assert.Contains(counterpartId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(ownerId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(counterpartId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.IsAssignableFrom<ArgumentException>(exception.InnerException);
     }
 
@@ -164,8 +165,8 @@ public sealed class CharacterSocialRelationSetRepositoryTests(GameDatabaseFixtur
 
         InvalidDataException exception = await AssertCorruptCounterpartNameFailsClosedAsync(ownerId, counterpartId, counterpartName);
 
-        Assert.Contains(ownerId.ToString(), exception.Message, StringComparison.Ordinal);
-        Assert.Contains(counterpartId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(ownerId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(counterpartId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.IsAssignableFrom<ArgumentException>(exception.InnerException);
     }
 

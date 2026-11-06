@@ -76,6 +76,8 @@ public sealed class LoginPasswordKeypadDecoderTests
         Assert.Equal('?', destination[0]);
     }
 
+    private static readonly char[] s_expected = ['X', 'X'];
+
     [Fact]
     public void Decode_RejectsSmallDestinationWithoutMutation()
     {
@@ -91,6 +93,6 @@ public sealed class LoginPasswordKeypadDecoderTests
 
         Assert.Equal("destination", exception.ParamName);
 
-        Assert.Equal(new[] { 'X', 'X' }, destination);
+        Assert.Equal(s_expected, destination);
     }
 }

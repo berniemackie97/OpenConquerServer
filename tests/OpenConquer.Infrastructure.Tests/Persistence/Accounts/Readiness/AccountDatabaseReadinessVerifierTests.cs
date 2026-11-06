@@ -7,7 +7,7 @@ using OpenConquer.Infrastructure.Persistence.Schema;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts.Readiness;
 
-[Collection(AccountSchemaDatabaseCollection.Name)]
+[Collection(AccountSchemaDatabaseDefinition.Name)]
 public sealed class AccountDatabaseReadinessVerifierTests(AccountDatabaseFixture database)
 {
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;

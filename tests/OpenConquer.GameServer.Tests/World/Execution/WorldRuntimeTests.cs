@@ -123,8 +123,14 @@ public sealed class WorldRuntimeTests
         runtime.Start();
 
         WorldCharacterOwnership current = await runtime.AdmitCharacterAsync(CreateProfile(), TestContext.Current.CancellationToken);
-        WorldCharacterOwnership wrongGeneration = current with { Generation = current.Generation + 1 };
-        WorldCharacterOwnership wrongMap = current with { MapId = OtherMapId };
+        WorldCharacterOwnership wrongGeneration = current with
+        {
+            Generation = current.Generation + 1
+        };
+        WorldCharacterOwnership wrongMap = current with
+        {
+            MapId = OtherMapId
+        };
 
         Assert.False(await runtime.RemoveCharacterAsync(default, TestContext.Current.CancellationToken));
         Assert.False(await runtime.RemoveCharacterAsync(wrongGeneration, TestContext.Current.CancellationToken));
@@ -313,11 +319,11 @@ public sealed class WorldRuntimeTests
 
             Action[] submissions =
             [
-                () => { _ = runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken); },
-                () => { _ = runtime.TryWalkCharacterAsync(owner, 0, TestContext.Current.CancellationToken); },
-                () => { _ = runtime.TryPublishAvatarActionAsync(owner, _ => { }, TestContext.Current.CancellationToken); },
-                () => { _ = runtime.TryEnterGhostAsync(owner, 0, cancellationToken: TestContext.Current.CancellationToken); },
-                () => { _ = runtime.TryJumpCharacterAsync(owner, 1, 1, TestContext.Current.CancellationToken); },
+                () => { _ = runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken).AsTask(); },
+                () => { _ = runtime.TryWalkCharacterAsync(owner, 0, TestContext.Current.CancellationToken).AsTask(); },
+                () => { _ = runtime.TryPublishAvatarActionAsync(owner, _ => { }, TestContext.Current.CancellationToken).AsTask(); },
+                () => { _ = runtime.TryEnterGhostAsync(owner, 0, cancellationToken: TestContext.Current.CancellationToken).AsTask(); },
+                () => { _ = runtime.TryJumpCharacterAsync(owner, 1, 1, TestContext.Current.CancellationToken).AsTask(); },
             ];
 
             foreach (Action submit in submissions)

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Syndicates.Hydration;
@@ -6,7 +7,7 @@ using OpenConquer.Domain.Syndicates;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Syndicates;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterSyndicateStateRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 1_400_000;
@@ -180,7 +181,7 @@ public sealed class CharacterSyndicateStateRepositoryTests(GameDatabaseFixture d
             InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
                 await repository.LoadAsync(memberId, CancellationToken));
 
-            Assert.Contains(memberId.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(memberId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
             Assert.IsType<ArgumentException>(exception.InnerException);
         }
         finally
@@ -209,7 +210,7 @@ public sealed class CharacterSyndicateStateRepositoryTests(GameDatabaseFixture d
             InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () =>
                 await repository.LoadAsync(memberId, CancellationToken));
 
-            Assert.Contains(memberId.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(memberId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
             Assert.IsType<ArgumentException>(exception.InnerException);
         }
         finally

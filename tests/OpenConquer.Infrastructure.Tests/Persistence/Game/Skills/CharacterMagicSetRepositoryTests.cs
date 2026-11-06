@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Skills.Hydration;
@@ -6,7 +7,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Skills;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Skills;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterMagicSetRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 700_000;
@@ -93,7 +94,7 @@ public sealed class CharacterMagicSetRepositoryTests(GameDatabaseFixture databas
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(async () => await repository.LoadAsync(characterId, CancellationToken));
 
-        Assert.Contains(characterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(characterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Contains("configured magic hydration limit of 2", exception.Message, StringComparison.Ordinal);
     }
 

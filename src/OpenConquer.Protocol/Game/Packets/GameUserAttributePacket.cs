@@ -8,10 +8,8 @@ public sealed class GameUserAttributePacket : IPacket
 {
     public GameUserAttributePacket(uint entityId, uint attributeId, ulong low, ulong high = 0)
     {
-        if (entityId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(entityId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(entityId);
+
         if (attributeId is not (LookAttribute or PrimaryStatusAttribute) ||
             (attributeId == LookAttribute && (high != 0 || low > uint.MaxValue)))
         {
@@ -23,10 +21,22 @@ public sealed class GameUserAttributePacket : IPacket
         High = high;
     }
 
-    private uint EntityId { get; }
-    private uint AttributeId { get; }
-    private ulong Low { get; }
-    private ulong High { get; }
+    private uint EntityId
+    {
+        get;
+    }
+    private uint AttributeId
+    {
+        get;
+    }
+    private ulong Low
+    {
+        get;
+    }
+    private ulong High
+    {
+        get;
+    }
 
     public const ushort PacketIdentifier = 10017;
     public const uint LifeAttribute = 0;

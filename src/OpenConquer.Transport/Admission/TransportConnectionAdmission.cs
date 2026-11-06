@@ -3,7 +3,7 @@ using OpenConquer.Transport.Connections;
 
 namespace OpenConquer.Transport.Admission;
 
-public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
+public sealed class TransportConnectionAdmission : IAsyncDisposable
 {
     private readonly Channel<ITransportConnection> _channel;
     private readonly Lock _completionGate = new();
@@ -11,7 +11,7 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
 
     private bool _isCompleted;
 
-    public TransportConnectionAdmissionQueue(int capacity)
+    public TransportConnectionAdmission(int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
 
@@ -26,7 +26,10 @@ public sealed class TransportConnectionAdmissionQueue : IAsyncDisposable
         });
     }
 
-    public int Capacity { get; }
+    public int Capacity
+    {
+        get;
+    }
 
     internal Task AdmissionCompleted => _admissionCompleted.Task;
 

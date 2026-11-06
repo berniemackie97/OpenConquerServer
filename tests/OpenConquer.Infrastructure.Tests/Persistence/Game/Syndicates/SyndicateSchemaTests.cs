@@ -1,9 +1,10 @@
+using System.Globalization;
 using MySqlConnector;
 using OpenConquer.Domain.Characters;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Syndicates;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class SyndicateSchemaTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 980_000;
@@ -178,6 +179,6 @@ public sealed class SyndicateSchemaTests(GameDatabaseFixture database)
     {
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = sql;
-        return Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken));
+        return Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture);
     }
 }

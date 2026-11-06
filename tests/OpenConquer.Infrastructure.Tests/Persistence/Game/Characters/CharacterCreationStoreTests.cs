@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using OpenConquer.Application.Characters.Creation;
@@ -8,7 +9,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Characters;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Characters;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 1_500_000;
@@ -21,7 +22,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
         uint accountId = CreateAccountId();
         CharacterCreationCandidate character = CreateCandidate(accountId, CreateCharacterName());
 
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         CharacterCreationStoreResult result = await store.CreateAsync(character, CancellationToken);
 
@@ -74,7 +75,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public async Task CreateAsync_DuplicateAccount_ReturnsConflictWithoutCreatingAnotherCharacter()
     {
         uint accountId = CreateAccountId();
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         CharacterCreationStoreResult first = await store.CreateAsync(
             CreateCandidate(accountId, CreateCharacterName()), CancellationToken);
@@ -93,7 +94,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public async Task CreateAsync_RepeatedIdenticalSubmission_DoesNotReportSecondCreation()
     {
         CharacterCreationCandidate character = CreateCandidate(CreateAccountId(), CreateCharacterName());
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         CharacterCreationStoreResult first = await store.CreateAsync(character, CancellationToken);
         CharacterCreationStoreResult second = await store.CreateAsync(character, CancellationToken);
@@ -109,7 +110,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public async Task CreateAsync_DuplicateName_ReturnsNameConflict()
     {
         string name = CreateCharacterName();
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         CharacterCreationStoreResult first = await store.CreateAsync(
             CreateCandidate(CreateAccountId(), name), CancellationToken);
@@ -130,7 +131,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public async Task CreateAsync_ConcurrentSameAccount_OnlyOneInsertSucceeds()
     {
         uint accountId = CreateAccountId();
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         Task<CharacterCreationStoreResult>[] requests =
         [
@@ -152,7 +153,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
         string name = CreateCharacterName();
         uint firstAccountId = CreateAccountId();
         uint secondAccountId = CreateAccountId();
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         Task<CharacterCreationStoreResult>[] requests =
         [
@@ -172,7 +173,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public async Task CreateAsync_PreCanceledOperation_DoesNotInsert()
     {
         uint accountId = CreateAccountId();
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
@@ -187,7 +188,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
     public async Task RuntimeIdentity_CanInsertButCannotUpdateStatsOrDeleteCharacters()
     {
         uint accountId = CreateAccountId();
-        ICharacterCreationStore store = CreateStore();
+        CharacterCreationStore store = CreateStore();
 
         CharacterCreationStoreResult result = await store.CreateAsync(
             CreateCandidate(accountId, CreateCharacterName()), CancellationToken);
@@ -251,7 +252,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
             new ServiceCollection().AddGameCharacterCreationPersistence(" "));
     }
 
-    private ICharacterCreationStore CreateStore()
+    private CharacterCreationStore CreateStore()
     {
         return new CharacterCreationStore(database.RuntimeConnectionString);
     }
@@ -274,7 +275,7 @@ public sealed class CharacterCreationStoreTests(GameDatabaseFixture database)
 
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
-        return Convert.ToInt32(result);
+        return Convert.ToInt32(result, CultureInfo.InvariantCulture);
     }
 
     private static CharacterCreationCandidate CreateCandidate(uint accountId, string name)

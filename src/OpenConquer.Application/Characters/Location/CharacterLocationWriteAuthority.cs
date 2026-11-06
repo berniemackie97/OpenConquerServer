@@ -11,10 +11,8 @@ public sealed class CharacterLocationWriteAuthority
     public CharacterLocationWriteAuthority(uint accountId, uint characterId, Guid token,
         PersistedCharacterLocation snapshot)
     {
-        if (accountId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(accountId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(accountId);
+
         if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
         {
             throw new ArgumentOutOfRangeException(nameof(characterId));
@@ -33,8 +31,20 @@ public sealed class CharacterLocationWriteAuthority
         Token = token;
     }
 
-    public uint AccountId { get; }
-    public uint CharacterId { get; }
-    public Guid Token { get; }
-    public PersistedCharacterLocation Snapshot { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public uint CharacterId
+    {
+        get;
+    }
+    public Guid Token
+    {
+        get;
+    }
+    public PersistedCharacterLocation Snapshot
+    {
+        get;
+    }
 }

@@ -649,7 +649,7 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
         Assert.Equal(1, await ReadTicketCountAsync(account.AccountId));
     }
 
-    private async Task LockPasswordCredentialAsync(MySqlConnection connection, MySqlTransaction transaction, uint accountId)
+    private static async Task LockPasswordCredentialAsync(MySqlConnection connection, MySqlTransaction transaction, uint accountId)
     {
         await using MySqlCommand command = connection.CreateCommand();
 
@@ -660,7 +660,7 @@ public sealed class AccountMutationStoreTests : IClassFixture<AccountDatabaseFix
         Assert.NotNull(await command.ExecuteScalarAsync(CancellationToken));
     }
 
-    private async Task LockTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid)
+    private static async Task LockTicketAsync(MySqlConnection connection, MySqlTransaction transaction, uint sessionUid)
     {
         await using MySqlCommand command = connection.CreateCommand();
 

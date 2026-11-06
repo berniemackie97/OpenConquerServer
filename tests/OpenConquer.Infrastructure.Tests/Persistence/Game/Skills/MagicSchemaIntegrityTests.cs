@@ -2,7 +2,7 @@ using MySqlConnector;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Skills;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class MagicSchemaIntegrityTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 800_000;

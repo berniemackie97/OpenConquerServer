@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using OpenConquer.Application.Accounts.GameLogin.Redemption;
-using OpenConquer.GameServer.Handshake;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Authentication;
 using OpenConquer.GameServer.Tests.Connections;
@@ -27,7 +26,10 @@ public sealed class GameConnectionHandoffProcessorTests
     public async Task ProcessAsync_CoalescedHandshakeResponseAndLoginProofReturnsLiveAuthenticatedConnection()
     {
         FakeGameTransportConnection transport = new(remoteEndPoint: new IPEndPoint(s_remoteAddress, 40000));
-        FakeRedemptionStore store = new() { Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid) };
+        FakeRedemptionStore store = new()
+        {
+            Result = new GameLoginTicketIdentity(AccountId, Username, SessionUid)
+        };
         FakeAttemptLimiter limiter = new();
         GameConnectionHandoffProcessor processor = CreateProcessor(store, limiter);
         AuthenticatedGameConnection? authenticatedConnection = null;
@@ -225,7 +227,7 @@ public sealed class GameConnectionHandoffProcessorTests
         GameLoginTicketRedeemer redeemer = new(store, limiter);
         GameConnectionAuthenticator authenticator = new(redeemer);
 
-        return new GameConnectionHandoffProcessor(new GameTransportHandshakeProcessor(), authenticator);
+        return new GameConnectionHandoffProcessor(authenticator);
     }
 
     private static byte[] BuildLoginProof()

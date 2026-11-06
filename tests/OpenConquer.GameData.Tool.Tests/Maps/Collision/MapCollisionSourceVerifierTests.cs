@@ -177,10 +177,22 @@ public sealed class MapCollisionSourceVerifierTests
             ReplaceCanonicalTerrain(new MapBaseTerrainCell(12, 0, -15));
         }
 
-        public string ClientRoot { get; }
-        public string TerrainDirectory { get; }
-        public string DefinitionsPath { get; }
-        public string ObjectListPath { get; }
+        public string ClientRoot
+        {
+            get;
+        }
+        public string TerrainDirectory
+        {
+            get;
+        }
+        public string DefinitionsPath
+        {
+            get;
+        }
+        public string ObjectListPath
+        {
+            get;
+        }
 
         public void ReplaceCanonicalTerrain(MapBaseTerrainCell firstCell)
         {
@@ -288,10 +300,7 @@ public sealed class MapCollisionSourceVerifierTests
         {
             byte[] bytes = Encoding.ASCII.GetBytes(value);
 
-            if (bytes.Length >= length)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(length, bytes.Length);
 
             writer.Write(bytes);
             writer.Write(new byte[length - bytes.Length]);

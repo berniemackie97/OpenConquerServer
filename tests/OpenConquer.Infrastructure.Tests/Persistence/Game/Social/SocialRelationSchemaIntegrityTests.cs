@@ -1,9 +1,10 @@
+using System.Globalization;
 using MySqlConnector;
 using OpenConquer.Domain.Social;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Social;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class SocialRelationSchemaIntegrityTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 400_000;
@@ -443,7 +444,7 @@ public sealed class SocialRelationSchemaIntegrityTests(GameDatabaseFixture datab
 
         Assert.NotNull(result);
 
-        return Convert.ToInt64(result);
+        return Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
     private async Task DeleteCharacterAsync(uint characterId)

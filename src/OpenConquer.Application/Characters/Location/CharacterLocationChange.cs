@@ -12,10 +12,8 @@ public sealed class CharacterLocationChange
     public CharacterLocationChange(uint accountId, uint characterId, CharacterLocation expected,
         CharacterLocation destination, long expectedRevision, Guid operationId, Guid writerToken)
     {
-        if (accountId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(accountId));
-        }
+        ArgumentOutOfRangeException.ThrowIfZero(accountId);
+
         if (!CharacterIdentityPolicy.IsPlayerEntityId(characterId))
         {
             throw new ArgumentOutOfRangeException(nameof(characterId));
@@ -48,11 +46,32 @@ public sealed class CharacterLocationChange
         WriterToken = writerToken;
     }
 
-    public uint AccountId { get; }
-    public uint CharacterId { get; }
-    public CharacterLocation Expected { get; }
-    public CharacterLocation Destination { get; }
-    public long ExpectedRevision { get; }
-    public Guid OperationId { get; }
-    public Guid WriterToken { get; }
+    public uint AccountId
+    {
+        get;
+    }
+    public uint CharacterId
+    {
+        get;
+    }
+    public CharacterLocation Expected
+    {
+        get;
+    }
+    public CharacterLocation Destination
+    {
+        get;
+    }
+    public long ExpectedRevision
+    {
+        get;
+    }
+    public Guid OperationId
+    {
+        get;
+    }
+    public Guid WriterToken
+    {
+        get;
+    }
 }

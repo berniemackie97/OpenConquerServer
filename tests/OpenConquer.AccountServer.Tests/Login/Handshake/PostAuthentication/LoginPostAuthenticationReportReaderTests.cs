@@ -486,8 +486,8 @@ public sealed class LoginPostAuthenticationReportReaderTests
 
         LoginPostAuthenticationReportReader reader = new(session);
 
-        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => reader.ReadAsync(SessionUid, TimeSpan.FromMilliseconds(milliseconds), TestContext.Current.CancellationToken));
+        ArgumentOutOfRangeException exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => reader.ReadAsync(SessionUid, TimeSpan.FromMilliseconds(milliseconds), TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal("phaseTimeout", exception.ParamName);
     }

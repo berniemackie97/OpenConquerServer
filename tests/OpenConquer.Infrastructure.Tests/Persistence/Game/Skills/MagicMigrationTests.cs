@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -420,7 +421,7 @@ public sealed class MagicMigrationTests
               AND `TABLE_NAME` = 'magic'
             """;
 
-        Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertMagicColumnCountAsync(string connectionString, int expected)
@@ -436,7 +437,7 @@ public sealed class MagicMigrationTests
               AND `TABLE_NAME` = 'magic'
             """;
 
-        Assert.Equal(expected, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(expected, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertMagicRowCountAsync(string connectionString, long expected)
@@ -447,7 +448,7 @@ public sealed class MagicMigrationTests
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM `magic`";
 
-        Assert.Equal(expected, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(expected, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertCompatibilityAsync(string connectionString, uint schemaVersion, string migrationId)

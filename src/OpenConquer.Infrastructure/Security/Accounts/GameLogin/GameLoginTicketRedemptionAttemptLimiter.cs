@@ -378,7 +378,10 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
     {
         public RemoteAddressSourceKey Key { get; } = key;
         public double AvailableTokens { get; set; } = availableTokens;
-        public int InFlightAttempts { get; set; }
+        public int InFlightAttempts
+        {
+            get; set;
+        }
         public long LastRefillTimestamp { get; set; } = timestamp;
         public long LastActivityTimestamp { get; set; } = timestamp;
         public LinkedListNode<RemoteAddressSourceKey> RetentionNode { get; } = new(key);
@@ -387,10 +390,22 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
     private sealed class SessionState(uint sessionUid, long timestamp)
     {
         public uint SessionUid { get; } = sessionUid;
-        public int FailedAttempts { get; set; }
-        public int InFlightAttempts { get; set; }
-        public bool IsLockedOut { get; set; }
-        public bool AuthorizationAccepted { get; set; }
+        public int FailedAttempts
+        {
+            get; set;
+        }
+        public int InFlightAttempts
+        {
+            get; set;
+        }
+        public bool IsLockedOut
+        {
+            get; set;
+        }
+        public bool AuthorizationAccepted
+        {
+            get; set;
+        }
         public long FailureWindowStartedTimestamp { get; set; } = timestamp;
         public long LockoutStartedTimestamp { get; set; } = timestamp;
         public long LastActivityTimestamp { get; set; } = timestamp;
@@ -410,10 +425,7 @@ internal sealed class GameLoginTicketRedemptionAttemptLimiter(GameLoginTicketRed
         {
             int previousState = Interlocked.CompareExchange(ref _state, Completed, Active);
 
-            if (previousState == Disposed)
-            {
-                throw new ObjectDisposedException(nameof(AttemptLease));
-            }
+            ObjectDisposedException.ThrowIf(previousState == Disposed, nameof(AttemptLease));
 
             if (previousState != Active)
             {

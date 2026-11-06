@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -230,7 +231,7 @@ public sealed class SyndicateMigrationTests
         await connection.OpenAsync(CancellationToken);
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = sql;
-        return Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken));
+        return Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture);
     }
 
     private static async Task<uint> InsertCharacterAsync(string connectionString)

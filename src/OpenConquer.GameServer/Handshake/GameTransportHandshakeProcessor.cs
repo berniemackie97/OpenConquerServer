@@ -8,9 +8,9 @@ namespace OpenConquer.GameServer.Handshake;
 /// Performs the Diffie-Hellman transport handshake and transfers
 /// the negotiated secured transport state into a live GameServer session.
 /// </summary>
-internal sealed class GameTransportHandshakeProcessor
+internal static class GameTransportHandshakeProcessor
 {
-    public async ValueTask<bool> TryCompleteAsync(GameConnectionSession session, CancellationToken cancellationToken = default)
+    public static async ValueTask<bool> TryCompleteAsync(GameConnectionSession session, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         cancellationToken.ThrowIfCancellationRequested();

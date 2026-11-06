@@ -412,6 +412,41 @@ public sealed class GameServerHostTests
         }
     }
 
+    [Fact]
+    public async Task Host_PreCanceledStopStillCompletesSharedCleanupAndDisposal()
+    {
+        IHost host = CreateHost(new ControlledReadiness(), new ControlledReadiness(), new ControlledContentRepositories());
+
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+            GameServerWorldState state = host.Services.GetRequiredService<GameServerWorldState>();
+            WorldRuntime runtime = state.GetRequiredWorld().Runtime;
+            GameServerWorldHostedService service = Assert.IsType<GameServerWorldHostedService>(
+                Assert.Single(host.Services.GetServices<IHostedService>()));
+            using CancellationTokenSource canceled = new();
+            canceled.Cancel();
+
+            // Cleanup may finish before the canceled wait is observed; either outcome is valid.
+            Exception? waitingFailure = await Record.ExceptionAsync(() => service.StopAsync(canceled.Token));
+            if (waitingFailure is not null)
+            {
+                Assert.IsAssignableFrom<OperationCanceledException>(waitingFailure);
+            }
+
+            await service.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+            await service.StopAsync(TestContext.Current.CancellationToken);
+
+            Assert.False(runtime.IsRunning);
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredWorld());
+            Assert.Throws<InvalidOperationException>(() => state.GetRequiredTransitions());
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
     private static IHost CreateHost(ControlledReadiness account, ControlledReadiness game, ControlledContentRepositories content,
         ILogger<GameServerWorldHostedService>? logger = null, Exception? realmBindingFailure = null,
         Exception? transitionFailure = null, bool mismatchedTransitionContent = false)

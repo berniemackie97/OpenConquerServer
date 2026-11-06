@@ -2,7 +2,7 @@ using MySqlConnector;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts;
 
-[Collection(AccountSchemaDatabaseCollection.Name)]
+[Collection(AccountSchemaDatabaseDefinition.Name)]
 public sealed class AccountSchemaIntegrityTests(AccountDatabaseFixture database)
 {
     private static readonly string[] s_expectedCheckConstraints =

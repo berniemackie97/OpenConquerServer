@@ -685,7 +685,7 @@ public sealed class AccountMutationConcurrencyTests
         return count == 1;
     }
 
-    private async Task LockAccountAsync(
+    private static async Task LockAccountAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
         uint accountId
@@ -701,7 +701,7 @@ public sealed class AccountMutationConcurrencyTests
         Assert.NotNull(await command.ExecuteScalarAsync(CancellationToken));
     }
 
-    private async Task LockPasswordCredentialAsync(
+    private static async Task LockPasswordCredentialAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
         uint accountId
@@ -717,7 +717,7 @@ public sealed class AccountMutationConcurrencyTests
         Assert.NotNull(await command.ExecuteScalarAsync(CancellationToken));
     }
 
-    private async Task LockTicketAsync(
+    private static async Task LockTicketAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
         uint sessionUid

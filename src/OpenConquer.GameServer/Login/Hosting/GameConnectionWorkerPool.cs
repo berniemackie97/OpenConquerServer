@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenConquer.GameServer.Configuration;
 using OpenConquer.GameServer.Hosting;
-using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.World.Sessions;
 using OpenConquer.Protocol.Game.Framing;
@@ -19,7 +18,7 @@ namespace OpenConquer.GameServer.Login.Hosting;
 /// complete.
 /// </summary>
 internal sealed partial class GameConnectionWorkerPool(
-    TransportConnectionAdmissionQueue queue,
+    TransportConnectionAdmission queue,
     Func<ITransportConnection, CancellationToken, CancellationToken, ValueTask<GameLoginProcessingResult>> processConnection,
     GameNetworkOptions options,
     GameLoginMetrics metrics,
@@ -27,7 +26,7 @@ internal sealed partial class GameConnectionWorkerPool(
     IHostApplicationLifetime applicationLifetime,
     ILogger<GameConnectionWorkerPool> logger)
 {
-    private readonly TransportConnectionAdmissionQueue _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private readonly TransportConnectionAdmission _queue = queue ?? throw new ArgumentNullException(nameof(queue));
     private readonly Func<ITransportConnection, CancellationToken, CancellationToken, ValueTask<GameLoginProcessingResult>> _processConnection = processConnection ?? throw new ArgumentNullException(nameof(processConnection));
     private readonly GameNetworkOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly GameLoginMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
@@ -115,7 +114,7 @@ internal sealed partial class GameConnectionWorkerPool(
 
                     if (result.PendingCreation is { } pending)
                     {
-                        StartDeferredSession(pending, cancellationToken, started);
+                        StartDeferredSession(pending, started, cancellationToken);
                     }
                     else if (result.WorldSession is { } session)
                     {
@@ -186,12 +185,12 @@ internal sealed partial class GameConnectionWorkerPool(
         }
     }
 
-    private void StartDeferredSession(Task<WorldSession?> pending, CancellationToken cancellationToken, long started)
+    private void StartDeferredSession(Task<WorldSession?> pending, long started, CancellationToken cancellationToken)
     {
-        TrackSessionTask(RunDeferredSessionAsync(pending, cancellationToken, started));
+        TrackSessionTask(RunDeferredSessionAsync(pending, started, cancellationToken));
     }
 
-    private async Task RunDeferredSessionAsync(Task<WorldSession?> pending, CancellationToken cancellationToken, long started)
+    private async Task RunDeferredSessionAsync(Task<WorldSession?> pending, long started, CancellationToken cancellationToken)
     {
         try
         {

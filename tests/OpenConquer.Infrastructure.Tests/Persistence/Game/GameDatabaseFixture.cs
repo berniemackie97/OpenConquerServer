@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
@@ -32,7 +33,10 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
     /// stores do when an operator forgets them.
     /// </summary>
     public string SelectOnlyConnectionString => _selectOnlyConnectionString ?? throw new InvalidOperationException("The game test database is not initialized.");
-    public ulong InitialCharacterAutoIncrement { get; private set; }
+    public ulong InitialCharacterAutoIncrement
+    {
+        get; private set;
+    }
 
     public async ValueTask InitializeAsync()
     {
@@ -116,7 +120,7 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
 
         return value is null or DBNull
             ? throw new InvalidOperationException("The characters table does not expose an AUTO_INCREMENT value after migration.")
-            : Convert.ToUInt64(value);
+            : Convert.ToUInt64(value, CultureInfo.InvariantCulture);
     }
 
     // docs/operations/database-identities.md: the GameServer runtime grants on its Game database.
@@ -162,7 +166,11 @@ public sealed class GameDatabaseFixture : IAsyncLifetime
             await command.ExecuteNonQueryAsync();
         }
 
-        MySqlConnectionStringBuilder identity = new(administrativeConnectionString) { UserID = userName, Password = password };
+        MySqlConnectionStringBuilder identity = new(administrativeConnectionString)
+        {
+            UserID = userName,
+            Password = password
+        };
         return identity.ConnectionString;
     }
 }

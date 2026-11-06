@@ -31,9 +31,11 @@ Infrastructure implements Application contracts, and Application depends only on
 
 Requirements:
 
-- .NET SDK 10.0.400 (pinned in `global.json`)
+- .NET SDK 10.0.403 (pinned in `global.json`)
 - MySQL 8.4 for running the servers
 - Docker for the database integration tests
+
+The client and server share the [build baseline](docs/architecture/shared-build-baseline.md).
 
 ```bash
 dotnet restore OpenConquer.Server.slnx --locked-mode

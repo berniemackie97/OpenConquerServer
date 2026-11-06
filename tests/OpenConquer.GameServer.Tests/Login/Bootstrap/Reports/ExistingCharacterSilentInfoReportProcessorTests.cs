@@ -22,7 +22,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
 
         QueueReport(harness, checksum: checksum, version: version);
 
-        await new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+        await ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken);
 
         Assert.Equal(checksum, login.ClientReportedSilentDataChecksum);
         Assert.Equal(version, login.ClientReportedSilentDataVersion);
@@ -43,7 +43,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.Transport.QueueEndOfStream();
 
         await Assert.ThrowsAsync<EndOfStreamException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -58,7 +58,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.Transport.QueueReceiveFailure(failure);
 
         IOException exception = await Assert.ThrowsAsync<IOException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Same(failure, exception);
         AssertNothingRecordedOrWritten(harness, login);
@@ -73,7 +73,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         QueueReport(harness, action: GameAction.GetSyndicateAttributesAction);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -87,7 +87,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         QueueReport(harness, action: GameAction.GetStatisticAction);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -103,7 +103,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.QueuePacket(packet);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -117,7 +117,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ReportSilentInfoAction, length: 37));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -131,7 +131,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ReportSilentInfoAction, length: 41));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -145,7 +145,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ReportSilentInfoAction, stringCount: 1));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -162,7 +162,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         QueueReport(harness, entityId: entityId);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("zero entity ID", exception.Message, StringComparison.Ordinal);
         AssertNothingRecordedOrWritten(harness, login);
@@ -186,7 +186,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         harness.QueuePacket(packet);
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);
     }
@@ -202,7 +202,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, cancellation.Token).AsTask());
+            ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, cancellation.Token).AsTask());
 
         Assert.Equal(receiveCount, harness.Transport.ReceiveCallCount);
         AssertNothingRecordedOrWritten(harness, login);
@@ -215,7 +215,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        Task processing = new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+        Task processing = ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, cancellation.Token).AsTask();
 
         cancellation.Cancel();
 
@@ -230,7 +230,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
 
-        Task processing = new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask();
+        Task processing = ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask();
 
         ICharacterPresenceLease replacement = harness.Presence.Register(CharacterId);
 
@@ -259,7 +259,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         QueueReport(harness, checksum: 0xAABB_CCDD, version: 17);
         harness.Transport.BlockSends();
 
-        Task processing = new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+        Task processing = ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, cancellation.Token).AsTask();
 
         try
         {
@@ -287,7 +287,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
         QueueReport(harness);
         harness.Transport.BlockSends();
 
-        Task processing = new ExistingCharacterSilentInfoReportProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask();
+        Task processing = ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask();
 
         await harness.Transport.SendBlocked.WaitAsync(TestContext.Current.CancellationToken);
         ICharacterPresenceLease replacement = harness.Presence.Register(CharacterId);

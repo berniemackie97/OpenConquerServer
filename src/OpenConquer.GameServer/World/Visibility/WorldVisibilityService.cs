@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Items;
 using OpenConquer.GameServer.World.Chat;
@@ -171,13 +172,16 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             }
         }
 
-        if (_logger.IsEnabled(LogLevel.Debug))
+        if (!_logger.IsEnabled(LogLevel.Debug))
         {
-            LogPortalVisibilityCutover(_logger, current.CharacterId, previous.MapId, current.MapId,
-                Stopwatch.GetElapsedTime(waitingSince, locksAcquired).TotalMilliseconds,
-                Stopwatch.GetElapsedTime(locksAcquired, locksReleased).TotalMilliseconds,
-                departedCount, arrivalCount);
+            return;
         }
+
+        double waitMs = Stopwatch.GetElapsedTime(waitingSince, locksAcquired).TotalMilliseconds;
+        double holdMs = Stopwatch.GetElapsedTime(locksAcquired, locksReleased).TotalMilliseconds;
+
+        LogPortalVisibilityCutover(_logger, current.CharacterId, previous.MapId, current.MapId,
+            waitMs, holdMs, departedCount, arrivalCount);
     }
 
     public void Moved(WorldSession session, WorldCharacterSnapshot committed, GameWalkPacket packet) =>
@@ -301,8 +305,15 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
 
             GamePlayerSpawnSnapshot spawn = map.Spawns[id];
             map.Spawns[id] = request.Kind == GameAvatarAction.DirectionAction
-                ? spawn with { Direction = request.Direction }
-                : spawn with { Action = request.Pose, Direction = request.Direction };
+                ? spawn with
+                {
+                    Direction = request.Direction
+                }
+                : spawn with
+                {
+                    Action = request.Pose,
+                    Direction = request.Direction
+                };
 
             foreach (uint viewerId in map.Index.Observers(id))
             {
@@ -448,7 +459,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
 
     private static GamePlayerSpawnSnapshot CreateSpawn(WorldSession session, ushort x, ushort y, byte direction)
     {
-        var profile = session.Profile;
+        CharacterLoginProfile profile = session.Profile;
         uint head = 0, armor = 0, left = 0, right = 0;
         foreach (CharacterItem item in session.Bootstrap.ItemSet.Items)
         {
@@ -458,10 +469,18 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             }
             switch (position.Slot)
             {
-                case EquipmentSlot.Headwear: head = item.ItemTypeId; break;
-                case EquipmentSlot.Armor: armor = item.ItemTypeId; break;
-                case EquipmentSlot.LeftHand: left = item.ItemTypeId; break;
-                case EquipmentSlot.RightHand: right = item.ItemTypeId; break;
+                case EquipmentSlot.Headwear:
+                    head = item.ItemTypeId;
+                    break;
+                case EquipmentSlot.Armor:
+                    armor = item.ItemTypeId;
+                    break;
+                case EquipmentSlot.LeftHand:
+                    left = item.ItemTypeId;
+                    break;
+                case EquipmentSlot.RightHand:
+                    right = item.ItemTypeId;
+                    break;
             }
         }
         uint syndicateId = session.Bootstrap.SyndicateState.Syndicate?.SyndicateId ?? 0;
@@ -471,7 +490,11 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             profile.Progression.FirstProfession, profile.Progression.PreviousProfession, profile.Progression.Profession,
             profile.TitleId, syndicateId, head, armor, left, right);
         return profile.Vitals.Life == 0
-            ? spawn with { StatusMaskLow = 1UL << WorldPrimaryStatusMask.Dead, Action = 0x14B }
+            ? spawn with
+            {
+                StatusMaskLow = 1UL << WorldPrimaryStatusMask.Dead,
+                Action = 0x14B
+            }
             : spawn;
     }
 

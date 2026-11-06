@@ -5,7 +5,7 @@ using OpenConquer.Infrastructure.Persistence.Game.Readiness;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Readiness;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class GameRealmBindingVerifierTests(GameDatabaseFixture database)
 {
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;

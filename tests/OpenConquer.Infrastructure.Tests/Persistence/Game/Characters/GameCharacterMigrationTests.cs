@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -454,7 +455,7 @@ public sealed class GameCharacterMigrationTests
 
         Assert.NotNull(result);
         Assert.NotEqual(DBNull.Value, result);
-        Assert.Equal(expectedPkPoints, Convert.ToInt32(result));
+        Assert.Equal(expectedPkPoints, Convert.ToInt32(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertCharacterPreRebirthLevelAsync(string connectionString, uint accountId, byte? expectedLevel)
@@ -482,7 +483,7 @@ public sealed class GameCharacterMigrationTests
         }
 
         Assert.NotEqual(DBNull.Value, result);
-        Assert.Equal(expectedLevel.Value, Convert.ToByte(result));
+        Assert.Equal(expectedLevel.Value, Convert.ToByte(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertPkPointsColumnAsync(string connectionString, string expectedColumnType)
@@ -563,7 +564,7 @@ public sealed class GameCharacterMigrationTests
 
         Assert.NotNull(result);
 
-        return Convert.ToInt64(result);
+        return Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
     private static async Task AssertCompatibilityAsync(string connectionString, uint expectedSchemaVersion, string expectedMigrationId)

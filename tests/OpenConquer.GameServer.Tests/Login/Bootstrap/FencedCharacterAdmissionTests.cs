@@ -19,12 +19,21 @@ public sealed class FencedCharacterAdmissionTests
         CharacterLoginProfile current = Profile(s_destination);
         Guid token = Guid.NewGuid();
         PersistedCharacterLocation persisted = new(s_destination, revision: 17, lastOperationId: Guid.NewGuid(), writerToken: token);
-        FakeFence fence = new() { Authority = new(AccountId, CharacterId, token, persisted) };
-        FakeProfiles profiles = new() { Profile = current };
-        FakeObserver observer = new() { Location = persisted };
+        FakeFence fence = new()
+        {
+            Authority = new(AccountId, CharacterId, token, persisted)
+        };
+        FakeProfiles profiles = new()
+        {
+            Profile = current
+        };
+        FakeObserver observer = new()
+        {
+            Location = persisted
+        };
         FencedCharacterAdmission admission = new(fence, observer, profiles);
 
-        var (profile, authority) = await admission.AcquireAsync(earlier, TestContext.Current.CancellationToken);
+        (CharacterLoginProfile? profile, CharacterLocationWriteAuthority? authority) = await admission.AcquireAsync(earlier, TestContext.Current.CancellationToken);
 
         Assert.Same(current, profile);
         Assert.Same(fence.Authority, authority);
@@ -37,7 +46,10 @@ public sealed class FencedCharacterAdmissionTests
     public async Task Acquire_NullFenceFailsWithoutProfileReadOrWorldAdmission()
     {
         FakeFence fence = new();
-        FakeProfiles profiles = new() { Profile = Profile(s_original) };
+        FakeProfiles profiles = new()
+        {
+            Profile = Profile(s_original)
+        };
         FakeObserver observer = new();
         FencedCharacterAdmission admission = new(fence, observer, profiles);
 
@@ -54,9 +66,18 @@ public sealed class FencedCharacterAdmissionTests
         CharacterLoginProfile original = Profile(s_original);
         Guid token = Guid.NewGuid();
         PersistedCharacterLocation persisted = new(s_original, 0, writerToken: token);
-        FakeFence fence = new() { Authority = new(AccountId, CharacterId, token, persisted) };
-        FakeProfiles profiles = new() { Profile = Profile(s_original, characterId: CharacterId + 1) };
-        FakeObserver observer = new() { Location = persisted };
+        FakeFence fence = new()
+        {
+            Authority = new(AccountId, CharacterId, token, persisted)
+        };
+        FakeProfiles profiles = new()
+        {
+            Profile = Profile(s_original, characterId: CharacterId + 1)
+        };
+        FakeObserver observer = new()
+        {
+            Location = persisted
+        };
         FencedCharacterAdmission admission = new(fence, observer, profiles);
 
         await Assert.ThrowsAsync<InvalidDataException>(() => admission.AcquireAsync(original, TestContext.Current.CancellationToken).AsTask());
@@ -68,9 +89,18 @@ public sealed class FencedCharacterAdmissionTests
     {
         Guid token = Guid.NewGuid();
         PersistedCharacterLocation persisted = new(s_destination, 8, writerToken: token);
-        FakeFence fence = new() { Authority = new(AccountId, CharacterId, token, persisted) };
-        FakeProfiles profiles = new() { Profile = Profile(s_original) };
-        FakeObserver observer = new() { Location = persisted };
+        FakeFence fence = new()
+        {
+            Authority = new(AccountId, CharacterId, token, persisted)
+        };
+        FakeProfiles profiles = new()
+        {
+            Profile = Profile(s_original)
+        };
+        FakeObserver observer = new()
+        {
+            Location = persisted
+        };
         FencedCharacterAdmission admission = new(fence, observer, profiles);
 
         await Assert.ThrowsAsync<InvalidDataException>(() => admission.AcquireAsync(Profile(s_original), TestContext.Current.CancellationToken).AsTask());
@@ -83,7 +113,10 @@ public sealed class FencedCharacterAdmissionTests
         Guid replacement = Guid.NewGuid();
         PersistedCharacterLocation acquired = new(s_original, 12, writerToken: initial);
         CharacterLocationWriteAuthority authority = new(AccountId, CharacterId, initial, acquired);
-        FakeObserver observer = new() { Location = new(s_original, 12, writerToken: replacement) };
+        FakeObserver observer = new()
+        {
+            Location = new(s_original, 12, writerToken: replacement)
+        };
         FencedCharacterAdmission admission = new(new FakeFence(), observer, new FakeProfiles());
 
         await Assert.ThrowsAsync<InvalidDataException>(() => admission.VerifyAsync(Profile(s_original), authority, TestContext.Current.CancellationToken).AsTask());
@@ -96,7 +129,10 @@ public sealed class FencedCharacterAdmissionTests
         Guid operation = Guid.NewGuid();
         PersistedCharacterLocation acquired = new(s_original, 12, operation, token);
         CharacterLocationWriteAuthority authority = new(AccountId, CharacterId, token, acquired);
-        FakeObserver observer = new() { Location = new(s_original, 13, operation, token) };
+        FakeObserver observer = new()
+        {
+            Location = new(s_original, 13, operation, token)
+        };
         FencedCharacterAdmission admission = new(new FakeFence(), observer, new FakeProfiles());
 
         await Assert.ThrowsAsync<InvalidDataException>(() => admission.VerifyAsync(Profile(s_original), authority, TestContext.Current.CancellationToken).AsTask());
@@ -131,8 +167,14 @@ public sealed class FencedCharacterAdmissionTests
 
     private sealed class FakeFence : ICharacterLocationFenceStore
     {
-        public CharacterLocationWriteAuthority? Authority { get; init; }
-        public int Calls { get; private set; }
+        public CharacterLocationWriteAuthority? Authority
+        {
+            get; init;
+        }
+        public int Calls
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterLocationWriteAuthority?> AcquireAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
         {
@@ -145,8 +187,14 @@ public sealed class FencedCharacterAdmissionTests
 
     private sealed class FakeObserver : ICharacterLocationObservationStore
     {
-        public PersistedCharacterLocation? Location { get; set; }
-        public int Calls { get; private set; }
+        public PersistedCharacterLocation? Location
+        {
+            get; set;
+        }
+        public int Calls
+        {
+            get; private set;
+        }
 
         public ValueTask<PersistedCharacterLocation?> ObserveAsync(uint accountId, uint characterId, CancellationToken cancellationToken = default)
         {
@@ -159,8 +207,14 @@ public sealed class FencedCharacterAdmissionTests
 
     private sealed class FakeProfiles : ICharacterLoginProfileRepository
     {
-        public CharacterLoginProfile? Profile { get; set; }
-        public int Calls { get; private set; }
+        public CharacterLoginProfile? Profile
+        {
+            get; set;
+        }
+        public int Calls
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterLoginProfile?> FindByAccountIdAsync(uint accountId, CancellationToken cancellationToken = default)
         {

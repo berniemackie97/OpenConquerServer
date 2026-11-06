@@ -17,11 +17,7 @@ public sealed class CharacterCreationStartingState
 
     public CharacterCreationStartingState(uint mapId, ushort positionX, ushort positionY, IReadOnlyCollection<CharacterCreationStartingAllotment> allotments)
     {
-        if (mapId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(mapId));
-        }
-
+        ArgumentOutOfRangeException.ThrowIfZero(mapId);
         ArgumentNullException.ThrowIfNull(allotments);
 
         if (allotments.Count != RequiredFamilyCount)
@@ -60,9 +56,18 @@ public sealed class CharacterCreationStartingState
         PositionY = positionY;
     }
 
-    public uint MapId { get; }
-    public ushort PositionX { get; }
-    public ushort PositionY { get; }
+    public uint MapId
+    {
+        get;
+    }
+    public ushort PositionX
+    {
+        get;
+    }
+    public ushort PositionY
+    {
+        get;
+    }
 
     public CharacterCreationCandidate? CreateCandidate(uint accountId, string name, ushort body, ushort profession)
     {

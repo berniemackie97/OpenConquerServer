@@ -5,7 +5,7 @@ using OpenConquer.Domain.Characters;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Characters;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class CharacterLoginProfileRepositoryTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 100_000;

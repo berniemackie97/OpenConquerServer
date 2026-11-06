@@ -1,9 +1,10 @@
+using System.Globalization;
 using MySqlConnector;
 using OpenConquer.Domain.Skills;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Skills;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class WeaponSkillSchemaIntegrityTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 600_000;
@@ -227,7 +228,7 @@ public sealed class WeaponSkillSchemaIntegrityTests(GameDatabaseFixture database
             """;
         command.Parameters.Add("@owner_character_id", MySqlDbType.UInt32).Value = characterId;
 
-        Assert.Equal(1050u, Convert.ToUInt32(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(1050u, Convert.ToUInt32(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     [Fact]

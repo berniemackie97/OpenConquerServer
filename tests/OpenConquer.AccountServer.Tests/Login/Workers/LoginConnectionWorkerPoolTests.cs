@@ -16,7 +16,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_ReportsConnectionFailuresAndContinuesWorker()
     {
-        await using TransportConnectionAdmissionQueue queue = new(2);
+        await using TransportConnectionAdmission queue = new(2);
         IOException firstException = new("first connection failure");
         IOException secondException = new("second connection failure");
         TestTransportConnection first = TestTransportConnection.Failing(firstException, 41001);
@@ -41,7 +41,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_ReportsWholeConnectionTimeout()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         TaskCompletionSource receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TestTransportConnection connection = TestTransportConnection.Blocking(receiveStarted, 41003);
         List<LoginConnectionProcessingTimeout> timeouts = [];
@@ -65,7 +65,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_UsesConfiguredWorkersConcurrently()
     {
-        await using TransportConnectionAdmissionQueue queue = new(2);
+        await using TransportConnectionAdmission queue = new(2);
         TaskCompletionSource firstReceiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource secondReceiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TestTransportConnection first = TestTransportConnection.Blocking(firstReceiveStarted, 41004);
@@ -89,7 +89,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_PropagatesCallerCancellationWithoutReportingClientFailure()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         TaskCompletionSource receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TestTransportConnection connection = TestTransportConnection.Blocking(receiveStarted, 41006);
         List<LoginConnectionProcessingTimeout> timeouts = [];
@@ -113,7 +113,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_ReporterFailureFaultsPool()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         IOException processingException = new("connection failure");
         InvalidOperationException reportingException = new("reporter failure");
         TestTransportConnection connection = TestTransportConnection.Failing(processingException, 41007);
@@ -131,7 +131,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_PreservesProcessingAndCleanupFailures()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         TaskCompletionSource receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         IOException disposalException = new("dispose failure");
         TestTransportConnection connection = TestTransportConnection.Blocking(receiveStarted, new DnsEndPoint("localhost", 41008), disposalException);
@@ -154,7 +154,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_ReportsTimeoutAndCleanupFailure()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         TaskCompletionSource receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         IOException disposalException = new("dispose failure");
         TestTransportConnection connection = TestTransportConnection.Blocking(receiveStarted, 41009, disposalException);
@@ -175,7 +175,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_TimeoutReporterFailureFaultsPool()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         TaskCompletionSource receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         InvalidOperationException reportingException = new("timeout reporter failure");
         TestTransportConnection connection = TestTransportConnection.Blocking(receiveStarted, 41010);
@@ -193,7 +193,7 @@ public sealed class LoginConnectionWorkerPoolTests
     [Fact]
     public async Task RunAsync_ReportsCleanupFailureAfterNormalProcessing()
     {
-        await using TransportConnectionAdmissionQueue queue = new(1);
+        await using TransportConnectionAdmission queue = new(1);
         TaskCompletionSource receiveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         IOException disposalException = new("dispose failure");
         TestTransportConnection connection = TestTransportConnection.Blocking(receiveStarted, 41011, disposalException);
@@ -268,8 +268,14 @@ public sealed class LoginConnectionWorkerPoolTests
             RemoteEndPoint = remoteEndPoint;
         }
 
-        public EndPoint LocalEndPoint { get; }
-        public EndPoint RemoteEndPoint { get; }
+        public EndPoint LocalEndPoint
+        {
+            get;
+        }
+        public EndPoint RemoteEndPoint
+        {
+            get;
+        }
         public int DisposeCount => Volatile.Read(ref _disposeCount);
 
         public static TestTransportConnection Failing(Exception exception, int remotePort) => new((_, _) => ValueTask.FromException<int>(exception), new IPEndPoint(IPAddress.Loopback, remotePort), disposalException: null);

@@ -46,7 +46,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
                 return CharacterLocationWriteResult.Committed;
             });
 
-            WorldCharacterOwnership target = Assert.IsType<WorldCharacterOwnership>(await Execute(runtime, catalog, profile, source, reads, writes, TestContext.Current.CancellationToken));
+            WorldCharacterOwnership target = Assert.IsType<WorldCharacterOwnership>(await Execute(runtime, catalog, profile, source, reads, writes, token: TestContext.Current.CancellationToken));
             Assert.Equal(2, observations);
             Assert.Equal(1, writes.Calls);
             Assert.Equal(DestinationMap, target.MapId);
@@ -74,7 +74,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
             runtime.TrackSession(source, lifetime.Task);
             Observer reads = new((_, _, _) => ValueTask.FromResult<PersistedCharacterLocation?>(Initial()));
             Writer writes = new((_, _) => throw new InvalidOperationException("Must not write"));
-            Assert.Null(await Execute(runtime, catalog, profile, source, reads, writes, TestContext.Current.CancellationToken));
+            Assert.Null(await Execute(runtime, catalog, profile, source, reads, writes, token: TestContext.Current.CancellationToken));
             Assert.Equal(0, writes.Calls);
             Assert.NotNull(await runtime.TryWalkCharacterAsync(source, 0, Token));
             runtime.UntrackSession(source, lifetime.Task);
@@ -98,7 +98,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
             Writer writes = conflict
                 ? new((_, _) => ValueTask.FromResult(CharacterLocationWriteResult.Conflict))
                 : new((_, _) => throw new IOException("DB outcome unknown"));
-            await Assert.ThrowsAnyAsync<Exception>(() => Execute(runtime, catalog, profile, source, reads, writes, TestContext.Current.CancellationToken).AsTask());
+            await Assert.ThrowsAnyAsync<Exception>(() => Execute(runtime, catalog, profile, source, reads, writes, token: TestContext.Current.CancellationToken).AsTask());
             Assert.Equal(1, writes.Calls);
             Assert.False(runtime.IsRunning);
             Assert.Equal(0, runtime.ResidentCount);
@@ -119,7 +119,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
                 Interlocked.Increment(ref reads) == 1 ? Initial() : new PersistedCharacterLocation(
                     new CharacterLocation(DestinationMap, 1, 1), 10, Guid.NewGuid())));
             Writer writer = new((_, _) => ValueTask.FromResult(CharacterLocationWriteResult.Committed));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => Execute(runtime, catalog, profile, source, observer, writer, TestContext.Current.CancellationToken).AsTask());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Execute(runtime, catalog, profile, source, observer, writer, token: TestContext.Current.CancellationToken).AsTask());
             Assert.Equal(2, reads);
             Assert.False(runtime.IsRunning);
         }
@@ -144,14 +144,14 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
                 persisted = new(change.Destination, change.ExpectedRevision + 1, change.OperationId, change.WriterToken);
                 return new ValueTask<CharacterLocationWriteResult>(complete.Task);
             });
-            Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source, observer, writer, TestContext.Current.CancellationToken).AsTask();
+            Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source, observer, writer, token: TestContext.Current.CancellationToken).AsTask();
             try
             {
                 await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
                 Assert.Null(await runtime.TryWalkCharacterAsync(source, 0, Token));
                 Assert.False(await runtime.RemoveCharacterAsync(source, Token));
                 Assert.Throws<InvalidOperationException>(() => runtime.TrackSession(source, Task.CompletedTask));
-                Assert.Null(await Execute(runtime, catalog, profile, source, observer, writer, TestContext.Current.CancellationToken));
+                Assert.Null(await Execute(runtime, catalog, profile, source, observer, writer, token: TestContext.Current.CancellationToken));
                 Assert.Equal(1, writer.Calls);
                 complete.SetResult(CharacterLocationWriteResult.Committed);
                 WorldCharacterOwnership owner = Assert.IsType<WorldCharacterOwnership>(await pending);
@@ -180,7 +180,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 Execute(runtime, catalog, profile, source,
                     new Observer((_, _, _) => ValueTask.FromResult<PersistedCharacterLocation?>(Initial())),
-                    writer, cancelled.Token).AsTask());
+                    writer, token: cancelled.Token).AsTask());
             Assert.Equal(0, writer.Calls);
             Assert.True(runtime.IsRunning);
             Assert.NotNull(await runtime.TryWalkCharacterAsync(source, 0, Token));
@@ -207,7 +207,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
             });
             Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source,
                 new Observer((_, _, _) => ValueTask.FromResult<PersistedCharacterLocation?>(Initial())),
-                writer, cancelled.Token).AsTask();
+                writer, token: cancelled.Token).AsTask();
             try
             {
                 await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
@@ -251,7 +251,7 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
             });
             Writer writer = new((_, _) => ValueTask.FromResult(CharacterLocationWriteResult.Committed));
             Task<WorldCharacterOwnership?> pending = Execute(runtime, catalog, profile, source,
-                observer, writer, cancelled.Token).AsTask();
+                observer, writer, token: cancelled.Token).AsTask();
             try
             {
                 await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
@@ -273,8 +273,8 @@ public sealed class WorldUnboundPortalTransferCoordinatorTests
 
     private static ValueTask<WorldCharacterOwnership?> Execute(WorldRuntime runtime, MapTransitionCatalog catalog,
         CharacterLoginProfile profile, WorldCharacterOwnership owner, ICharacterLocationObservationStore observations,
-        ICharacterLocationWriteStore writer, CancellationToken token = default,
-        ICharacterLocationFenceStore? fence = null) =>
+        ICharacterLocationWriteStore writer, ICharacterLocationFenceStore? fence = null,
+        CancellationToken token = default) =>
         WorldUnboundPortalTransferCoordinator.TryExecuteAsync(runtime, catalog, profile, owner,
             observations, writer, fence ?? new Fence(), portalX: 2, portalY: 1, cancellationToken: token);
 

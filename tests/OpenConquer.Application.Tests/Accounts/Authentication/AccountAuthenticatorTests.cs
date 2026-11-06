@@ -44,7 +44,10 @@ public sealed class AccountAuthenticatorTests
     {
         DateTimeOffset successfulLoginAt = DateTimeOffset.FromUnixTimeSeconds(1_788_566_400);
 
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         AccountAuthenticator authenticator = new(
             repository,
@@ -112,7 +115,10 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         repository.OnRecordSuccessfulLogin = () =>
         {
@@ -260,7 +266,10 @@ public sealed class AccountAuthenticatorTests
     {
         FakeRepository repository = new();
 
-        FakePasswordHasher passwordVerifier = new() { ExpectedPassword = Password };
+        FakePasswordHasher passwordVerifier = new()
+        {
+            ExpectedPassword = Password
+        };
 
         FakeRequestLimiter requestLimiter = new();
         FakeAttemptLimiter attemptLimiter = new();
@@ -305,7 +314,10 @@ public sealed class AccountAuthenticatorTests
     {
         FakeRepository repository = new();
 
-        FakePasswordHasher passwordVerifier = new() { ExpectedPassword = Password };
+        FakePasswordHasher passwordVerifier = new()
+        {
+            ExpectedPassword = Password
+        };
 
         FakeRequestLimiter requestLimiter = new()
         {
@@ -348,11 +360,20 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ProtectionRejectionReturnsInvalidCredentialsWithoutHashing()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
-        FakePasswordHasher passwordVerifier = new() { ExpectedPassword = Password };
+        FakePasswordHasher passwordVerifier = new()
+        {
+            ExpectedPassword = Password
+        };
 
-        FakeAttemptLimiter attemptLimiter = new() { Admit = false };
+        FakeAttemptLimiter attemptLimiter = new()
+        {
+            Admit = false
+        };
 
         AccountAuthenticator authenticator = new(
             repository,
@@ -382,7 +403,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_InvalidPasswordReturnsInvalidCredentials()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -425,7 +449,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_InvalidPasswordDoesNotRevealBannedAccount()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Banned) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Banned)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -461,7 +488,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ValidPasswordForBannedAccountReturnsBanned()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Banned) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Banned)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -500,7 +530,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ValidPasswordForDeniedAccountReturnsInvalidCredentials()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Denied) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Denied)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -536,7 +569,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_ValidPasswordForAllowedAccountReturnsAccountId()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -666,7 +702,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_BannedAccountDoesNotRehashPassword()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Banned) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Banned)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -768,7 +807,10 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -808,7 +850,10 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         FakePasswordHasher passwordVerifier = new()
         {
@@ -922,9 +967,15 @@ public sealed class AccountAuthenticatorTests
         string password
     )
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
-        FakePasswordHasher verifier = new() { ExpectedPassword = password };
+        FakePasswordHasher verifier = new()
+        {
+            ExpectedPassword = password
+        };
 
         AccountAuthenticator authenticator = new(
             repository,
@@ -951,9 +1002,15 @@ public sealed class AccountAuthenticatorTests
     {
         string password = new('x', 128);
 
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
-        FakePasswordHasher verifier = new() { ExpectedPassword = password };
+        FakePasswordHasher verifier = new()
+        {
+            ExpectedPassword = password
+        };
 
         AccountAuthenticator authenticator = new(
             repository,
@@ -1115,7 +1172,10 @@ public sealed class AccountAuthenticatorTests
     {
         using CancellationTokenSource cancellation = new();
 
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         repository.OnRecordSuccessfulLogin = () =>
         {
@@ -1169,7 +1229,10 @@ public sealed class AccountAuthenticatorTests
     [Fact]
     public async Task AuthenticateAsync_UnsupportedVerifierStatusAbandonsAttempt()
     {
-        FakeRepository repository = new() { Snapshot = CreateSnapshot(AccountLoginAccess.Allowed) };
+        FakeRepository repository = new()
+        {
+            Snapshot = CreateSnapshot(AccountLoginAccess.Allowed)
+        };
 
         FakePasswordHasher verifier = new()
         {
@@ -1227,27 +1290,57 @@ public sealed class AccountAuthenticatorTests
 
     private sealed class FakeRepository : IAccountAuthenticationRepository
     {
-        public AccountAuthenticationSnapshot? Snapshot { get; set; }
+        public AccountAuthenticationSnapshot? Snapshot
+        {
+            get; set;
+        }
 
         public bool RecordSuccessfulLoginResult { get; set; } = true;
 
-        public Action? OnRecordSuccessfulLogin { get; set; }
+        public Action? OnRecordSuccessfulLogin
+        {
+            get; set;
+        }
 
-        public int FindCount { get; private set; }
+        public int FindCount
+        {
+            get; private set;
+        }
 
-        public string? LastAccountName { get; private set; }
+        public string? LastAccountName
+        {
+            get; private set;
+        }
 
-        public int PasswordHashReplacementCount { get; private set; }
+        public int PasswordHashReplacementCount
+        {
+            get; private set;
+        }
 
-        public int SuccessfulLoginRecordCount { get; private set; }
+        public int SuccessfulLoginRecordCount
+        {
+            get; private set;
+        }
 
-        public DateTimeOffset? LastSuccessfulLoginAt { get; private set; }
+        public DateTimeOffset? LastSuccessfulLoginAt
+        {
+            get; private set;
+        }
 
-        public uint LastReplacementAccountId { get; private set; }
+        public uint LastReplacementAccountId
+        {
+            get; private set;
+        }
 
-        public string? LastExpectedPasswordHash { get; private set; }
+        public string? LastExpectedPasswordHash
+        {
+            get; private set;
+        }
 
-        public string? LastReplacementPasswordHash { get; private set; }
+        public string? LastReplacementPasswordHash
+        {
+            get; private set;
+        }
 
         public ValueTask<AccountAuthenticationSnapshot?> FindByNameAsync(
             string accountName,
@@ -1293,28 +1386,58 @@ public sealed class AccountAuthenticatorTests
     {
         public string ExpectedPassword { get; set; } = Password;
 
-        public AccountPasswordVerificationStatus VerificationStatus { get; set; } =
+        public AccountPasswordVerificationStatus VerificationStatus
+        {
+            get; set;
+        } =
             AccountPasswordVerificationStatus.Success;
 
         public string ReplacementPasswordHash { get; set; } = "$replacement$";
 
-        public Action? OnVerifyPassword { get; set; }
+        public Action? OnVerifyPassword
+        {
+            get; set;
+        }
 
-        public Action? OnVerifyDecoy { get; set; }
+        public Action? OnVerifyDecoy
+        {
+            get; set;
+        }
 
-        public Action? OnHashPassword { get; set; }
+        public Action? OnHashPassword
+        {
+            get; set;
+        }
 
-        public int PasswordVerificationCount { get; private set; }
+        public int PasswordVerificationCount
+        {
+            get; private set;
+        }
 
-        public int DecoyVerificationCount { get; private set; }
+        public int DecoyVerificationCount
+        {
+            get; private set;
+        }
 
-        public int HashCount { get; private set; }
+        public int HashCount
+        {
+            get; private set;
+        }
 
-        public bool VerifiedPasswordMatched { get; private set; }
+        public bool VerifiedPasswordMatched
+        {
+            get; private set;
+        }
 
-        public bool DecoyPasswordMatched { get; private set; }
+        public bool DecoyPasswordMatched
+        {
+            get; private set;
+        }
 
-        public bool HashedPasswordMatched { get; private set; }
+        public bool HashedPasswordMatched
+        {
+            get; private set;
+        }
 
         public AccountPasswordVerificationStatus VerifyPassword(
             string passwordHash,
@@ -1357,11 +1480,20 @@ public sealed class AccountAuthenticatorTests
     {
         public bool Admit { get; set; } = true;
 
-        public int BeginCount { get; private set; }
+        public int BeginCount
+        {
+            get; private set;
+        }
 
-        public IPAddress? LastRemoteAddress { get; private set; }
+        public IPAddress? LastRemoteAddress
+        {
+            get; private set;
+        }
 
-        public FakeRequestLease? LastRequest { get; private set; }
+        public FakeRequestLease? LastRequest
+        {
+            get; private set;
+        }
 
         public bool TryBeginAuthentication(
             IPAddress remoteAddress,
@@ -1388,7 +1520,10 @@ public sealed class AccountAuthenticatorTests
 
     private sealed class FakeRequestLease : IAccountAuthenticationRequestLease
     {
-        public bool IsDisposed { get; private set; }
+        public bool IsDisposed
+        {
+            get; private set;
+        }
 
         public void Dispose()
         {
@@ -1400,13 +1535,25 @@ public sealed class AccountAuthenticatorTests
     {
         public bool Admit { get; set; } = true;
 
-        public int BeginCount { get; private set; }
+        public int BeginCount
+        {
+            get; private set;
+        }
 
-        public IPAddress? LastRemoteAddress { get; private set; }
+        public IPAddress? LastRemoteAddress
+        {
+            get; private set;
+        }
 
-        public uint LastAccountId { get; private set; }
+        public uint LastAccountId
+        {
+            get; private set;
+        }
 
-        public FakeAttemptLease? LastAttempt { get; private set; }
+        public FakeAttemptLease? LastAttempt
+        {
+            get; private set;
+        }
 
         public bool TryBeginAuthentication(
             IPAddress remoteAddress,
@@ -1437,24 +1584,28 @@ public sealed class AccountAuthenticatorTests
 
     private sealed class FakeAttemptLease : IAccountAuthenticationAttemptLease
     {
-        public bool IsCompleted { get; private set; }
+        public bool IsCompleted
+        {
+            get; private set;
+        }
 
-        public bool CredentialsAccepted { get; private set; }
+        public bool CredentialsAccepted
+        {
+            get; private set;
+        }
 
-        public bool IsDisposed { get; private set; }
+        public bool IsDisposed
+        {
+            get; private set;
+        }
 
         public void Complete(bool credentialsAccepted)
         {
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(nameof(FakeAttemptLease));
-            }
+            ObjectDisposedException.ThrowIf(IsDisposed, nameof(FakeAttemptLease));
 
             if (IsCompleted)
             {
-                throw new InvalidOperationException(
-                    "The authentication attempt has already been completed."
-                );
+                throw new InvalidOperationException("The authentication attempt has already been completed.");
             }
 
             IsCompleted = true;

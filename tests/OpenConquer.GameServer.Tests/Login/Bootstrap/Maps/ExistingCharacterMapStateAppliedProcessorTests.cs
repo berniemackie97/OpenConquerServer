@@ -16,7 +16,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
 
-        await new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+        await ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, harness.UnreadServerBytes);
         Assert.True(harness.Presence.IsOnline(LoginStepHarness.CharacterId));
@@ -32,7 +32,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueueRetailMissionCatalog();
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
 
-        await new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken);
+        await ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, harness.UnreadServerBytes);
         Assert.Equal(0, harness.Transport.DisposeCount);
@@ -49,7 +49,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction));
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            () => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("second mission catalog", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -63,7 +63,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         harness.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<EndOfStreamException>(() => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<EndOfStreamException>(() => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -79,7 +79,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueuePacket(packet);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            () => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -94,7 +94,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction, length: 20));
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            () => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains(nameof(GameActionParseError.TruncatedBody), exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -109,7 +109,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.EnterMapAction));
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            () => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("Expected client-state-applied notification action", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -126,7 +126,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueuePacket(LoginStepHarness.BuildActionPacket(GameAction.ClientStateAppliedAction, length: length, stringCount: stringCount));
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            () => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("fixed action body", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -153,7 +153,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         harness.QueuePacket(packet);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+            () => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("all non-action fields to be zero", exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
@@ -168,7 +168,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
 
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, cancellation.Token).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -180,7 +180,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+        Task processing = ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, cancellation.Token).AsTask();
 
         cancellation.Cancel();
 
@@ -204,7 +204,7 @@ public sealed class ExistingCharacterMapStateAppliedProcessorTests
         // All catalog bytes are in the pipe before starting. The processor consumes those buffered
         // frames synchronously and first yields when it asks for the missing notification.
 
-        Task processing = new ExistingCharacterMapStateAppliedProcessor().ProcessAsync(login, cancellation.Token).AsTask();
+        Task processing = ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, cancellation.Token).AsTask();
 
         Assert.False(processing.IsCompleted);
         cancellation.Cancel();

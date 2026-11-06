@@ -15,7 +15,6 @@ using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Bootstrap.Items;
 using OpenConquer.GameServer.Login.Bootstrap.Maps;
-using OpenConquer.GameServer.Login.Bootstrap.Reports;
 using OpenConquer.GameServer.Login.Bootstrap.Skills;
 using OpenConquer.GameServer.Login.Bootstrap.Social;
 using OpenConquer.GameServer.Login.Bootstrap.Syndicates;
@@ -439,27 +438,48 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
             Processor = new GameExistingCharacterLoginProcessor(
                 new ExistingCharacterBootstrapProcessor(Presence, TestAccountSessions.Create(accountSessions), WorldMapTestContent.CreateCatalog(map), Metrics),
                 new ExistingCharacterEnterMapProcessor(new LoginStepHarness.FixedGameTickSource(ServerTick)),
-                new ExistingCharacterMapStateAppliedProcessor(),
                 new ExistingCharacterItemSetProcessor(store, time),
                 new ExistingCharacterFriendListProcessor(store, Presence),
                 new ExistingCharacterWeaponSkillSetProcessor(store),
                 new ExistingCharacterMagicSetProcessor(store),
                 new ExistingCharacterSyndicateAttributesProcessor(store, time),
-                new ExistingCharacterSilentInfoReportProcessor(),
-                new ExistingCharacterStatisticsRequestProcessor(),
                 new WorldSessionAdmissionProcessor(runtime));
         }
 
-        public LoginStepHarness Harness { get; }
+        public LoginStepHarness Harness
+        {
+            get;
+        }
         public CharacterPresenceDirectory Presence => Harness.Presence;
-        public CharacterLoginProfile Profile { get; }
-        public WorldMapContent Map { get; }
-        public WorldRuntime Runtime { get; }
-        public FakeCharacterStore Store { get; }
-        public RecordingAccountSessionStore AccountSessions { get; }
+        public CharacterLoginProfile Profile
+        {
+            get;
+        }
+        public WorldMapContent Map
+        {
+            get;
+        }
+        public WorldRuntime Runtime
+        {
+            get;
+        }
+        public FakeCharacterStore Store
+        {
+            get;
+        }
+        public RecordingAccountSessionStore AccountSessions
+        {
+            get;
+        }
         public GameLoginMetrics Metrics { get; } = new();
-        public CharacterLoginHandoffResult Handoff { get; }
-        public GameExistingCharacterLoginProcessor Processor { get; }
+        public CharacterLoginHandoffResult Handoff
+        {
+            get;
+        }
+        public GameExistingCharacterLoginProcessor Processor
+        {
+            get;
+        }
 
         public static async Task<LoginFixture> CreateAsync(Exception? disposeFailure = null, uint profileMapId = LoginStepHarness.MapId,
             string? blockedLoad = null, bool admitAccountSession = true)
@@ -526,36 +546,54 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         private readonly List<string> _loads = [];
         private readonly TaskCompletionSource _loadBlocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public CharacterItemSet Items { get; } = new(CharacterId,
+        public CharacterItemSet Items
+        {
+            get;
+        } = new(CharacterId,
         [
             CreateItem(20, ItemPlacement.CreateInventory()),
             CreateItem(10, ItemPlacement.CreateEquipment(EquipmentPosition.Create(EquipmentSet.Main, EquipmentSlot.Headwear))),
         ]);
 
-        public CharacterSocialRelationSet Relations { get; } = new(CharacterId,
+        public CharacterSocialRelationSet Relations
+        {
+            get;
+        } = new(CharacterId,
         [
             new CharacterSocialRelation(SocialRelation.Create(CharacterId, EnemyId, SocialRelationKind.Enemy), "Rival"),
             new CharacterSocialRelation(SocialRelation.Create(CharacterId, FriendId, SocialRelationKind.Friend), "Ally"),
         ]);
 
-        public CharacterWeaponSkillSet WeaponSkills { get; } = new(CharacterId,
+        public CharacterWeaponSkillSet WeaponSkills
+        {
+            get;
+        } = new(CharacterId,
         [
             WeaponSkill.Create(CharacterId, 410, 1, 1_200),
             WeaponSkill.Create(CharacterId, 500, 3, 250_000),
         ]);
 
-        public CharacterMagicSet Magic { get; } = new(CharacterId,
+        public CharacterMagicSet Magic
+        {
+            get;
+        } = new(CharacterId,
         [
             CharacterMagic.Create(CharacterId, 1000, 1, 100),
             CharacterMagic.Create(CharacterId, 1500, 4, 0),
         ]);
 
-        public CharacterSyndicateState Syndicate { get; } = new(CharacterId,
+        public CharacterSyndicateState Syndicate
+        {
+            get;
+        } = new(CharacterId,
             CharacterSyndicateMembership.Create(CharacterId, 73, 1000, 5_000,
                 positionExpirationUnixSeconds: 1_801_958_400, joinDateUnixSeconds: 1_577_923_200),
             new Syndicate(73, "GuildAlpha", FriendId, "Ally", 1_000_000, 2_000, 2, 99, 35, 2));
 
-        public DateTimeOffset? ItemResolutionTime { get; private set; }
+        public DateTimeOffset? ItemResolutionTime
+        {
+            get; private set;
+        }
         public Task LoadBlocked => _loadBlocked.Task;
 
         public string[] Loads

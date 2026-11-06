@@ -20,7 +20,7 @@ public sealed class GameInboundChatTests
     [InlineData(0x7D3, false, false, false)]
     public void ClassifiesOnlyEvidenceBackedWorldChannels(ushort channel, bool local, bool whisper, bool roleWord)
     {
-        var request = new GameInboundChat(channel, "ALL", "hello");
+        GameInboundChat request = new GameInboundChat(channel, "ALL", "hello");
         Assert.Equal(local, request.IsLocal);
         Assert.Equal(whisper, request.IsWhisper);
         Assert.Equal(roleWord, request.IsRoleWord);

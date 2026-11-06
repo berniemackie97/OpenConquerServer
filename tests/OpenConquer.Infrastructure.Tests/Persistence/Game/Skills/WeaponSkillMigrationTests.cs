@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -424,7 +425,7 @@ public sealed class WeaponSkillMigrationTests
               AND `TABLE_NAME` = 'weapon_skills'
             """;
 
-        Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertWeaponSkillColumnCountAsync(string connectionString, int expected)
@@ -440,7 +441,7 @@ public sealed class WeaponSkillMigrationTests
               AND `TABLE_NAME` = 'weapon_skills'
             """;
 
-        Assert.Equal(expected, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(expected, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertWeaponSkillRowCountAsync(string connectionString, long expected)
@@ -451,7 +452,7 @@ public sealed class WeaponSkillMigrationTests
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM `weapon_skills`";
 
-        Assert.Equal(expected, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken)));
+        Assert.Equal(expected, Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken), CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertCompatibilityAsync(string connectionString, uint schemaVersion, string migrationId)

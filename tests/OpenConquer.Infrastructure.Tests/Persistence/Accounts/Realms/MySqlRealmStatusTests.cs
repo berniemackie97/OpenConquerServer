@@ -7,7 +7,7 @@ using OpenConquer.Infrastructure.DependencyInjection;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Accounts.Realms;
 
-[Collection(AccountSchemaDatabaseCollection.Name)]
+[Collection(AccountSchemaDatabaseDefinition.Name)]
 public sealed class MySqlRealmStatusTests(AccountDatabaseFixture database)
 {
     private static readonly TimeSpan s_lifetime = TimeSpan.FromSeconds(30);

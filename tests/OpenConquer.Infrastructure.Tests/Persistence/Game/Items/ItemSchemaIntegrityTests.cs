@@ -1,9 +1,10 @@
+using System.Globalization;
 using MySqlConnector;
 using OpenConquer.Domain.Items;
 
 namespace OpenConquer.Infrastructure.Tests.Persistence.Game.Items;
 
-[Collection(GameSchemaDatabaseCollection.Name)]
+[Collection(GameSchemaDatabaseDefinition.Name)]
 public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
 {
     private static int s_nextAccountId = 20_000;
@@ -791,7 +792,7 @@ public sealed class ItemSchemaIntegrityTests(GameDatabaseFixture database)
 
         Assert.NotNull(result);
 
-        return Convert.ToInt64(result);
+        return Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
     private async Task AssertItemCheckConstraintViolationAsync(uint itemId, string expectedConstraint, string assignment,

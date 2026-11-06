@@ -47,7 +47,7 @@ public sealed class GameConnectionWorkerPoolTests
 
         transport.QueueEndOfStream();
 
-        await using TransportConnectionAdmissionQueue queue = new(8);
+        await using TransportConnectionAdmission queue = new(8);
         using GameLoginMetrics metrics = new();
         using RecordingApplicationLifetime lifetime = new();
         GameServerFailureState failureState = new();
@@ -101,7 +101,7 @@ public sealed class GameConnectionWorkerPoolTests
 
         transport.QueueEndOfStream();
 
-        await using TransportConnectionAdmissionQueue queue = new(8);
+        await using TransportConnectionAdmission queue = new(8);
         using GameLoginMetrics metrics = new();
         using RecordingApplicationLifetime lifetime = new();
         GameServerFailureState failureState = new();
@@ -129,7 +129,7 @@ public sealed class GameConnectionWorkerPoolTests
     {
         FakeGameTransportConnection transport = new();
 
-        await using TransportConnectionAdmissionQueue queue = new(8);
+        await using TransportConnectionAdmission queue = new(8);
         using GameLoginMetrics metrics = new();
         using RecordingApplicationLifetime lifetime = new();
         GameServerFailureState failureState = new();
@@ -163,7 +163,7 @@ public sealed class GameConnectionWorkerPoolTests
     {
         FakeGameTransportConnection first = new();
         FakeGameTransportConnection second = new();
-        await using TransportConnectionAdmissionQueue queue = new(8);
+        await using TransportConnectionAdmission queue = new(8);
         using GameLoginMetrics metrics = new();
         using RecordingApplicationLifetime lifetime = new();
         GameServerFailureState failureState = new();
@@ -216,7 +216,7 @@ public sealed class GameConnectionWorkerPoolTests
         FakeGameTransportConnection transport = new(blockDispose: true, disposeFailure: disposalFailure);
         CharacterPresenceDirectory presence = new();
         WorldSession session = await CreateSessionAsync(runtime, transport, presence, map);
-        await using TransportConnectionAdmissionQueue queue = new(8);
+        await using TransportConnectionAdmission queue = new(8);
         using GameLoginMetrics metrics = new();
         using RecordingApplicationLifetime lifetime = new();
         using CancellationTokenSource stopping = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -280,15 +280,14 @@ public sealed class GameConnectionWorkerPoolTests
     }
 
     private static async Task<WorldSession> CreateSessionAsync(WorldRuntime runtime, FakeGameTransportConnection transport,
-        ICharacterPresenceRegistrar presence, WorldMapContent map)
+        CharacterPresenceDirectory presence, WorldMapContent map)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         GameConnectionSession connectionSession = await GameConnectionSession.OpenAsync(transport, cancellationToken);
 
         try
         {
-            GameTransportHandshakeProcessor handshakeProcessor = new();
-            Task<bool> handshake = handshakeProcessor.TryCompleteAsync(connectionSession, cancellationToken).AsTask();
+            Task<bool> handshake = GameTransportHandshakeProcessor.TryCompleteAsync(connectionSession, cancellationToken).AsTask();
 
             await transport.SendCompleted.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken);
 

@@ -74,7 +74,7 @@ internal static class AccountServerHost
         services.AddSingleton<LoginHandshakeProcessor>();
         services.AddSingleton<LoginRuntimeMetrics>();
 
-        services.AddSingleton<TransportConnectionAdmissionQueue>(_ => new TransportConnectionAdmissionQueue(admissionCapacity));
+        services.AddSingleton<TransportConnectionAdmission>(_ => new TransportConnectionAdmission(admissionCapacity));
         services.AddSingleton<LoginTransportListenerFactory>(_ => () => new SocketTransportListener(loginEndPoint, listenBacklog));
 
         services.AddHostedService<AccountDatabaseReadinessHostedService>();

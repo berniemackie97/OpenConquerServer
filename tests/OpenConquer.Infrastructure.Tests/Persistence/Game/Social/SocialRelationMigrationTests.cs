@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -488,7 +489,7 @@ public sealed class SocialRelationMigrationTests
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(0L, Convert.ToInt64(result));
+        Assert.Equal(0L, Convert.ToInt64(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertSocialRelationColumnCountAsync(string connectionString, int expectedCount)
@@ -507,7 +508,7 @@ public sealed class SocialRelationMigrationTests
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(expectedCount, Convert.ToInt32(result));
+        Assert.Equal(expectedCount, Convert.ToInt32(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertSocialRelationRowCountAsync(string connectionString, long expectedCount)
@@ -521,7 +522,7 @@ public sealed class SocialRelationMigrationTests
         object? result = await command.ExecuteScalarAsync(CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(expectedCount, Convert.ToInt64(result));
+        Assert.Equal(expectedCount, Convert.ToInt64(result, CultureInfo.InvariantCulture));
     }
 
     private static async Task AssertCompatibilityAsync(string connectionString, uint expectedSchemaVersion, string expectedMigrationId)

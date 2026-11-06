@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using OpenConquer.Application.World;
 
 namespace OpenConquer.Application.World.Revival;
 
@@ -44,21 +43,28 @@ public sealed class RevivalDestinationCatalog
         ResolvedCount = results.Values.Count(static result => result.IsResolved);
     }
 
-    public int SourceRecordCount { get; }
-    public int ResolvedCount { get; }
+    public int SourceRecordCount
+    {
+        get;
+    }
+    public int ResolvedCount
+    {
+        get;
+    }
     public int MapCount => _resolutions.Count;
 
     /// <summary>
     /// Returns the destination, or the reason there is none. A failed result never carries a coordinate, so a
     /// caller can't use one by mistake.
     /// </summary>
-    public RevivalDestinationResolution Resolve(uint worldMapId) =>
-        _resolutions.TryGetValue(worldMapId, out RevivalDestinationResolution result)
+    public RevivalDestinationResolution Resolve(uint worldMapId)
+    {
+        return _resolutions.TryGetValue(worldMapId, out RevivalDestinationResolution result)
             ? result
             : new RevivalDestinationResolution(RevivalDestinationStatus.UnavailableWorldMap);
+    }
 
-    private static RevivalDestinationResolution Resolve(uint sourceId, WorldMapContentCatalog maps,
-        IReadOnlyDictionary<uint, MapRevivalSource> rows)
+    private static RevivalDestinationResolution Resolve(uint sourceId, WorldMapContentCatalog maps, Dictionary<uint, MapRevivalSource> rows)
     {
         if (!rows.TryGetValue(sourceId, out MapRevivalSource source))
         {

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Items.Resolution;
 using OpenConquer.Domain.Items;
@@ -228,7 +229,10 @@ public sealed class ExistingCharacterItemSetProcessorTests
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         IOException failure = new("item resolution failed");
-        FakeItemSetResolver resolver = new(new CharacterItemSet(CharacterId, [])) { Failure = failure };
+        FakeItemSetResolver resolver = new(new CharacterItemSet(CharacterId, []))
+        {
+            Failure = failure
+        };
 
         harness.QueueAction(GameAction.GetItemSetAction);
 
@@ -253,8 +257,8 @@ public sealed class ExistingCharacterItemSetProcessorTests
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
             () => CreateProcessor(resolver).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
-        Assert.Contains(otherCharacterId.ToString(), exception.Message, StringComparison.Ordinal);
-        Assert.Contains(CharacterId.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(otherCharacterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(CharacterId.ToString(CultureInfo.InvariantCulture), exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, harness.UnreadServerBytes);
         Assert.Null(login.ItemSet);
     }
@@ -390,10 +394,19 @@ public sealed class ExistingCharacterItemSetProcessorTests
     {
         private int _resolveCount;
 
-        public Exception? Failure { get; init; }
+        public Exception? Failure
+        {
+            get; init;
+        }
         public int ResolveCount => Volatile.Read(ref _resolveCount);
-        public uint? CharacterId { get; private set; }
-        public DateTimeOffset? UtcNow { get; private set; }
+        public uint? CharacterId
+        {
+            get; private set;
+        }
+        public DateTimeOffset? UtcNow
+        {
+            get; private set;
+        }
 
         public ValueTask<CharacterItemSet> ResolveAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {
@@ -411,8 +424,14 @@ public sealed class ExistingCharacterItemSetProcessorTests
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Started => _started.Task;
-        public uint? CharacterId { get; private set; }
-        public DateTimeOffset? UtcNow { get; private set; }
+        public uint? CharacterId
+        {
+            get; private set;
+        }
+        public DateTimeOffset? UtcNow
+        {
+            get; private set;
+        }
 
         public async ValueTask<CharacterItemSet> ResolveAsync(uint characterId, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
         {

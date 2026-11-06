@@ -12,7 +12,7 @@ public sealed class TransportConnectionAcceptLoopTests
     [Fact]
     public async Task RunAsync_RejectsNullListener()
     {
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
             TransportConnectionAcceptLoop.RunAsync(
@@ -46,7 +46,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using SocketTransportListener listener = CreateListener();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
             TransportConnectionAcceptLoop.RunAsync(
@@ -64,7 +64,7 @@ public sealed class TransportConnectionAcceptLoopTests
     public async Task RunAsync_RejectsNullCapacityRejectionReporter()
     {
         await using SocketTransportListener listener = CreateListener();
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => TransportConnectionAcceptLoop.RunAsync(listener, queue, null!, FailOnRejectionDisposalFailure, TestContext.Current.CancellationToken));
 
@@ -75,7 +75,7 @@ public sealed class TransportConnectionAcceptLoopTests
     public async Task RunAsync_ReportsCapacityRejectionAfterRejectedConnectionIsDisposed()
     {
         await using ControlledTransportConnectionListener listener = new();
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
         TrackingTransportConnection occupyingConnection = new();
         TrackingTransportConnection rejectedConnection = new();
 
@@ -106,7 +106,7 @@ public sealed class TransportConnectionAcceptLoopTests
     public async Task RunAsync_PreservesCapacityRejectionReporterFailureAfterDisposal()
     {
         await using ControlledTransportConnectionListener listener = new();
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
         TrackingTransportConnection occupyingConnection = new();
         TrackingTransportConnection rejectedConnection = new();
 
@@ -131,7 +131,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using SocketTransportListener listener = CreateListener();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         using CancellationTokenSource cancellation =
             CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -185,7 +185,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using SocketTransportListener listener = CreateListener();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         TrackingTransportConnection occupyingConnection = new();
 
@@ -246,7 +246,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using ControlledTransportConnectionListener listener = new();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         TrackingTransportConnection occupyingConnection = new();
 
@@ -319,7 +319,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using ControlledTransportConnectionListener listener = new();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         TrackingTransportConnection occupyingConnection = new();
 
@@ -369,7 +369,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using SocketTransportListener listener = CreateListener();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         queue.Complete();
 
@@ -388,7 +388,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using SocketTransportListener listener = CreateListener();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         Task acceptLoop = TransportConnectionAcceptLoop.RunAsync(
             listener,
@@ -411,7 +411,7 @@ public sealed class TransportConnectionAcceptLoopTests
     {
         await using SocketTransportListener listener = CreateListener();
 
-        TransportConnectionAdmissionQueue queue = new(capacity: 1);
+        TransportConnectionAdmission queue = new(capacity: 1);
 
         using CancellationTokenSource cancellation =
             CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -450,7 +450,7 @@ public sealed class TransportConnectionAcceptLoopTests
     }
 
     private static async Task<ITransportConnection> ReadOneAsync(
-        TransportConnectionAdmissionQueue queue,
+        TransportConnectionAdmission queue,
         CancellationToken cancellationToken
     )
     {

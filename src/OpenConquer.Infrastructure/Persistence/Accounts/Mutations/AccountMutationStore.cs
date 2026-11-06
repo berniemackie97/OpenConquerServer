@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using MySqlConnector;
 using OpenConquer.Application.Accounts.Mutations;
 using OpenConquer.Domain.Accounts;
@@ -331,7 +332,7 @@ internal sealed class AccountMutationStore(MySqlDataSource dataSource) : IAccoun
             return null;
         }
 
-        ulong revision = Convert.ToUInt64(result);
+        ulong revision = Convert.ToUInt64(result, CultureInfo.InvariantCulture);
 
         if (revision == 0)
         {

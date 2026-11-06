@@ -1,3 +1,4 @@
+using OpenConquer.Application.World;
 using OpenConquer.Application.World.Transitions;
 using OpenConquer.Domain.World;
 
@@ -20,7 +21,7 @@ internal static class WorldPortalPreflight
         // The catalog must have been validated against this same world content; matching map and passway IDs alone
         // aren't enough.
         if (!runtime.UsesMapContent(transitions.Maps) ||
-            !runtime.TryGetMap(ownership.MapId, out var source))
+            !runtime.TryGetMap(ownership.MapId, out WorldMapContent? source))
         {
             return null;
         }
