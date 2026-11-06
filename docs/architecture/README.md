@@ -103,5 +103,6 @@ measurements show the need. See [World execution](world-execution.md).
 - [Account registration](account-registration.md)
 - [Persistence](persistence.md)
 - [World execution](world-execution.md)
+- [World command load baseline](world-command-load.md)
 - [Connected portal transfers](connected-portal-transfers.md)
 - [Protocol](../protocol/README.md)
