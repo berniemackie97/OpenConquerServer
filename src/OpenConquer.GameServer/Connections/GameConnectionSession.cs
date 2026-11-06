@@ -17,18 +17,6 @@ namespace OpenConquer.GameServer.Connections;
 /// </summary>
 internal sealed class GameConnectionSession : IAsyncDisposable
 {
-    private const int ProtocolStateBootstrap = 0;
-    private const int ProtocolStateSecured = 1;
-    private const int ProtocolStateTerminal = 2;
-
-    private const int ChallengeStateNotStarted = 0;
-    private const int ChallengeStateActive = 1;
-    private const int ChallengeStateCompleted = 2;
-
-    private const int KeyExchangeStateNotStarted = 0;
-    private const int KeyExchangeStateActive = 1;
-    private const int KeyExchangeStateCompleted = 2;
-
     private readonly ITransportConnection _connection;
     private readonly Pipe _inputPipe;
     private readonly Pipe _outputPipe;
@@ -38,6 +26,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     private readonly Task _outputPump;
 
     private readonly Lock _protocolGate = new();
+    private readonly GameHandshakeProgress _handshake = new();
     private readonly Lock _operationGate = new();
     private readonly Lock _disposeGate = new();
 
@@ -47,9 +36,6 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     private TaskCompletionSource? _operationsDrained;
     private Task? _disposeTask;
 
-    private int _protocolState = ProtocolStateBootstrap;
-    private int _challengeState = ChallengeStateNotStarted;
-    private int _keyExchangeState = KeyExchangeStateNotStarted;
     private int _activeOperationCount;
     private int _disposeState;
     private int _inputPumpFailureObserved;
@@ -205,15 +191,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         {
             ThrowIfDisposed();
 
-            if (_protocolState != ProtocolStateBootstrap)
-            {
-                throw new InvalidOperationException("The GameServer connection is not awaiting handshake completion.");
-            }
-
-            if (_challengeState != ChallengeStateCompleted || _keyExchangeState != KeyExchangeStateCompleted)
-            {
-                throw new InvalidOperationException("The GameServer handshake cannot complete before its challenge and client key exchange have completed.");
-            }
+            _handshake.RequireCompletion();
 
             GameSecuredFrameReader? frameReader = null;
 
@@ -225,7 +203,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
                 _sessionCipher = sessionCipher;
                 _frameReader = frameReader;
                 _frameWriter = frameWriter;
-                _protocolState = ProtocolStateSecured;
+                _handshake.MarkSecured();
             }
             catch
             {
@@ -503,18 +481,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         lock (_protocolGate)
         {
             ThrowIfDisposed();
-
-            if (_protocolState != ProtocolStateBootstrap)
-            {
-                throw new InvalidOperationException("The GameServer connection is not in bootstrap handshake state.");
-            }
-
-            if (_challengeState != ChallengeStateNotStarted)
-            {
-                throw new InvalidOperationException("The GameServer handshake challenge may only be sent once.");
-            }
-
-            _challengeState = ChallengeStateActive;
+            _handshake.EnterChallengeWrite();
         }
     }
 
@@ -523,13 +490,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         lock (_protocolGate)
         {
             ThrowIfDisposed();
-
-            if (_protocolState != ProtocolStateBootstrap || _challengeState != ChallengeStateActive)
-            {
-                throw new InvalidOperationException("The GameServer handshake challenge state changed unexpectedly while it was being sent.");
-            }
-
-            _challengeState = ChallengeStateCompleted;
+            _handshake.CompleteChallengeWrite();
         }
     }
 
@@ -538,23 +499,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         lock (_protocolGate)
         {
             ThrowIfDisposed();
-
-            if (_protocolState != ProtocolStateBootstrap)
-            {
-                throw new InvalidOperationException("The GameServer connection is not in bootstrap handshake state.");
-            }
-
-            if (_challengeState != ChallengeStateCompleted)
-            {
-                throw new InvalidOperationException("The client key-exchange response cannot be read before the GameServer handshake challenge has been sent.");
-            }
-
-            if (_keyExchangeState != KeyExchangeStateNotStarted)
-            {
-                throw new InvalidOperationException("The client key-exchange response may only be read once at a time.");
-            }
-
-            _keyExchangeState = KeyExchangeStateActive;
+            _handshake.EnterKeyExchangeRead();
         }
     }
 
@@ -563,13 +508,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         lock (_protocolGate)
         {
             ThrowIfDisposed();
-
-            if (_protocolState != ProtocolStateBootstrap || _keyExchangeState != KeyExchangeStateActive)
-            {
-                throw new InvalidOperationException("The GameServer client key-exchange state changed unexpectedly while it was being read.");
-            }
-
-            _keyExchangeState = KeyExchangeStateCompleted;
+            _handshake.CompleteKeyExchangeRead();
         }
     }
 
@@ -577,9 +516,9 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     {
         lock (_protocolGate)
         {
-            if (_protocolState == ProtocolStateBootstrap && _keyExchangeState == KeyExchangeStateActive && Volatile.Read(ref _disposeState) == 0)
+            if (_handshake.CanResetKeyExchangeRead && Volatile.Read(ref _disposeState) == 0)
             {
-                _keyExchangeState = KeyExchangeStateNotStarted;
+                _handshake.ResetKeyExchangeRead();
             }
         }
     }
@@ -590,7 +529,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         {
             ThrowIfDisposed();
 
-            if (_protocolState != ProtocolStateSecured)
+            if (!_handshake.IsSecured)
             {
                 throw new InvalidOperationException("The GameServer connection has not completed its secure handshake.");
             }
@@ -605,7 +544,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
         {
             ThrowIfDisposed();
 
-            if (_protocolState != ProtocolStateSecured)
+            if (!_handshake.IsSecured)
             {
                 throw new InvalidOperationException("The GameServer connection has not completed its secure handshake.");
             }
@@ -618,7 +557,7 @@ internal sealed class GameConnectionSession : IAsyncDisposable
     {
         lock (_protocolGate)
         {
-            _protocolState = ProtocolStateTerminal;
+            _handshake.MarkTerminal();
         }
     }
 

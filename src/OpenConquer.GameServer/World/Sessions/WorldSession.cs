@@ -1,15 +1,11 @@
-using System.Diagnostics;
 using System.Threading.Channels;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.World;
-using OpenConquer.Domain.World;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
-using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
-using OpenConquer.GameServer.World.Movement;
 using OpenConquer.GameServer.World.Visibility;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -32,15 +28,11 @@ internal sealed class WorldSession : IAsyncDisposable
 
     private readonly ExistingCharacterGameConnection _connection;
     private readonly WorldRuntime _runtime;
+    private readonly WorldSessionGameplay _gameplay;
     private readonly WorldVisibilityService? _visibility;
     private readonly Channel<OutboundDelivery>? _visibilityMailbox;
     private readonly CancellationTokenSource _visibilityStopping = new();
     private Task? _visibilityWrites;
-    private WorldWalkPacer _walkPacer = new();
-    private readonly WorldJumpIngressLimiter _jumpIngressLimiter = new();
-    private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
-    private readonly WorldChatRateLimiter _chatRateLimiter = new();
-    private WorldPositionReconciler _positionReconciler;
     private WorldLocationState _location;
     private readonly WorldConnectedPortalTransferCoordinator? _portals;
     private TaskCompletionSource? _portalOperation;
@@ -77,7 +69,7 @@ internal sealed class WorldSession : IAsyncDisposable
                 FullMode = BoundedChannelFullMode.Wait,
             });
         }
-        _positionReconciler = new WorldPositionReconciler(bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
+        _gameplay = new WorldSessionGameplay(this, runtime, visibility, bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
     }
 
     public ExistingCharacterBootstrapCompleteConnection Bootstrap
@@ -247,8 +239,7 @@ internal sealed class WorldSession : IAsyncDisposable
             throw new InvalidOperationException("Connected portal rebind lost its authoritative world generation.");
         }
 
-        _positionReconciler = new WorldPositionReconciler(persisted.Location.X, persisted.Location.Y);
-        _walkPacer = new WorldWalkPacer();
+        _gameplay.RebindLocation(persisted.Location.X, persisted.Location.Y);
         Volatile.Write(ref _location, new WorldLocationState(next, target, persisted));
     }
 
@@ -350,290 +341,50 @@ internal sealed class WorldSession : IAsyncDisposable
     /// Accepts the native 1056/2 trade-quit notification. Trading is not implemented:
     /// there is no exchange to release, response to send, or inventory to mutate.
     /// </summary>
-    internal void ProcessTradeQuit(GameTradeQuitRequest request)
-    {
-        ThrowIfInactive();
-        if (request.EntityId != Ownership.CharacterId)
-        {
-            throw new InvalidDataException("Trade quit does not belong to the authenticated character.");
-        }
-    }
+    internal void ProcessTradeQuit(GameTradeQuitRequest request) => _gameplay.ProcessTradeQuit(request);
 
     /// <summary>
     /// Applies one 8-direction ground step. The packet is echoed back only after the partition has committed the
     /// new position.
     /// </summary>
-    internal async ValueTask ProcessWalkAsync(GameWalkPacket walk, CancellationToken cancellationToken = default)
-    {
-        ThrowIfInactive();
-
-        if (walk.EntityId != Ownership.CharacterId)
-        {
-            throw new InvalidDataException("A walk command does not match the authenticated character.");
-        }
-
-        if (!_walkPacer.TryAccept(walk.MovementTick, Stopwatch.GetTimestamp(), walk.IsTwentyFourDirection))
-        {
-            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        WorldVisibilityService? visibility = _visibility;
-        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
-        {
-            // Publish committed movement first: a full sender mailbox may
-            // start teardown, but healthy observers must not lose this movement.
-            // Both deliveries are scheduled in this partition turn.
-            visibility.Moved(this, snapshot, walk);
-            QueueVisibilityPacket(walk);
-        };
-        WorldCharacterSnapshot? committed = await _runtime.TryWalkCharacterAsync(Ownership, walk.DirectionIndex,
-            walk.CommandSelector, publish, linked.Token).ConfigureAwait(false);
-
-        if (committed is not null)
-        {
-            _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
-            if (visibility is null)
-            {
-                await WriteAsync(walk, cancellationToken).ConfigureAwait(false);
-            }
-        }
-        else
-        {
-            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
-        }
-    }
+    internal ValueTask ProcessWalkAsync(GameWalkPacket walk, CancellationToken cancellationToken = default) =>
+        _gameplay.ProcessWalkAsync(walk, cancellationToken);
 
     /// <summary>
     /// Handles 5517 request 145. The client never gets an action-145 echo.
     /// </summary>
-    internal async ValueTask ProcessGhostTransitionAsync(GameGhostTransitionRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ThrowIfInactive();
-        if (request.EntityId != Ownership.CharacterId)
-        {
-            throw new InvalidDataException("Ghost transition does not belong to the authenticated character.");
-        }
-
-        // Validate the appearance before a partition command can commit the status.
-        uint look = WorldGhostAppearance.FromBaseLook(Profile.Appearance.Composite);
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        WorldVisibilityService? visibility = _visibility;
-        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : ghost =>
-        {
-            visibility.Ghosted(this, ghost, look);
-            // The local client needs status before look, as in the older TQ server.
-            QueueVisibilityPacket(new GameUserAttributePacket(Ownership.CharacterId,
-                GameUserAttributePacket.PrimaryStatusAttribute, ghost.Status.Low, ghost.Status.High));
-            QueueVisibilityPacket(new GameUserAttributePacket(Ownership.CharacterId,
-                GameUserAttributePacket.LookAttribute, look));
-        };
-        WorldCharacterSnapshot? transitioned = await _runtime.TryEnterGhostAsync(Ownership,
-            Stopwatch.GetTimestamp(), publish, linked.Token).ConfigureAwait(false);
-        if (transitioned is WorldCharacterSnapshot snapshot && visibility is null)
-        {
-            await WriteAsync(new GameUserAttributePacket(Ownership.CharacterId,
-                GameUserAttributePacket.PrimaryStatusAttribute, snapshot.Status.Low, snapshot.Status.High),
-                cancellationToken).ConfigureAwait(false);
-            await WriteAsync(new GameUserAttributePacket(Ownership.CharacterId,
-                GameUserAttributePacket.LookAttribute, look), cancellationToken).ConfigureAwait(false);
-        }
-        // Too early, already ghosted, or no longer dead: idempotently ignore.
-    }
+    internal ValueTask ProcessGhostTransitionAsync(GameGhostTransitionRequest request, CancellationToken cancellationToken = default) =>
+        _gameplay.ProcessGhostTransitionAsync(request, cancellationToken);
 
     /// <summary>
     /// Applies a jump to an absolute tile once the partition accepts it.
     /// </summary>
-    internal async ValueTask ProcessJumpAsync(GameJumpAction jump, CancellationToken cancellationToken = default)
-    {
-        ThrowIfInactive();
-        if (jump.EntityId != Ownership.CharacterId || jump.Action.Action != GameJumpAction.JumpAction ||
-            jump.Action.StringCount != 0)
-        {
-            throw new InvalidDataException("Jump intent does not belong to the authenticated character.");
-        }
-
-        // Subtype 137 with +36 = 1 is a mounted charge, not a ground jump, and can't be allowed or echoed until riding
-        // and vigor exist. Unknown nonzero variants are refused and corrected the same way. The ingress limit still
-        // applies on maps where jumping isn't allowed.
-        if (!_jumpIngressLimiter.TryAccept(Stopwatch.GetTimestamp()) ||
-            !jump.IsGroundJump || (Map.Flags & 0x0200_0000UL) != 0)
-        {
-            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        WorldCharacterSnapshot? before = await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false);
-        if (before is null)
-        {
-            throw new InvalidDataException("Jump intent has no active authoritative world owner.");
-        }
-        int distance = MapDistance.RoundedTileDistance(before.Value.X, before.Value.Y, jump.TargetX, jump.TargetY);
-        if (distance is < 1 or > 16 || !_walkPacer.TryAcceptJump(jump.Timestamp, Stopwatch.GetTimestamp(), distance))
-        {
-            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-        GameActionPacket acknowledgement = jump.CreateAcknowledgement();
-        WorldVisibilityService? visibility = _visibility;
-        Action<WorldCharacterSnapshot>? publish = visibility is null ? null : snapshot =>
-        {
-            visibility.Jumped(this, snapshot, acknowledgement);
-            QueueVisibilityPacket(acknowledgement);
-        };
-        WorldCharacterSnapshot? committed = await _runtime.TryJumpCharacterAsync(Ownership,
-            jump.TargetX, jump.TargetY, publish, linked.Token).ConfigureAwait(false);
-        if (committed is not null)
-        {
-            _positionReconciler.RecordAuthorized(committed.Value.X, committed.Value.Y);
-            if (visibility is null)
-            {
-                await WriteAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
-            }
-        }
-        else
-        {
-            await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
-        }
-    }
+    internal ValueTask ProcessJumpAsync(GameJumpAction jump, CancellationToken cancellationToken = default) =>
+        _gameplay.ProcessJumpAsync(jump, cancellationToken);
 
     /// <summary>
     /// Processes only proven native world-chat channels. Unknown valid channels are
     /// deliberately not relayed as unscoped chat or used to forge control messages.
     /// </summary>
-    internal async ValueTask ProcessChatAsync(GameInboundChat request, CancellationToken cancellationToken = default)
-    {
-        ThrowIfInactive();
-
-        // Charge all well-formed inbound chat traffic, including unsupported
-        // channels and unaddressed whispers, before selecting a delivery path.
-        // One serialized reader applies backpressure without an auxiliary queue.
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        while (!_chatRateLimiter.TryAccept(Stopwatch.GetTimestamp(), out TimeSpan retryAfter))
-        {
-            await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
-            ThrowIfInactive();
-        }
-
-        ThrowIfInactive();
-        if (!request.IsSupported)
-        {
-            return;
-        }
-
-        if (request.IsWhisper)
-        {
-            // The ordinary client text box uses ALL even on a selected tab.
-            // Without an explicit target there is no safe whisper recipient.
-            if (request.Recipient == GameInboundChat.BroadcastRecipient)
-            {
-                return;
-            }
-        }
-        else if (request.Recipient != GameInboundChat.BroadcastRecipient)
-        {
-            throw new InvalidDataException("Local speech and role words must target ALL.");
-        }
-
-        GameChatPacket? acknowledgement = _visibility?.PublishChat(this, request);
-        if (acknowledgement is not null)
-        {
-            await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    internal ValueTask ProcessChatAsync(GameInboundChat request, CancellationToken cancellationToken = default) =>
+        _gameplay.ProcessChatAsync(request, cancellationToken);
 
     /// <summary>
     /// Applies a facing or pose change without moving the character. Observers get it through the usual
     /// visibility queue.
     /// </summary>
-    internal async ValueTask ProcessAvatarActionAsync(GameAvatarAction request, CancellationToken cancellationToken = default)
-    {
-        ThrowIfInactive();
-        if (request.EntityId != Ownership.CharacterId ||
-            (request.Kind == GameAvatarAction.DirectionAction && request.Direction >= 8) ||
-            (request.Kind == GameAvatarAction.PoseAction &&
-             (!GameAvatarAction.IsSupportedPose(request.Pose) || request.Direction >= 8)) ||
-            request.Kind is not (GameAvatarAction.DirectionAction or GameAvatarAction.PoseAction))
-        {
-            throw new InvalidDataException("An avatar action is invalid or does not belong to the authenticated character.");
-        }
-
-        // Backpressure the serialized reader instead of losing the final pose/facing.
-        // A single cancellation-aware wait preserves order without an auxiliary queue.
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        while (!_avatarActionLimiter.TryAccept(Stopwatch.GetTimestamp(), out TimeSpan retryAfter))
-        {
-            await Task.Delay(retryAfter, linked.Token).ConfigureAwait(false);
-            ThrowIfInactive();
-        }
-        // Authorize and publish within one map-partition turn. A corpse cannot
-        // spoof a standing pose or facing, including in the late-observer cache.
-        GameActionPacket acknowledgement = request.CreateAcknowledgement();
-        bool authorized = await _runtime.TryPublishAvatarActionAsync(Ownership,
-            _ => _visibility?.AvatarAction(this, request, acknowledgement), linked.Token).ConfigureAwait(false);
-        if (!authorized)
-        {
-            return;
-        }
-
-        ThrowIfInactive();
-        await SendGameplayResponseAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
-    }
+    internal ValueTask ProcessAvatarActionAsync(GameAvatarAction request, CancellationToken cancellationToken = default) =>
+        _gameplay.ProcessAvatarActionAsync(request, cancellationToken);
 
     /// <summary>
     /// Reconciles unsolicited native position reports without trusting their coordinates.
     /// Only a repeated mismatch can elicit a native 108 correction; reports are never echoed.
     /// </summary>
-    internal async ValueTask ProcessPositionReportAsync(GamePositionReport report, CancellationToken cancellationToken = default)
-    {
-        ThrowIfInactive();
-
-        if (report.EntityId != Ownership.CharacterId || report.Action is not
-            (GamePositionReport.IdleReportAction or GamePositionReport.CorrectionReplyAction))
-        {
-            throw new InvalidDataException("A position report does not match the authenticated character or native action.");
-        }
-
-        if (!_positionReconciler.ShouldCorrect(report.X, report.Y, Stopwatch.GetTimestamp()))
-        {
-            return;
-        }
-
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.StoppingToken);
-        WorldCharacterSnapshot? snapshot = await _runtime.ReadCharacterAsync(Ownership, linked.Token).ConfigureAwait(false);
-
-        if (snapshot is null)
-        {
-            throw new InvalidDataException("The authenticated character no longer has authoritative world ownership.");
-        }
-
-        _positionReconciler.RecordAuthorized(snapshot.Value.X, snapshot.Value.Y);
-
-        if (snapshot.Value.X == report.X && snapshot.Value.Y == report.Y)
-        {
-            return;
-        }
-
-        await SendGameplayResponseAsync(CreatePositionCorrection(snapshot.Value), cancellationToken).ConfigureAwait(false);
-    }
+    internal ValueTask ProcessPositionReportAsync(GamePositionReport report, CancellationToken cancellationToken = default) =>
+        _gameplay.ProcessPositionReportAsync(report, cancellationToken);
 
     /// <summary>The native 408 report has no response and confers no gameplay authority.</summary>
-    internal void ProcessClientStateApplied(GameAction notification)
-    {
-        ThrowIfInactive();
-        if (notification.Action != GameAction.ClientStateAppliedAction ||
-            notification.EntityId != 0 || notification.ParameterPair != 0 ||
-            notification.ActionParameter != 0 || notification.Timestamp != 0 ||
-            notification.Direction != 0 || notification.PositionX != 0 ||
-            notification.PositionY != 0 || notification.Data1 != 0 ||
-            notification.Data2 != 0 || notification.Flag != 0 || notification.StringCount != 0)
-        {
-            throw new InvalidDataException("The 5517 client-state-applied report is malformed.");
-        }
-    }
+    internal void ProcessClientStateApplied(GameAction notification) => _gameplay.ProcessClientStateApplied(notification);
 
     public async ValueTask<GameInboundFrame?> ReadAsync(CancellationToken cancellationToken = default)
     {
@@ -660,44 +411,15 @@ internal sealed class WorldSession : IAsyncDisposable
         return frame;
     }
 
-    /// <summary>
-    /// Answers a refused walk or jump with the server's tile so the client snaps back. The per-session limit caps
-    /// snapshot reads and corrections under packet spam. Unprompted position reports are handled separately.
-    /// </summary>
-    private async ValueTask CorrectRejectedMovementAsync(CancellationToken cancellationToken)
-    {
-        if (!_positionReconciler.TryReserveRejectedMovementCorrection(Stopwatch.GetTimestamp()))
-        {
-            // The reader closes protocol-abusive sessions: never leave a connected
-            // client on a rejected, locally predicted tile without a correction.
-            throw new InvalidDataException(
-                "Movement denial correction budget exhausted.");
-        }
 
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken, _runtime.StoppingToken);
-        WorldCharacterSnapshot? authoritative = await _runtime.ReadCharacterAsync(Ownership, linked.Token)
-            .ConfigureAwait(false);
-        if (authoritative is null)
-        {
-            throw new InvalidDataException("Rejected movement no longer has authoritative world ownership.");
-        }
 
-        _positionReconciler.RecordAuthorized(authoritative.Value.X, authoritative.Value.Y);
-        await SendGameplayResponseAsync(CreatePositionCorrection(authoritative.Value), cancellationToken)
-            .ConfigureAwait(false);
-    }
 
-    private GameActionPacket CreatePositionCorrection(WorldCharacterSnapshot position) =>
-        new(Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
-            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
-            positionX: position.X, positionY: position.Y, data1: 0, data2: 0, flag: 0);
 
     /// <summary>
     /// Keep local gameplay responses in the same per-session FIFO as peer spawns and
     /// movement. Sessions without visibility preserve their original direct send.
     /// </summary>
-    private ValueTask SendGameplayResponseAsync(IPacket packet, CancellationToken cancellationToken)
+    internal ValueTask SendGameplayResponseAsync(IPacket packet, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfInactive();

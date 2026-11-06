@@ -1,5 +1,8 @@
 # Networking
 
+Session ownership and composed gameplay/handshake state are described in the
+[CP1.5 responsibility review](server-responsibilities.md).
+
 Both servers share the same connection pipeline:
 
 ```text

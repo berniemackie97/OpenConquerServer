@@ -1,5 +1,9 @@
 # World execution
 
+The [CP1.5 responsibility review](server-responsibilities.md) records why world
+residency remains one authority and admitted gameplay handling is composed into
+`WorldSessionGameplay`.
+
 In the GameServer, clients send requests and the server decides what happens. Every piece of
 mutable world state has exactly one owner at a time. For anything spatial, that owner is a
 `WorldPartition`.
