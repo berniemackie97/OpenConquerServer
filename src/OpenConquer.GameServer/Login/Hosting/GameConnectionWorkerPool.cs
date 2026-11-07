@@ -288,6 +288,13 @@ internal sealed partial class GameConnectionWorkerPool(
                         continue;
                     }
 
+                    if (GameLatencyTickPacket.TryParse(frame, out GameLatencyTickPacket? heartbeat))
+                    {
+                        // Historical MsgServer echoes the client heartbeat unchanged (CMsgItem::Process case 0x1B, 0x487F5E).
+                        await session.SendGameplayResponseAsync(heartbeat, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
                     if (frame.PacketId == GameTradeQuitRequest.PacketIdentifier)
                     {
                         if (!GameTradeQuitRequest.TryParse(frame, out GameTradeQuitRequest quit))

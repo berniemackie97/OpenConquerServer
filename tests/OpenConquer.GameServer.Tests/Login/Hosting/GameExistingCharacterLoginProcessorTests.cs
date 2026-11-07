@@ -276,6 +276,39 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         Assert.Equal(s_expectedResponses.SelectMany(static response => response), fixture.Harness.ReadServerPackets().Select(Convert.ToHexString));
     }
 
+    // The native client starts its 10 s heartbeat on the EnterMap reply (0x6FF587), so a 1009/27 tick can arrive between
+    // any later rungs. The historical MsgServer sends it straight back unchanged (CMsgItem::Process case 0x1B, 0x487F5E).
+    [Fact]
+    public async Task ProcessAsync_HeartbeatBetweenRungs_IsEchoedUnchangedInOrder()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+        byte[] firstTick = BuildHeartbeat(0x0001_2345);
+        byte[] secondTick = BuildHeartbeat(0x0001_6A6B);
+
+        List<string> expected = [.. s_expectedResponses[0]];
+        for (int step = 0; step < s_loadsByStep.Length; step++)
+        {
+            fixture.QueueRequest(step);
+            expected.AddRange(s_expectedResponses[step + 1]);
+
+            if (step == 0)
+            {
+                fixture.Harness.QueuePacket(firstTick);
+                expected.Add(Convert.ToHexString(firstTick));
+            }
+            else if (step == 4)
+            {
+                fixture.Harness.QueuePacket(secondTick);
+                expected.Add(Convert.ToHexString(secondTick));
+            }
+        }
+
+        await using WorldSession session = Assert.IsType<WorldSession>(await fixture.ProcessAsync());
+
+        Assert.Equal(expected, fixture.Harness.ReadServerPackets().Select(Convert.ToHexString));
+        Assert.Equal(["items", "relations", "weapon skills", "magic", "syndicate"], fixture.Store.Loads);
+    }
+
     [Fact]
     public async Task ProcessAsync_LadderRequestOutOfOrder_ClosesConnection()
     {
@@ -300,6 +333,18 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         BinaryPrimitives.WriteUInt16LittleEndian(packet, (ushort)length);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 1151);
         packet[4] = subtype;
+        return packet;
+    }
+
+    // CMsgTick__Build_SubType 0x6EAC51: 88 bytes, +4 hero id, +12 subtype 27, +16 client time XOR hero id.
+    private static byte[] BuildHeartbeat(uint clientTime)
+    {
+        byte[] packet = new byte[GameLatencyTickPacket.FixedPacketLength];
+        BinaryPrimitives.WriteUInt16LittleEndian(packet, GameLatencyTickPacket.FixedPacketLength);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), GameLatencyTickPacket.PacketIdentifier);
+        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), CharacterId);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(12), GameLatencyTickPacket.LatencyTickSubtype);
+        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(16), clientTime ^ CharacterId);
         return packet;
     }
 
