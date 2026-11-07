@@ -11,7 +11,7 @@ internal static class ExistingCharacterSilentInfoReportProcessor
     public static async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction report = await LoginActionRequest.ReadAsync(connection, GameAction.ReportSilentInfoAction, "silent-info report", cancellationToken)
+        GameAction report = await LoginActionRequest.ReadAsync(login, GameAction.ReportSilentInfoAction, "silent-info report", cancellationToken)
             .ConfigureAwait(false);
 
         if (report.EntityId != 0)

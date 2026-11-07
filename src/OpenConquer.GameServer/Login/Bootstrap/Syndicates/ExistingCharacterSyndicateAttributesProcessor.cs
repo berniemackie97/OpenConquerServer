@@ -12,7 +12,7 @@ internal sealed class ExistingCharacterSyndicateAttributesProcessor(ICharacterSy
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction request = await LoginActionRequest.ReadAsync(connection, GameAction.GetSyndicateAttributesAction, "syndicate-attributes request", cancellationToken)
+        GameAction request = await LoginActionRequest.ReadAsync(login, GameAction.GetSyndicateAttributesAction, "syndicate-attributes request", cancellationToken)
             .ConfigureAwait(false);
 
         LoginActionRequest.RequireCharacterRequest(request, login.CharacterId, "syndicate-attributes request");

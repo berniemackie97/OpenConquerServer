@@ -104,7 +104,7 @@ public sealed class ExistingCharacterMagicSetProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacket_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_UnexpectedPacket_IsSkippedWhileTheRequestIsAwaited()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
@@ -113,11 +113,10 @@ public sealed class ExistingCharacterMagicSetProcessorTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 10011);
         harness.QueuePacket(packet);
+        harness.Transport.QueueEndOfStream();
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+        await Assert.ThrowsAsync<EndOfStreamException>(
             () => new ExistingCharacterMagicSetProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
-
-        Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, repository.LoadCount);
         Assert.Equal(0, harness.UnreadServerBytes);
     }
@@ -146,7 +145,7 @@ public sealed class ExistingCharacterMagicSetProcessorTests
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
         FakeMagicRepository repository = new(new CharacterMagicSet(CharacterId, []));
 
-        harness.QueueAction(GameAction.GetMagicSetAction + 1);
+        harness.QueueAction(GameAction.GetSyndicateAttributesAction);
 
         InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
             () => new ExistingCharacterMagicSetProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());

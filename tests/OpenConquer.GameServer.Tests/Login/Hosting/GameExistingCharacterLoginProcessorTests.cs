@@ -41,7 +41,8 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
     private const uint ServerTick = 0xA1B2_C3D4;
     private const uint SilentDataChecksum = 0x1234_5678;
     private const uint SilentDataVersion = 17;
-    private const ushort UnexpectedAction = 0x7FFF;
+    // An out-of-order ladder request: frames outside the ladder are consumed (CP2.4d2), so only another rung fails a step.
+    private const ushort UnexpectedAction = GameAction.GetStatisticAction;
     private const int ItemsStep = 2;
     private const int FriendsStep = 3;
     private const int WeaponSkillsStep = 4;
@@ -150,6 +151,7 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
+    [InlineData(2)]
     public async Task ProcessAsync_RetailMissionCatalogBeforeStep_SendsKnownResponsesAndAdmitsCharacter(int catalogStep)
     {
         await using LoginFixture fixture = await LoginFixture.CreateAsync();
@@ -173,14 +175,13 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
     }
 
     [Theory]
-    [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
     [InlineData(7)]
     [InlineData(8)]
-    public async Task ProcessAsync_MissionCatalogAfterClientStateApplied_ClosesConnectionWithoutLaterLoads(int catalogStep)
+    public async Task ProcessAsync_MissionCatalogAfterTheItemSetRequest_ClosesConnectionWithoutLaterLoads(int catalogStep)
     {
         await using LoginFixture fixture = await LoginFixture.CreateAsync();
 
@@ -193,11 +194,113 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
 
         InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(fixture.ProcessAsync);
 
-        Assert.Contains(nameof(GameActionParseError.InvalidPacketId), failure.Message, StringComparison.Ordinal);
+        Assert.Contains("after its login window", failure.Message, StringComparison.Ordinal);
         Assert.Equal(s_loadsByStep.Take(catalogStep).OfType<string>(), fixture.Store.Loads);
         Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
         Assert.False(fixture.Presence.IsOnline(CharacterId));
         await AssertNotInWorldAsync(fixture);
+    }
+
+    // Retail probes 2026-11-06: after EnterMap the native client sent 1151 subtype 2 (body digit 2), booth close 114 from
+    // map creation before the item-set request, PK mode 96 from main-dialog init before the weapon-skill request, and
+    // never a 408.
+    [Fact]
+    public async Task ProcessAsync_NativeOrderWithFlowerRankAndNoClientStateApplied_AdmitsCharacter()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        fixture.QueueRequest(0);
+        fixture.Harness.QueuePacket(BuildFlowerRankRequest(2));
+        fixture.Harness.QueuePacket(LoginStepHarness.BuildActionPacket(BoothCloseAction, CharacterId, timestamp: 0x0A0A_0A0A));
+        for (int step = 2; step < s_loadsByStep.Length; step++)
+        {
+            if (step == 4)
+            {
+                fixture.Harness.QueuePacket(LoginStepHarness.BuildActionPacket(PkModeAction, CharacterId, parameterPair: 3));
+            }
+
+            fixture.QueueRequest(step);
+        }
+
+        await using WorldSession session = Assert.IsType<WorldSession>(await fixture.ProcessAsync());
+
+        Assert.Equal(s_expectedResponses.SelectMany(static step => step), fixture.Harness.ReadServerPackets().Select(Convert.ToHexString));
+        Assert.Equal(["items", "relations", "weapon skills", "magic", "syndicate"], fixture.Store.Loads);
+        Assert.True(fixture.Presence.IsOnline(CharacterId));
+    }
+
+    // The native client can send 408 from 1110, item mutations, 1024/2077 or the equip-mode UI; it never answers one.
+    [Theory]
+    [InlineData(3)]
+    [InlineData(6)]
+    [InlineData(8)]
+    public async Task ProcessAsync_ClientStateAppliedBeforeAnyLaterRung_IsConsumedWithoutResponse(int step)
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        for (int index = 0; index < s_loadsByStep.Length; index++)
+        {
+            if (index == 1)
+            {
+                continue;
+            }
+
+            if (index == step)
+            {
+                fixture.QueueRequest(1);
+            }
+
+            fixture.QueueRequest(index);
+        }
+
+        await using WorldSession session = Assert.IsType<WorldSession>(await fixture.ProcessAsync());
+
+        Assert.Equal(s_expectedResponses.SelectMany(static response => response), fixture.Harness.ReadServerPackets().Select(Convert.ToHexString));
+    }
+
+    // Historical MsgServer drops what it cannot create (sub_409CD0) and ignores unknown action subtypes (0x4672AE).
+    [Fact]
+    public async Task ProcessAsync_UnknownFramesBetweenRungs_AreConsumedWithoutResponse()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        for (int step = 0; step < s_loadsByStep.Length; step++)
+        {
+            fixture.Harness.QueuePacket(BuildFlowerRankRequest(9, 12));
+            fixture.Harness.QueuePacket(LoginStepHarness.BuildActionPacket(0x7777, CharacterId + 1, parameterPair: 5));
+            fixture.QueueRequest(step);
+        }
+
+        await using WorldSession session = Assert.IsType<WorldSession>(await fixture.ProcessAsync());
+
+        Assert.Equal(s_expectedResponses.SelectMany(static response => response), fixture.Harness.ReadServerPackets().Select(Convert.ToHexString));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_LadderRequestOutOfOrder_ClosesConnection()
+    {
+        await using LoginFixture fixture = await LoginFixture.CreateAsync();
+
+        fixture.QueueRequest(0);
+        fixture.QueueRequest(3);
+
+        InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(fixture.ProcessAsync);
+
+        Assert.Contains("Expected item-set request action", failure.Message, StringComparison.Ordinal);
+        Assert.Empty(fixture.Store.Loads);
+        Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
+    }
+
+    private const ushort BoothCloseAction = 0x72;
+    private const ushort PkModeAction = 0x60;
+
+    private static byte[] BuildFlowerRankRequest(byte subtype, int length = 80)
+    {
+        byte[] packet = new byte[length];
+        BinaryPrimitives.WriteUInt16LittleEndian(packet, (ushort)length);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 1151);
+        packet[4] = subtype;
+        return packet;
     }
 
     [Fact]
@@ -284,11 +387,12 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
             fixture.QueueRequest(previous);
         }
 
-        fixture.Harness.QueueAction(UnexpectedAction);
+        ushort wrongAction = step == 8 ? GameAction.EnterMapAction : UnexpectedAction;
+        fixture.Harness.QueueAction(wrongAction);
 
         InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(fixture.ProcessAsync);
 
-        Assert.Contains($"received action {UnexpectedAction}", failure.Message, StringComparison.Ordinal);
+        Assert.Contains($"received action {wrongAction}", failure.Message, StringComparison.Ordinal);
         Assert.Equal(s_loadsByStep.Take(step).OfType<string>(), fixture.Store.Loads);
         Assert.Equal(1, fixture.Harness.Transport.DisposeCount);
         Assert.False(fixture.Presence.IsOnline(CharacterId));

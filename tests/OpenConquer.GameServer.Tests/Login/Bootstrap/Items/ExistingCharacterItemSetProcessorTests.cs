@@ -106,7 +106,7 @@ public sealed class ExistingCharacterItemSetProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacket_RejectsWithoutResolutionOrWrite()
+    public async Task ProcessAsync_UnexpectedPacket_IsSkippedWhileTheRequestIsAwaited()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
@@ -115,11 +115,10 @@ public sealed class ExistingCharacterItemSetProcessorTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 10011);
         harness.QueuePacket(packet);
+        harness.Transport.QueueEndOfStream();
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+        await Assert.ThrowsAsync<EndOfStreamException>(
             () => CreateProcessor(resolver).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
-
-        Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, resolver.ResolveCount);
         Assert.Equal(0, harness.UnreadServerBytes);
     }
