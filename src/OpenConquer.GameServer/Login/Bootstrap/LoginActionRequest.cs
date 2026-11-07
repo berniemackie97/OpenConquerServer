@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Login.Character;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
@@ -9,48 +8,71 @@ namespace OpenConquer.GameServer.Login.Bootstrap;
 /// </summary>
 internal static class LoginActionRequest
 {
-    /// <summary>
-    /// Reads the next frame and requires a fixed-size action packet with no strings carrying <paramref name="expectedAction"/>.
-    /// The remaining fields are left to the caller because each login step accepts different values.
-    /// </summary>
-    public static async ValueTask<GameAction> ReadAsync(ExistingCharacterGameConnection connection, ushort expectedAction, string requestName,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        using GameInboundFrame frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false) ?? throw ConnectionClosed(requestName);
-
-        return Parse(frame, expectedAction, requestName);
-    }
+    // The ladder requests, in the order the 5517 client sends them (response edges 0x6FF540, 0x6FF3F4, 0x6FF38C, 0x6FF321;
+    // 78 -> 97 -> 251 -> 132 per 21_msgaction_0061_syndicate_bootstrap.md).
+    private static readonly ushort[] s_ladderActions =
+    [
+        GameAction.EnterMapAction, GameAction.GetItemSetAction, GameAction.GetFriendListAction,
+        GameAction.GetWeaponSkillSetAction, GameAction.GetMagicSetAction, GameAction.GetSyndicateAttributesAction,
+        GameAction.ReportSilentInfoAction, GameAction.GetStatisticAction,
+    ];
 
     /// <summary>
-    /// Reads the next action like <see cref="ReadAsync"/>, first consuming any mission-catalog frames (1134) in front of it.
-    /// The client sends its catalog while handling ANSWER_OK, which places it before the EnterMap request or between that
-    /// request and the client-state-applied notification, so only those two steps read through this.
+    /// Reads the next login-ladder request, carrying <paramref name="expectedAction"/>. The 5517 client has no ladder
+    /// gate: its UI and map events send other frames in between, for example 1151 subtype 2 after EnterMap
+    /// (0x7648D3..0x7648E6), booth close 114 on map creation (0x61DB1E), PK mode 96 from main-dialog init (0x4BDD30)
+    /// and action 408 on a map-flag bit38 change (0x732CFD). Those frames are consumed without a reply, as the
+    /// historical MsgServer drops what it cannot create (sub_409CD0) and ignores unknown action subtypes
+    /// (CMsgAction__Process 0x4672AE). Another ladder request out of order still fails the login. The mission catalog
+    /// (1134) is validated where <paramref name="acceptMissionCatalog"/> is set, the EnterMap request and the step after.
+    /// Evidence: 20_notes Network/bootstrap-tolerance-cp24d.md, including the 2026-11-06 retail-client probes.
     /// </summary>
-    public static async ValueTask<GameAction> ReadAfterMissionCatalogAsync(ExistingCharacterLoginContext login, ushort expectedAction,
-        string requestName, CancellationToken cancellationToken)
+    public static async ValueTask<GameAction> ReadAsync(ExistingCharacterLoginContext login, ushort expectedAction,
+        string requestName, CancellationToken cancellationToken, bool acceptMissionCatalog = false)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        ExistingCharacterGameConnection connection = login.Connection;
+        ArgumentNullException.ThrowIfNull(login);
 
         while (true)
         {
-            using GameInboundFrame frame = await connection.ReadAsync(cancellationToken).ConfigureAwait(false) ?? throw ConnectionClosed(requestName);
+            cancellationToken.ThrowIfCancellationRequested();
+            using GameInboundFrame frame = await login.Connection.ReadAsync(cancellationToken).ConfigureAwait(false)
+                ?? throw ConnectionClosed(requestName);
 
-            if (frame.PacketId != GameMissionCatalogReport.PacketIdentifier)
+            if (frame.PacketId == GameMissionCatalogReport.PacketIdentifier)
             {
-                login.MissionCatalog.EndBurst();
-                return Parse(frame, expectedAction, requestName);
+                if (!acceptMissionCatalog)
+                {
+                    throw new InvalidDataException($"The mission catalog arrived after its login window, before the {requestName}.");
+                }
+
+                if (!GameMissionCatalogReport.TryParse(frame, out GameMissionCatalogReport catalog, out GameMissionCatalogReportParseError parseError))
+                {
+                    throw new InvalidDataException($"The mission catalog received before the {requestName} is malformed: {parseError}.");
+                }
+
+                login.MissionCatalog.Accept(catalog);
+                continue;
             }
 
-            if (!GameMissionCatalogReport.TryParse(frame, out GameMissionCatalogReport catalog, out GameMissionCatalogReportParseError parseError))
+            login.MissionCatalog.EndBurst();
+            if (frame.PacketId != GameAction.PacketIdentifier)
             {
-                throw new InvalidDataException($"The mission catalog received before the {requestName} is malformed: {parseError}.");
+                continue;
             }
 
-            login.MissionCatalog.Accept(catalog);
+            // Every 5517 action builder writes the fixed 38-byte base, so a malformed 10010 still fails the login.
+            GameAction request = Parse(frame, requestName);
+            if (request.Action != expectedAction && Array.IndexOf(s_ladderActions, request.Action) < 0)
+            {
+                continue;
+            }
+
+            if (request.Action != expectedAction)
+            {
+                throw new InvalidDataException($"Expected {requestName} action {expectedAction}, received action {request.Action}.");
+            }
+
+            return request;
         }
     }
 
@@ -72,7 +94,7 @@ internal static class LoginActionRequest
         }
     }
 
-    private static GameAction Parse(GameInboundFrame frame, ushort expectedAction, string requestName)
+    private static GameAction Parse(GameInboundFrame frame, string requestName)
     {
         if (!GameAction.TryParse(frame, out GameAction request, out GameActionParseError parseError))
         {
@@ -82,11 +104,6 @@ internal static class LoginActionRequest
         if (frame.Header.Length != GameAction.FixedPacketLength || request.StringCount != 0)
         {
             throw new InvalidDataException($"The {requestName} must contain the fixed action body without trailing strings.");
-        }
-
-        if (request.Action != expectedAction)
-        {
-            throw new InvalidDataException($"Expected {requestName} action {expectedAction}, received action {request.Action}.");
         }
 
         return request;

@@ -93,7 +93,7 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacketIdentifier_IsRejected()
+    public async Task ProcessAsync_UnexpectedPacketIdentifier_IsSkippedWhileTheRequestIsAwaited()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
@@ -101,8 +101,9 @@ public sealed class ExistingCharacterSilentInfoReportProcessorTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 9999);
         harness.QueuePacket(packet);
+        harness.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
+        await Assert.ThrowsAsync<EndOfStreamException>(() =>
             ExistingCharacterSilentInfoReportProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingRecordedOrWritten(harness, login);

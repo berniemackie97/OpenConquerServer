@@ -13,7 +13,7 @@ internal sealed class ExistingCharacterFriendListProcessor(ICharacterSocialRelat
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction request = await LoginActionRequest.ReadAsync(connection, GameAction.GetFriendListAction, "friend-list request", cancellationToken).ConfigureAwait(false);
+        GameAction request = await LoginActionRequest.ReadAsync(login, GameAction.GetFriendListAction, "friend-list request", cancellationToken).ConfigureAwait(false);
 
         LoginActionRequest.RequireCharacterRequest(request, login.CharacterId, "friend-list request");
 

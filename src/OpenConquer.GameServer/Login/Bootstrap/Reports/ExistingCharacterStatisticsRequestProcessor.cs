@@ -9,7 +9,7 @@ internal static class ExistingCharacterStatisticsRequestProcessor
 {
     public static async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
-        GameAction request = await LoginActionRequest.ReadAsync(login.Connection, GameAction.GetStatisticAction, "statistics request", cancellationToken)
+        GameAction request = await LoginActionRequest.ReadAsync(login, GameAction.GetStatisticAction, "statistics request", cancellationToken)
             .ConfigureAwait(false);
 
         LoginActionRequest.RequireCharacterRequest(request, login.CharacterId, "statistics request");

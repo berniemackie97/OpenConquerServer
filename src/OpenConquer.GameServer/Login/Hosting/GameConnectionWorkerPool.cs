@@ -348,10 +348,17 @@ internal sealed partial class GameConnectionWorkerPool(
                             continue;
                         }
 
-                        throw new InvalidDataException("The GameServer received an unsupported native action packet.");
+                        // Historical MsgServer: unknown action subtypes assert and return (CMsgAction__Process
+                        // 0x4672AE); the 5517 client sends some on UI and map events (e.g. 96, 114).
+                        LogUnsupportedFrame(_logger, session.Ownership.CharacterId, frame.PacketId,
+                            frame.Header.Length >= GameAction.FixedPacketLength && GameAction.TryParse(frame, out GameAction unsupported, out _)
+                                ? unsupported.Action : (ushort)0);
+                        continue;
                     }
 
-                    throw new InvalidDataException("The GameServer received an unsupported gameplay packet.");
+                    // Historical MsgServer drops messages it cannot create (sub_409CD0 / sub_43867D).
+                    LogUnsupportedFrame(_logger, session.Ownership.CharacterId, frame.PacketId, 0);
+                    continue;
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || session.IsStopping)
@@ -397,6 +404,10 @@ internal sealed partial class GameConnectionWorkerPool(
             _sessions.Remove(task);
         }
     }
+
+    [LoggerMessage(EventId = 6208, Level = LogLevel.Debug,
+        Message = "GameServer ignored unsupported client frame {PacketId} (action {Action}) from character {CharacterId}.")]
+    private static partial void LogUnsupportedFrame(ILogger logger, uint characterId, ushort packetId, ushort action);
 
     [LoggerMessage(EventId = 6206, Level = LogLevel.Warning,
         Message = "Authenticated character-creation session failed before world admission.")]

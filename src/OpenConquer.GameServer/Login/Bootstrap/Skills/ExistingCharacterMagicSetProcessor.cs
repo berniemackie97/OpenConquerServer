@@ -12,7 +12,7 @@ internal sealed class ExistingCharacterMagicSetProcessor(ICharacterMagicSetRepos
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction request = await LoginActionRequest.ReadAsync(connection, GameAction.GetMagicSetAction, "magic-set request", cancellationToken).ConfigureAwait(false);
+        GameAction request = await LoginActionRequest.ReadAsync(login, GameAction.GetMagicSetAction, "magic-set request", cancellationToken).ConfigureAwait(false);
 
         LoginActionRequest.RequireCharacterRequest(request, login.CharacterId, "magic-set request");
 

@@ -46,7 +46,6 @@ internal sealed class GameExistingCharacterLoginProcessor(ExistingCharacterBoots
             CancellationToken operationToken = operationCancellation.Token;
 
             await _enterMap.ProcessAsync(login, operationToken).ConfigureAwait(false);
-            await ExistingCharacterMapStateAppliedProcessor.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _itemSet.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _friendList.ProcessAsync(login, operationToken).ConfigureAwait(false);
             await _weaponSkills.ProcessAsync(login, operationToken).ConfigureAwait(false);

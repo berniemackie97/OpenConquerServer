@@ -186,7 +186,7 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacketId_RejectsWithoutHydration()
+    public async Task ProcessAsync_UnexpectedPacketId_IsSkippedWhileTheRequestIsAwaited()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
@@ -195,8 +195,9 @@ public sealed class ExistingCharacterSyndicateAttributesProcessorTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 9999);
         harness.QueuePacket(packet);
+        harness.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<EndOfStreamException>(() => CreateProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         AssertNothingLoadedOrWritten(harness, repository);
     }

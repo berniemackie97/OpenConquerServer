@@ -124,6 +124,61 @@ public sealed class GameConnectionWorkerPoolTests
         Assert.Null(await runtime.ReadCharacterAsync(session.Ownership, TestContext.Current.CancellationToken));
     }
 
+    // Historical MsgServer drops messages it cannot create (sub_409CD0) and ignores unknown action subtypes
+    // (CMsgAction__Process 0x4672AE); the 5517 client sends PK mode 96 and 1151 during normal play.
+    [Fact]
+    public async Task RunAsync_UnsupportedClientFramesAreIgnoredWithoutClosingTheSession()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+
+        FakeGameTransportConnection transport = new();
+        CharacterPresenceDirectory presence = new();
+        WorldSession session = await CreateSessionAsync(runtime, transport, presence, map, client =>
+        [
+            client.EncryptClientFrame(Action(0x60, CharacterId, 3)),
+            client.EncryptClientFrame(Packet(1151, 80)),
+        ]);
+
+        transport.QueueEndOfStream();
+
+        await using TransportConnectionAdmission queue = new(8);
+        using GameLoginMetrics metrics = new();
+        using RecordingApplicationLifetime lifetime = new();
+        GameServerFailureState failureState = new();
+
+        GameConnectionWorkerPool workers = new(queue,
+            (_, _, _) => ValueTask.FromResult(new GameLoginProcessingResult(session, null)),
+            CreateOptions(), metrics, failureState, lifetime, NullLogger<GameConnectionWorkerPool>.Instance);
+
+        Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(transport));
+        queue.Complete();
+
+        await workers.RunAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+        Assert.Null(failureState.Failure);
+        Assert.True(session.Completion.IsCompletedSuccessfully);
+
+        static byte[] Packet(ushort type, int length)
+        {
+            byte[] packet = new byte[length];
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(packet, (ushort)length);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), type);
+            return packet;
+        }
+
+        static byte[] Action(ushort action, uint entity, uint parameter)
+        {
+            byte[] packet = Packet(10010, 38);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), entity);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(8), parameter);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(20), action);
+            return packet;
+        }
+    }
+
     [Fact]
     public async Task RunAsync_NotAdmittedConnectionDoesNotCreateWorldSessionOrRequestFatalShutdown()
     {
@@ -280,7 +335,7 @@ public sealed class GameConnectionWorkerPoolTests
     }
 
     private static async Task<WorldSession> CreateSessionAsync(WorldRuntime runtime, FakeGameTransportConnection transport,
-        CharacterPresenceDirectory presence, WorldMapContent map)
+        CharacterPresenceDirectory presence, WorldMapContent map, Func<GameClientTestPeer, IEnumerable<byte[]>>? clientFrames = null)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         GameConnectionSession connectionSession = await GameConnectionSession.OpenAsync(transport, cancellationToken);
@@ -296,6 +351,10 @@ public sealed class GameConnectionWorkerPoolTests
                 transport.QueueReceive(client.EncryptedKeyExchangeResponse);
 
                 Assert.True(await handshake.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken));
+                foreach (byte[] frame in clientFrames?.Invoke(client) ?? [])
+                {
+                    transport.QueueReceive(frame);
+                }
             }
 
             AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,

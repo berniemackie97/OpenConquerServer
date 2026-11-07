@@ -13,7 +13,7 @@ internal sealed class ExistingCharacterItemSetProcessor(ICharacterItemSetResolve
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction request = await LoginActionRequest.ReadAsync(connection, GameAction.GetItemSetAction, "item-set request", cancellationToken).ConfigureAwait(false);
+        GameAction request = await LoginActionRequest.ReadAsync(login, GameAction.GetItemSetAction, "item-set request", cancellationToken, acceptMissionCatalog: true).ConfigureAwait(false);
 
         LoginActionRequest.RequireCharacterRequest(request, login.CharacterId, "item-set request");
 

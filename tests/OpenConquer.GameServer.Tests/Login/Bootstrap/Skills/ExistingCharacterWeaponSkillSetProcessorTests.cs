@@ -84,7 +84,7 @@ public sealed class ExistingCharacterWeaponSkillSetProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacket_RejectsWithoutRepositoryLoadOrWrite()
+    public async Task ProcessAsync_UnexpectedPacket_IsSkippedWhileTheRequestIsAwaited()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
@@ -93,11 +93,10 @@ public sealed class ExistingCharacterWeaponSkillSetProcessorTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 10011);
         harness.QueuePacket(packet);
+        harness.Transport.QueueEndOfStream();
 
-        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(
+        await Assert.ThrowsAsync<EndOfStreamException>(
             () => new ExistingCharacterWeaponSkillSetProcessor(repository).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
-
-        Assert.Contains(nameof(GameActionParseError.InvalidPacketId), exception.Message, StringComparison.Ordinal);
         Assert.Equal(0, repository.LoadCount);
         Assert.Equal(0, harness.UnreadServerBytes);
     }

@@ -41,8 +41,9 @@ attempts, doubled when either neighboring accepted move uses the two-tile table.
 client tick that repeats or goes backwards, compared modulo `uint32`. A valid attempt goes to the
 partition's `TryWalkCharacterAsync` with the session's ownership token, which is tied to the session
 generation. The original `10005` fields are echoed to that client only after the partition commits
-an allowed move. A refused move, or one rejected by pacing, is not acknowledged. Malformed or
-unsupported gameplay traffic closes the session. The server does not trust the client for its own
+an allowed move. A refused move, or one rejected by pacing, is not acknowledged. Malformed traffic of
+a supported type closes the session; unsupported packet types and action codes are ignored (see the
+[protocol documentation](../protocol/README.md#gameserver-login)). The server does not trust the client for its own
 entity ID or its tile position.
 
 ## Position reconciliation

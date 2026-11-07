@@ -128,7 +128,8 @@ receives the kick notice `1115`:
 | `0x04` |    8 | Unread by the client                               |
 | `0x0C` |    n | Text, NUL-terminated; the client copies at most 255 bytes |
 
-After authentication, an existing character is loaded in a fixed order driven by the client.
+After authentication, an existing character is loaded in a fixed order driven by the client's
+replies.
 Requests other than `1052` are action packets (`10010`), a 38-byte general-purpose message
 identified by its action code. Every request is checked against the authenticated character
 before any data is read.
@@ -137,7 +138,6 @@ before any data is read.
 | ------------------------ | ----------------------- | --------------------------------------------------------------------- |
 | Initial                  | (after `1052`)          | `1004` entry accepted, `2078` login history, `2079` server state, `1006` character info |
 | Enter map                | `10010` / `0x4A`        | `1110` map info, `1016` weather, action acknowledgement               |
-| Map state applied        | `10010` / `0x198`       | None                                                                  |
 | Items                    | `10010` / `0x4B`        | `1008` per item, `1009` subtype 46 if main-set equipment is worn, acknowledgement |
 | Friends                  | `10010` / `0x4C`        | `1019` per relation, acknowledgement                                  |
 | Weapon skills            | `10010` / `0x4D`        | `1025` per skill, acknowledgement                                     |
@@ -147,6 +147,18 @@ before any data is read.
 | Statistics               | `10010` / `0x84`        | None                                                                  |
 
 Notes on individual steps:
+
+- **Frames between steps.** The 5517 client has no step gate of its own, so its UI and map events
+  send other frames between these requests. The 2026-11-06 retail-client probe saw `1151` subtype `2`
+  after `0x4A` (sent for body digit 2, client `0x7648D3`), booth close `10010` / `0x72` from map
+  creation before `0x4B` (`0x61DB1E`), and PK mode `10010` / `0x60` from main-dialog init before
+  `0x4D` (`0x4BDD30`). The client sends `0x198` only when map-flag bit 38 changes on `1110`
+  (`0x732CFD`), on some item mutations, on `1024`/`2077` or from the equip-mode UI, so the login
+  never waits for it. While waiting for a step the server consumes any frame that is not a `10010`
+  and any well-formed `10010` whose action is not a login step, without a reply, as the historical
+  MsgServer drops what it cannot create (`sub_409CD0`) and ignores unknown action codes
+  (`CMsgAction::Process` `0x4672AE`). A malformed `10010`, or another login step out of order,
+  still closes the connection.
 
 - **Items.** Items are written in ascending item ID order. Item lifetimes are converted to the
   client's signed 32-bit range using one UTC instant per request.
@@ -160,8 +172,7 @@ Notes on individual steps:
   distinct MissionId in its `ini/Questinfo.ini`, ascending, 80 per frame, back to back. Each record
   is 12 bytes: the MissionId (`1` to `2^31 - 1`) and eight zero bytes. The shipped file gives three
   frames (80, 80 and 64 IDs). The catalog arrives before the `0x4A` request or between it and
-  `0x198`, depending on whether `1004` and `1006` reach the client in the same read; it cannot
-  follow `0x198`, which the client sends only after handling the reply to `0x4A`. The server
+  `0x4B`, depending on whether `1004` and `1006` reach the client in the same read. The server
   accepts one such catalog of at most three frames in those two places, validates every record,
   and discards it. The 224 IDs describe the shipped file, not a count declared on the wire: a
   shorter catalog (including one ending on a full frame) is permitted. This is bounded input
@@ -171,7 +182,9 @@ Notes on individual steps:
   The client's subtype `4` (a timed mission expired) needs a mission state the server has sent,
   and this server sends none, so subtype `4` is refused.
 
-After the last step the connection becomes a world session. Gameplay packets are not handled yet.
+After the last step the connection becomes a world session. In the world session, packet types and
+action codes the server does not support are ignored with a debug log rather than closing the
+session, for the same historical reason; malformed packets of a supported type still close it.
 
 ## Packet types
 

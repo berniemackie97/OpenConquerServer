@@ -73,7 +73,7 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_UnexpectedPacketId_IsRejected()
+    public async Task ProcessAsync_UnexpectedPacketId_IsSkippedWhileTheRequestIsAwaited()
     {
         await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
         ExistingCharacterLoginContext login = harness.CreateLoginContext();
@@ -81,8 +81,9 @@ public sealed class ExistingCharacterStatisticsRequestProcessorTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), 9999);
         harness.QueuePacket(packet);
+        harness.Transport.QueueEndOfStream();
 
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
+        await Assert.ThrowsAsync<EndOfStreamException>(() =>
             ExistingCharacterStatisticsRequestProcessor.ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, harness.UnreadServerBytes);

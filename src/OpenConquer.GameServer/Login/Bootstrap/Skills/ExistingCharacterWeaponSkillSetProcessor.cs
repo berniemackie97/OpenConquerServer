@@ -12,7 +12,7 @@ internal sealed class ExistingCharacterWeaponSkillSetProcessor(ICharacterWeaponS
     public async ValueTask ProcessAsync(ExistingCharacterLoginContext login, CancellationToken cancellationToken = default)
     {
         ExistingCharacterGameConnection connection = login.Connection;
-        GameAction request = await LoginActionRequest.ReadAsync(connection, GameAction.GetWeaponSkillSetAction, "weapon-skill-set request", cancellationToken)
+        GameAction request = await LoginActionRequest.ReadAsync(login, GameAction.GetWeaponSkillSetAction, "weapon-skill-set request", cancellationToken)
             .ConfigureAwait(false);
 
         LoginActionRequest.RequireCharacterRequest(request, login.CharacterId, "weapon-skill-set request");
