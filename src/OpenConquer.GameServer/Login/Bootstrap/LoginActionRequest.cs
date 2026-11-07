@@ -55,6 +55,13 @@ internal static class LoginActionRequest
             }
 
             login.MissionCatalog.EndBurst();
+            if (GameLatencyTickPacket.TryParse(frame, out GameLatencyTickPacket? heartbeat))
+            {
+                // The client starts its 10 s heartbeat at the EnterMap reply; echo it as the historical MsgServer does.
+                await login.Connection.WriteAsync(heartbeat, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
             if (frame.PacketId != GameAction.PacketIdentifier)
             {
                 continue;

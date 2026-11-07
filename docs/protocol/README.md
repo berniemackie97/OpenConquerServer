@@ -158,7 +158,7 @@ Notes on individual steps:
   and any well-formed `10010` whose action is not a login step, without a reply, as the historical
   MsgServer drops what it cannot create (`sub_409CD0`) and ignores unknown action codes
   (`CMsgAction::Process` `0x4672AE`). A malformed `10010`, or another login step out of order,
-  still closes the connection.
+  still closes the connection. The one frame answered between steps is the heartbeat below.
 
 - **Items.** Items are written in ascending item ID order. Item lifetimes are converted to the
   client's signed 32-bit range using one UTC instant per request.
@@ -186,6 +186,14 @@ After the last step the connection becomes a world session. In the world session
 action codes the server does not support are ignored with a debug log rather than closing the
 session, for the same historical reason; malformed packets of a supported type still close it.
 
+**Heartbeat.** The client starts a 10-second timer on the `0x4A` reply (`0x6FF587`) and on each tick
+sends `1009` subtype `27`: 88 bytes, hero ID at `+4`, client time XOR hero ID at `+16`
+(`CMsgTick__Build_SubType` `0x6EAC51`). The historical MsgServer sends the message back unchanged
+(`CMsgItem::Process` case `0x1B`, `0x487F5E`), so the server echoes it byte for byte, both between
+login steps and in the world session (`GameLatencyTickPacket`). Any other `1009` subtype or length
+is not a heartbeat. The client also sends `1037` every 30 minutes with its local address and
+latency; the historical MsgServer has no handler for it, and this server ignores it.
+
 ## Packet types
 
 | ID      | Type                                | Direction |
@@ -194,6 +202,7 @@ session, for the same historical reason; malformed packets of a supported type s
 |  `1006` | `GameCharacterInfoPacket`           | S → C     |
 |  `1008` | `GameLocalItemSnapshotPacket`       | S → C     |
 |  `1009` | `GameActiveEquipmentSnapshotPacket` | S → C     |
+|  `1009` | `GameLatencyTickPacket` (subtype 27) | Both     |
 |  `1016` | `GameWeatherUpdatePacket`           | S → C     |
 |  `1019` | `GameSocialRelation`, `GameSocialRelationPacket` | Both |
 |  `1025` | `GameWeaponSkillPacket`             | S → C     |

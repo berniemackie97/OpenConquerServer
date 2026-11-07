@@ -23,6 +23,8 @@ using OpenConquer.GameServer.Tests.World;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
+using OpenConquer.Protocol.Game;
+using OpenConquer.Protocol.Game.Packets;
 using OpenConquer.Transport.Admission;
 
 namespace OpenConquer.GameServer.Tests.Login.Hosting;
@@ -176,6 +178,69 @@ public sealed class GameConnectionWorkerPoolTests
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(8), parameter);
             System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(20), action);
             return packet;
+        }
+    }
+
+    // The 5517 client sends 1009/27 every 10 s in world (CHero 0x661ADD -> CMsgTick__Build_SubType 0x6EAC51) and computes
+    // its latency from the reply; the historical MsgServer echoes the message unchanged (CMsgItem::Process case 0x1B, 0x487F5E).
+    [Fact]
+    public async Task RunAsync_HeartbeatIsEchoedByteForByte()
+    {
+        WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
+        await using WorldRuntime runtime = CreateRuntime(map);
+        runtime.Start();
+
+        byte[] tick = new byte[GameLatencyTickPacket.FixedPacketLength];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(tick, GameLatencyTickPacket.FixedPacketLength);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(tick.AsSpan(2), GameLatencyTickPacket.PacketIdentifier);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(tick.AsSpan(4), CharacterId);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(tick.AsSpan(12), GameLatencyTickPacket.LatencyTickSubtype);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(tick.AsSpan(16), 0x0004_93E0u ^ CharacterId);
+
+        FakeGameTransportConnection transport = new();
+        CharacterPresenceDirectory presence = new();
+        (WorldSession session, GameClientTestPeer client, int challengeLength) =
+            await CreateSessionWithClientAsync(runtime, transport, presence, map, peer => [peer.EncryptClientFrame(tick)]);
+
+        using (client)
+        {
+            transport.QueueEndOfStream();
+
+            await using TransportConnectionAdmission queue = new(8);
+            using GameLoginMetrics metrics = new();
+            using RecordingApplicationLifetime lifetime = new();
+            GameServerFailureState failureState = new();
+
+            GameConnectionWorkerPool workers = new(queue,
+                (_, _, _) => ValueTask.FromResult(new GameLoginProcessingResult(session, null)),
+                CreateOptions(), metrics, failureState, lifetime, NullLogger<GameConnectionWorkerPool>.Instance);
+
+            Assert.Equal(TransportConnectionAdmissionResult.Admitted, queue.TryAdmit(transport));
+            queue.Complete();
+
+            await workers.RunAsync(TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            Assert.Null(failureState.Failure);
+            Assert.True(session.Completion.IsCompletedSuccessfully);
+
+            byte[] plaintext = client.DecryptServerBytes(transport.SentBytes.AsSpan(challengeLength));
+            List<byte[]> heartbeats = [];
+            int offset = 0;
+            while (offset < plaintext.Length)
+            {
+                int length = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(plaintext.AsSpan(offset));
+                ushort type = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(plaintext.AsSpan(offset + 2));
+                Assert.True(plaintext.AsSpan(offset + length, GameWireProtocol.SignatureLength).SequenceEqual(GameWireProtocol.ServerSignature));
+                if (type == GameLatencyTickPacket.PacketIdentifier)
+                {
+                    heartbeats.Add(plaintext.AsSpan(offset, length).ToArray());
+                }
+
+                offset += length + GameWireProtocol.SignatureLength;
+            }
+
+            Assert.Equal(tick, Assert.Single(heartbeats));
         }
     }
 
@@ -337,8 +402,19 @@ public sealed class GameConnectionWorkerPoolTests
     private static async Task<WorldSession> CreateSessionAsync(WorldRuntime runtime, FakeGameTransportConnection transport,
         CharacterPresenceDirectory presence, WorldMapContent map, Func<GameClientTestPeer, IEnumerable<byte[]>>? clientFrames = null)
     {
+        (WorldSession session, GameClientTestPeer client, _) = await CreateSessionWithClientAsync(runtime, transport, presence, map, clientFrames);
+        client.Dispose();
+        return session;
+    }
+
+    // Keeps the client peer alive so a test can decrypt what the server sent after the handshake challenge.
+    private static async Task<(WorldSession Session, GameClientTestPeer Client, int ChallengeLength)> CreateSessionWithClientAsync(
+        WorldRuntime runtime, FakeGameTransportConnection transport, CharacterPresenceDirectory presence, WorldMapContent map,
+        Func<GameClientTestPeer, IEnumerable<byte[]>>? clientFrames)
+    {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         GameConnectionSession connectionSession = await GameConnectionSession.OpenAsync(transport, cancellationToken);
+        GameClientTestPeer? client = null;
 
         try
         {
@@ -346,15 +422,14 @@ public sealed class GameConnectionWorkerPoolTests
 
             await transport.SendCompleted.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken);
 
-            using (GameClientTestPeer client = GameClientTestPeer.Create(transport.SentBytes))
-            {
-                transport.QueueReceive(client.EncryptedKeyExchangeResponse);
+            byte[] challenge = transport.SentBytes;
+            client = GameClientTestPeer.Create(challenge);
+            transport.QueueReceive(client.EncryptedKeyExchangeResponse);
 
-                Assert.True(await handshake.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken));
-                foreach (byte[] frame in clientFrames?.Invoke(client) ?? [])
-                {
-                    transport.QueueReceive(frame);
-                }
+            Assert.True(await handshake.WaitAsync(TimeSpan.FromSeconds(8), cancellationToken));
+            foreach (byte[] frame in clientFrames?.Invoke(client) ?? [])
+            {
+                transport.QueueReceive(frame);
             }
 
             AuthenticatedGameConnection authenticated = new(accountId: 42, username: "Bernie", sessionUid: 0x10203040,
@@ -372,10 +447,12 @@ public sealed class GameConnectionWorkerPoolTests
                 new CharacterSyndicateState(CharacterId, membership: null, syndicate: null),
                 0x12345678, 17);
 
-            return await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, cancellationToken);
+            WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, cancellationToken);
+            return (session, client, challenge.Length);
         }
         catch
         {
+            client?.Dispose();
             await connectionSession.DisposeAsync();
             throw;
         }
