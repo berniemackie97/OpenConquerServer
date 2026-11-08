@@ -181,8 +181,6 @@ public sealed class GameConnectionWorkerPoolTests
         }
     }
 
-    // The 5517 client sends 1009/27 every 10 s in world (CHero 0x661ADD -> CMsgTick__Build_SubType 0x6EAC51) and computes
-    // its latency from the reply; the historical MsgServer echoes the message unchanged (CMsgItem::Process case 0x1B, 0x487F5E).
     [Fact]
     public async Task RunAsync_HeartbeatIsEchoedByteForByte()
     {
