@@ -17,7 +17,38 @@ public sealed class WorldPositionReconcilerTests
         Assert.False(state.TryReserveRejectedMovementCorrection(start));
         Assert.False(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency - 1));
         Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
-        Assert.True(state.TryReserveRejectedMovementCorrection(start - 1));
+        Assert.False(state.TryReserveRejectedMovementCorrection(start - 1));
+        Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
+    }
+
+    [Fact]
+    public void ClockRegressionDoesNotRefundRemainingCorrections()
+    {
+        WorldPositionReconciler state = new(100, 200);
+        long start = 1000;
+        Assert.True(state.TryReserveRejectedMovementCorrection(start));
+        Assert.False(state.TryReserveRejectedMovementCorrection(start - 1));
+        for (int attempt = 1; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        {
+            Assert.True(state.TryReserveRejectedMovementCorrection(start));
+        }
+
+        Assert.False(state.TryReserveRejectedMovementCorrection(start));
+        Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
+    }
+
+    [Fact]
+    public void SeparateSessionsKeepIndependentCorrectionBudgets()
+    {
+        WorldPositionReconciler first = new(100, 200);
+        WorldPositionReconciler second = new(300, 400);
+        for (int attempt = 0; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        {
+            Assert.True(first.TryReserveRejectedMovementCorrection(1000));
+        }
+
+        Assert.False(first.TryReserveRejectedMovementCorrection(999));
+        Assert.True(second.TryReserveRejectedMovementCorrection(999));
     }
 
     [Fact]

@@ -13,7 +13,12 @@ internal sealed class WorldJumpIngressLimiter
 
     public bool TryAccept(long timestamp)
     {
-        if (_count == 0 || timestamp < _windowStart || timestamp - _windowStart >= s_windowTicks)
+        if (_count != 0 && timestamp < _windowStart)
+        {
+            return false;
+        }
+
+        if (_count == 0 || timestamp - _windowStart >= s_windowTicks)
         {
             _windowStart = timestamp;
             _count = 1;

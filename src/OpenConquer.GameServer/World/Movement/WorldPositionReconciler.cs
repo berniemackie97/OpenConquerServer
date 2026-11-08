@@ -52,7 +52,12 @@ internal sealed class WorldPositionReconciler
     /// </summary>
     public bool TryReserveRejectedMovementCorrection(long serverTimestamp)
     {
-        if (_rejectedMovementCount == 0 || serverTimestamp < _rejectedMovementWindowStart ||
+        if (_rejectedMovementCount != 0 && serverTimestamp < _rejectedMovementWindowStart)
+        {
+            return false;
+        }
+
+        if (_rejectedMovementCount == 0 ||
             serverTimestamp - _rejectedMovementWindowStart >= s_rejectedMovementWindow)
         {
             _rejectedMovementWindowStart = serverTimestamp;
