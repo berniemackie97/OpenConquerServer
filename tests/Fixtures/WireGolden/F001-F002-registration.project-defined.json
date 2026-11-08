@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "classification": "project-defined",
+  "runtimeCaptured": false,
+  "sourceSpecification": "docs/networking/FLOW-001B-account-registration.md",
+  "sourceCommit": "e13bf5724975ec825e64a3609719afedd9b6af41",
+  "loginSeed": 1193131,
+  "request": {
+    "packetId": 61441,
+    "direction": "client-to-server",
+    "frameHex": "040101f0746573746163630000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022db42acb82f421daef13f7a611d5a032f45309a4d0ddc652f45309a4d0ddc65000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "frameSha256": "c4ae0d666d6fcd69be373053cbfa1d58a017f58ca1ceea7b59a33b41810dfb16"
+  },
+  "responses": [
+    {
+      "packetId": 61442,
+      "direction": "server-to-client",
+      "resultCode": 0,
+      "frameHex": "080002f000000000",
+      "frameSha256": "d70f0630ad21ec3834b582ba383efd410df16c2cf551fa0688665f19bda3d9c5"
+    },
+    {
+      "packetId": 61442,
+      "direction": "server-to-client",
+      "resultCode": 1,
+      "frameHex": "080002f001000000",
+      "frameSha256": "43a62af37700f13807c3b21c96c432aca373cbc1fa15bdc8336b733d1ad3900c"
+    },
+    {
+      "packetId": 61442,
+      "direction": "server-to-client",
+      "resultCode": 2,
+      "frameHex": "080002f002000000",
+      "frameSha256": "94c53391d2c78735ab89293c2d135413e11eeeaf03613a3e947058ab25f8cf89"
+    },
+    {
+      "packetId": 61442,
+      "direction": "server-to-client",
+      "resultCode": 3,
+      "frameHex": "080002f003000000",
+      "frameSha256": "df3a4b119adfedddf0b9dcf11ecddf47f7cf14bf0ebeb06ad206a7db52746b0f"
+    },
+    {
+      "packetId": 61442,
+      "direction": "server-to-client",
+      "resultCode": 4,
+      "frameHex": "080002f004000000",
+      "frameSha256": "d2f9f520a7a2a1eafc1cff9ddc2b7337bd60e43a85993c29fba2776dd720af89"
+    }
+  ]
+}

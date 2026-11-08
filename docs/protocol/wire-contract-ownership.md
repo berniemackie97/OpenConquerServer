@@ -49,9 +49,20 @@ The test-only `tests/Fixtures/WireGolden/manifest.json` pins the canonical
 client source revision `e13bf5724975ec825e64a3609719afedd9b6af41`,
 the SHA-256 of each included fixture file, and an explicit list of every
 registered case. Both test suites require the same manifest SHA-256
-`7aff1dcdf544b126fe121610dedcd588eae26fa1e32503bc3b6bc0ab3d843be5`,
+`0f07a8940e848680316bfcce433b4d994c51110ea7c3774d47698e34412517a7`,
 verify every listed file and reject unlisted fixture JSON files. The corpus
-has exactly two static-derived cases; it contains no running-client capture.
+has two static-derived cases and one project-defined registration case; it contains no running-client capture.
 A corpus revision requires coordinated review of the source evidence,
 fixture bytes, manifest and pinned hash in both repositories. No runtime
 package or build-time cross-repository dependency is introduced.
+
+## Account registration F001/F002 project vectors
+
+The corpus includes `F001-F002-registration.project-defined.json`, based on the
+in-client registration specification, not on the original 5517 executable.
+It pins a 260-byte request with a synthetic account and seeded credential
+block and the five valid eight-byte result frames (codes 0–4). Client tests
+serialize F001 and parse all F002 results; server tests independently decode
+F001 and serialize all F002 results. Each frame has its own SHA-256, and the
+manifest pins the fixture-file SHA-256. This is specification-based evidence
+and cannot satisfy the running-client capture requirement for other messages.

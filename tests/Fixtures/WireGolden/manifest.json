@@ -10,6 +10,10 @@
     {
       "file": "10010-action.static-derived.json",
       "sha256": "da44b8a06767d2cf289d43cd1cbb1833962cfc31feccb58b3eb58fef563420cc"
+    },
+    {
+      "file": "F001-F002-registration.project-defined.json",
+      "sha256": "3daec0c614935a89bed8598398d97786baaab575b74c66015c055de893ca2f7e"
     }
   ]
 }
