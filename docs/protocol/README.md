@@ -6,6 +6,9 @@ supported client is Conquer Online version 5517. Server internals are covered in
 
 The [cross-repository wire-contract decision](wire-contract-ownership.md) specifies ownership
 and coordinated verification for changes shared with the client.
+The [shared packet evidence inventory](https://github.com/berniemackie97/OpenConquerClient/blob/main/docs/networking/wire-evidence-inventory.md)
+tracks missing runtime captures and the initial static-derived canary. Local tests
+consume a checked-in copy of its test-only packet fixture.
 
 - [Framing](framing.md): frame header, size limits, and encoder and decoder behavior.
 - [Text encoding](text-encoding.md): string fields and supported encodings.
