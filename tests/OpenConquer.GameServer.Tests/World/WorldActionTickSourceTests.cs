@@ -13,7 +13,7 @@ public sealed class WorldActionTickSourceTests
     {
         MutableTickSource ticks = new(tick);
         await using WorldSessionTestWorld world = new(tickSource: ticks);
-        WorldSessionTestClient player = await world.AddAsync(0, "Alice", WorldSessionTestWorld.FirstMap, x:2, y:1);
+        WorldSessionTestClient player = await world.AddAsync(0, "Alice", WorldSessionTestWorld.FirstMap, x: 2, y: 1);
         uint characterId = player.Session.Ownership.CharacterId;
         GamePositionReport divergent = new(characterId, 40, 40, GamePositionReport.IdleReportAction);
 

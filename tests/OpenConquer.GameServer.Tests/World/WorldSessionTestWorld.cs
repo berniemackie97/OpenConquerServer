@@ -152,7 +152,10 @@ internal sealed class WorldSessionTestWorld : IAsyncDisposable, ICharacterLocati
         return CharacterLocationWriteResult.Committed;
     }
 
-    public WorldVisibilityService Visibility { get; }
+    public WorldVisibilityService Visibility
+    {
+        get;
+    }
 
     public async Task<WorldSessionTestClient> AddAsync(uint index, string name, uint mapId, ushort x = 0, ushort y = 0, ushort life = 100)
     {
