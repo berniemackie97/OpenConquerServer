@@ -5,6 +5,7 @@ using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Visibility;
 using OpenConquer.Protocol.Game.Framing;
@@ -45,12 +46,13 @@ internal sealed class WorldSession : IAsyncDisposable
     private int _supersededByLogin;
 
     internal WorldSession(WorldRuntime runtime, ExistingCharacterGameConnection connection, ExistingCharacterBootstrapCompleteConnection bootstrap,
-        WorldCharacterOwnership ownership, WorldVisibilityService? visibility = null,
+        WorldCharacterOwnership ownership, IGameTickSource tickSource, WorldVisibilityService? visibility = null,
         WorldConnectedPortalTransferCoordinator? portals = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         Bootstrap = bootstrap ?? throw new ArgumentNullException(nameof(bootstrap));
+        ArgumentNullException.ThrowIfNull(tickSource);
 
         if (ownership.CharacterId != bootstrap.Profile.Identity.CharacterId || ownership.MapId != bootstrap.Map.MapId || ownership.RuntimeId == Guid.Empty)
         {
@@ -69,7 +71,7 @@ internal sealed class WorldSession : IAsyncDisposable
                 FullMode = BoundedChannelFullMode.Wait,
             });
         }
-        _gameplay = new WorldSessionGameplay(this, runtime, visibility, bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
+        _gameplay = new WorldSessionGameplay(this, runtime, visibility, tickSource, bootstrap.Profile.Location.X, bootstrap.Profile.Location.Y);
     }
 
     public ExistingCharacterBootstrapCompleteConnection Bootstrap

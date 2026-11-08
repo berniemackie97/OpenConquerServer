@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Domain.Items;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Sessions;
@@ -17,9 +18,10 @@ namespace OpenConquer.GameServer.World.Visibility;
 /// Sends player spawns, walk relays and removals between players who can see each other on a map. It never
 /// does I/O while holding a map's lock; every recipient has its own fixed-size queue.
 /// </summary>
-internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityService> logger)
+internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityService> logger, IGameTickSource tickSource)
 {
     private readonly ILogger<WorldVisibilityService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IGameTickSource _tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
     private readonly ConcurrentDictionary<uint, MapState> _maps = new();
     private readonly ConcurrentDictionary<string, WorldSession> _onlineByName = new(StringComparer.OrdinalIgnoreCase);
 
@@ -137,7 +139,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
                 source.Spawns.Remove(characterId);
                 source.RoleWords.Remove(characterId);
                 GameActionPacket removal = new(characterId, parameterPair: 0, actionParameter: 0,
-                    timestamp: unchecked((uint)Environment.TickCount64), action: 135, direction: 0,
+                    timestamp: _tickSource.CurrentTick, action: 135, direction: 0,
                     positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
                 foreach (uint observerId in departed)
                 {
@@ -430,7 +432,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             map.RoleWords.Remove(id);
             RemoveOnlineName(session);
             GameActionPacket removal = new(id, parameterPair: 0, actionParameter: 0,
-                timestamp: unchecked((uint)Environment.TickCount64), action: 135, direction: 0,
+                timestamp: _tickSource.CurrentTick, action: 135, direction: 0,
                 positionX: 0, positionY: 0, data1: 0, data2: 0, flag: 0);
             foreach (uint observerId in observers)
             {

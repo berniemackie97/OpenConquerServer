@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using OpenConquer.Domain.World;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Chat;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Movement;
@@ -17,19 +18,21 @@ internal sealed class WorldSessionGameplay
     private readonly WorldSession _session;
     private readonly WorldRuntime _runtime;
     private readonly WorldVisibilityService? _visibility;
+    private readonly IGameTickSource _tickSource;
     private WorldWalkPacer _walkPacer = new();
     private readonly WorldJumpIngressLimiter _jumpIngressLimiter = new();
     private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
     private readonly WorldChatRateLimiter _chatRateLimiter = new();
     private WorldPositionReconciler _positionReconciler;
 
-    public WorldSessionGameplay(WorldSession session, WorldRuntime runtime, WorldVisibilityService? visibility, ushort x, ushort y)
+    public WorldSessionGameplay(WorldSession session, WorldRuntime runtime, WorldVisibilityService? visibility, IGameTickSource tickSource, ushort x, ushort y)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(runtime);
         _session = session;
         _runtime = runtime;
         _visibility = visibility;
+        _tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
         _positionReconciler = new WorldPositionReconciler(x, y);
     }
 
@@ -359,6 +362,6 @@ internal sealed class WorldSessionGameplay
 
     private GameActionPacket CreatePositionCorrection(WorldCharacterSnapshot position) =>
         new(_session.Ownership.CharacterId, parameterPair: 0, actionParameter: 0,
-            timestamp: unchecked((uint)Environment.TickCount64), action: 108, direction: 0,
+            timestamp: _tickSource.CurrentTick, action: 108, direction: 0,
             positionX: position.X, positionY: position.Y, data1: 0, data2: 0, flag: 0);
 }

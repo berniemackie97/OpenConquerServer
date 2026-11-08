@@ -15,6 +15,7 @@ using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.Realms;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
@@ -36,7 +37,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new();
         ExistingCharacterBootstrapCompleteConnection bootstrap = await CreateBootstrapAsync(transport, presence, map);
-        WorldSessionAdmissionProcessor processor = new(runtime);
+        WorldSessionAdmissionProcessor processor = new(runtime, new SystemGameTickSource());
 
         await using WorldSession session = await processor.ProcessAsync(bootstrap, TestContext.Current.CancellationToken);
 
@@ -76,7 +77,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         GameServerFailureState failure = new();
         IOException fatal = new("unreleased login ownership");
         failure.Record(fatal);
-        WorldSessionAdmissionProcessor processor = new(runtime, failureState: failure);
+        WorldSessionAdmissionProcessor processor = new(runtime, new SystemGameTickSource(), failureState: failure);
 
         InvalidOperationException rejection = await Assert.ThrowsAsync<InvalidOperationException>(
             () => processor.ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
@@ -100,7 +101,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         ExistingCharacterBootstrapCompleteConnection bootstrap = await CreateBootstrapAsync(transport, presence, replacement);
 
         InvalidDataException failure = await Assert.ThrowsAsync<InvalidDataException>(
-            () => new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
+            () => new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Contains("canonical map snapshot", failure.Message, StringComparison.Ordinal);
         Assert.Equal(1, transport.DisposeCount);
@@ -124,7 +125,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, cancellation.Token).AsTask());
+            () => new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(bootstrap, cancellation.Token).AsTask());
 
         Assert.Equal(1, transport.DisposeCount);
         Assert.False(presence.IsOnline(CharacterId));
@@ -144,7 +145,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         using ICharacterPresenceLease replacement = presence.Register(CharacterId);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
+            () => new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(1, transport.DisposeCount);
         Assert.True(presence.IsOnline(CharacterId));
@@ -158,7 +159,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
         await using WorldRuntime runtime = CreateRuntime(map);
         runtime.Start();
-        WorldSessionAdmissionProcessor processor = new(runtime);
+        WorldSessionAdmissionProcessor processor = new(runtime, new SystemGameTickSource());
         CharacterPresenceDirectory firstPresence = new();
         CharacterPresenceDirectory secondPresence = new();
         FakeGameTransportConnection firstTransport = new();
@@ -183,7 +184,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         WorldMapContent map = WorldMapTestContent.Create(MapId, MapDataId, 0);
         await using WorldRuntime runtime = CreateRuntime(map, maxCharacters: 1);
         runtime.Start();
-        WorldSessionAdmissionProcessor processor = new(runtime);
+        WorldSessionAdmissionProcessor processor = new(runtime, new SystemGameTickSource());
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection firstTransport = new();
         FakeGameTransportConnection rejectedTransport = new();
@@ -208,7 +209,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         runtime.Start();
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new();
-        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
         InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -235,7 +236,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         runtime.Start();
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new();
-        WorldSessionAdmissionProcessor processor = new(runtime);
+        WorldSessionAdmissionProcessor processor = new(runtime, new SystemGameTickSource());
 
         WorldSession session = await processor.ProcessAsync(await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
         using ICharacterPresenceLease replacement = presence.Register(CharacterId);
@@ -268,7 +269,7 @@ public sealed class WorldSessionAdmissionProcessorTests
             transport, TestContext.Current.CancellationToken);
         using GameClientTestPeer peer = await GameConnectionTestHandshake.CompleteAsync(
             connection, transport, TestContext.Current.CancellationToken);
-        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(
             CreateBootstrap(connection, presence, map), TestContext.Current.CancellationToken);
 
         CryptographicException sendFailure = new("farewell send failed");
@@ -297,7 +298,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         runtime.Start();
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new();
-        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
         await runtime.StopAsync();
@@ -316,7 +317,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         runtime.Start();
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new(blockDispose: true);
-        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
         Task stopping = runtime.StopAsync();
@@ -376,7 +377,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         runtime.Start();
         CharacterPresenceDirectory presence = new();
         FakeGameTransportConnection transport = new();
-        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
         await Task.WhenAll(Enumerable.Range(0, 32).Select(_ => Task.Run(
@@ -397,7 +398,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         CharacterPresenceDirectory presence = new();
         IOException disposalFailure = new("transport disposal failed");
         FakeGameTransportConnection transport = new(disposeFailure: disposalFailure);
-        WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(
+        WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(
             await CreateBootstrapAsync(transport, presence, map), TestContext.Current.CancellationToken);
 
         AggregateException exception = await Assert.ThrowsAsync<GameLoginCleanupException>(() => session.DisposeAsync().AsTask());
@@ -428,7 +429,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         FencedCharacterAdmission fencing = new(new UnexpectedFence(), observer, new UnexpectedProfiles());
         ExistingCharacterBootstrapCompleteConnection bootstrap = await CreateBootstrapAsync(transport, presence, map, locationAuthority: authority);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => new WorldSessionAdmissionProcessor(runtime, fencing: fencing)
+        await Assert.ThrowsAsync<InvalidDataException>(() => new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource(), fencing: fencing)
             .ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(supersedeOnObservation, observer.Calls);
@@ -452,7 +453,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         FencedObservation observer = new(snapshot, supersedeOnObservation: int.MaxValue);
         FencedCharacterAdmission fencing = new(new UnexpectedFence(), observer, new UnexpectedProfiles());
 
-        await using WorldSession session = await new WorldSessionAdmissionProcessor(runtime, fencing: fencing)
+        await using WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource(), fencing: fencing)
             .ProcessAsync(await CreateBootstrapAsync(transport, presence, map, locationAuthority: authority), TestContext.Current.CancellationToken);
 
         Assert.Same(authority, session.LocationAuthority);

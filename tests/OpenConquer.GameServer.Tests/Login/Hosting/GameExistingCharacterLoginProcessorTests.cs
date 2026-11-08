@@ -25,6 +25,7 @@ using OpenConquer.GameServer.Tests.Login.Bootstrap;
 using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
@@ -591,7 +592,7 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
                 new ExistingCharacterWeaponSkillSetProcessor(store),
                 new ExistingCharacterMagicSetProcessor(store),
                 new ExistingCharacterSyndicateAttributesProcessor(store, time),
-                new WorldSessionAdmissionProcessor(runtime));
+                new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()));
         }
 
         public LoginStepHarness Harness

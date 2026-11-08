@@ -15,6 +15,7 @@ using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.Realms;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
@@ -54,10 +55,13 @@ internal sealed class WorldSessionTestWorld : IAsyncDisposable, ICharacterLocati
     private readonly CharacterPresenceDirectory _presence = new();
     private readonly List<WorldSessionTestClient> _clients = [];
     private readonly WorldRuntime _runtime;
+    private readonly IGameTickSource _tickSource;
 
-    public WorldSessionTestWorld(bool portals = false)
+    public WorldSessionTestWorld(bool portals = false, IGameTickSource? tickSource = null)
     {
         _enablePortals = portals;
+        _tickSource = tickSource ?? new SystemGameTickSource();
+        Visibility = new WorldVisibilityService(NullLogger<WorldVisibilityService>.Instance, _tickSource);
         _first = CreateWideMap(FirstMap, 1015, portals ? [new MapTerrainExit(2, 1, 7)] : []);
         _second = portals ? CreateWideMap(SecondMap, 1016) :
             WorldMapTestContent.Create(SecondMap, 1016, 0);
@@ -69,7 +73,7 @@ internal sealed class WorldSessionTestWorld : IAsyncDisposable, ICharacterLocati
                 [new MapTransitionEntry(FirstMap, 7, "resolved",
                     new MapTransitionDestination(SecondMap, 1, 1, 1, "L"))], maps);
             _portals = new WorldConnectedPortalTransferCoordinator(_runtime, catalog,
-                this, this, Visibility, NullLogger<WorldConnectedPortalTransferCoordinator>.Instance);
+                this, this, Visibility, NullLogger<WorldConnectedPortalTransferCoordinator>.Instance, _tickSource);
         }
         _runtime.Start();
     }
@@ -148,7 +152,10 @@ internal sealed class WorldSessionTestWorld : IAsyncDisposable, ICharacterLocati
         return CharacterLocationWriteResult.Committed;
     }
 
-    public WorldVisibilityService Visibility { get; } = new(NullLogger<WorldVisibilityService>.Instance);
+    public WorldVisibilityService Visibility
+    {
+        get;
+    }
 
     public async Task<WorldSessionTestClient> AddAsync(uint index, string name, uint mapId, ushort x = 0, ushort y = 0, ushort life = 100)
     {
@@ -202,7 +209,7 @@ internal sealed class WorldSessionTestWorld : IAsyncDisposable, ICharacterLocati
                 new CharacterWeaponSkillSet(characterId, []), new CharacterMagicSet(characterId, []),
                 new CharacterSyndicateState(characterId, membership: null, syndicate: null), 0, 0);
 
-            WorldSession session = await new WorldSessionAdmissionProcessor(_runtime, Visibility,
+            WorldSession session = await new WorldSessionAdmissionProcessor(_runtime, _tickSource, Visibility,
                 portals: _portals).ProcessAsync(bootstrap, TestContext.Current.CancellationToken);
             WorldSessionTestClient owned = new(session, transport, client, initialServerBytes);
             _clients.Add(owned);

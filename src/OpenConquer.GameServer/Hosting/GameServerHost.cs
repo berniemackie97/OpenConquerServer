@@ -167,6 +167,7 @@ internal static class GameServerHost
         services.AddSingleton<WorldConnectedPortalTransferCoordinator>();
         services.AddSingleton<WorldSessionAdmissionProcessor>(provider => new WorldSessionAdmissionProcessor(
             provider.GetRequiredService<WorldRuntime>(),
+            provider.GetRequiredService<IGameTickSource>(),
             provider.GetRequiredService<WorldVisibilityService>(),
             provider.GetRequiredService<FencedCharacterAdmission>(),
             provider.GetRequiredService<WorldConnectedPortalTransferCoordinator>(),

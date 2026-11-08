@@ -4,6 +4,7 @@ using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Visibility;
 
@@ -12,11 +13,12 @@ namespace OpenConquer.GameServer.World.Sessions;
 /// <summary>
 /// Admits a completed existing-character login into the world as a world session.
 /// </summary>
-internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, WorldVisibilityService? visibility = null,
+internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, IGameTickSource tickSource, WorldVisibilityService? visibility = null,
     FencedCharacterAdmission? fencing = null, WorldConnectedPortalTransferCoordinator? portals = null,
     GameServerFailureState? failureState = null)
 {
     private readonly WorldRuntime _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+    private readonly IGameTickSource _tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
     private readonly WorldVisibilityService? _visibility = visibility;
     private readonly FencedCharacterAdmission? _fencing = fencing;
     private readonly WorldConnectedPortalTransferCoordinator? _portals = portals;
@@ -63,7 +65,7 @@ internal sealed class WorldSessionAdmissionProcessor(WorldRuntime runtime, World
                 connection.ThrowIfRevoked();
             }
 
-            session = new WorldSession(_runtime, connection, bootstrap, ownership.Value, _visibility, _portals);
+            session = new WorldSession(_runtime, connection, bootstrap, ownership.Value, _tickSource, _visibility, _portals);
             _runtime.TrackSession(ownership.Value, session.Completion);
             connection = null;
             ownership = null;
