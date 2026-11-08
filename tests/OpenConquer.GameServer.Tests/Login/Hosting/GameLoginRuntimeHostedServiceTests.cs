@@ -167,6 +167,33 @@ public sealed class GameLoginRuntimeHostedServiceTests
         }
     }
 
+    [Fact]
+    public async Task Listener_ClosedDuringCancellationReportsCancellation()
+    {
+        TestListener listener = new();
+        using CancellationTokenSource cancellation = new();
+
+        await listener.DisposeAsync();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => listener.AcceptAsync(cancellation.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task Listener_UnexpectedClosureWithoutCancellationPreservesFailure()
+    {
+        TestListener listener = new();
+        Task<ITransportConnection> accepting = listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask();
+
+        listener.CloseUnexpectedly();
+
+        await Assert.ThrowsAsync<ChannelClosedException>(() => accepting);
+        Assert.Equal(0, listener.DisposeCount);
+
+        await listener.DisposeAsync();
+    }
+
     private static IHost CreateHost(ItemRepository items, TestListener listener, IAccountSessionStore accountSessions,
         Action onListenerCreated, IMapTransitionCatalogRepository? transitionRepository = null)
     {
@@ -324,10 +351,19 @@ public sealed class GameLoginRuntimeHostedServiceTests
             }
         }
 
-        public ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
         {
-            return _connections.Reader.ReadAsync(cancellationToken);
+            try
+            {
+                return await _connections.Reader.ReadAsync(cancellationToken);
+            }
+            catch (ChannelClosedException) when (DisposeCount != 0 && cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
         }
+
+        public void CloseUnexpectedly() => _connections.Writer.TryComplete();
 
         public ValueTask DisposeAsync()
         {
