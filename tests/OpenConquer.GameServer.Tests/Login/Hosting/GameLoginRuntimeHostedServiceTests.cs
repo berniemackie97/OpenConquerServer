@@ -173,9 +173,12 @@ public sealed class GameLoginRuntimeHostedServiceTests
         TestListener listener = new();
         using CancellationTokenSource cancellation = new();
 
-        await listener.DisposeAsync();
-        cancellation.Cancel();
+        Task<ITransportConnection> accepting = listener.AcceptAsync(cancellation.Token).AsTask();
 
+        cancellation.Cancel();
+        await listener.DisposeAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => accepting);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => listener.AcceptAsync(cancellation.Token).AsTask());
     }
