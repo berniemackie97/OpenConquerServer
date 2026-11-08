@@ -9,21 +9,29 @@ internal sealed class WorldJumpIngressLimiter
     internal const int MaximumAttemptsPerSecond = 8;
     private static readonly long s_windowTicks = Stopwatch.Frequency;
     private long _windowStart;
+    private long _lastAcceptedTimestamp;
     private int _count;
 
     public bool TryAccept(long timestamp)
     {
-        if (_count == 0 || timestamp < _windowStart || timestamp - _windowStart >= s_windowTicks)
+        if (_count != 0 && timestamp < _lastAcceptedTimestamp)
+        {
+            return false;
+        }
+
+        if (_count == 0 || timestamp - _windowStart >= s_windowTicks)
         {
             _windowStart = timestamp;
-            _count = 1;
-            return true;
+            _count = 0;
         }
+
         if (_count >= MaximumAttemptsPerSecond)
         {
             return false;
         }
+
         _count++;
+        _lastAcceptedTimestamp = timestamp;
         return true;
     }
 }

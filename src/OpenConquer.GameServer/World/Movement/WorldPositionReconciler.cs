@@ -24,6 +24,7 @@ internal sealed class WorldPositionReconciler
     private long _lastCorrectionTimestamp;
     private bool _hasCorrected;
     private long _rejectedMovementWindowStart;
+    private long _lastRejectedMovementCorrection;
     private int _rejectedMovementCount;
 
     public WorldPositionReconciler(ushort startX, ushort startY)
@@ -52,12 +53,16 @@ internal sealed class WorldPositionReconciler
     /// </summary>
     public bool TryReserveRejectedMovementCorrection(long serverTimestamp)
     {
-        if (_rejectedMovementCount == 0 || serverTimestamp < _rejectedMovementWindowStart ||
+        if (_rejectedMovementCount != 0 && serverTimestamp < _lastRejectedMovementCorrection)
+        {
+            serverTimestamp = _lastRejectedMovementCorrection;
+        }
+
+        if (_rejectedMovementCount == 0 ||
             serverTimestamp - _rejectedMovementWindowStart >= s_rejectedMovementWindow)
         {
             _rejectedMovementWindowStart = serverTimestamp;
-            _rejectedMovementCount = 1;
-            return true;
+            _rejectedMovementCount = 0;
         }
 
         if (_rejectedMovementCount >= MaximumRejectedCorrectionsPerSecond)
@@ -66,6 +71,7 @@ internal sealed class WorldPositionReconciler
         }
 
         _rejectedMovementCount++;
+        _lastRejectedMovementCorrection = serverTimestamp;
         return true;
     }
 
