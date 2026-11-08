@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "classification": "static-derived",
+  "runtimeCaptured": false,
+  "protocol": "game",
+  "direction": "server-to-client",
+  "packetId": 1016,
+  "sourceEvidence": "20_notes/Network/evidence/typed-world-dispatch-2026-11-06/wire-layout-golden.json#weather-boundaries-and-parameter-sentinel",
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "frameHex": "1400f80302000000fe0300006701000098badcfe",
+  "frameSha256": "27925e3dd6c73095eca525c2c03f12449fd3d0894f4a1c06ce6628c3f89d53ee"
+}
