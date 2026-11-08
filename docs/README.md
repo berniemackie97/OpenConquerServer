@@ -3,6 +3,7 @@
 | Area           | Document                                                     | Covers                                                    |
 | -------------- | ------------------------------------------------------------ | --------------------------------------------------------- |
 | Status         | [Implementation status](status.md)                           | What is and is not built                                  |
+| Delivery       | [Issue workflow](issue-governance.md)                     | Classifications, issue tracking and completion gates      |
 | Architecture   | [Overview](architecture/README.md)                           | Projects, dependency rules, ownership, failure handling   |
 |                | [Networking](architecture/networking.md)                     | Connection handling on both servers, login flows          |
 |                | [Authentication](architecture/authentication.md)             | Credentials, rate limiting, passwords, GameServer tickets |

@@ -1,0 +1,34 @@
+name: Feature
+description: "Specify a coherent capability with observable acceptance."
+title: "[Feature] "
+labels: ["type:feature"]
+projects: ["berniemackie97/5"]
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: "Player or operator value"
+      description: "Who benefits and what becomes possible."
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: "Behavior and boundaries"
+      description: "Expected inputs, outputs, errors and integration points."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Acceptance and verification"
+      description: "Precise success and failure cases, plus required tests."
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: "Parent, dependencies and evidence"
+      description: "Links to epic/story, source evidence and blocked work."
+    validations:
+      required: false
