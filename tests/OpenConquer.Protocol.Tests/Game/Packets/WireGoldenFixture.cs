@@ -9,7 +9,7 @@ internal static class WireGoldenFixture
     private const string EvidencePrefix = "20_notes/Network/evidence/typed-world-dispatch-2026-11-06/wire-layout-golden.json#";
     private const string SourceImageHash = "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62";
 
-    internal static byte[] ReadFrame(string fileName, ushort packetId, string expectedSha256)
+    internal static byte[] ReadFrame(string fileName, ushort packetId, string evidenceCase, string expectedSha256)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "WireGolden", fileName);
         using JsonDocument fixture = JsonDocument.Parse(File.ReadAllBytes(path));
@@ -22,7 +22,7 @@ internal static class WireGoldenFixture
         Assert.Equal("server-to-client", source.GetProperty("direction").GetString());
         Assert.Equal(packetId, source.GetProperty("packetId").GetUInt16());
         Assert.Equal(SourceImageHash, source.GetProperty("referenceImageSha256").GetString());
-        Assert.StartsWith(EvidencePrefix, source.GetProperty("sourceEvidence").GetString()!);
+        Assert.Equal(EvidencePrefix + evidenceCase, source.GetProperty("sourceEvidence").GetString());
 
         byte[] frame = Convert.FromHexString(source.GetProperty("frameHex").GetString()!);
         Assert.Equal(expectedSha256, source.GetProperty("frameSha256").GetString());
