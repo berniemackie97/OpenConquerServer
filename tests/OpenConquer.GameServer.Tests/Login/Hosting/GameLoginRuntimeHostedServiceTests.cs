@@ -167,6 +167,55 @@ public sealed class GameLoginRuntimeHostedServiceTests
         }
     }
 
+    [Fact]
+    public async Task Listener_ClosedDuringCancellationReportsCancellation()
+    {
+        TestListener listener = new();
+        using CancellationTokenSource cancellation = new();
+
+        Task<ITransportConnection> accepting = listener.AcceptAsync(cancellation.Token).AsTask();
+
+        cancellation.Cancel();
+        await listener.DisposeAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => accepting);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => listener.AcceptAsync(cancellation.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task Host_UnexpectedListenerClosureWhileRunningRecordsFatalFailure()
+    {
+        TestListener listener = new();
+        IHost host = CreateHost(new ItemRepository(), listener, new RecordingAccountSessionStore(), static () => { });
+
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+
+            IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+            TaskCompletionSource stopping = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            using CancellationTokenRegistration registration = lifetime.ApplicationStopping.Register(() => stopping.TrySetResult());
+
+            listener.CloseUnexpectedly();
+
+            await stopping.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+
+            Exception failure = Assert.IsAssignableFrom<Exception>(
+                host.Services.GetRequiredService<GameServerFailureState>().Failure);
+            IReadOnlyList<Exception> causes = failure is AggregateException aggregate
+                ? aggregate.Flatten().InnerExceptions
+                : [failure];
+
+            Assert.NotEmpty(causes);
+            Assert.All(causes, static cause => Assert.IsType<ChannelClosedException>(cause));
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
+    }
+
     private static IHost CreateHost(ItemRepository items, TestListener listener, IAccountSessionStore accountSessions,
         Action onListenerCreated, IMapTransitionCatalogRepository? transitionRepository = null)
     {
@@ -324,10 +373,19 @@ public sealed class GameLoginRuntimeHostedServiceTests
             }
         }
 
-        public ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<ITransportConnection> AcceptAsync(CancellationToken cancellationToken = default)
         {
-            return _connections.Reader.ReadAsync(cancellationToken);
+            try
+            {
+                return await _connections.Reader.ReadAsync(cancellationToken);
+            }
+            catch (ChannelClosedException) when (DisposeCount != 0 && cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
         }
+
+        public void CloseUnexpectedly() => _connections.Writer.TryComplete();
 
         public ValueTask DisposeAsync()
         {
