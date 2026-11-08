@@ -197,11 +197,18 @@ action codes the server does not support are ignored with a debug log rather tha
 session, for the same historical reason; malformed packets of a supported type still close it.
 
 **Heartbeat.** The client starts a 10-second timer on the `0x4A` reply (`0x6FF587`) and on each tick
-sends `1009` subtype `27`: 88 bytes, hero ID at `+4`, client time XOR hero ID at `+16`
-(`CMsgTick__Build_SubType` `0x6EAC51`). The historical MsgServer sends the message back unchanged
+sends `1009` subtype `27`: 88 bytes, hero ID at `+4`, and the unmodified
+millisecond timer at `+16`. The packet builder briefly computes an XOR intermediate,
+but the send path replaces the field with the current timer before transmission.
+The historical MsgServer sends the message back unchanged
 (`CMsgItem::Process` case `0x1B`, `0x487F5E`), so the server echoes it byte for byte, both between
 login steps and in the world session (`GameLatencyTickPacket`). Any other `1009` subtype or length
-is not a heartbeat. The client also sends `1037` every 30 minutes with its local address and
+is not a heartbeat. The original-client capture (CP3.2, first login,
+frame 40) reports SHA-256
+`aa2d5b328c0f90b9b80eea69f1e648ee33653fc9092ff633d72e4c9e05d4c922`;
+the 88-byte frame reconstructed from hero ID 1,000,000 and timer 68,952,244
+matches that digest. Its reported capture bytes have not been imported directly.
+The client also sends `1037` every 30 minutes with its local address and
 latency; the historical MsgServer has no handler for it, and this server ignores it.
 
 ## Packet types

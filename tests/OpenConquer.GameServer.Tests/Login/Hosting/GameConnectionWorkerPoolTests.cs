@@ -195,7 +195,7 @@ public sealed class GameConnectionWorkerPoolTests
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(tick.AsSpan(2), GameLatencyTickPacket.PacketIdentifier);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(tick.AsSpan(4), CharacterId);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(tick.AsSpan(12), GameLatencyTickPacket.LatencyTickSubtype);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(tick.AsSpan(16), 0x0004_93E0u ^ CharacterId);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(tick.AsSpan(16), 0x0004_93E0u);
 
         FakeGameTransportConnection transport = new();
         CharacterPresenceDirectory presence = new();

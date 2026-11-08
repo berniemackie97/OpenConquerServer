@@ -336,7 +336,6 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         return packet;
     }
 
-    // CMsgTick__Build_SubType 0x6EAC51: 88 bytes, +4 hero id, +12 subtype 27, +16 client time XOR hero id.
     private static byte[] BuildHeartbeat(uint clientTime)
     {
         byte[] packet = new byte[GameLatencyTickPacket.FixedPacketLength];
@@ -344,7 +343,7 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2), GameLatencyTickPacket.PacketIdentifier);
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), CharacterId);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(12), GameLatencyTickPacket.LatencyTickSubtype);
-        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(16), clientTime ^ CharacterId);
+        BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(16), clientTime);
         return packet;
     }
 
