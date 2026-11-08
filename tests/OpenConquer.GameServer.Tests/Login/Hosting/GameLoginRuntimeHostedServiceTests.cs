@@ -181,17 +181,28 @@ public sealed class GameLoginRuntimeHostedServiceTests
     }
 
     [Fact]
-    public async Task Listener_UnexpectedClosureWithoutCancellationPreservesFailure()
+    public async Task Host_UnexpectedListenerClosureWhileRunningRecordsFatalFailure()
     {
         TestListener listener = new();
-        Task<ITransportConnection> accepting = listener.AcceptAsync(TestContext.Current.CancellationToken).AsTask();
+        IHost host = CreateHost(new ItemRepository(), listener, new RecordingAccountSessionStore(), static () => { });
 
-        listener.CloseUnexpectedly();
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => accepting);
-        Assert.Equal(0, listener.DisposeCount);
+            IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+            TaskCompletionSource stopping = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            using CancellationTokenRegistration registration = lifetime.ApplicationStopping.Register(() => stopping.TrySetResult());
 
-        await listener.DisposeAsync();
+            listener.CloseUnexpectedly();
+
+            await stopping.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
+            Assert.IsType<ChannelClosedException>(host.Services.GetRequiredService<GameServerFailureState>().Failure);
+        }
+        finally
+        {
+            await DisposeHostAsync(host);
+        }
     }
 
     private static IHost CreateHost(ItemRepository items, TestListener listener, IAccountSessionStore accountSessions,
