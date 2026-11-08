@@ -1,67 +1,44 @@
-# CP3.1 — Wire-contract ownership
+# CP3.1 — Server wire-contract ownership
 
-[Client decision issue #247](https://github.com/berniemackie97/OpenConquerClient/issues/247) |
-[Client comparison and workflow](https://github.com/berniemackie97/OpenConquerClient/blob/main/docs/networking/wire-contract-ownership.md)
+[Canonical decision and comparison](https://github.com/berniemackie97/OpenConquerClient/blob/main/docs/networking/wire-contract-ownership.md) |
+[Decision issue #247](https://github.com/berniemackie97/OpenConquerClient/issues/247)
 
 ## Recommendation
 
-Retain the server's protocol implementation in `OpenConquer.Protocol` and its
-transport/session ownership in `OpenConquer.Transport` and the server hosts.
-Do not adopt a client/server-shared production codec package at this checkpoint.
-Use independent implementations tested against the same reviewed byte-vector
-corpus. This becomes the accepted decision once both companion PRs are
-reviewed and merged.
+Keep the server wire implementation in `OpenConquer.Protocol`, the socket and
+backpressure mechanisms in `OpenConquer.Transport`, and session admission,
+authorization and shutdown in their owning hosts. Do not depend on a
+client/server-shared runtime codec package.
 
-The client and server already each implement CAST5/CFB64, two-direction session
-cipher state, secured frame encoding/decoding and overlapping packet layouts.
-They have different responsibilities:
+The client and server implementations remain separate, but protocol acceptance
+requires a common, independently sourced set of byte vectors. The decision
+takes effect only after both linked PRs are reviewed and merged.
 
-- `GameCast5Cfb64Cipher` is similar at the block-feedback level, but
-  `GameSessionCipher` and its client counterpart own different session and
-  disposal contracts. Server ingress validates the `TQClient` trailer;
-  client ingress validates `TQServer`.
-- `LoginStreamCipher` performs the server-side inverse of the client's
-  account stream transform. Collapsing them into one unqualified transform
-  risks confusing direction and credential handling.
-- `GameWalkPacket.TryParse` rejects a zero entity ID at the server boundary,
-  while the client can retain that value for dispatch. A shared decoder must
-  not silently erase this difference.
-- The 16-byte 1060 realm-identity field is a wire property. Validation of
-  permitted realm names and authorization is a separate application/server
-  policy; neither is established by the field width alone.
+## Server-specific boundaries
 
-A shared package would reduce repeated cipher and packet routines but force
-runtime version coordination and could make a single codec bug appear correct
-on both sides. The alternative retains a modest duplication cost while
-allowing each boundary to enforce its own safety and lifetime rules.
-Agreement between two implementations is not independent evidence.
+- `GameCast5Cfb64Cipher` shares a wire algorithm with the client but has its
+  own direction, disposal and session-lifetime contract.
+- `GameSecuredFrameDecoder` receives client-signed frames; the client's
+  decoder receives server-signed frames. Both use the 1,024-byte packet limit.
+- `LoginStreamCipher` performs the complementary account transform, not
+  the client's transform under a different class name.
+- `GameWalkPacket.TryParse` rejects entity ID zero at this server boundary;
+  the client may retain zero before deciding how to dispatch it.
+- The 16-byte field in packet 1060 and the accepted realm-name policy have
+  separate owners. Sharing the field layout must not merge authorization
+  rules with client serialization.
 
-## Ownership and verification
+## Change gate
 
-The 5517 client and separately retained captures establish wire expectations.
-For shared wire changes, review source evidence first; then update both
-repositories' codecs only where necessary and verify against identical,
-checked-in test vectors. This repository owns its parser, serializer,
-authorization, admission, transport and cleanup behavior.
+The source-client evidence and independently retained captures determine
+wire behavior, not agreement between these two implementations. CP3.2
+[#248](https://github.com/berniemackie97/OpenConquerClient/issues/248)
+will define the canonical test-only corpus, mirrored locally under
+`tests/Fixtures/WireGolden/` with a pinned source commit and identical
+payload hash. Linked client/server PRs must review byte changes and
+invalid-length, signature, order, direction and fragmentation cases;
+each repository runs its own checked-in fixtures in CI.
 
-CP3.2 will define a canonical test-vector corpus in the client repository
-under `tests/Fixtures/WireGolden/`. The server will retain a test-only copy
-at the same relative path, with a manifest recording the pinned client commit
-and matching corpus hash. Each entry must state direction, packet identity,
-capture/derived/synthetic classification, evidence reference, expected bytes
-or failure and schema revision. No secret-bearing captures, build-time
-network fetch or production-package dependency.
-
-Wire-affecting changes require linked client and server PRs, byte-level review,
-negative framing/signature/ordering tests, stream-fragmentation tests and
-separate CI in each repository. The hash and upstream reference must be
-checked during coordinated review; independent CI validates the local corpus.
-Fixture definition and those checks belong to CP3.2, not this decision spike.
-
-## Acceptance boundary
-
-This is a governance decision for the existing architecture, not a codec
-migration or validation of new packet behavior. No runtime implementation,
-cryptographic primitive or transport rule changes in this slice. The
-cross-repository test corpus and independent captured vectors remain open
-in [CP3.2](https://github.com/berniemackie97/OpenConquerClient/issues/248).
+No codec, runtime dependency, cryptography, transport or test fixture is
+changed by this decision slice. See the canonical document for alternative
+evaluation, fixture metadata and version/update workflow.
