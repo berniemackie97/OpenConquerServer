@@ -6,10 +6,8 @@ using OpenConquer.Protocol.Serialization;
 namespace OpenConquer.Protocol.Game.Packets;
 
 /// <summary>
-/// The 5517 client heartbeat, packet 1009 subtype 27: 88 bytes, +4 hero id, +12 subtype, +16 client time XOR hero id
-/// (client <c>CMsgTick__Build_SubType</c> 0x6EAC51, sent every 10 s from 0x661B3B). The historical MsgServer answers it
-/// by sending the same message back unchanged (<c>CMsgItem::Process</c> case 0x1B, 0x487F5E); this type keeps the
-/// received payload so it can be echoed byte for byte.
+/// Packet 1009 subtype 27 is an 88-byte heartbeat with hero ID at +4 and the raw client timer at +16.
+/// The server retains the received payload to echo it without modifying any bytes.
 /// </summary>
 public sealed class GameLatencyTickPacket : IPacket
 {
