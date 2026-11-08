@@ -12,6 +12,14 @@
       "sha256": "da44b8a06767d2cf289d43cd1cbb1833962cfc31feccb58b3eb58fef563420cc"
     },
     {
+      "file": "1009-27-heartbeat.observed.json",
+      "sha256": "294abab6c5901698da958814e9fa7c6bc2f45d1a90d771d210abe78850df3c08"
+    },
+    {
+      "file": "1134-mission-catalog.observed.json",
+      "sha256": "da516b5b126d2c9f50a9874ad44894060122c21bf17d2ff174c6cdaffeec1051"
+    },
+    {
       "file": "F001-F002-registration.project-defined.json",
       "sha256": "3daec0c614935a89bed8598398d97786baaab575b74c66015c055de893ca2f7e"
     }

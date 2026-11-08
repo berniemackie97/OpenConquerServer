@@ -1,5 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text.Json;
 using OpenConquer.Protocol.Framing;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
@@ -18,6 +20,41 @@ public sealed class GameMissionCatalogReportTests
         Assert.Equal((ushort)3, GameMissionCatalogReport.CatalogSubtype);
         Assert.Equal(80, GameMissionCatalogReport.MaximumMissionsPerFrame);
         Assert.Equal(968, GameMissionCatalogReport.GetPacketLength(GameMissionCatalogReport.MaximumMissionsPerFrame));
+    }
+
+    [Fact]
+    public void TryParse_IndependentlyCapturedCatalogFramesInOrder()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "WireGolden", "1134-mission-catalog.observed.json");
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
+        Assert.Equal("20_notes/Network/evidence/cp32-world-entry-2026-11-08/capture.json, capture 2",
+            document.RootElement.GetProperty("source").GetString());
+        int sequence = 13;
+        int previousMissionId = 0;
+        int total = 0;
+
+        foreach (JsonElement sample in document.RootElement.GetProperty("frames").EnumerateArray())
+        {
+            Assert.Equal(sequence++, sample.GetProperty("sequence").GetInt32());
+            byte[] observed = Convert.FromBase64String(sample.GetProperty("base64").GetString()!);
+            Assert.Equal(sample.GetProperty("sha256").GetString(),
+                Convert.ToHexString(SHA256.HashData(observed)).ToLowerInvariant());
+
+            int count = sample.GetProperty("count").GetInt32();
+            Assert.Equal(GameMissionCatalogReport.GetPacketLength(count), observed.Length);
+            using GameInboundFrame frame = CreateFrame(observed);
+            Assert.True(GameMissionCatalogReport.TryParse(
+                frame, out GameMissionCatalogReport report, out GameMissionCatalogReportParseError error));
+            Assert.Equal(GameMissionCatalogReportParseError.None, error);
+            Assert.Equal(count, report.MissionCount);
+            Assert.True(report.FirstMissionId > previousMissionId);
+            previousMissionId = report.LastMissionId;
+            total += report.MissionCount;
+        }
+
+        Assert.Equal(16, sequence);
+        Assert.Equal(224, total);
+        Assert.Equal(20001, previousMissionId);
     }
 
     [Fact]

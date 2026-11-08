@@ -26,6 +26,10 @@
           Link="WireGolden/1016-weather.static-derived.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/10010-action.static-derived.json"
           Link="WireGolden/10010-action.static-derived.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/1009-27-heartbeat.observed.json"
+          Link="WireGolden/1009-27-heartbeat.observed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/1134-mission-catalog.observed.json"
+          Link="WireGolden/1134-mission-catalog.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/F001-F002-registration.project-defined.json"
           Link="WireGolden/F001-F002-registration.project-defined.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/manifest.json"
