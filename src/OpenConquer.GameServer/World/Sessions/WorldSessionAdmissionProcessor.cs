@@ -1,10 +1,10 @@
-using OpenConquer.GameServer.Time;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.World;
 using OpenConquer.GameServer.Hosting;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Visibility;
 

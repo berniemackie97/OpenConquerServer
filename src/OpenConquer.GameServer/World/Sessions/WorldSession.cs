@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Time;
 using System.Threading.Channels;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
@@ -6,6 +5,7 @@ using OpenConquer.Application.World;
 using OpenConquer.GameServer.Login;
 using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Visibility;
 using OpenConquer.Protocol.Game.Framing;

@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Time;
 using System.Buffers.Binary;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
@@ -26,6 +25,7 @@ using OpenConquer.GameServer.Tests.Login.Bootstrap;
 using OpenConquer.GameServer.Tests.Login.Bootstrap.Missions;
 using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;

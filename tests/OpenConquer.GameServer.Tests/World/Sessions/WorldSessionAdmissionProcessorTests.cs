@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Time;
 using System.Security.Cryptography;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
@@ -16,6 +15,7 @@ using OpenConquer.GameServer.Login.Bootstrap;
 using OpenConquer.GameServer.Login.Character;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.Realms;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;

@@ -1,4 +1,3 @@
-using OpenConquer.GameServer.Time;
 using System.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,6 +20,7 @@ using OpenConquer.GameServer.Login.Observability;
 using OpenConquer.GameServer.Tests.Connections;
 using OpenConquer.GameServer.Tests.Realms;
 using OpenConquer.GameServer.Tests.World;
+using OpenConquer.GameServer.Time;
 using OpenConquer.GameServer.World.Execution;
 using OpenConquer.GameServer.World.Presence;
 using OpenConquer.GameServer.World.Sessions;
