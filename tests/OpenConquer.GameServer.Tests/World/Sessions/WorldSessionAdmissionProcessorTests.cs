@@ -429,7 +429,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         FencedCharacterAdmission fencing = new(new UnexpectedFence(), observer, new UnexpectedProfiles());
         ExistingCharacterBootstrapCompleteConnection bootstrap = await CreateBootstrapAsync(transport, presence, map, locationAuthority: authority);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => new WorldSessionAdmissionProcessor(runtime, fencing: fencing)
+        await Assert.ThrowsAsync<InvalidDataException>(() => new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource(), fencing: fencing)
             .ProcessAsync(bootstrap, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(supersedeOnObservation, observer.Calls);
@@ -453,7 +453,7 @@ public sealed class WorldSessionAdmissionProcessorTests
         FencedObservation observer = new(snapshot, supersedeOnObservation: int.MaxValue);
         FencedCharacterAdmission fencing = new(new UnexpectedFence(), observer, new UnexpectedProfiles());
 
-        await using WorldSession session = await new WorldSessionAdmissionProcessor(runtime, fencing: fencing)
+        await using WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource(), fencing: fencing)
             .ProcessAsync(await CreateBootstrapAsync(transport, presence, map, locationAuthority: authority), TestContext.Current.CancellationToken);
 
         Assert.Same(authority, session.LocationAuthority);
