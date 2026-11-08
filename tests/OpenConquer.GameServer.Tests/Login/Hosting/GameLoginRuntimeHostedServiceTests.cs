@@ -200,7 +200,15 @@ public sealed class GameLoginRuntimeHostedServiceTests
             listener.CloseUnexpectedly();
 
             await stopping.Task.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
-            Assert.IsType<ChannelClosedException>(host.Services.GetRequiredService<GameServerFailureState>().Failure);
+
+            Exception failure = Assert.IsAssignableFrom<Exception>(
+                host.Services.GetRequiredService<GameServerFailureState>().Failure);
+            IReadOnlyList<Exception> causes = failure is AggregateException aggregate
+                ? aggregate.Flatten().InnerExceptions
+                : [failure];
+
+            Assert.NotEmpty(causes);
+            Assert.All(causes, static cause => Assert.IsType<ChannelClosedException>(cause));
         }
         finally
         {
