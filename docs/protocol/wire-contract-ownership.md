@@ -42,3 +42,16 @@ each repository runs its own checked-in fixtures in CI.
 No codec, runtime dependency, cryptography, transport or test fixture is
 changed by this decision slice. See the canonical document for alternative
 evaluation, fixture metadata and version/update workflow.
+
+## Frozen test corpus manifest
+
+The test-only `tests/Fixtures/WireGolden/manifest.json` pins the canonical
+client source revision `e13bf5724975ec825e64a3609719afedd9b6af41`,
+the SHA-256 of each included fixture file, and an explicit list of every
+registered case. Both test suites require the same manifest SHA-256
+`7aff1dcdf544b126fe121610dedcd588eae26fa1e32503bc3b6bc0ab3d843be5`,
+verify every listed file and reject unlisted fixture JSON files. The corpus
+has exactly two static-derived cases; it contains no running-client capture.
+A corpus revision requires coordinated review of the source evidence,
+fixture bytes, manifest and pinned hash in both repositories. No runtime
+package or build-time cross-repository dependency is introduced.

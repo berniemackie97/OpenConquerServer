@@ -26,5 +26,7 @@
           Link="WireGolden/1016-weather.static-derived.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/10010-action.static-derived.json"
           Link="WireGolden/10010-action.static-derived.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/manifest.json"
+          Link="WireGolden/manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

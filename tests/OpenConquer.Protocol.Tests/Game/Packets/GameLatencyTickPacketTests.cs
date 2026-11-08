@@ -26,6 +26,26 @@ public sealed class GameLatencyTickPacketTests
     }
 
     [Fact]
+    public void TryParse_EchoesTheRecordedClientHeartbeatUnchanged()
+    {
+        byte[] wire = new byte[GameLatencyTickPacket.FixedPacketLength];
+        BinaryPrimitives.WriteUInt16LittleEndian(wire, GameLatencyTickPacket.FixedPacketLength);
+        BinaryPrimitives.WriteUInt16LittleEndian(wire.AsSpan(2), GameLatencyTickPacket.PacketIdentifier);
+        BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(4), 1_000_000);
+        BinaryPrimitives.WriteUInt16LittleEndian(wire.AsSpan(12), GameLatencyTickPacket.LatencyTickSubtype);
+        BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(16), 68_952_244);
+
+        using GameInboundFrame frame = CreateFrame(wire);
+        Assert.True(GameLatencyTickPacket.TryParse(frame, out GameLatencyTickPacket? tick));
+
+        byte[] echo = new byte[GameWireFrameEncoder.GetFrameLength(tick)];
+        Assert.Equal(wire.Length, GameWireFrameEncoder.WriteFrame(tick, echo));
+        Assert.Equal(wire, echo);
+        Assert.Equal("AA2D5B328C0F90B9B80EEA69F1E648EE33653FC9092FF633D72E4C9E05D4C922",
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(echo)));
+    }
+
+    [Fact]
     public void TryParse_CopiesPayload_SoTheEchoOutlivesTheReceiveBuffer()
     {
         byte[] wire = CreateHeartbeat();
@@ -89,8 +109,7 @@ public sealed class GameLatencyTickPacketTests
 
     private static byte[] CreateHeartbeat()
     {
-        // Native layout from CMsgTick__Build_SubType 0x6EAC51: +4 hero id, +12 subtype 27, +16 time ^ hero id.
-        // The remaining bytes are zero in a real tick; they are filled here so the echo is proven to copy every byte.
+        // Fill unrelated payload bytes to verify the echo preserves them without interpretation.
         byte[] wire = new byte[GameLatencyTickPacket.FixedPacketLength];
         for (int index = WireFrameHeader.Size; index < wire.Length; index++)
         {
@@ -101,7 +120,7 @@ public sealed class GameLatencyTickPacketTests
         BinaryPrimitives.WriteUInt16LittleEndian(wire.AsSpan(2), GameLatencyTickPacket.PacketIdentifier);
         BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(4), 1000001u);
         BinaryPrimitives.WriteUInt16LittleEndian(wire.AsSpan(12), GameLatencyTickPacket.LatencyTickSubtype);
-        BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(16), 0x0012D687u ^ 1000001u);
+        BinaryPrimitives.WriteUInt32LittleEndian(wire.AsSpan(16), 0x0012D687u);
         return wire;
     }
 
