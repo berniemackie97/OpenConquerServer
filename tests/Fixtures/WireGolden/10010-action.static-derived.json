@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "classification": "static-derived",
+  "runtimeCaptured": false,
+  "protocol": "game",
+  "direction": "server-to-client",
+  "packetId": 10010,
+  "sourceEvidence": "20_notes/Network/evidence/typed-world-dispatch-2026-11-06/wire-layout-golden.json#action-all-fields-sentinel",
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "frameHex": "26001a2778563412896745239a785634ab8967456c00785689679a78efcdab89f0debc9aa500",
+  "frameSha256": "4b56d70dcb3e59d3ed0a1aa316c2d56603e6eb0dd0acb2dfe426ff0cf7d30a03"
+}

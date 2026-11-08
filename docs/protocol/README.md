@@ -6,6 +6,10 @@ supported client is Conquer Online version 5517. Server internals are covered in
 
 The [cross-repository wire-contract decision](wire-contract-ownership.md) specifies ownership
 and coordinated verification for changes shared with the client.
+The [CP3.2 action 10010 fixture](../../tests/Fixtures/WireGolden/10010-action.static-derived.json)
+provides a second pinned, test-only layout case; the sentinel is not an
+observed runtime packet and does not authorize action 108 ingress.
+
 The [shared packet evidence inventory](https://github.com/berniemackie97/OpenConquerClient/blob/main/docs/networking/wire-evidence-inventory.md)
 tracks missing runtime captures and the initial static-derived canary. Local tests
 consume a checked-in copy of its test-only packet fixture.
