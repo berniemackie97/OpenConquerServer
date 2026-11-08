@@ -1,3 +1,4 @@
+using OpenConquer.GameServer.Time;
 using System.Buffers.Binary;
 using OpenConquer.Application.Characters.Login.Profile;
 using OpenConquer.Application.Characters.Login.Resolution;
@@ -591,7 +592,7 @@ public sealed partial class GameExistingCharacterLoginProcessorTests
                 new ExistingCharacterWeaponSkillSetProcessor(store),
                 new ExistingCharacterMagicSetProcessor(store),
                 new ExistingCharacterSyndicateAttributesProcessor(store, time),
-                new WorldSessionAdmissionProcessor(runtime));
+                new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()));
         }
 
         public LoginStepHarness Harness

@@ -88,6 +88,7 @@ Commits whose outcome is unknown are never retried blindly.
 | Ticket issue and expiry                          | The MySQL server clock                  |
 | Item lifetimes during login                      | One UTC instant captured per request    |
 | Maintenance intervals                            | Injected process time                   |
+| Game action timestamps                           | Shared `IGameTickSource`: unsigned 32-bit millisecond ticks (modulo 2³²) |
 
 ## Scaling
 

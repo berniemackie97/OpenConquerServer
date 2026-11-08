@@ -1,3 +1,4 @@
+using OpenConquer.GameServer.Time;
 using System.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -445,7 +446,7 @@ public sealed class GameConnectionWorkerPoolTests
                 new CharacterSyndicateState(CharacterId, membership: null, syndicate: null),
                 0x12345678, 17);
 
-            WorldSession session = await new WorldSessionAdmissionProcessor(runtime).ProcessAsync(bootstrap, cancellationToken);
+            WorldSession session = await new WorldSessionAdmissionProcessor(runtime, new SystemGameTickSource()).ProcessAsync(bootstrap, cancellationToken);
             return (session, client, challenge.Length);
         }
         catch

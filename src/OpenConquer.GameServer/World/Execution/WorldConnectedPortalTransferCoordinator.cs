@@ -1,3 +1,4 @@
+using OpenConquer.GameServer.Time;
 using Microsoft.Extensions.Logging;
 using OpenConquer.Application.Characters.Location;
 using OpenConquer.Application.Characters.Login.Profile;
@@ -16,7 +17,7 @@ namespace OpenConquer.GameServer.World.Execution;
 internal sealed partial class WorldConnectedPortalTransferCoordinator(
     WorldRuntime runtime, MapTransitionCatalog transitions,
     ICharacterLocationObservationStore observations, ICharacterLocationWriteStore writes,
-    WorldVisibilityService visibility, ILogger<WorldConnectedPortalTransferCoordinator> logger)
+    WorldVisibilityService visibility, ILogger<WorldConnectedPortalTransferCoordinator> logger, IGameTickSource tickSource)
 {
     private static readonly TimeSpan s_observationDeadline = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan s_commitDeadline = TimeSpan.FromSeconds(15);
@@ -27,6 +28,7 @@ internal sealed partial class WorldConnectedPortalTransferCoordinator(
     private readonly ICharacterLocationWriteStore _writes = writes ?? throw new ArgumentNullException(nameof(writes));
     private readonly WorldVisibilityService _visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
     private readonly ILogger<WorldConnectedPortalTransferCoordinator> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IGameTickSource _tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
 
     [LoggerMessage(EventId = 6660, Level = LogLevel.Critical,
         Message = "Sealed portal transfer failed for character {CharacterId}, map {SourceMapId} to {DestinationMapId}, expected revision {Revision}; stopping world execution.")]
@@ -143,7 +145,7 @@ internal sealed partial class WorldConnectedPortalTransferCoordinator(
             // The map-create handler deletes previous roles, so destination spawns follow.
             GameMapInfoPacket mapInfo = new(destination.MapId, destination.MapDataId, destination.Flags);
             _visibility.Relocate(session, source, reservation.X, reservation.Y,
-                destination.MapDataId, unchecked((uint)Environment.TickCount64), mapInfo);
+                destination.MapDataId, _tickSource.CurrentTick, mapInfo);
             visibilityTransferred = true;
             return true;
         }
