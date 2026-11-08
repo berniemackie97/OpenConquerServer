@@ -9,7 +9,7 @@ internal static class WireGoldenFixture
     private const string EvidencePrefix = "20_notes/Network/evidence/typed-world-dispatch-2026-11-06/wire-layout-golden.json#";
     private const string SourceImageHash = "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62";
 
-    internal static byte[] ReadFrame(string fileName, ushort packetId, string evidenceCase, string expectedSha256)
+    internal static byte[] ReadFrame(string fileName, string evidenceCase, ushort packetId, string expectedSha256)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "WireGolden", fileName);
         using JsonDocument fixture = JsonDocument.Parse(File.ReadAllBytes(path));
