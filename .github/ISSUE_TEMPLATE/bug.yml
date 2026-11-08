@@ -1,0 +1,41 @@
+name: Bug
+description: "Report a reproduced defect with a verifiable regression gate."
+title: "[Bug] "
+labels: ["type:bug"]
+projects: ["berniemackie97/5"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: "Observed behavior"
+      description: "What happened, including the affected build or revision."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected behavior"
+      description: "The established contract and its evidence."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Reproduction and environment"
+      description: "Steps or a reproducible trace, OS, revision, input and frequency."
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: "Logs, traces and impact"
+      description: "Sanitized links; affected scope and severity without guessing priority."
+    validations:
+      required: false
+  - type: textarea
+    id: regression
+    attributes:
+      label: "Regression proof"
+      description: "Automated or manual reproduction that must pass after the fix."
+    validations:
+      required: true

@@ -1,0 +1,34 @@
+name: Story
+description: "Describe one player- or operator-observable result."
+title: "[Story] "
+labels: ["type:story"]
+projects: ["berniemackie97/5"]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: "Scenario"
+      description: "Actor, goal, trigger and expected behavior."
+    validations:
+      required: true
+  - type: textarea
+    id: conditions
+    attributes:
+      label: "Acceptance scenarios"
+      description: "Observable success, rejection and recovery paths."
+    validations:
+      required: true
+  - type: textarea
+    id: parent
+    attributes:
+      label: "Parent and dependencies"
+      description: "Feature/epic links, constraints and relevant evidence."
+    validations:
+      required: false
+  - type: textarea
+    id: verification
+    attributes:
+      label: "Proof plan"
+      description: "How the behavior will be exercised and what remains manual."
+    validations:
+      required: true
