@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "berniemackie97/OpenConquerClient",
+  "sourceCommit": "e13bf5724975ec825e64a3609719afedd9b6af41",
+  "cases": [
+    {
+      "file": "1016-weather.static-derived.json",
+      "sha256": "05e13e78d92b6e1aa3107e610143401a866b7efff614f354f699d5eb6acc9412"
+    },
+    {
+      "file": "10010-action.static-derived.json",
+      "sha256": "da44b8a06767d2cf289d43cd1cbb1833962cfc31feccb58b3eb58fef563420cc"
+    }
+  ]
+}
