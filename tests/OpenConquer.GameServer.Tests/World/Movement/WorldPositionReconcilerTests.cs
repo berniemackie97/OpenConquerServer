@@ -17,18 +17,22 @@ public sealed class WorldPositionReconcilerTests
         Assert.False(state.TryReserveRejectedMovementCorrection(start));
         Assert.False(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency - 1));
         Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
-        Assert.False(state.TryReserveRejectedMovementCorrection(start - 1));
-        Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
+        Assert.True(state.TryReserveRejectedMovementCorrection(start - 1));
+        for (int attempt = 2; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        {
+            Assert.True(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
+        }
+        Assert.False(state.TryReserveRejectedMovementCorrection(start + Stopwatch.Frequency));
     }
 
     [Fact]
-    public void ClockRegressionDoesNotRefundRemainingCorrections()
+    public void ClockRegressionConsumesAnExistingCorrectionPermit()
     {
         WorldPositionReconciler state = new(100, 200);
         long start = 1000;
         Assert.True(state.TryReserveRejectedMovementCorrection(start));
-        Assert.False(state.TryReserveRejectedMovementCorrection(start - 1));
-        for (int attempt = 1; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        Assert.True(state.TryReserveRejectedMovementCorrection(start - 1));
+        for (int attempt = 2; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
         {
             Assert.True(state.TryReserveRejectedMovementCorrection(start));
         }
@@ -38,14 +42,14 @@ public sealed class WorldPositionReconcilerTests
     }
 
     [Fact]
-    public void RegressedTimestampWithinCorrectionWindowDoesNotConsumeAPermit()
+    public void RegressedTimestampWithinCorrectionWindowUsesAnExistingPermit()
     {
         WorldPositionReconciler state = new(100, 200);
         Assert.True(state.TryReserveRejectedMovementCorrection(1000));
         Assert.True(state.TryReserveRejectedMovementCorrection(1200));
-        Assert.False(state.TryReserveRejectedMovementCorrection(1100));
+        Assert.True(state.TryReserveRejectedMovementCorrection(1100));
 
-        for (int attempt = 2; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        for (int attempt = 3; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
         {
             Assert.True(state.TryReserveRejectedMovementCorrection(1200));
         }

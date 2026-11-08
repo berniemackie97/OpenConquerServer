@@ -55,7 +55,7 @@ internal sealed class WorldPositionReconciler
     {
         if (_rejectedMovementCount != 0 && serverTimestamp < _lastRejectedMovementCorrection)
         {
-            return false;
+            serverTimestamp = _lastRejectedMovementCorrection;
         }
 
         if (_rejectedMovementCount == 0 ||
