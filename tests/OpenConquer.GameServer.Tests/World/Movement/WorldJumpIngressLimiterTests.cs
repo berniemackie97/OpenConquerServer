@@ -47,6 +47,22 @@ public sealed class WorldJumpIngressLimiterTests
     }
 
     [Fact]
+    public void RegressedTimestampWithinCurrentWindowDoesNotConsumeAnAttempt()
+    {
+        WorldJumpIngressLimiter limiter = new();
+        Assert.True(limiter.TryAccept(1000));
+        Assert.True(limiter.TryAccept(1200));
+        Assert.False(limiter.TryAccept(1100));
+
+        for (int attempt = 2; attempt < WorldJumpIngressLimiter.MaximumAttemptsPerSecond; attempt++)
+        {
+            Assert.True(limiter.TryAccept(1200));
+        }
+
+        Assert.False(limiter.TryAccept(1200));
+    }
+
+    [Fact]
     public void SessionsHaveIndependentAttemptBudgets()
     {
         WorldJumpIngressLimiter first = new();

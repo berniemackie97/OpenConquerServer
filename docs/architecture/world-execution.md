@@ -67,8 +67,8 @@ the workers, clears map state, and waits for open sessions. A stopped runtime ca
 ### Monotonic movement budgets
 
 The session reader measures accepted jump attempts and refused-movement corrections in separate
-fixed-size, one-second windows. If a server clock sample moves backward, neither budget admits that
-request or changes its window origin and count. An elapsed full interval is required to replenish
+fixed-size, one-second windows. A timestamp earlier than the last accepted request is rejected
+without changing the window origin or count. An elapsed full interval is required to replenish
 a depleted budget. These are server-side admission limits; client-provided movement ticks do not
 advance either window.
 

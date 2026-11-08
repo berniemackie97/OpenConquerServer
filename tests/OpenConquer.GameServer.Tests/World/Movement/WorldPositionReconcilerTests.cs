@@ -38,6 +38,22 @@ public sealed class WorldPositionReconcilerTests
     }
 
     [Fact]
+    public void RegressedTimestampWithinCorrectionWindowDoesNotConsumeAPermit()
+    {
+        WorldPositionReconciler state = new(100, 200);
+        Assert.True(state.TryReserveRejectedMovementCorrection(1000));
+        Assert.True(state.TryReserveRejectedMovementCorrection(1200));
+        Assert.False(state.TryReserveRejectedMovementCorrection(1100));
+
+        for (int attempt = 2; attempt < WorldPositionReconciler.MaximumRejectedCorrectionsPerSecond; attempt++)
+        {
+            Assert.True(state.TryReserveRejectedMovementCorrection(1200));
+        }
+
+        Assert.False(state.TryReserveRejectedMovementCorrection(1200));
+    }
+
+    [Fact]
     public void SeparateSessionsKeepIndependentCorrectionBudgets()
     {
         WorldPositionReconciler first = new(100, 200);
