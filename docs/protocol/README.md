@@ -4,6 +4,9 @@ This section describes what goes over the wire between the client and the two se
 supported client is Conquer Online version 5517. Server internals are covered in the
 [architecture documentation](../architecture/README.md).
 
+The [cross-repository wire-contract decision](wire-contract-ownership.md) specifies ownership
+and coordinated verification for changes shared with the client.
+
 - [Framing](framing.md): frame header, size limits, and encoder and decoder behavior.
 - [Text encoding](text-encoding.md): string fields and supported encodings.
 - [Character creation](character-creation.md): the 5517 character-creation request, its sources,
