@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Issue workflow
+    url: https://github.com/berniemackie97/OpenConquerServer/blob/main/docs/issue-governance.md
+    about: Choose a work class and confirm the release evidence gates.

@@ -1,0 +1,34 @@
+name: Task
+description: "Track an implementable slice with explicit completion checks."
+title: "[Task] "
+labels: ["type:task"]
+projects: ["berniemackie97/5"]
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: "Work and ownership"
+      description: "Specific change, owning layer and dependencies."
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: "Evidence and contract"
+      description: "Relevant source findings, existing interfaces and prohibited assumptions."
+    validations:
+      required: false
+  - type: textarea
+    id: done
+    attributes:
+      label: "Completion criteria"
+      description: "Tests, documentation, adverse cases, reviews and CI required for closure."
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: "Risks and unverified gates"
+      description: "Concurrency, security, resources, compatibility and rollout if applicable."
+    validations:
+      required: false
