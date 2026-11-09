@@ -46,6 +46,18 @@
     {
       "file": "F001-F002-registration.project-defined.json",
       "sha256": "3daec0c614935a89bed8598398d97786baaab575b74c66015c055de893ca2f7e"
+    },
+    {
+      "file": "10010-client-state.observed.json",
+      "sha256": "f694554d9d645a56d3a2dfd731411512d7a79585291c33f11d2efc549e8fd59f"
+    },
+    {
+      "file": "10010-ground-jump.observed.json",
+      "sha256": "03249679dadd63e1e77dc23adf6b404eed61e6a869ddde4ba214916f1b9657a4"
+    },
+    {
+      "file": "1056-trade-quit.observed.json",
+      "sha256": "b24062bc19d97cf1c5335dab83819235ac7465a310ce051ffcfc64f8c99f81bc"
     }
   ]
 }
