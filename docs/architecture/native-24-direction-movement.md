@@ -1,51 +1,43 @@
-# 24-direction movement (5517)
+# 24-direction movement
 
-## Client behavior and wire format
+## Wire discriminator
 
-In the retail `Conquer.exe`, the message handler `CMsgEntityAction__Process` at `0x7405E7` uses the
-24-entry delta tables at `0x86C804` / `0x86C864` only when the full 32-bit selector at packet offset
-`+12` equals `9`. All other selectors use ordinary eight-direction movement. Only the low byte of
-the direction dword at `+4` is reduced modulo the table length. The upper bits and the other packet
-fields the server does not interpret must come back unchanged in the acknowledgement sent after the
-move commits.
+Packet 10005 carries a 32-bit direction field at +4 and a 32-bit
+selector at +12. The receiver compares **only the selector low byte**
+with 9. Matching selectors use the 24-entry displacement table and
+normalize the direction low byte modulo 24; other selectors use the
+eight-entry table and modulo 8. The complete selector and packed
+direction remain part of the original packet and are never rewritten.
 
-The 24-element delta arrays are the client's own tables in `CMsgEntityAction__Process`: 24 int32
-values each at `0x86C804` (x) and `0x86C864` (y), checked byte for byte against the clean
-`Conquer.exe`. `20_notes/Server/movement.md` records them and the retail behavior in which the
-client's move stands once the server echoes it.
+The displacement tables and operand-width evidence are recorded in
+`20_notes/Network/15_msgwalk_10005_direction_index_order.md` and
+`20_notes/Server/movement.md`. A constructed selector `0x00000109`
+with packed direction `0x17` selects index 23, displacement (+1,+2).
+An ordinary `0x00000101` selector uses eight-direction displacement;
+its selector low byte selects the running action family. These
+constructed discriminators are not independently captured traffic.
 
-## Server-side handling
+## Authenticated movement policy
 
-The authenticated session accepts 10005 only for its own character ID. It normalizes the direction
-and passes the full-width selector and normalized index to the character's map partition, which is
-the only writer of positions and rejects commands from older session generations. Before committing
-the position, the partition checks the map bounds and the map's composed static collision at the
-destination. Mount authorization is not available yet, so to stop a two-tile move from cutting
-across a blocked cell, the partition also checks the static cells in between. For asymmetric
-two-tile deltas it checks both possible intermediate cells. This is a server-side safety rule. The
-retail client's handling of intermediate cells has not been confirmed. A refused move gets
-correction 108, which undoes the position the client predicted.
+The server validates the authenticated character identity, uses its
+own partition as the position authority and preserves the packet's
+full selector, packed direction, movement tick and map-state fields
+when relaying a committed ordinary step. Non-mounted selectors retain
+their established ground movement path, subject to pacing, ownership
+and composed collision.
 
-After the commit, the original packet is echoed byte for byte to the local player, nearby observers
-receive the same 10005, and the visibility graph is recomputed from the committed tile. Spawn
-packets for players who arrive later use the existing eight-direction facing field, with the facing
-index kept within its valid range. No new wire field is added. Position reconciliation records only
-tiles the server committed.
+Riding authority and vigor are not implemented. The world runtime
+therefore rejects **every selector whose low byte is 9** before
+enqueueing a position change, including upper-byte aliases. The
+session returns action 108 with the unchanged authoritative tile;
+neither the sender nor observers receive a movement echo. The
+partition still retains its 24-entry displacement and intermediate
+collision checks for a future authorized riding flow.
 
-## Riding and remaining work
+## Remaining acceptance
 
-`WorldRuntime` currently rejects all selector-9 movement, even from authenticated sessions. The
-server has no trusted source for the active ride status (`0x32`) or vigor (`1033` mode 2), so a
-well-formed selector-9 request is not enough to allow a two-tile move. The session sends correction
-`10010/108` to undo the client's predicted move. The 24-entry direction tables and their collision
-tests stay in place for when the server can authorize riding. The server does not fake a ride flag
-or guess riding from equipment, and the client packet is unchanged. The stricter pacing limit for
-selector 9 is kept, but passing it does not grant permission to ride. See
+No mounted move is authorized by this decoder correction. Riding
+status, vigor, interactive client comparisons and mounted movement
+timing remain separate work. See
+[ground walking](ground-walking.md) and
 [movement eligibility](authoritative-movement-eligibility.md).
-
-Not implemented yet: checking whether a character has a valid mount or status, showing mounts to
-other players, mounted vigor, and full retail mounted gameplay. Each must be authorized by the
-server and match the client's behavior before release. Ground jumping is implemented. Teleportation,
-saving positions on the server, and NPC and monster replication are separate work. Encrypted tests
-with two clients are required before public release. This feature reuses the existing world
-visibility and movement code instead of duplicating it.
