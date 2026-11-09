@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using OpenConquer.GameServer.World.Chat;
+using OpenConquer.GameServer.World.Execution;
 using OpenConquer.Protocol.Game.Framing;
 using OpenConquer.Protocol.Game.Packets;
 
@@ -168,8 +169,11 @@ public sealed class WorldChatDeliveryTests
         Assert.DoesNotContain(dave.AvailableFrames(), frame => FrameMatches(frame, expected));
     }
 
-    [Fact]
-    public async Task UnauthenticatedMountedMovement_ReceivesCorrectionWithoutPeerReplication()
+    [Theory]
+    [InlineData(9u)]
+    [InlineData(0x0000_0109u)]
+    [InlineData(0xFFFF_FF09u)]
+    public async Task UnauthenticatedMountedMovement_ReceivesCorrectionWithoutPeerReplication(uint selector)
     {
         await using WorldSessionTestWorld world = new();
         WorldSessionTestClient alice = await world.AddAsync(0, "Alice", FirstMap);
@@ -178,7 +182,7 @@ public sealed class WorldChatDeliveryTests
         await bobby.WaitForFrameCountAsync(1);
 
         GameWalkPacket request = new(0xA1B2_C306, alice.Session.Ownership.CharacterId,
-            GameWalkPacket.TwentyFourDirectionSelector, 100, 0xDEAD_BEEFu);
+            selector, 100, 0xDEAD_BEEFu);
         byte[] forbiddenEcho = new byte[GameWireFrameEncoder.GetFrameLength(request)];
         GameWireFrameEncoder.WriteFrame(request, forbiddenEcho);
         await alice.Session.ProcessWalkAsync(request, TestContext.Current.CancellationToken);
@@ -190,6 +194,29 @@ public sealed class WorldChatDeliveryTests
             BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(26)) == 0);
         Assert.DoesNotContain(senderFrames, frame => frame.AsSpan().SequenceEqual(forbiddenEcho));
         Assert.DoesNotContain(bobby.AvailableFrames(), frame => frame.AsSpan().SequenceEqual(forbiddenEcho));
+        WorldCharacterSnapshot snapshot = Assert.IsType<WorldCharacterSnapshot>(
+            await world.Runtime.ReadCharacterAsync(alice.Session.Ownership, TestContext.Current.CancellationToken));
+        Assert.Equal(((ushort)0, (ushort)0), (snapshot.X, snapshot.Y));
+    }
+
+    [Fact]
+    public async Task OrdinaryUpperByteSelectorRetainsItsWireFieldsAfterCommit()
+    {
+        await using WorldSessionTestWorld world = new();
+        WorldSessionTestClient alice = await world.AddAsync(0, "Alice", FirstMap);
+        WorldSessionTestClient bobby = await world.AddAsync(1, "Bobby", FirstMap, 1, 1);
+        GameWalkPacket request = new(0x0000_0046, alice.Session.Ownership.CharacterId,
+            0x0000_0101, 100, 0xDEAD_BEEFu);
+        byte[] expected = new byte[GameWireFrameEncoder.GetFrameLength(request)];
+        GameWireFrameEncoder.WriteFrame(request, expected);
+
+        await alice.Session.ProcessWalkAsync(request, TestContext.Current.CancellationToken);
+
+        await alice.ExpectFrameAsync(expected);
+        await bobby.ExpectFrameAsync(expected);
+        WorldCharacterSnapshot snapshot = Assert.IsType<WorldCharacterSnapshot>(
+            await world.Runtime.ReadCharacterAsync(alice.Session.Ownership, TestContext.Current.CancellationToken));
+        Assert.Equal(((ushort)1, (ushort)0), (snapshot.X, snapshot.Y));
     }
 
     [Fact]
