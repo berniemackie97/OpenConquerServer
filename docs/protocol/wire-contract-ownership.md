@@ -49,11 +49,11 @@ The test-only `tests/Fixtures/WireGolden/manifest.json` pins the canonical
 client source revision `e13bf5724975ec825e64a3609719afedd9b6af41`,
 the SHA-256 of each included fixture file, and an explicit list of every
 registered case. Both test suites require the same manifest SHA-256
-`837443eb01539d872cc388b83eba097399b4ae8bdb3ea6d750fb9c0cfc9a1be2`,
-verify every listed file and reject unlisted fixture JSON files. The corpus contains two static-derived cases, five observed client-message groups
-(1009/27, 1134/3, 10005 selectors 0/1, 10010 admission actions, and
-10010/146), and one project-defined registration case. The three new groups
-contain fifteen exact running-client frames. The original source was observed
+`ad0080adb7730c1235afa411cd25dc84eeb2f47c1630d43d1cf4bf7b89a373a1`,
+verify every listed file and reject unlisted fixture JSON files. The corpus contains two static-derived cases, seven observed client-message groups
+(1009/27, 1134/3, 10005 selectors 0/1, 10010 admission actions, 10010/146,
+1151/2 and 10010/145), and one project-defined registration case. Five
+later groups now contain eighteen exact running-client frames. The original source was observed
 on client output, not on an original server.
 The server parses and echoes the captured heartbeat and independently validates
 all three captured mission-catalog frames. These cases do not establish
@@ -82,3 +82,14 @@ both walk selectors, all ten documented admission actions, and the three
 146 correction replies. Serialization matches the exact original-client
 bytes. These test-only frames do not establish server output provenance or
 full connected-client admission and movement acceptance.
+
+## Observed conditional entry and ghost-transition requests
+
+The synchronized corpus pins two independently observed 80-byte 1151/2
+client requests and one 38-byte 10010/145 client request. The server
+protocol tests verify that 1151 is not parsed as a 10010 action and that
+the ghost-transition parser accepts the exact action 145 fields and
+preserves the source bytes through its existing action encoder. Login
+acceptance still depends on the action ladder, and the original client's
+jump and trade-quit payload bytes were deliberately withheld. These
+checks do not establish original-server behavior or client gameplay emission.

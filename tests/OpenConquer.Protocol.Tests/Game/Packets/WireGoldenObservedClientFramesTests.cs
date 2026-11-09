@@ -101,6 +101,52 @@ public sealed class WireGoldenObservedClientFramesTests
         }
     }
 
+    private const ushort FlowerRankPacketId = 1151;
+
+    [Fact]
+    public void FlowerRankEntryRequests_AreNotParsedAsWorldActions()
+    {
+        Sample[] samples = Read("1151-flower-rank.observed.json", FlowerRankPacketId, EntryEvidence);
+        Assert.Equal(2, samples.Length);
+        Assert.Equal((1, 21), (samples[0].Capture, samples[0].Sequence));
+        Assert.Equal((2, 20), (samples[1].Capture, samples[1].Sequence));
+
+        foreach (Sample sample in samples)
+        {
+            Assert.Equal((ushort)2, sample.Subtype);
+            using GameInboundFrame frame = Wrap(sample.Frame);
+            Assert.Equal(80, frame.Header.Length);
+            Assert.Equal(FlowerRankPacketId, frame.PacketId);
+            Assert.False(GameAction.TryParse(frame, out _, out GameActionParseError error));
+            Assert.Equal(GameActionParseError.InvalidPacketId, error);
+            Assert.All(sample.Frame.AsSpan(5).ToArray(), value => Assert.Equal(0, value));
+        }
+    }
+
+    [Fact]
+    public void GhostTransition_ParsesCapturedClientRequestAndPreservesBytes()
+    {
+        Sample sample = Assert.Single(Read("10010-ghost-transition.observed.json",
+            GameAction.PacketIdentifier, EntryEvidence));
+        Assert.Equal((2, 45), (sample.Capture, sample.Sequence));
+        using GameInboundFrame frame = Wrap(sample.Frame);
+        Assert.True(GameGhostTransitionRequest.TryParse(frame, out GameGhostTransitionRequest request));
+        Assert.Equal(1_000_000u, request.EntityId);
+        Assert.True(GameAction.TryParse(frame, out GameAction action, out GameActionParseError error));
+        Assert.Equal(GameActionParseError.None, error);
+        Assert.Equal(GameGhostTransitionRequest.Action, action.Action);
+        Assert.Equal(0u, action.ParameterPair);
+        Assert.Equal(0u, action.ActionParameter);
+        Assert.Equal((ushort)0, action.Direction);
+        Assert.Equal((ushort)0, action.PositionX);
+        Assert.Equal((ushort)0, action.PositionY);
+        Assert.Equal(0u, action.Data1);
+        Assert.Equal(0u, action.Data2);
+        Assert.Equal((byte)0, action.Flag);
+        Assert.Equal((byte)0, action.StringCount);
+        AssertRoundTrip(action, sample.Frame);
+    }
+
     private static void AssertRoundTrip(GameAction action, byte[] expected)
     {
         GameActionPacket packet = new(action.EntityId, action.ParameterPair, action.ActionParameter,
@@ -143,9 +189,12 @@ public sealed class WireGoldenObservedClientFramesTests
             Assert.Equal(frame.Length, BinaryPrimitives.ReadUInt16LittleEndian(frame));
             Assert.Equal(packetId, BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(2)));
             ushort subtype = row.GetProperty("subtype").GetUInt16();
-            uint decodedSubtype = packetId == GameWalkPacket.PacketIdentifier
-                ? BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12))
-                : BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20));
+            uint decodedSubtype = packetId switch
+            {
+                GameWalkPacket.PacketIdentifier => BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12)),
+                FlowerRankPacketId => frame[4],
+                _ => BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20))
+            };
             Assert.Equal((uint)subtype, decodedSubtype);
             return new Sample(row.GetProperty("capture").GetInt32(),
                 row.GetProperty("sequence").GetInt32(), subtype, frame);

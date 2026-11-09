@@ -32,6 +32,14 @@
       "sha256": "d98eb530c33dbbe087d36f973ebc061be528124a71c6b00d300f143f9d746159"
     },
     {
+      "file": "1151-flower-rank.observed.json",
+      "sha256": "4b99aaa3b8a198a969a44fcdf5d708aa02e489e8af308d6297286a34c2f47736"
+    },
+    {
+      "file": "10010-ghost-transition.observed.json",
+      "sha256": "77c7be49a05ff85400e8859a38178654c897cdada98c4fb45adb3aed51b741f9"
+    },
+    {
       "file": "F001-F002-registration.project-defined.json",
       "sha256": "3daec0c614935a89bed8598398d97786baaab575b74c66015c055de893ca2f7e"
     }

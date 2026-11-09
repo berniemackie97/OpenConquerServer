@@ -34,6 +34,10 @@
           Link="WireGolden/10010-world-entry.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/10010-correction.observed.json"
           Link="WireGolden/10010-correction.observed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/1151-flower-rank.observed.json"
+          Link="WireGolden/1151-flower-rank.observed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/10010-ghost-transition.observed.json"
+          Link="WireGolden/10010-ghost-transition.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/1134-mission-catalog.observed.json"
           Link="WireGolden/1134-mission-catalog.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/F001-F002-registration.project-defined.json"
