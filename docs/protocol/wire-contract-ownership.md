@@ -49,10 +49,12 @@ The test-only `tests/Fixtures/WireGolden/manifest.json` pins the canonical
 client source revision `e13bf5724975ec825e64a3609719afedd9b6af41`,
 the SHA-256 of each included fixture file, and an explicit list of every
 registered case. Both test suites require the same manifest SHA-256
-`6acc4c6b0b0f342d03e207ad26f085a78d06546d596066a757065adb8cede5ab`,
-verify every listed file and reject unlisted fixture JSON files. The corpus
-contains two static-derived cases, two independently observed client-message
-cases (1009/27 and 1134/3), and one project-defined registration case.
+`837443eb01539d872cc388b83eba097399b4ae8bdb3ea6d750fb9c0cfc9a1be2`,
+verify every listed file and reject unlisted fixture JSON files. The corpus contains two static-derived cases, five observed client-message groups
+(1009/27, 1134/3, 10005 selectors 0/1, 10010 admission actions, and
+10010/146), and one project-defined registration case. The three new groups
+contain fifteen exact running-client frames. The original source was observed
+on client output, not on an original server.
 The server parses and echoes the captured heartbeat and independently validates
 all three captured mission-catalog frames. These cases do not establish
 original-server emission or coverage of untested variants.
@@ -70,3 +72,13 @@ serialize F001 and parse all F002 results; server tests independently decode
 F001 and serialize all F002 results. Each frame has its own SHA-256, and the
 manifest pins the fixture-file SHA-256. This is specification-based evidence
 and cannot satisfy the running-client capture requirement for other messages.
+
+## Captured movement and action vectors
+
+The client-maintained corpus now pins fifteen client-emitted frames in
+`10005-walk.observed.json`, `10010-world-entry.observed.json` and
+`10010-correction.observed.json`. Protocol tests independently parse
+both walk selectors, all ten documented admission actions, and the three
+146 correction replies. Serialization matches the exact original-client
+bytes. These test-only frames do not establish server output provenance or
+full connected-client admission and movement acceptance.

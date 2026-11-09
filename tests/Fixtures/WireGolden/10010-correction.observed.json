@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "classification": "observed",
+  "runtimeCaptured": true,
+  "protocol": "game",
+  "direction": "client-to-server",
+  "packetId": 10010,
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "sourceEvidence": "20_notes/Network/evidence/cp32-correction-2026-11-08/capture.json",
+  "capturePoint": "peer after game decrypt and client trailer validation",
+  "samples": [
+    {
+      "capture": 1,
+      "sequence": 43,
+      "subtype": 146,
+      "frameHex": "26001a2740420f003d006d000000000076c0f1049200000000000000f2030000ffffffff0000",
+      "frameSha256": "415e1ee47b20bf7bb89252426b1ff7f4b74a9e860ca858705dfff4053757e593"
+    },
+    {
+      "capture": 1,
+      "sequence": 47,
+      "subtype": 146,
+      "frameHex": "26001a2740420f003e006d000000000095e7f1049200000000000000f2030000ffffffff0000",
+      "frameSha256": "bdb4bab11a349150e3f59457c4635faad834098760fdf72006aa979dd3df7294"
+    },
+    {
+      "capture": 1,
+      "sequence": 51,
+      "subtype": 146,
+      "frameHex": "26001a2740420f003e006d0000000000b60ef2049200000000000000f2030000ffffffff0000",
+      "frameSha256": "3737030ee17d8ecb40d552ce3ba4a7b4996abd56056a19414901e5c82a65af09"
+    }
+  ]
+}

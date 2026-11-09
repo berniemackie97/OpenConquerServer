@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "classification": "observed",
+  "runtimeCaptured": true,
+  "protocol": "game",
+  "direction": "client-to-server",
+  "packetId": 10005,
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "sourceEvidence": "20_notes/Network/evidence/cp32-world-entry-2026-11-08/capture.json",
+  "capturePoint": "peer after game decrypt and client trailer validation",
+  "samples": [
+    {
+      "capture": 1,
+      "sequence": 44,
+      "subtype": 1,
+      "frameHex": "180015274600000040420f0001000000fc491c04f2030000",
+      "frameSha256": "016e1048209bc8a298feaa17ad3fa4d9524116ee8024025c63403ac53a9bbe97"
+    },
+    {
+      "capture": 2,
+      "sequence": 46,
+      "subtype": 0,
+      "frameHex": "180015271600000040420f0000000000c2792204f2030000",
+      "frameSha256": "ec206cb0d7f807e2407ec8709a2371a4e923b1985cf2f2738095b07182399d27"
+    }
+  ]
+}

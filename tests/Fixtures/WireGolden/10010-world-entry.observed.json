@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "classification": "observed",
+  "runtimeCaptured": true,
+  "protocol": "game",
+  "direction": "client-to-server",
+  "packetId": 10010,
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "sourceEvidence": "20_notes/Network/evidence/cp32-world-entry-2026-11-08/capture.json",
+  "capturePoint": "peer after game decrypt and client trailer validation",
+  "samples": [
+    {
+      "capture": 1,
+      "sequence": 17,
+      "subtype": 74,
+      "frameHex": "26001a2740420f00000000000000000029f61b044a0000000000000000000000000000000000",
+      "frameSha256": "c55ba03ae70b89676ae580d2378cd3ee8167f86126116d276acb17a5d253c235"
+    },
+    {
+      "capture": 1,
+      "sequence": 25,
+      "subtype": 114,
+      "frameHex": "26001a2740420f0000000000000000009bf91b04720000000000000000000000000000000000",
+      "frameSha256": "dc0d58d0d758e8182eeb9b36e8aab6bc59e97a1e853ffeb21fdf317ef40b5c86"
+    },
+    {
+      "capture": 1,
+      "sequence": 26,
+      "subtype": 75,
+      "frameHex": "26001a2740420f0000000000000000009bf91b044b0000000000000000000000000000000000",
+      "frameSha256": "3dc8b9c876498845484286c80e3ad37715407f4a05beb253fa107009cd42a010"
+    },
+    {
+      "capture": 1,
+      "sequence": 28,
+      "subtype": 76,
+      "frameHex": "26001a2740420f000000000000000000b9051c044c0000000000000000000000000000000000",
+      "frameSha256": "dfb8be1f16f2b74e1056d64a92529abcd767eb0624d84b66885e22e1086f36ae"
+    },
+    {
+      "capture": 1,
+      "sequence": 30,
+      "subtype": 96,
+      "frameHex": "26001a2740420f0003000000000000006a071c04600000000000000000000000000000000000",
+      "frameSha256": "03dcd8bcf94256d66fb07535c6ec7a06d84cd431f1fa099464bba74f82ffa17a"
+    },
+    {
+      "capture": 1,
+      "sequence": 31,
+      "subtype": 77,
+      "frameHex": "26001a2740420f00000000000000000082071c044d0000000000000000000000000000000000",
+      "frameSha256": "c4d5d71d26910d94ac60ae79ad94a1d78488294d456784cfc424b2acb68bcded"
+    },
+    {
+      "capture": 1,
+      "sequence": 33,
+      "subtype": 78,
+      "frameHex": "26001a2740420f0000000000000000000d081c044e0000000000000000000000000000000000",
+      "frameSha256": "0170916bece37c4ae0cf9a5e838748bd843db92ed7609444ab10dadf872ae8b4"
+    },
+    {
+      "capture": 1,
+      "sequence": 35,
+      "subtype": 97,
+      "frameHex": "26001a2740420f00000000000000000038081c04610000000000000000000000000000000000",
+      "frameSha256": "6f542f85171f17cbb70a9acda741f6c80e9eea6577d0a1bd5cc08cc188c2186b"
+    },
+    {
+      "capture": 1,
+      "sequence": 37,
+      "subtype": 251,
+      "frameHex": "26001a2700000000000000000000000001000000fb0000000000000000000000000000000000",
+      "frameSha256": "d02efc2b1dc3fea52f09e08633e6282ab44e0018233d527fe09e9d2f6be69511"
+    },
+    {
+      "capture": 1,
+      "sequence": 39,
+      "subtype": 132,
+      "frameHex": "26001a2740420f0000000000000000007a081c04840000000000000000000000000000000000",
+      "frameSha256": "51c7e828847cd5dc1959cf7dd41611b10e3b7034db8ee244c46fca9ace078459"
+    }
+  ]
+}
