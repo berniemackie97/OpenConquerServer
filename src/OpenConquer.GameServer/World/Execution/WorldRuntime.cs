@@ -784,15 +784,14 @@ internal sealed class WorldRuntime : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfNotRunning();
 
-            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null || directionIndex >= (commandSelector == 9 ? 24 : 8))
+            bool twoTile = (byte)commandSelector == 9;
+            if (!_owners.TryGetValue(ownership.CharacterId, out OwnershipEntry? entry) || entry.Ownership != ownership || entry.Removing || entry.TransferReservation is not null || directionIndex >= (twoTile ? 24 : 8))
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
 
-            // Selector 9 is a mounted move, not a free two-tile speed mode, and the server doesn't track riding or vigor
-            // yet. Refuse it before it takes a queue slot; the world session answers with 108 so the client undoes its
-            // predicted move.
-            if (commandSelector == 9)
+            // Riding authority is unavailable. Refuse every mounted selector before enqueueing a world step.
+            if (twoTile)
             {
                 return ValueTask.FromResult<WorldCharacterSnapshot?>(null);
             }
