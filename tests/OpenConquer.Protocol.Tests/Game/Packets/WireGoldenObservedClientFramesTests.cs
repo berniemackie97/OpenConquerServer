@@ -18,7 +18,9 @@ public sealed class WireGoldenObservedClientFramesTests
     {
         Sample[] samples = Read("10005-walk.observed.json", GameWalkPacket.PacketIdentifier, EntryEvidence);
         Assert.Equal(new ushort[] { 1, 0 }, samples.Select(static sample => sample.Subtype));
-        Assert.Equal(new[] { 44, 46 }, samples.Select(static sample => sample.Sequence));
+        Assert.Equal(2, samples.Length);
+        Assert.Equal((1, 44), (samples[0].Capture, samples[0].Sequence));
+        Assert.Equal((2, 46), (samples[1].Capture, samples[1].Sequence));
 
         foreach (Sample sample in samples)
         {
@@ -68,7 +70,10 @@ public sealed class WireGoldenObservedClientFramesTests
     public void CorrectionReplies_ParseWithoutConfusingWireCoordinateFields()
     {
         Sample[] samples = Read("10010-correction.observed.json", GameAction.PacketIdentifier, CorrectionEvidence);
-        Assert.Equal(new[] { 43, 47, 51 }, samples.Select(static sample => sample.Sequence));
+        Assert.Equal(3, samples.Length);
+        Assert.Equal((1, 43), (samples[0].Capture, samples[0].Sequence));
+        Assert.Equal((1, 47), (samples[1].Capture, samples[1].Sequence));
+        Assert.Equal((1, 51), (samples[2].Capture, samples[2].Sequence));
 
         ushort[] expectedX = [61, 62, 62];
         uint lastTick = 0;
