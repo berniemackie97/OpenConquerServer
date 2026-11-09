@@ -13,7 +13,7 @@
     },
     {
       "file": "1009-27-heartbeat.observed.json",
-      "sha256": "294abab6c5901698da958814e9fa7c6bc2f45d1a90d771d210abe78850df3c08"
+      "sha256": "59064da031c5e2223e828af2a80d31f1cb352778defb52fdb724ccd96796ed8a"
     },
     {
       "file": "1134-mission-catalog.observed.json",
@@ -21,7 +21,7 @@
     },
     {
       "file": "10005-walk.observed.json",
-      "sha256": "cd3cc84e183df660301ce6b369c887acefa27442a1c44cd8d04c365661306fce"
+      "sha256": "76d5509cd33710a8c8d5ebf0806a0d0f277bdeac0ceab19789927f046c8e431e"
     },
     {
       "file": "10010-world-entry.observed.json",
