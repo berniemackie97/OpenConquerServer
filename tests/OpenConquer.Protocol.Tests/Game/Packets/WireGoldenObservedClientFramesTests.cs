@@ -67,6 +67,51 @@ public sealed class WireGoldenObservedClientFramesTests
     }
 
     [Fact]
+    public void ReplayedWorldEntryResponses_DecodeAndPreserveBothCapturedWindows()
+    {
+        Sample[] samples = Read("10010-world-replay.observed.json",
+            GameAction.PacketIdentifier, EntryEvidence);
+        int[] records = [112, 114, 115, 117, 119, 121, 123, 133, 135, 136, 138, 140, 142, 144];
+        ushort[] actions = [76, 96, 77, 78, 97, 251, 132];
+        Assert.Equal(records.Length, samples.Length);
+
+        uint previousTick = 0;
+        for (int index = 0; index < samples.Length; index++)
+        {
+            Sample sample = samples[index];
+            ushort expectedAction = actions[index % actions.Length];
+            Assert.Equal((1, records[index]), (sample.Capture, sample.Sequence));
+            Assert.Equal(expectedAction, sample.Subtype);
+            using GameInboundFrame frame = Wrap(sample.Frame);
+            Assert.True(GameAction.TryParse(frame, out GameAction action, out GameActionParseError error));
+            Assert.Equal(GameActionParseError.None, error);
+            Assert.Equal(expectedAction, action.Action);
+            Assert.Equal(expectedAction == 251 ? 0u : 1_000_000u, action.EntityId);
+            Assert.Equal(expectedAction == 96 ? 3u : 0u, action.ParameterPair);
+            Assert.Equal(0u, action.ActionParameter);
+            Assert.Equal((ushort)0, action.Direction);
+            Assert.Equal((ushort)0, action.PositionX);
+            Assert.Equal((ushort)0, action.PositionY);
+            Assert.Equal(0u, action.Data1);
+            Assert.Equal(0u, action.Data2);
+            Assert.Equal((byte)0, action.Flag);
+            Assert.Equal((byte)0, action.StringCount);
+
+            if (expectedAction == 251)
+            {
+                Assert.Equal(1u, action.Timestamp);
+            }
+            else
+            {
+                Assert.True(action.Timestamp > previousTick);
+                previousTick = action.Timestamp;
+            }
+
+            AssertRoundTrip(action, sample.Frame);
+        }
+    }
+
+    [Fact]
     public void CorrectionReplies_ParseWithoutConfusingWireCoordinateFields()
     {
         Sample[] samples = Read("10010-correction.observed.json", GameAction.PacketIdentifier, CorrectionEvidence);
