@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "classification": "observed",
+  "runtimeCaptured": true,
+  "protocol": "game",
+  "direction": "client-to-server",
+  "packetId": 1056,
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "sourceEvidence": "20_notes/Network/evidence/cp32-conditional-world-2026-11-08/capture.json",
+  "capturePoint": "peer after game decrypt and client trailer validation",
+  "samples": [
+    {
+      "capture": 1,
+      "sequence": 68,
+      "subtype": 2,
+      "frameHex": "0c00200440420f0002000000",
+      "frameSha256": "b6f05eb4613ea0e1d021c2348c3ebe416f8f9d1e5a6043954726b6c4a93936b2"
+    }
+  ]
+}
