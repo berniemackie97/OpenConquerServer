@@ -12,6 +12,7 @@ public sealed class WireGoldenObservedClientFramesTests
 {
     private const string EntryEvidence = "20_notes/Network/evidence/cp32-world-entry-2026-11-08/capture.json";
     private const string CorrectionEvidence = "20_notes/Network/evidence/cp32-correction-2026-11-08/capture.json";
+    private const string ConditionalEvidence = "20_notes/Network/evidence/cp32-conditional-world-2026-11-08/capture.json";
 
     [Fact]
     public void WalkSelectors_ParseAndEncodeOriginalClientFields()
@@ -192,6 +193,78 @@ public sealed class WireGoldenObservedClientFramesTests
         AssertRoundTrip(action, sample.Frame);
     }
 
+    [Fact]
+    public void ClientStateApplied_ParsesTheCapturedZeroFieldReport()
+    {
+        Sample sample = Assert.Single(Read("10010-client-state.observed.json",
+            GameAction.PacketIdentifier, ConditionalEvidence));
+        Assert.Equal((1, 23), (sample.Capture, sample.Sequence));
+        Assert.Equal((ushort)408, sample.Subtype);
+        using GameInboundFrame frame = Wrap(sample.Frame);
+        Assert.True(GameAction.TryParse(frame, out GameAction action, out GameActionParseError error));
+        Assert.Equal(GameActionParseError.None, error);
+        Assert.Equal((ushort)408, action.Action);
+        Assert.Equal(0u, action.EntityId);
+        Assert.Equal(0u, action.ParameterPair);
+        Assert.Equal(0u, action.ActionParameter);
+        Assert.Equal(0u, action.Timestamp);
+        Assert.Equal((ushort)0, action.Direction);
+        Assert.Equal((ushort)0, action.PositionX);
+        Assert.Equal((ushort)0, action.PositionY);
+        Assert.Equal(0u, action.Data1);
+        Assert.Equal(0u, action.Data2);
+        Assert.Equal((byte)0, action.Flag);
+        Assert.Equal((byte)0, action.StringCount);
+        AssertRoundTrip(action, sample.Frame);
+    }
+
+    [Fact]
+    public void GroundJumps_ParseAndProduceBytePreservingAcknowledgements()
+    {
+        Sample[] samples = Read("10010-ground-jump.observed.json",
+            GameAction.PacketIdentifier, ConditionalEvidence);
+        int[] sequences = [46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59];
+        Assert.Equal(sequences, samples.Select(static sample => sample.Sequence));
+
+        foreach (Sample sample in samples)
+        {
+            Assert.Equal(1, sample.Capture);
+            Assert.Equal(GameJumpAction.JumpAction, sample.Subtype);
+            using GameInboundFrame frame = Wrap(sample.Frame);
+            Assert.True(GameJumpAction.TryParse(frame, out GameJumpAction jump));
+            Assert.Equal(1_000_000u, jump.EntityId);
+            Assert.True(jump.IsGroundJump);
+            Assert.False(jump.IsMountedCharge);
+            Assert.Equal(0u, jump.Action.ActionParameter);
+            Assert.Equal((ushort)0, jump.Action.Direction);
+            Assert.Equal(1010u, jump.Action.Data1);
+            Assert.Equal(uint.MaxValue, jump.Action.Data2);
+            Assert.Equal((byte)0, jump.Action.StringCount);
+            Assert.InRange(jump.TargetX, (ushort)1, ushort.MaxValue);
+            Assert.InRange(jump.TargetY, (ushort)1, ushort.MaxValue);
+            Assert.InRange(jump.Action.PositionX, (ushort)1, ushort.MaxValue);
+            Assert.InRange(jump.Action.PositionY, (ushort)1, ushort.MaxValue);
+
+            GameActionPacket acknowledgement = jump.CreateAcknowledgement();
+            byte[] encoded = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
+            Assert.Equal(sample.Frame.Length, GameWireFrameEncoder.WriteFrame(acknowledgement, encoded));
+            Assert.Equal(sample.Frame, encoded);
+        }
+    }
+
+    [Fact]
+    public void TradeQuit_ParsesTheObservedDeathTriggeredRequest()
+    {
+        Sample sample = Assert.Single(Read("1056-trade-quit.observed.json",
+            GameTradeQuitRequest.PacketIdentifier, ConditionalEvidence));
+        Assert.Equal((1, 68), (sample.Capture, sample.Sequence));
+        Assert.Equal(GameTradeQuitRequest.QuitMode, sample.Subtype);
+        using GameInboundFrame frame = Wrap(sample.Frame);
+        Assert.True(GameTradeQuitRequest.TryParse(frame, out GameTradeQuitRequest request));
+        Assert.Equal(1_000_000u, request.EntityId);
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(sample.Frame.AsSpan(10)));
+    }
+
     private static void AssertRoundTrip(GameAction action, byte[] expected)
     {
         GameActionPacket packet = new(action.EntityId, action.ParameterPair, action.ActionParameter,
@@ -238,6 +311,7 @@ public sealed class WireGoldenObservedClientFramesTests
             {
                 GameWalkPacket.PacketIdentifier => BinaryPrimitives.ReadUInt32LittleEndian(frame.AsSpan(12)),
                 FlowerRankPacketId => frame[4],
+                GameTradeQuitRequest.PacketIdentifier => BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(8)),
                 _ => BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(20))
             };
             Assert.Equal((uint)subtype, decodedSubtype);
