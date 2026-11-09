@@ -225,9 +225,24 @@ public sealed class WireGoldenObservedClientFramesTests
             GameAction.PacketIdentifier, ConditionalEvidence);
         int[] sequences = [46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59];
         Assert.Equal(sequences, samples.Select(static sample => sample.Sequence));
-
-        foreach (Sample sample in samples)
+        (ushort TargetX, ushort TargetY, ushort FromX, ushort FromY)[] coordinates =
+        [
+            (62, 110, 63, 106),
+            (59, 109, 62, 110),
+            (64, 109, 59, 109),
+            (60, 111, 64, 109),
+            (62, 106, 60, 111),
+            (60, 112, 62, 106),
+            (66, 110, 60, 112),
+            (56, 109, 66, 110),
+            (50, 104, 56, 109),
+            (49, 95, 50, 104),
+            (58, 104, 49, 95),
+            (63, 106, 58, 104)
+        ];
+        for (int index = 0; index < samples.Length; index++)
         {
+            Sample sample = samples[index];
             Assert.Equal(1, sample.Capture);
             Assert.Equal(GameJumpAction.JumpAction, sample.Subtype);
             using GameInboundFrame frame = Wrap(sample.Frame);
@@ -240,10 +255,10 @@ public sealed class WireGoldenObservedClientFramesTests
             Assert.Equal(1010u, jump.Action.Data1);
             Assert.Equal(uint.MaxValue, jump.Action.Data2);
             Assert.Equal((byte)0, jump.Action.StringCount);
-            Assert.InRange(jump.TargetX, (ushort)1, ushort.MaxValue);
-            Assert.InRange(jump.TargetY, (ushort)1, ushort.MaxValue);
-            Assert.InRange(jump.Action.PositionX, (ushort)1, ushort.MaxValue);
-            Assert.InRange(jump.Action.PositionY, (ushort)1, ushort.MaxValue);
+            Assert.Equal((coordinates[index].TargetX, coordinates[index].TargetY),
+                (jump.TargetX, jump.TargetY));
+            Assert.Equal((coordinates[index].FromX, coordinates[index].FromY),
+                (jump.Action.PositionX, jump.Action.PositionY));
 
             GameActionPacket acknowledgement = jump.CreateAcknowledgement();
             byte[] encoded = new byte[GameWireFrameEncoder.GetFrameLength(acknowledgement)];
