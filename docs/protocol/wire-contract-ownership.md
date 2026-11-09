@@ -89,7 +89,9 @@ The synchronized corpus pins two independently observed 80-byte 1151/2
 client requests and one 38-byte 10010/145 client request. The server
 protocol tests verify that 1151 is not parsed as a 10010 action and that
 the ghost-transition parser accepts the exact action 145 fields and
-preserves the source bytes through its existing action encoder. Login
+preserves the source bytes through its existing action encoder. The existing
+login-step harness additionally injects the captured 1151/2 frame before
+the GetItems action and verifies the admission sequence continues. Login
 acceptance still depends on the action ladder, and the original client's
 jump and trade-quit payload bytes were deliberately withheld. These
 checks do not establish original-server behavior or client gameplay emission.

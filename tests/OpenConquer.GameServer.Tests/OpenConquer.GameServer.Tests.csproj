@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../Fixtures/WireGolden/1151-flower-rank.observed.json"
+          Link="WireGolden/1151-flower-rank.observed.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>
