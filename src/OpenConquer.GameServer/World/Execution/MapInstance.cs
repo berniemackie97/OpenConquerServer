@@ -13,8 +13,6 @@ internal sealed class MapInstance(WorldMapContent map)
     private static readonly sbyte[] s_walkDeltaX = [0, -1, -1, -1, 0, 1, 1, 1];
     private static readonly sbyte[] s_walkDeltaY = [1, 1, 0, -1, -1, -1, 0, 1];
 
-    // Selector-9 tables from CMsgEntityAction__Process in the 5517 client: 24 int32 values each at 0x86C804 (x) and
-    // 0x86C864 (y).
     private static readonly sbyte[] s_twoTileDeltaX =
         [0, -2, -2, -2, 0, 2, 2, 2, -1, -2, -2, -1, 1, 2, 2, 1, -1, -2, -2, -1, 1, 2, 2, 1];
     private static readonly sbyte[] s_twoTileDeltaY =
@@ -99,7 +97,7 @@ internal sealed class MapInstance(WorldMapContent map)
     /// </summary>
     public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector = 0)
     {
-        bool twoTile = commandSelector == 9;
+        bool twoTile = (byte)commandSelector == 9;
         sbyte[] deltaX = twoTile ? s_twoTileDeltaX : s_walkDeltaX;
         sbyte[] deltaY = twoTile ? s_twoTileDeltaY : s_walkDeltaY;
         if (directionIndex >= deltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)

@@ -15,9 +15,7 @@ public readonly record struct GameWalkPacket(uint PackedDirection, uint EntityId
 
     public ushort PacketId => PacketIdentifier;
     public int PayloadLength => PacketLength - sizeof(ushort) * 2;
-    // The retail handler compares the complete selector to exactly nine, then
-    // normalizes only the low direction byte against the selected table length.
-    public bool IsTwentyFourDirection => CommandSelector == TwentyFourDirectionSelector;
+    public bool IsTwentyFourDirection => (byte)CommandSelector == TwentyFourDirectionSelector;
     public byte DirectionIndex => (byte)(unchecked((byte)PackedDirection) % (IsTwentyFourDirection ? 24 : 8));
     public byte FacingDirection => (byte)(DirectionIndex % 8);
 

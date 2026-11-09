@@ -11,7 +11,7 @@ public sealed class GameWalkPacketTests
     [InlineData(1u)]
     [InlineData(7u)]
     [InlineData(0x0100_0007u)]
-    public void TryParse_AcceptsNativeEightDirectionPacketWithoutDiscardingOpaqueFields(uint packedDirection)
+    public void TryParse_AcceptsEightDirectionPacketWithoutDiscardingOpaqueFields(uint packedDirection)
     {
         byte[] wire = CreatePacket(packedDirection: packedDirection, selector: 0, entityId: 500, tick: 0xABCD_EF01, mapState: 0x1234_5678);
 
@@ -26,21 +26,34 @@ public sealed class GameWalkPacketTests
         Assert.Equal(20, walk.PayloadLength);
     }
 
-    [Fact]
-    public void TryParse_NonNineSelectorUsesNativeEightDirectionBranch()
+    [Theory]
+    [InlineData(0u, false, (byte)7)]
+    [InlineData(1u, false, (byte)7)]
+    [InlineData(8u, false, (byte)7)]
+    [InlineData(10u, false, (byte)7)]
+    [InlineData(0x0000_0101u, false, (byte)7)]
+    [InlineData(9u, true, (byte)23)]
+    [InlineData(0x0000_0109u, true, (byte)23)]
+    [InlineData(0xFFFF_FF09u, true, (byte)23)]
+    public void TryParse_UsesTheLowSelectorByteForDirectionTable(
+        uint selector, bool mounted, byte directionIndex)
     {
-        Assert.True(GameWalkPacket.TryParse(CreatePacket(selector: 8), out _));
-        Assert.True(GameWalkPacket.TryParse(CreatePacket(selector: 10), out _));
-        Assert.True(GameWalkPacket.TryParse(CreatePacket(selector: 9), out GameWalkPacket twoTile));
-        Assert.True(twoTile.IsTwentyFourDirection);
-        Assert.Equal((byte)7, twoTile.DirectionIndex);
+        Assert.True(GameWalkPacket.TryParse(CreatePacket(packedDirection: 0x17, selector: selector),
+            out GameWalkPacket walk));
+        Assert.Equal(selector, walk.CommandSelector);
+        Assert.Equal(mounted, walk.IsTwentyFourDirection);
+        Assert.Equal(directionIndex, walk.DirectionIndex);
+        Assert.Equal((byte)(directionIndex % 8), walk.FacingDirection);
     }
 
-    [Fact]
-    public void WritePayload_EchoesOriginalNativeFieldsByteForByte()
+    [Theory]
+    [InlineData(10u)]
+    [InlineData(0x0000_0101u)]
+    [InlineData(0x0000_0109u)]
+    public void WritePayload_PreservesFullSelectorAndPackedDirection(uint selector)
     {
         byte[] original = CreatePacket(packedDirection: 0xA1B2_C307, entityId: 500,
-            selector: 10, tick: 0xFFFF_FFF0, mapState: 0x1234_5678);
+            selector: selector, tick: 0xFFFF_FFF0, mapState: 0x1234_5678);
         Assert.True(GameWalkPacket.TryParse(original, out GameWalkPacket walk));
 
         byte[] payload = new byte[walk.PayloadLength];
@@ -55,7 +68,7 @@ public sealed class GameWalkPacketTests
     [InlineData(8u)]
     [InlineData(255u)]
     [InlineData(0x0100_0008u)]
-    public void TryParse_NormalizesTheNativeLowDirectionByte(uint direction)
+    public void TryParse_NormalizesTheLowDirectionByte(uint direction)
     {
         Assert.True(GameWalkPacket.TryParse(CreatePacket(packedDirection: direction), out GameWalkPacket walk));
         Assert.Equal((byte)(unchecked((byte)direction) % 8), walk.DirectionIndex);
@@ -68,7 +81,7 @@ public sealed class GameWalkPacketTests
     [InlineData(24u, 0)]
     [InlineData(47u, 23)]
     [InlineData(0xA1B2_C3FFu, 15)]
-    public void TryParse_NormalizesOnlyLowByteForExactSelectorNine(uint packed, byte expected)
+    public void TryParse_NormalizesOnlyThePackedDirectionLowByteForMountedSelector(uint packed, byte expected)
     {
         Assert.True(GameWalkPacket.TryParse(CreatePacket(packedDirection: packed, selector: 9), out GameWalkPacket walk));
         Assert.True(walk.IsTwentyFourDirection);

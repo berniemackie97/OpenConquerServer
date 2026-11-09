@@ -102,8 +102,8 @@ public sealed class NativeTwentyFourDirectionMovementTests
     [Theory]
     [InlineData(8u)]
     [InlineData(10u)]
-    [InlineData(0x0000_0109u)]
-    public void Partition_NonNineFullWidthSelectorUsesEightDirectionTable(uint selector)
+    [InlineData(0x0000_0101u)]
+    public void Partition_UnmountedSelectorUsesEightDirectionTable(uint selector)
     {
         MapInstance map = new(CreateMap());
         WorldCharacterOwnership owner = new(PlayerId, MapId, 1);
@@ -115,7 +115,22 @@ public sealed class NativeTwentyFourDirectionMovementTests
     }
 
     [Fact]
-    public async Task Runtime_RejectsMountedSelectorWithoutServerOwnedRideState()
+    public void Partition_MountedAliasUsesTwentyFourDirectionTable()
+    {
+        MapInstance map = new(CreateMap());
+        WorldCharacterOwnership owner = new(PlayerId, MapId, 1);
+        map.Admit(owner, 2, 2);
+
+        WorldCharacterSnapshot step = Assert.IsType<WorldCharacterSnapshot>(
+            map.TryWalk(owner, 23, 0x0000_0109u));
+        Assert.Equal(((ushort)3, (ushort)4), (step.X, step.Y));
+    }
+
+    [Theory]
+    [InlineData(9u)]
+    [InlineData(0x0000_0109u)]
+    [InlineData(0xFFFF_FF09u)]
+    public async Task Runtime_RejectsMountedSelectorWithoutServerOwnedRideState(uint selector)
     {
         WorldMapContentCatalog content = new([CreateMap()]);
         await using WorldRuntime runtime = new(content, new WorldExecutionOptions(1, 32, 8));
@@ -124,17 +139,17 @@ public sealed class NativeTwentyFourDirectionMovementTests
 
         // The direction tables are covered above. A normal character must not get mounted speed by sending selector 9
         // while the server has no riding state.
-        Assert.Null(await runtime.TryWalkCharacterAsync(owner, 23, 9,
+        Assert.Null(await runtime.TryWalkCharacterAsync(owner, 23, selector,
             TestContext.Current.CancellationToken));
         Assert.Equal((2, 2), Position(await runtime.ReadCharacterAsync(owner, TestContext.Current.CancellationToken)));
         Assert.Null(await runtime.TryWalkCharacterAsync(owner with
         {
             Generation = owner.Generation + 1
-        }, 0, 9,
+        }, 0, selector,
             TestContext.Current.CancellationToken));
 
         WorldCharacterSnapshot groundStep = Assert.IsType<WorldCharacterSnapshot>(
-            await runtime.TryWalkCharacterAsync(owner, 6, 0, TestContext.Current.CancellationToken));
+            await runtime.TryWalkCharacterAsync(owner, 6, 0x0000_0101u, TestContext.Current.CancellationToken));
         Assert.Equal((3, 2), (groundStep.X, groundStep.Y));
         Assert.True(await runtime.RemoveCharacterAsync(owner, TestContext.Current.CancellationToken));
     }

@@ -15,7 +15,7 @@ step is refused.
 (`data_86C608` / `data_86C628`) define indices 0 to 7 as S, SW, W, NW, N, NE, E, SE.
 `20_notes/Server/movement.md` documents the 10005 packet and how it is acknowledged. Ground steps
 are checked against composed static collision, not just base terrain, as the earlier reconciliation
-with retail collision data showed. The two kinds of source, client research and collision data, are
+with verified map collision data showed. The two kinds of source, client research and collision data, are
 kept separate.
 
 The coordinate update is a single partition command that runs exclusively. It does not change the
@@ -30,10 +30,13 @@ it.
 Once an existing character has finished logging in, its session accepts `10005` walk packets only in
 the fixed 24-byte layout. The packet's entity ID must match the session's character ID. The parser
 keeps the upper bits of the packed direction, the movement tick, the selector, and the map-state
-fields for the response, but never trusts them as a position or as permission. Selector `9` picks
-the 24-entry movement delta table. Every other full-width selector picks the eight-direction table.
-The low direction byte is reduced modulo 24 or 8 respectively. The upper bits, map state, and client
-tick are kept so the echo matches the original packet. See
+fields for the response, but never trusts them as a position or as permission. A selector with
+low byte `9` picks the 24-entry displacement table; all other low-byte values use the eight-direction
+table. The low direction byte is reduced modulo 24 or 8 respectively. Full selector bits, map state
+and client tick are retained for byte-preserving replies. Until riding authority is available,
+the authenticated runtime refuses every selector with low byte `9`, including upper-byte aliases,
+and sends position correction `10010/108` without a committed move. Other selectors retain the
+ground path and are still subject to ownership, pacing and collision checks. See
 [24-direction movement](native-24-direction-movement.md).
 
 Each session paces walks by the server's monotonic clock: at least 125 ms between ordinary accepted
