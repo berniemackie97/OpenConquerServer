@@ -49,11 +49,11 @@ The test-only `tests/Fixtures/WireGolden/manifest.json` pins the canonical
 client source revision `e13bf5724975ec825e64a3609719afedd9b6af41`,
 the SHA-256 of each included fixture file, and an explicit list of every
 registered case. Both test suites require the same manifest SHA-256
-`ad0080adb7730c1235afa411cd25dc84eeb2f47c1630d43d1cf4bf7b89a373a1`,
-verify every listed file and reject unlisted fixture JSON files. The corpus contains two static-derived cases, seven observed client-message groups
+`60ca8ca1abe38bece22d57a7f329de60952efc3139008940919029f48c392361`,
+verify every listed file and reject unlisted fixture JSON files. The corpus contains two static-derived cases, eight observed client-message groups
 (1009/27, 1134/3, 10005 selectors 0/1, 10010 admission actions, 10010/146,
-1151/2 and 10010/145), and one project-defined registration case. Five
-later groups now contain eighteen exact running-client frames. The original source was observed
+1151/2, 10010/145 and 10010 replay responses), and one project-defined
+registration case. Six later groups now contain 32 exact running-client frames. The original source was observed
 on client output, not on an original server.
 The server parses and echoes the captured heartbeat and independently validates
 all three captured mission-catalog frames. These cases do not establish
@@ -95,3 +95,17 @@ the GetItems action and verifies the admission sequence continues. Login
 acceptance still depends on the action ladder, and the original client's
 jump and trade-quit payload bytes were deliberately withheld. These
 checks do not establish original-server behavior or client gameplay emission.
+
+## Captured admitted-world action replies
+
+The synchronized `10010-world-replay.observed.json` fixture pins 14 exact
+original-client outgoing responses across two post-admission windows from
+`20_notes/Network/evidence/cp32-world-entry-2026-11-08/capture.json`,
+capture 1 records 112–123 and 133–144. Both windows emit 76, 96, 77, 78,
+97, 251 and 132 in the observed order. Server protocol tests independently
+parse their fields and reproduce every original byte through `GameActionPacket`.
+
+The triggering 10010/75 frames at records 111 and 132 are controlled-peer
+stimuli, not original-server outputs; the first was deliberately shortened.
+No additional original-server behavior or connected-client acceptance is
+established by the shared captured-output regression.

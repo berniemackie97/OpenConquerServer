@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "classification": "observed",
+  "runtimeCaptured": true,
+  "protocol": "game",
+  "direction": "client-to-server",
+  "packetId": 10010,
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "sourceEvidence": "20_notes/Network/evidence/cp32-world-entry-2026-11-08/capture.json",
+  "capturePoint": "peer after game decrypt and client trailer validation",
+  "samples": [
+    {
+      "capture": 1,
+      "sequence": 112,
+      "subtype": 76,
+      "frameHex": "26001a2740420f000000000000000000e11e1e044c0000000000000000000000000000000000",
+      "frameSha256": "0444c00d4d2a1acde8598b6de9c05ede2aca4d4e81149a6c722dab95fe649544"
+    },
+    {
+      "capture": 1,
+      "sequence": 114,
+      "subtype": 96,
+      "frameHex": "26001a2740420f000300000000000000ae201e04600000000000000000000000000000000000",
+      "frameSha256": "b697b9e2ebf7b68980b5bf6f41dac16a1d7d225cbce91fa18b6fd4dfed5f7721"
+    },
+    {
+      "capture": 1,
+      "sequence": 115,
+      "subtype": 77,
+      "frameHex": "26001a2740420f00000000000000000055211e044d0000000000000000000000000000000000",
+      "frameSha256": "ee3dd6c199d5543fb8a99a3c9db6e04b872797180a0fcec14f8ae368ba9db05d"
+    },
+    {
+      "capture": 1,
+      "sequence": 117,
+      "subtype": 78,
+      "frameHex": "26001a2740420f000000000000000000c2211e044e0000000000000000000000000000000000",
+      "frameSha256": "4bed47ddd14255a5b6a3585c7eaf568b0fa13e9264ef6c379298b1963c6e4558"
+    },
+    {
+      "capture": 1,
+      "sequence": 119,
+      "subtype": 97,
+      "frameHex": "26001a2740420f0000000000000000002d221e04610000000000000000000000000000000000",
+      "frameSha256": "563cb7365cfb25568921b9d957033df3a2c732339cdf9164c64f41376f88c296"
+    },
+    {
+      "capture": 1,
+      "sequence": 121,
+      "subtype": 251,
+      "frameHex": "26001a2700000000000000000000000001000000fb0000000000000000000000000000000000",
+      "frameSha256": "d02efc2b1dc3fea52f09e08633e6282ab44e0018233d527fe09e9d2f6be69511"
+    },
+    {
+      "capture": 1,
+      "sequence": 123,
+      "subtype": 132,
+      "frameHex": "26001a2740420f000000000000000000fb221e04840000000000000000000000000000000000",
+      "frameSha256": "b90ab3098a0a22d9204d08aa184f0a31b8fd9d84a3395f960e3d09b3fbae7859"
+    },
+    {
+      "capture": 1,
+      "sequence": 133,
+      "subtype": 76,
+      "frameHex": "26001a2740420f00000000000000000072ba1e044c0000000000000000000000000000000000",
+      "frameSha256": "740e988a1df8a951ce9ff296ba3b7f3c1809a49ebb556577e2a7fd28fbbd5a11"
+    },
+    {
+      "capture": 1,
+      "sequence": 135,
+      "subtype": 96,
+      "frameHex": "26001a2740420f00030000000000000086ba1e04600000000000000000000000000000000000",
+      "frameSha256": "3df9098b244297bb1e3000d7b56d6fb542cdd0162e55edec431b7a0f66af0fb6"
+    },
+    {
+      "capture": 1,
+      "sequence": 136,
+      "subtype": 77,
+      "frameHex": "26001a2740420f00000000000000000092ba1e044d0000000000000000000000000000000000",
+      "frameSha256": "942ded0ab7fb73887d1702b8baa3c1899610afb55a5c10dc2f34f73517a003be"
+    },
+    {
+      "capture": 1,
+      "sequence": 138,
+      "subtype": 78,
+      "frameHex": "26001a2740420f000000000000000000b4ba1e044e0000000000000000000000000000000000",
+      "frameSha256": "3f09007428c6d9cbc9e5d3a1bcc742160be19ada653b0a0201d1fcf62b0de1d0"
+    },
+    {
+      "capture": 1,
+      "sequence": 140,
+      "subtype": 97,
+      "frameHex": "26001a2740420f000000000000000000d6ba1e04610000000000000000000000000000000000",
+      "frameSha256": "3a9108f514678f11a1614477f1186417a71e2907c2a170a3ccaa63077ad2ddad"
+    },
+    {
+      "capture": 1,
+      "sequence": 142,
+      "subtype": 251,
+      "frameHex": "26001a2700000000000000000000000001000000fb0000000000000000000000000000000000",
+      "frameSha256": "d02efc2b1dc3fea52f09e08633e6282ab44e0018233d527fe09e9d2f6be69511"
+    },
+    {
+      "capture": 1,
+      "sequence": 144,
+      "subtype": 132,
+      "frameHex": "26001a2740420f0000000000000000001bbb1e04840000000000000000000000000000000000",
+      "frameSha256": "41e7a4a8179f88189c1743f81c7046ad3ec5a4468853bc00406b35b42670b2ee"
+    }
+  ]
+}
