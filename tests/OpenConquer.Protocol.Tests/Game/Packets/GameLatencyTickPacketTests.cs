@@ -84,8 +84,8 @@ public sealed class GameLatencyTickPacketTests
             Assert.Equal(observed, echo);
         }
 
-        Assert.Equal(new[] { 24, 6 }, counts);
-        Assert.Equal(new[] { 155, 72 }, previousSequences);
+        Assert.Equal((24, 6), (counts[0], counts[1]));
+        Assert.Equal((155, 72), (previousSequences[0], previousSequences[1]));
     }
 
     [Fact]
