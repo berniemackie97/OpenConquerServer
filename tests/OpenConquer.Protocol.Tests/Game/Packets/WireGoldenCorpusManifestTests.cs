@@ -5,7 +5,7 @@ namespace OpenConquer.Protocol.Tests.Game.Packets;
 
 public sealed class WireGoldenCorpusManifestTests
 {
-    private const string ManifestHash = "2200507e70de4cbc3aae720ef21be849627ff4871b336ada3db056353bf0790b";
+    private const string ManifestHash = "97adf7c9276536c589341ba968109b1b7d214102aa46a85479ec4b2193e5819b";
 
     [Fact]
     public void ManifestPinsEveryCheckedInWireFixture()
