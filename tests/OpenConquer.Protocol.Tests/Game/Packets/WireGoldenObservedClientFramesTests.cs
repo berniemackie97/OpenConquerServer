@@ -18,10 +18,11 @@ public sealed class WireGoldenObservedClientFramesTests
     public void WalkSelectors_ParseAndEncodeOriginalClientFields()
     {
         Sample[] samples = Read("10005-walk.observed.json", GameWalkPacket.PacketIdentifier, EntryEvidence);
-        Assert.Equal(new ushort[] { 1, 0 }, samples.Select(static sample => sample.Subtype));
-        Assert.Equal(2, samples.Length);
+        Assert.Equal(23, samples.Length);
+        Assert.Equal(12, samples.Count(static sample => sample.Capture == 1 && sample.Subtype == 1));
+        Assert.Equal(11, samples.Count(static sample => sample.Capture == 2 && sample.Subtype == 0));
         Assert.Equal((1, 44), (samples[0].Capture, samples[0].Sequence));
-        Assert.Equal((2, 46), (samples[1].Capture, samples[1].Sequence));
+        Assert.Equal((2, 68), (samples[^1].Capture, samples[^1].Sequence));
 
         foreach (Sample sample in samples)
         {
@@ -30,7 +31,7 @@ public sealed class WireGoldenObservedClientFramesTests
             Assert.Equal(1010u, walk.MapState);
             Assert.Equal((uint)sample.Subtype, walk.CommandSelector);
             Assert.Equal(BinaryPrimitives.ReadUInt32LittleEndian(sample.Frame.AsSpan(4)), walk.PackedDirection);
-            Assert.Equal((byte)6, walk.DirectionIndex);
+            Assert.Equal((byte)((byte)walk.PackedDirection % 8), walk.DirectionIndex);
 
             byte[] encoded = new byte[GameWireFrameEncoder.GetFrameLength(walk)];
             Assert.Equal(sample.Frame.Length, GameWireFrameEncoder.WriteFrame(walk, encoded));
