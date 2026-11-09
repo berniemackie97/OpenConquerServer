@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using System.Text.Json;
 using OpenConquer.Application.Items.Hydration;
 using OpenConquer.Application.Items.Resolution;
 using OpenConquer.Domain.Items;
@@ -102,6 +103,30 @@ public sealed class ExistingCharacterItemSetProcessorTests
         await Assert.ThrowsAsync<EndOfStreamException>(() => CreateProcessor(resolver).ProcessAsync(login, TestContext.Current.CancellationToken).AsTask());
 
         Assert.Equal(0, resolver.ResolveCount);
+        Assert.Equal(0, harness.UnreadServerBytes);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CapturedFlowerRankRequest_PreservesItemSetAdmission()
+    {
+        await using LoginStepHarness harness = await LoginStepHarness.CreateAsync();
+        ExistingCharacterLoginContext login = harness.CreateLoginContext();
+        FakeItemSetResolver resolver = new(new CharacterItemSet(CharacterId, []));
+
+        using JsonDocument fixture = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(
+            AppContext.BaseDirectory, "WireGolden", "1151-flower-rank.observed.json")));
+        JsonElement sample = fixture.RootElement.GetProperty("samples").EnumerateArray().First();
+        harness.QueuePacket(Convert.FromHexString(sample.GetProperty("frameHex").GetString()!));
+        harness.QueueAction(GameAction.GetItemSetAction, timestamp: RequestTimestamp);
+
+        await CreateProcessor(resolver).ProcessAsync(login, TestContext.Current.CancellationToken);
+
+        Assert.Empty(login.ItemSet!.Items);
+        Assert.Equal(1, resolver.ResolveCount);
+        byte[] acknowledgement = Assert.Single(harness.ReadServerPackets());
+        Assert.Equal(GameAction.PacketIdentifier, LoginStepHarness.ReadPacketId(acknowledgement));
+        Assert.Equal(GameAction.GetItemSetAction,
+            BinaryPrimitives.ReadUInt16LittleEndian(acknowledgement.AsSpan(20)));
         Assert.Equal(0, harness.UnreadServerBytes);
     }
 
