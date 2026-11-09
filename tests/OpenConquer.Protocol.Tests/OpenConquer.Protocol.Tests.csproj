@@ -36,6 +36,12 @@
           Link="WireGolden/10010-correction.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/1151-flower-rank.observed.json"
           Link="WireGolden/1151-flower-rank.observed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/10010-client-state.observed.json"
+          Link="WireGolden/10010-client-state.observed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/10010-ground-jump.observed.json"
+          Link="WireGolden/10010-ground-jump.observed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/WireGolden/1056-trade-quit.observed.json"
+          Link="WireGolden/1056-trade-quit.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/10010-ghost-transition.observed.json"
           Link="WireGolden/10010-ghost-transition.observed.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/WireGolden/10010-world-replay.observed.json"

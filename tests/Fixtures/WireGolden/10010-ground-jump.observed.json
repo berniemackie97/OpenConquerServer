@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "classification": "observed",
+  "runtimeCaptured": true,
+  "protocol": "game",
+  "direction": "client-to-server",
+  "packetId": 10010,
+  "referenceImageSha256": "b6ba5ab8573ec073ea271f57b16fa14de1c67bfb44efd5aa7cfbfc0d3b488a62",
+  "sourceEvidence": "20_notes/Network/evidence/cp32-conditional-world-2026-11-08/capture.json",
+  "capturePoint": "peer after game decrypt and client trailer validation",
+  "samples": [
+    {
+      "capture": 1,
+      "sequence": 46,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003e006e00000000003b928505890000003f006a00f2030000ffffffff0000",
+      "frameSha256": "a0c59e56dbac10c493170d34a48dbfc3955b8e87224c38b5303865578b545687"
+    },
+    {
+      "capture": 1,
+      "sequence": 47,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003b006d0000000000e1958505890000003e006e00f2030000ffffffff0000",
+      "frameSha256": "2a8f32ff5104cc8a5d4eb7955babcacfd7abf05cc8903b92de24380755bda705"
+    },
+    {
+      "capture": 1,
+      "sequence": 48,
+      "subtype": 137,
+      "frameHex": "26001a2740420f0040006d000000000006998505890000003b006d00f2030000ffffffff0000",
+      "frameSha256": "2a408995094cb24a6499233435b392f535feacb2cfca638f8859537657a56881"
+    },
+    {
+      "capture": 1,
+      "sequence": 51,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003c006f0000000000e19b85058900000040006d00f2030000ffffffff0000",
+      "frameSha256": "8b84967b3a92249394de2a069d07e893192eeea5004453a3c78e10bdbfeb0cd6"
+    },
+    {
+      "capture": 1,
+      "sequence": 52,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003e006a0000000000d99e8505890000003c006f00f2030000ffffffff0000",
+      "frameSha256": "c6f7b2d75623a67e0db34f062151f534ebf923219be75bcab0838064e6babc12"
+    },
+    {
+      "capture": 1,
+      "sequence": 53,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003c00700000000000bea18505890000003e006a00f2030000ffffffff0000",
+      "frameSha256": "6c3c1700faff0af3d203e56943140a9fad2e5be0f82c3b5c0f3dfda69e4e080a"
+    },
+    {
+      "capture": 1,
+      "sequence": 54,
+      "subtype": 137,
+      "frameHex": "26001a2740420f0042006e00000000008da58505890000003c007000f2030000ffffffff0000",
+      "frameSha256": "56c470422fb00192347661f73210afe6f1be81b69b156ea21ab17690cc194cf7"
+    },
+    {
+      "capture": 1,
+      "sequence": 55,
+      "subtype": 137,
+      "frameHex": "26001a2740420f0038006d00000000005ca985058900000042006e00f2030000ffffffff0000",
+      "frameSha256": "2384c582cf6571b689ede4e83ee80b2da5f16e8c3c6ef86d6b50747fdaf20dad"
+    },
+    {
+      "capture": 1,
+      "sequence": 56,
+      "subtype": 137,
+      "frameHex": "26001a2740420f00320068000000000052ad85058900000038006d00f2030000ffffffff0000",
+      "frameSha256": "464dfe52067178f4f1274a404801d486c9234d23bb7eda6c072374a86b43f8fc"
+    },
+    {
+      "capture": 1,
+      "sequence": 57,
+      "subtype": 137,
+      "frameHex": "26001a2740420f0031005f00000000003fb185058900000032006800f2030000ffffffff0000",
+      "frameSha256": "841812b1329756b63b2accc49fc37561d356804676244f37896c2acdc1d0b7f9"
+    },
+    {
+      "capture": 1,
+      "sequence": 58,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003a00680000000000a1b585058900000031005f00f2030000ffffffff0000",
+      "frameSha256": "20e2b98fe7f80388ba240c7620fdd428c81cc062fab9f8a2e8b6ab0419f15dcc"
+    },
+    {
+      "capture": 1,
+      "sequence": 59,
+      "subtype": 137,
+      "frameHex": "26001a2740420f003f006a000000000081ba8505890000003a006800f2030000ffffffff0000",
+      "frameSha256": "6800da91812879ffbeb49111ad4a65f43296194835bdf160501a6176e2245cd0"
+    }
+  ]
+}
