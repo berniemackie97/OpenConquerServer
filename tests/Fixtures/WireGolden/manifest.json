@@ -40,6 +40,10 @@
       "sha256": "77c7be49a05ff85400e8859a38178654c897cdada98c4fb45adb3aed51b741f9"
     },
     {
+      "file": "10010-world-replay.observed.json",
+      "sha256": "f56c52b1eb2ede56d18b10ea92ba91199528144d1488a547d2d95d3b4005ad7b"
+    },
+    {
       "file": "F001-F002-registration.project-defined.json",
       "sha256": "3daec0c614935a89bed8598398d97786baaab575b74c66015c055de893ca2f7e"
     }
