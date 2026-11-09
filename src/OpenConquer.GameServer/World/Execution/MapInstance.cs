@@ -99,7 +99,7 @@ internal sealed class MapInstance(WorldMapContent map)
     /// </summary>
     public WorldCharacterSnapshot? TryWalk(WorldCharacterOwnership ownership, byte directionIndex, uint commandSelector = 0)
     {
-        bool twoTile = commandSelector == 9;
+        bool twoTile = (byte)commandSelector == 9;
         sbyte[] deltaX = twoTile ? s_twoTileDeltaX : s_walkDeltaX;
         sbyte[] deltaY = twoTile ? s_twoTileDeltaY : s_walkDeltaY;
         if (directionIndex >= deltaX.Length || !_characters.TryGetValue(ownership.CharacterId, out WorldCharacterSnapshot current)
