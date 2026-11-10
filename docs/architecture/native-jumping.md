@@ -56,6 +56,23 @@ least `d * 125 ms` after the previous accepted movement and the same interval be
 The existing two-tile 250 ms minimum still applies to selector-9 walking. These are cautious
 server-side speed limits. They say nothing about the timing of the retail jump animation.
 
+## Peer-facing ownership across jump delivery
+
+The captured source-client 10010/137 ground requests retain zero in the
+action-direction word. That word identifies neither a turn command nor a
+new eight-way facing for subsequent player spawns. A successful ground
+jump updates the committed peer tile and resets the cached pose to
+standing without replacing the most recent facing established by
+10010/79, 10010/81 or a ground walk.
+
+Current observers receive the unchanged action-137 payload; new
+observers and 10010/102 queries receive the updated tile with the
+existing facing in 10014. These paths share the existing map
+visibility lock and cached spawn snapshot. The encrypted connected
+regression verifies both a query and a late-arriving observer after
+a nonzero-facing jump; the captured request corpus is client-origin
+evidence, not a claim of independently observed server emission.
+
 ## Not implemented yet
 
 The character profile does not store riding or other active status.
