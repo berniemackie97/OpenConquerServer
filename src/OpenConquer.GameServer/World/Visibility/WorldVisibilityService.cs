@@ -191,7 +191,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
         PublishMovement(session, committed, packet, packet.EntityId, packet.FacingDirection);
 
     public void Jumped(WorldSession session, WorldCharacterSnapshot committed, GameActionPacket packet) =>
-        PublishMovement(session, committed, packet, packet.EntityId, (byte)(packet.Direction % 8));
+        PublishMovement(session, committed, packet, packet.EntityId, facing: null);
 
     /// <summary>Publishes a committed ghost transition and updates late-join spawn state.</summary>
     internal void Ghosted(WorldSession session, WorldCharacterSnapshot ghost, uint ghostLook)
@@ -231,7 +231,7 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
     }
 
     private void PublishMovement(WorldSession session, WorldCharacterSnapshot committed,
-        IPacket packet, uint entityId, byte facing)
+        IPacket packet, uint entityId, byte? facing)
     {
         ArgumentNullException.ThrowIfNull(session);
         if (session.IsStopping || committed.Ownership != session.Ownership || entityId != session.Ownership.CharacterId
@@ -246,13 +246,12 @@ internal sealed partial class WorldVisibilityService(ILogger<WorldVisibilityServ
             {
                 return;
             }
-            GamePlayerSpawnSnapshot spawn = map.Spawns[id] with
+            GamePlayerSpawnSnapshot prior = map.Spawns[id];
+            GamePlayerSpawnSnapshot spawn = prior with
             {
                 X = committed.X,
                 Y = committed.Y,
-                // Spawn 10014 exposes an eight-direction facing even when
-                // movement 10005 uses the 24-entry displacement table.
-                Direction = facing,
+                Direction = facing ?? prior.Direction,
                 Action = GameAvatarAction.StandingPose,
             };
             VisibilityChange change = map.Index.Move(id, committed.X, committed.Y);
