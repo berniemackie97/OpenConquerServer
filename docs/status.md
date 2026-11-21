@@ -67,7 +67,7 @@ the implemented parts work and link here instead of repeating the list.
   [movement eligibility](architecture/authoritative-movement-eligibility.md).
 - Ground jumps (5517 packet 10010 subtype 137) to an absolute target 1 to 16 tiles away, measured
   as a rounded distance. The map partition checks the map's no-jump flag and the collision of the
-  composed landing tile. Jumps share pacing with walking. A committed jump is echoed to the player
+  composed landing tile. Jumps are paced apart from walking (TQ-shaped four-sample ring, 643 ms mean). A committed jump is echoed to the player
   and relayed to nearby players through size-limited queues. Jump limits for mounted characters
   and jump animation/elevation status are not implemented yet (see
   [ground jumping](architecture/native-jumping.md)).
