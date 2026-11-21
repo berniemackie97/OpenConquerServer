@@ -16,7 +16,7 @@ rounding algorithm is recorded at `Map_CalculateRoundedTileDistanceByAdjustmentM
 
 Only fixed-length subtype 137 packets with no strings reach the jump path. The world session checks
 the authenticated character ID, reads the character's current snapshot from its map partition, and
-applies the movement pace and replay budget it shares with walking. It then submits the absolute
+applies the jump pace and replay guard, which are separate from walking. It then submits the absolute
 target to the same partition that handles walking, under the same ownership-generation check. The
 partition repeats the rounded range and map-flag checks against the character's actual current
 tile. It rejects landing tiles that are blocked or out of bounds in the composed static-collision
@@ -51,10 +51,19 @@ including ones with invalid targets, before the target is checked. Like any refu
 refused jump gets a 108 position correction, and a session that needs more than 32 corrections
 in one second is closed.
 
-Walking (10005) and jumping (10010) share one movement pacer. A jump of `d` rounded tiles needs at
-least `d * 125 ms` after the previous accepted movement and the same interval before the next one.
-The existing two-tile 250 ms minimum still applies to selector-9 walking. These are cautious
-server-side speed limits. They say nothing about the timing of the retail jump animation.
+Jumps and walks are paced independently, as in the TQ 15.10 server, which keeps a separate
+timestamp ring for each (`CUser__CheckWalkTimeStamp` `0x416A26`, `CUser__CheckJumpTimeStamp`
+`0x4168DF`, MsgServer; historical behaviour hint, not 5517 proof). The jump pacer keeps the
+server-clock arrival times of the last four accepted jumps. The first four pass. After that, a
+jump passes only if the mean of the last three intervals, ending at this jump, is at least 643 ms.
+Refused jumps do not enter the ring. The jump's client timestamp only guards against replay: it
+must advance, modulo `uint32`, within the jump stream.
+
+The shortest native ground jump is 20 frames at the 33 ms interval floor, 660 ms
+(`20_notes/Network/15_msgwalk_10005_direction_index_order.md`, "Remote jump presentation"), so a client jumping at its fastest stays above the threshold. The native client sends a jump while
+its previous step is still animating, so a walk does not delay the next jump and a jump does not
+delay the next walk. The previous shared budget charged a jump `d * 125 ms` before and after it.
+That refused ordinary walk-then-jump input and corrected the player back with subtype 108.
 
 ## Peer-facing ownership across jump delivery
 

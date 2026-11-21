@@ -14,18 +14,10 @@ internal sealed class WorldWalkPacer
     private uint _lastAcceptedClientTick;
     private bool _hasAccepted;
     private bool _lastTwoTileMove;
-    private long _lastJumpIntervalTicks;
 
-    public bool TryAccept(uint clientTick, long serverTimestamp, bool twoTileMove = false) =>
-        TryAcceptCore(clientTick, serverTimestamp, twoTileMove, jumpDistance: 0);
-
-    /// <summary>Shares the monotonic replay and time budget with walking; the jump's
-    /// distance controls the conservative minimum interval before and after it.</summary>
-    public bool TryAcceptJump(uint clientTick, long serverTimestamp, int jumpDistance) =>
-        jumpDistance is >= 1 and <= 16 &&
-        TryAcceptCore(clientTick, serverTimestamp, twoTileMove: false, jumpDistance: jumpDistance);
-
-    private bool TryAcceptCore(uint clientTick, long serverTimestamp, bool twoTileMove, int jumpDistance)
+    /// <remarks>Jumps are paced separately by <see cref="WorldJumpPacer"/>, as in TQ 15.10, where walk and jump
+    /// timestamps fill independent rings (<c>CUser__CheckWalkTimeStamp</c> / <c>CUser__CheckJumpTimeStamp</c>).</remarks>
+    public bool TryAccept(uint clientTick, long serverTimestamp, bool twoTileMove = false)
     {
         if (_hasAccepted)
         {
@@ -41,9 +33,7 @@ internal sealed class WorldWalkPacer
             // Until mounted-state authorization is modeled, a two-tile step
             // cannot double the unmounted walking speed by using the same
             // admission interval. This is a server safety limit, not retail timing.
-            long minimumTicks = Math.Max(_lastJumpIntervalTicks,
-                jumpDistance > 0 ? checked(jumpDistance * s_minimumIntervalTicks) :
-                twoTileMove || _lastTwoTileMove ? checked(2 * s_minimumIntervalTicks) : s_minimumIntervalTicks);
+            long minimumTicks = twoTileMove || _lastTwoTileMove ? checked(2 * s_minimumIntervalTicks) : s_minimumIntervalTicks;
             if (serverTimestamp < _lastAcceptedTimestamp || serverTimestamp - _lastAcceptedTimestamp < minimumTicks)
             {
                 return false;
@@ -53,7 +43,6 @@ internal sealed class WorldWalkPacer
         _lastAcceptedTimestamp = serverTimestamp;
         _lastAcceptedClientTick = clientTick;
         _lastTwoTileMove = twoTileMove;
-        _lastJumpIntervalTicks = checked(jumpDistance * s_minimumIntervalTicks);
         _hasAccepted = true;
         return true;
     }

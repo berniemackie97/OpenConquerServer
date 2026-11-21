@@ -21,6 +21,7 @@ internal sealed class WorldSessionGameplay
     private readonly IGameTickSource _tickSource;
     private WorldWalkPacer _walkPacer = new();
     private readonly WorldJumpIngressLimiter _jumpIngressLimiter = new();
+    private WorldJumpPacer _jumpPacer = new();
     private readonly WorldAvatarActionLimiter _avatarActionLimiter = new();
     private readonly WorldChatRateLimiter _chatRateLimiter = new();
     private WorldPositionReconciler _positionReconciler;
@@ -41,6 +42,7 @@ internal sealed class WorldSessionGameplay
     {
         _positionReconciler = new WorldPositionReconciler(x, y);
         _walkPacer = new WorldWalkPacer();
+        _jumpPacer = new WorldJumpPacer();
     }
 
     /// <summary>
@@ -169,7 +171,7 @@ internal sealed class WorldSessionGameplay
             throw new InvalidDataException("Jump intent has no active authoritative world owner.");
         }
         int distance = MapDistance.RoundedTileDistance(before.Value.X, before.Value.Y, jump.TargetX, jump.TargetY);
-        if (distance is < 1 or > 16 || !_walkPacer.TryAcceptJump(jump.Timestamp, Stopwatch.GetTimestamp(), distance))
+        if (distance is < 1 or > 16 || !_jumpPacer.TryAccept(jump.Timestamp, Stopwatch.GetTimestamp()))
         {
             await CorrectRejectedMovementAsync(cancellationToken).ConfigureAwait(false);
             return;
